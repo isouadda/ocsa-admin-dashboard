@@ -2718,6 +2718,453 @@ function createStubs() {
     }
     return answer;
   }
+  // ---- Step 256 (STEP256_CONTRACT.md version 2) -------------------------------------------------------
+  // Training by role, answered only once a run arms it with setStep256, over whichever earlier step the
+  // run has armed. Five invented topics, one retired, with who each is for; gaps worked out from the
+  // stub's own training records by the contract's rules (section 3), so a session logged here shows in
+  // them; the session route (section 4); a published lesson on the first topic with a retired one
+  // before it, its draft, publish, discard and retire, the library's sections (sections 7 and 8); and
+  // the attempts behind In progress, Waiting for trainer and Needs an in-person session, two waiting for
+  // a trainer's sign-off and one of them the supervisor's own, one the admin's own, and one signed off
+  // with its record. Every value is invented.
+  let step256 = false;
+  const T_TODAY = seed.TODAY;
+  const T_ROLES = ["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "contractor"];
+  const T_LINES = ["office", "schools", "laboratory", "industrial", "disinfection", "post_construction", "day_porter", "landscaping"];
+  const T_FREQ = { once: null, yearly: 12, sixty_months: 60, on_change: null };
+  const T_DUE = ["first_day", "first_shift", "before_unsupervised", "before_product", "before_task", "before_access", "before_school_shift", "before_supervising"];
+  // The service lines each seeded site holds, so a requirement narrowed to one applies at those sites.
+  const SITE_LINES = { "s-1": ["office", "schools"], "s-2": ["laboratory", "disinfection"], "s-3": ["industrial", "day_porter"] };
+  const tName = (n) => ({ en: n[0], es: n[1], fr: n[2] });
+  const TOPICS = () => [
+    { id: "tp-1", key: "spill_response", names: tName(["Spill response", "Respuesta a derrames", "Intervention en cas de déversement"]), docCode: "OCSA-TRN-901", docSection: "3.2", safetyCritical: true, frequency: "yearly", dueRule: "before_product", perSite: false, evidenceForm: null, recordNames: ["Chemical handling"], linkUrl: null, active: true,
+      requirements: [{ id: "rq-1", role: "custodial_laborer" }, { id: "rq-2", role: "custodial_lead" }, { id: "rq-3", role: "day_porter" }, { id: "rq-4", role: "supervisor" }, { id: "rq-5", userId: seed.PEOPLE.admin.id }] },
+    { id: "tp-2", key: "site_orientation", names: tName(["Site orientation", "Orientación en el sitio", "Orientation sur le site"]), docCode: "OCSA-TRN-902", docSection: "2", safetyCritical: false, frequency: "once", dueRule: "first_shift", perSite: true, evidenceForm: "OCSA-FRM-901", recordNames: [], linkUrl: null, active: true,
+      requirements: [{ id: "rq-6", role: "custodial_laborer" }, { id: "rq-7", role: "custodial_lead" }, { id: "rq-8", role: "day_porter" }] },
+    { id: "tp-3", key: "ladder_use", names: tName(["Ladder use", "Uso de escaleras", "Utilisation des échelles"]), docCode: "OCSA-TRN-903", docSection: "4.1", safetyCritical: true, frequency: "sixty_months", dueRule: "before_task", perSite: false, evidenceForm: null, recordNames: ["Ladder safety"], linkUrl: null, active: true,
+      requirements: [{ id: "rq-9", role: "custodial_lead" }, { id: "rq-10", role: "custodial_laborer", serviceLine: "industrial" }] },
+    { id: "tp-4", key: "child_safety_reporting", names: tName(["Reporting a concern about a child", "Reportar una preocupación sobre un menor", "Signaler une inquiétude au sujet d'un enfant"]), docCode: "OCSA-TRN-904", docSection: "1", safetyCritical: false, frequency: "sixty_months", dueRule: "before_school_shift", perSite: false, evidenceForm: null, recordNames: [], linkUrl: "https://training.example.invalid/child-safety", active: true,
+      requirements: [{ id: "rq-11", role: "custodial_laborer", serviceLine: "schools" }, { id: "rq-12", userId: "u-staff-6" }] },
+    { id: "tp-5", key: "floor_machine_basics", names: tName(["Floor machine basics", "Conceptos básicos de la máquina de piso", "Notions de base de la machine à plancher"]), docCode: "OCSA-TRN-905", docSection: "2.3", safetyCritical: false, frequency: "on_change", dueRule: "before_task", perSite: false, evidenceForm: null, recordNames: ["Machine operation"], linkUrl: null, active: false,
+      requirements: [] },
+  ];
+  const topics = () => { if (!state.topics) { state.topics = TOPICS(); state.topicSeq = 5; state.reqSeq = 12; } return state.topics; };
+  const T_WORDS = {
+    "training.badDetails": ["Check the fields marked.", "Revise los campos marcados."],
+    "training.duplicateKey": ["A topic already uses that key.", "Ya hay un tema con esa clave."],
+    "training.topicNotFound": ["That topic was not found.", "No se encontró ese tema."],
+    "training.badRequirement": ["Check the requirement marked.", "Revise el requisito marcado."],
+    "training.personNotFound": ["That person was not found.", "No se encontró a esa persona."],
+    "training.tooManyPeople": ["Log 1 to 60 people at a time.", "Registre de 1 a 60 personas a la vez."],
+    "training.noAccess": ["You cannot do this.", "No puede hacer esto."],
+    "training.draftOpen": ["This topic already has a draft.", "Este tema ya tiene un borrador."],
+    "training.lessonProblems": ["Fix the problems listed first.", "Corrija primero los problemas de la lista."],
+    "training.translationUnchecked": ["A safety lesson needs the name of whoever checked the Spanish.", "Una lección de seguridad necesita el nombre de quien revisó el español."],
+    "training.noLesson": ["This topic has no lesson.", "Este tema no tiene lección."],
+    "training.notReady": ["This attempt is not waiting for a sign-off.", "Este intento no espera una firma."],
+    "training.cannotSignOwn": ["Someone else signs off your own training.", "Otra persona firma su propia capacitación."],
+    "training.demonstrationRequired": ["Tick that you watched them do it.", "Marque que vio a la persona hacerlo."],
+    "training.signatureRequired": ["Sign first.", "Firme primero."],
+    "training.attemptNotFound": ["That attempt was not found.", "No se encontró ese intento."],
+  };
+  const tRefusal = (code, status, lang, extra) => ({ status, json: Object.assign({ code, error: T_WORDS[code] ? T_WORDS[code][lang === "es" ? 1 : 0] : code }, extra || {}) });
+  const tPerson = (id) => state.staff.find((s0) => s0.id === id) || null;
+  const tPersonName = (id) => (tPerson(id) || {}).name || "";
+  const tActiveReqs = (tp) => tp.requirements.filter((r) => !r.removedAt);
+  const topicView = (tp, lang) => ({
+    id: tp.id, key: tp.key, name: tp.names[lang] || tp.names.en, names: Object.assign({ en: "", es: "", fr: "" }, tp.names), docCode: tp.docCode, docSection: tp.docSection,
+    safetyCritical: tp.safetyCritical, frequency: tp.frequency, renewMonths: T_FREQ[tp.frequency] || null, dueRule: tp.dueRule, perSite: tp.perSite, evidenceForm: tp.evidenceForm,
+    recordNames: tp.recordNames.slice(), linkUrl: tp.linkUrl,
+    requirements: tActiveReqs(tp).map((r) => ({ id: r.id, role: r.role || null, userId: r.userId || null, personName: r.userId ? tPersonName(r.userId) : null, serviceLine: r.serviceLine || null })),
+    lesson: null, active: tp.active,
+  });
+  // A topic's fields as POST and PATCH take them, checked; the keys named on a refusal, or none.
+  const topicBad = (b, creating) => {
+    const bad = [];
+    if (creating && !/^[a-z][a-z0-9_]{1,59}$/.test(String(b.key || ""))) bad.push("key");
+    if (creating || b.names !== undefined) {
+      const n = b.names || {};
+      if (!String(n.en || "").trim() || String(n.en).length > 120) bad.push("names.en");
+      ["es", "fr"].forEach((l) => { if (n[l] != null && String(n[l]).length > 120) bad.push("names." + l); });
+    }
+    if ((creating || b.frequency !== undefined) && !Object.prototype.hasOwnProperty.call(T_FREQ, b.frequency)) bad.push("frequency");
+    if ((creating || b.dueRule !== undefined) && T_DUE.indexOf(b.dueRule) < 0) bad.push("dueRule");
+    if (b.linkUrl != null && b.linkUrl !== "" && !/^https:\/\/\S+\.\S+$/.test(String(b.linkUrl))) bad.push("linkUrl");
+    if (b.recordNames !== undefined && (!Array.isArray(b.recordNames) || b.recordNames.length > 20)) bad.push("recordNames");
+    return bad;
+  };
+  const topicTake = (tp, b) => {
+    if (b.names !== undefined) tp.names = { en: String(b.names.en || "").trim(), es: String(b.names.es || "").trim(), fr: String(b.names.fr || "").trim() };
+    ["docCode", "docSection", "evidenceForm"].forEach((k) => { if (b[k] !== undefined) tp[k] = b[k] == null || String(b[k]).trim() === "" ? null : String(b[k]).trim(); });
+    ["safetyCritical", "perSite"].forEach((k) => { if (b[k] !== undefined) tp[k] = b[k] === true; });
+    if (b.frequency !== undefined) tp.frequency = b.frequency;
+    if (b.dueRule !== undefined) tp.dueRule = b.dueRule;
+    if (b.recordNames !== undefined) tp.recordNames = b.recordNames.map((x) => String(x).trim()).filter(Boolean);
+    if (b.linkUrl !== undefined) tp.linkUrl = b.linkUrl ? String(b.linkUrl).trim() : null;
+    if (b.active !== undefined) tp.active = b.active !== false;
+  };
+
+  // ---- lessons and attempts --------------------------------------------------------------------------
+  const L3 = (en, es, fr) => ({ en, es, fr });
+  const LESSON_V2 = () => ({
+    title: L3("Spill response", "Respuesta a derrames", "Intervention en cas de déversement"),
+    blocks: [
+      { key: "b1", kind: "text", text: L3("Stop, look and keep people away from the spill.", "Deténgase, observe y mantenga a las personas lejos del derrame.", "Arrêtez-vous, observez et éloignez les personnes du déversement."), items: [], source: { docCode: "OCSA-TRN-901", sectionRef: "3.2" } },
+      { key: "b2", kind: "list", text: L3("What you need", "Lo que necesita", "Ce dont vous avez besoin"), items: [L3("Gloves", "Guantes", "Gants"), L3("Absorbent pads", "Almohadillas absorbentes", "Tampons absorbants"), L3("A wet floor sign", "Un letrero de piso mojado", "Un panneau de sol mouillé")], source: null },
+      { key: "b3", kind: "warning", text: L3("Never mix two products to clean a spill.", "Nunca mezcle dos productos para limpiar un derrame.", "Ne mélangez jamais deux produits pour nettoyer un déversement."), items: [], source: { docCode: "OCSA-TRN-901", sectionRef: "3.4" } },
+    ],
+    questions: [1, 2, 3, 4, 5].map((n) => ({
+      key: "q" + n,
+      text: L3("Question " + n + " about a spill", "Pregunta " + n + " sobre un derrame", "Question " + n + " sur un déversement"),
+      options: ["a", "b", "c"].map((v, i) => ({ value: v, text: L3("Answer " + (i + 1), "Respuesta " + (i + 1), "Réponse " + (i + 1)) })),
+      correct: n % 2 ? "a" : "b",
+    })),
+    acknowledgement: L3("I read the lesson and I know how to contain a spill.", "Leí la lección y sé cómo contener un derrame.", "J'ai lu la leçon et je sais contenir un déversement."),
+  });
+  const VERSIONS = () => [
+    { id: "lv-1", topicId: "tp-1", version: 1, status: "retired", publishedAt: seed.shift(-200) + "T15:00:00Z", publishedBy: { name: ADMIN_NAME }, changeNote: "First version.", content: LESSON_V2(), passPercent: 80, maxAttempts: 3, needsTrainer: true, sources: [], checkedEsBy: "Checked in the office", checkedFrBy: null, stale: false },
+    { id: "lv-2", topicId: "tp-1", version: 2, status: "published", publishedAt: seed.shift(-60) + "T15:00:00Z", publishedBy: { name: ADMIN_NAME }, changeNote: "The warning about mixing products.", content: LESSON_V2(), passPercent: 80, maxAttempts: 3, needsTrainer: true, sources: [{ docCode: "OCSA-TRN-901", sectionRef: "3.2", docVersion: "2" }], checkedEsBy: "Checked in the office", checkedFrBy: null, stale: true },
+  ];
+  const versions = () => { if (!state.lessonVersions) { state.lessonVersions = VERSIONS(); state.lessonSeq = 2; } return state.lessonVersions; };
+  const publishedOf = (topicId) => versions().find((v) => v.topicId === topicId && v.status === "published") || null;
+  const LIBRARY = [
+    { docCode: "OCSA-TRN-901", docTitle: "Spill Response Procedure", docVersion: "2", sectionRef: "3.2", title: "Containing a spill", content: "Keep people away, put on gloves and contain the edge of the spill with absorbent pads." },
+    { docCode: "OCSA-TRN-901", docTitle: "Spill Response Procedure", docVersion: "2", sectionRef: "3.4", title: "Products that must not be mixed", content: "Two products are never mixed to clean a spill, whatever their labels say." },
+    { docCode: "OCSA-TRN-903", docTitle: "Ladder Use Procedure", docVersion: "1", sectionRef: "4.1", title: "Before climbing", content: "Check the feet, the rungs and the lock before every climb." },
+  ];
+  const at = (d, hm) => seed.shift(d) + "T" + hm + ":00Z";
+  const ATTEMPTS = () => [
+    // Waiting for a trainer: a custodial laborer's, the supervisor's own and the admin's own.
+    { id: "at-1", userId: "u-staff-8", versionId: "lv-2", topicId: "tp-1", attemptNo: 1, locale: "es", siteId: "s-2", startedAt: at(-1, "14:40"), scoredAt: at(-1, "14:58"), scorePercent: 90, passed: true, missed: ["q4"], acknowledgedAt: at(-1, "15:02"), trainerSignedAt: null, trainerId: null, trainerNote: null, demonstrated: false, voidedAt: null },
+    { id: "at-2", userId: seed.PEOPLE.supervisor.id, versionId: "lv-2", topicId: "tp-1", attemptNo: 1, locale: "en", siteId: "s-1", startedAt: at(-2, "13:00"), scoredAt: at(-2, "13:15"), scorePercent: 100, passed: true, missed: [], acknowledgedAt: at(-2, "13:16"), trainerSignedAt: null, trainerId: null, trainerNote: null, demonstrated: false, voidedAt: null },
+    { id: "at-8", userId: seed.PEOPLE.admin.id, versionId: "lv-2", topicId: "tp-1", attemptNo: 1, locale: "en", siteId: "s-1", startedAt: at(-3, "13:00"), scoredAt: at(-3, "13:12"), scorePercent: 80, passed: true, missed: ["q2"], acknowledgedAt: at(-3, "13:13"), trainerSignedAt: null, trainerId: null, trainerNote: null, demonstrated: false, voidedAt: null },
+    // In progress: one failed try of three.
+    { id: "at-3", userId: "u-staff-6", versionId: "lv-2", topicId: "tp-1", attemptNo: 1, locale: "en", siteId: "s-3", startedAt: at(-4, "16:00"), scoredAt: at(-4, "16:20"), scorePercent: 60, passed: false, missed: ["q1", "q3"], acknowledgedAt: null, trainerSignedAt: null, trainerId: null, trainerNote: null, demonstrated: false, voidedAt: null },
+    // No tries left: three failed tries.
+    { id: "at-4", userId: "u-staff-9", versionId: "lv-2", topicId: "tp-1", attemptNo: 1, locale: "en", siteId: "s-3", startedAt: at(-9, "10:00"), scoredAt: at(-9, "10:20"), scorePercent: 40, passed: false, missed: ["q1", "q2", "q5"], acknowledgedAt: null, trainerSignedAt: null, trainerId: null, trainerNote: null, demonstrated: false, voidedAt: null },
+    { id: "at-5", userId: "u-staff-9", versionId: "lv-2", topicId: "tp-1", attemptNo: 2, locale: "en", siteId: "s-3", startedAt: at(-8, "10:00"), scoredAt: at(-8, "10:20"), scorePercent: 60, passed: false, missed: ["q1", "q2"], acknowledgedAt: null, trainerSignedAt: null, trainerId: null, trainerNote: null, demonstrated: false, voidedAt: null },
+    { id: "at-6", userId: "u-staff-9", versionId: "lv-2", topicId: "tp-1", attemptNo: 3, locale: "en", siteId: "s-3", startedAt: at(-7, "10:00"), scoredAt: at(-7, "10:20"), scorePercent: 60, passed: false, missed: ["q1", "q4"], acknowledgedAt: null, trainerSignedAt: null, trainerId: null, trainerNote: null, demonstrated: false, voidedAt: null },
+    // Signed off by the supervisor after a demonstration, with the record it wrote.
+    { id: "at-7", userId: "u-staff-5", versionId: "lv-2", topicId: "tp-1", attemptNo: 1, locale: "en", siteId: "s-2", startedAt: at(-20, "09:00"), scoredAt: at(-20, "09:18"), scorePercent: 90, passed: true, missed: ["q5"], acknowledgedAt: at(-20, "09:19"), trainerSignedAt: at(-20, "11:30"), trainerId: seed.PEOPLE.supervisor.id, trainerNote: "Contained a water spill with pads at the dock.", demonstrated: true, voidedAt: null },
+  ];
+  const attempts = () => { if (!state.attempts) state.attempts = ATTEMPTS(); return state.attempts; };
+  // The records a lesson and the seed's own session write, beside the twelve the stub has always held:
+  // the signed-off attempt's, and a session of the first topic given today.
+  const LESSON_RECORDS = () => [
+    { id: "ht-90", user_id: "u-staff-5", training_name: "Spill response", training_type: "safety", completed_date: seed.shift(-20), expiry_date: null, score: "90%", administered_by: "Marcus Ferreira", notes: "Online lesson version 2, given in English", document_id: null, created_at: at(-20, "11:30"), site_id: "s-2", topic_id: "tp-1", attempt_id: "at-7", trainer_id: seed.PEOPLE.supervisor.id, locale: "en" },
+    { id: "ht-91", user_id: "u-staff-7", training_name: "Spill response", training_type: "safety", completed_date: T_TODAY, expiry_date: null, score: null, administered_by: "Marcus Ferreira", notes: "Given in Spanish", document_id: null, created_at: at(0, "14:00"), site_id: "s-1", topic_id: "tp-1", attempt_id: null, trainer_id: seed.PEOPLE.supervisor.id, locale: "es" },
+  ];
+  const lessonRecords = () => { if (!state.lessonRecords) state.lessonRecords = LESSON_RECORDS(); return state.lessonRecords; };
+  const allRecords = () => trainingRows().filter((r) => !r.removed_at).concat(lessonRecords().filter((r) => !r.removed_at));
+  const attemptsOf = (userId, versionId) => attempts().filter((a) => a.userId === userId && a.versionId === versionId && !a.voidedAt);
+  const attemptView = (a, lang) => {
+    const tp = topics().find((x) => x.id === a.topicId);
+    const v = versions().find((x) => x.id === a.versionId);
+    const tr0 = a.trainerId ? tPerson(a.trainerId) : null;
+    return { id: a.id, versionId: a.versionId, topicId: a.topicId, topicName: tp ? tp.names[lang] || tp.names.en : "", attemptNo: a.attemptNo, locale: a.locale, startedAt: a.startedAt, scoredAt: a.scoredAt,
+      scorePercent: a.scorePercent, passed: a.passed, missed: a.missed.slice(), acknowledgedAt: a.acknowledgedAt, awaitingTrainer: !!(a.acknowledgedAt && !a.trainerSignedAt && v && v.needsTrainer),
+      trainerSignedAt: a.trainerSignedAt, trainer: tr0 ? { name: tr0.name } : null, trainerNote: a.trainerNote, demonstrated: a.demonstrated, siteId: a.siteId, voidedAt: a.voidedAt };
+  };
+
+  // ---- gaps (section 3) ------------------------------------------------------------------------------
+  const addMonths = (day, n) => { const d = new Date(day + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10); };
+  const plusDays = (day, n) => { const d = new Date(day + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const sitesOfPerson = (p) => (p.sites && p.sites.length ? p.sites.map((s0) => s0.siteId) : [p.site_id]).filter(Boolean);
+  const tKey = (s0) => String(s0 || "").trim().toLowerCase();
+  const reqApplies = (r, p) => (r.userId ? r.userId === p.id : r.role === p.role) && (!r.serviceLine || sitesOfPerson(p).some((sid) => (SITE_LINES[sid] || []).indexOf(r.serviceLine) >= 0));
+  const gapItem = (tp, p, siteId, lang) => {
+    const mine = allRecords().filter((r) => r.user_id === p.id && (r.topic_id === tp.id || tp.recordNames.some((n) => tKey(n) === tKey(r.training_name))) && (!tp.perSite || r.site_id === siteId))
+      .sort((a, b) => String(b.completed_date || "").localeCompare(String(a.completed_date || "")));
+    const ev = mine[0] || null;
+    const expiresOn = ev ? (ev.expiry_date ? String(ev.expiry_date).slice(0, 10) : T_FREQ[tp.frequency] && ev.completed_date ? addMonths(String(ev.completed_date).slice(0, 10), T_FREQ[tp.frequency]) : null) : null;
+    let status = !ev ? "missing" : expiresOn && expiresOn < T_TODAY ? "expired" : expiresOn && expiresOn <= plusDays(T_TODAY, 30) ? "dueSoon" : "current";
+    const live = publishedOf(tp.id);
+    let attemptId = null;
+    let lesson = null;
+    if (live) {
+      const tries = attemptsOf(p.id, live.id).sort((a, b) => b.attemptNo - a.attemptNo);
+      const used = tries.filter((a) => a.scoredAt).length;
+      lesson = { versionId: live.id, attemptsUsed: used, attemptsLeft: Math.max(0, live.maxAttempts - used) };
+      const last = tries[0];
+      if (status !== "current" && last) {
+        if (last.acknowledgedAt && !last.trainerSignedAt && live.needsTrainer) { status = "awaitingTrainer"; attemptId = last.id; }
+        else if (!last.passed && lesson.attemptsLeft > 0) { status = "inProgress"; attemptId = last.id; }
+      }
+    }
+    const site = siteId ? state.sites.find((s0) => s0.id === siteId) : null;
+    return { topicId: tp.id, name: tp.names[lang] || tp.names.en, docCode: tp.docCode, docSection: tp.docSection, safetyCritical: tp.safetyCritical, linkUrl: tp.linkUrl,
+      siteId: siteId || null, siteName: site ? site.name : null, status, completedDate: ev && ev.completed_date ? String(ev.completed_date).slice(0, 10) : null, expiresOn, recordId: ev ? ev.id : null, attemptId, lesson };
+  };
+  const itemsFor = (p, lang, siteId) => {
+    const out = [];
+    topics().filter((tp) => tp.active && tActiveReqs(tp).some((r) => reqApplies(r, p))).forEach((tp) => {
+      (tp.perSite ? sitesOfPerson(p).filter((sid) => !siteId || sid === siteId) : [null]).forEach((sid) => out.push(gapItem(tp, p, sid, lang)));
+    });
+    return out;
+  };
+  const GAP_KEYS = ["current", "dueSoon", "expired", "missing", "inProgress", "awaitingTrainer", "refresherDue"];
+  const gapsAnswer = (query, lang) => {
+    const siteId = query.get("siteId") || "";
+    const role = query.get("role") || "";
+    const topicId = query.get("topicId") || "";
+    const status = query.get("status") || "";
+    const people = state.staff.filter((p) => p.status === "active" && (!siteId || sitesOfPerson(p).indexOf(siteId) >= 0) && (!role || p.role === role));
+    const counts = {};
+    const rows = [];
+    people.forEach((p) => {
+      const all = itemsFor(p, lang, siteId).filter((it) => !topicId || it.topicId === topicId);
+      all.forEach((it) => {
+        const c = counts[it.topicId] || (counts[it.topicId] = { required: 0 });
+        c.required += 1; c[it.status] = (c[it.status] || 0) + 1;
+      });
+      const items = all.filter((it) => !status || it.status === status);
+      if (!items.length) return;
+      rows.push({ id: p.id, name: p.name, role: p.role, sites: sitesOfPerson(p).map((sid) => ({ id: sid, name: (state.sites.find((s0) => s0.id === sid) || {}).name || "" })), open: items.filter((it) => it.status !== "current").length, items });
+    });
+    rows.sort((a, b) => b.open - a.open || a.name.localeCompare(b.name));
+    const site = siteId ? state.sites.find((s0) => s0.id === siteId) : null;
+    return {
+      asOf: T_TODAY, site: site ? { id: site.id, name: site.name } : null,
+      topics: topics().filter((tp) => counts[tp.id]).map((tp) => Object.assign({ id: tp.id, name: tp.names[lang] || tp.names.en, required: counts[tp.id].required }, ...GAP_KEYS.map((k) => ({ [k]: counts[tp.id][k] || 0 })))),
+      people: rows,
+    };
+  };
+
+  // ---- the lesson check (section 7) ------------------------------------------------------------------
+  const problem = (path, en, es) => ({ path, en, es, fr: en });
+  const lessonProblems = (draft, tp) => {
+    const out = [];
+    const c = draft.content || {};
+    const has = (o, l) => !!(o && String(o[l] || "").trim());
+    const langs = (o, path) => { ["en", "es", "fr"].forEach((l) => { if (!has(o, l)) out.push(problem(path + "." + l, l === "en" ? "Write the English." : l === "es" ? "Write the Spanish, or use Translate." : "Write the French, or use Translate.", l === "en" ? "Escriba el inglés." : l === "es" ? "Escriba el español o use Traducir." : "Escriba el francés o use Traducir.")); }); };
+    langs(c.title, "content.title");
+    const blocks = Array.isArray(c.blocks) ? c.blocks : [];
+    if (blocks.length < 1 || blocks.length > 30) out.push(problem("content.blocks", "A lesson has 1 to 30 blocks.", "Una lección tiene de 1 a 30 bloques."));
+    blocks.forEach((b, i) => { langs(b.text, "content.blocks[" + i + "].text"); (b.items || []).forEach((it, j) => langs(it, "content.blocks[" + i + "].items[" + j + "]")); });
+    const qs = Array.isArray(c.questions) ? c.questions : [];
+    if (qs.length < 5 || qs.length > 10) out.push(problem("content.questions", "A lesson has 5 to 10 questions.", "Una lección tiene de 5 a 10 preguntas."));
+    qs.forEach((q, i) => {
+      langs(q.text, "content.questions[" + i + "].text");
+      const opts = Array.isArray(q.options) ? q.options : [];
+      if (opts.length < 2 || opts.length > 5) out.push(problem("content.questions[" + i + "].options", "A question has 2 to 5 answers.", "Una pregunta tiene de 2 a 5 respuestas."));
+      opts.forEach((o, j) => langs(o.text, "content.questions[" + i + "].options[" + j + "].text"));
+      if (!opts.some((o) => o.value === q.correct)) out.push(problem("content.questions[" + i + "].correct", "Tick the right answer.", "Marque la respuesta correcta."));
+    });
+    langs(c.acknowledgement, "content.acknowledgement");
+    if (tp && tp.safetyCritical && !String(draft.checkedEsBy || "").trim()) out.push(problem("checkedEsBy", "Name who checked the Spanish before this safety lesson is published.", "Indique quién revisó el español antes de publicar esta lección de seguridad."));
+    return out;
+  };
+  const BLANK_LESSON = () => ({ title: L3("", "", ""), blocks: [], questions: [], acknowledgement: L3("", "", "") });
+  const draftView = (v) => ({ id: v.id, topicId: v.topicId, content: clone(v.content), passPercent: v.passPercent, maxAttempts: v.maxAttempts, needsTrainer: v.needsTrainer, sources: clone(v.sources || []), checkedEsBy: v.checkedEsBy, checkedFrBy: v.checkedFrBy, changeNote: v.changeNote, stale: false });
+  const draftAnswer = (v) => ({ draft: draftView(v), problems: lessonProblems(v, topics().find((x) => x.id === v.topicId)) });
+  const versionRow = (v) => ({ id: v.id, version: v.version, status: v.status, publishedAt: v.publishedAt, publishedBy: v.publishedBy, changeNote: v.changeNote, stale: !!v.stale, attempts: attempts().filter((a) => a.versionId === v.id && !a.voidedAt).length });
+
+  // The routes above, ahead of Step 253's; base is the answer the stub gave before Step 256.
+  function step256Route(method, path, query, body, said, base) {
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    const b = body || {};
+    const me = person();
+    const admin = me.role === "admin";
+    const mgmt = me.role === "admin" || me.role === "supervisor";
+    if (path.indexOf("/api/training/") === 0 && !mgmt) return tRefusal("training.noAccess", 403, lang);
+    if (path === "/api/hr/training" && method === "GET") {
+      const a = base();
+      const uid = query.get("user_id");
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.concat(lessonRecords().filter((r) => !r.removed_at && (!uid || r.user_id === uid)).map(trainingListRow)).sort(trainingOrder);
+      return a;
+    }
+    if (path === "/api/training/topics" && method === "GET") {
+      const which = query.get("active") || "true";
+      return ok({ topics: topics().filter((tp) => which === "all" || (which === "false" ? !tp.active : tp.active)).map((tp) => topicView(tp, lang)) });
+    }
+    if (path === "/api/training/topics" && method === "POST") {
+      if (!admin) return tRefusal("training.noAccess", 403, lang);
+      const bad = topicBad(b, true);
+      if (bad.length) return tRefusal("training.badDetails", 400, lang, { keys: bad });
+      if (topics().some((tp) => tp.key === b.key)) return tRefusal("training.duplicateKey", 409, lang, { keys: ["key"] });
+      state.topicSeq += 1;
+      const tp = { id: "tp-" + state.topicSeq, key: b.key, names: { en: "", es: "", fr: "" }, docCode: null, docSection: null, safetyCritical: false, frequency: "once", dueRule: "first_day", perSite: false, evidenceForm: null, recordNames: [], linkUrl: null, active: true, requirements: [] };
+      topicTake(tp, b);
+      topics().push(tp);
+      return created({ topic: topicView(tp, lang) });
+    }
+    const oneTopic = /^\/api\/training\/topics\/([^/]+)(\/requirements)?$/.exec(path);
+    if (oneTopic) {
+      const tp = topics().find((x) => x.id === decodeURIComponent(oneTopic[1]));
+      if (!tp) return tRefusal("training.topicNotFound", 404, lang);
+      if (!admin) return tRefusal("training.noAccess", 403, lang);
+      if (!oneTopic[2] && method === "PATCH") {
+        const bad = topicBad(b, false);
+        if (bad.length) return tRefusal("training.badDetails", 400, lang, { keys: bad });
+        topicTake(tp, b);
+        return ok({ topic: topicView(tp, lang) });
+      }
+      if (oneTopic[2] && method === "PUT") {
+        const list = Array.isArray(b.requirements) ? b.requirements : null;
+        if (!list || list.length > 30) return tRefusal("training.badRequirement", 400, lang, { keys: ["requirements"] });
+        const seen = new Set();
+        for (let i = 0; i < list.length; i += 1) {
+          const r = list[i] || {};
+          const one = (r.role ? 1 : 0) + (r.userId ? 1 : 0) === 1;
+          const okRole = !r.role || T_ROLES.indexOf(r.role) >= 0;
+          const okPerson = !r.userId || !!tPerson(String(r.userId));
+          const okLine = !r.serviceLine || T_LINES.indexOf(r.serviceLine) >= 0;
+          const k = (r.role || "") + "|" + (r.userId || "") + "|" + (r.serviceLine || "");
+          if (!one || !okRole || !okPerson || !okLine || seen.has(k)) return tRefusal("training.badRequirement", 400, lang, { keys: ["requirements[" + i + "]"] });
+          seen.add(k);
+        }
+        const now = tActiveReqs(tp);
+        now.forEach((r) => { r.removedAt = seed.NOW_ISO; });
+        list.forEach((r) => { state.reqSeq += 1; tp.requirements.push({ id: "rq-" + state.reqSeq, role: r.role || null, userId: r.userId ? String(r.userId) : null, serviceLine: r.serviceLine || null }); });
+        return ok({ topic: topicView(tp, lang) });
+      }
+    }
+    if (path === "/api/training/gaps" && method === "GET") return ok(gapsAnswer(query, lang));
+    const gapPerson = /^\/api\/training\/gaps\/people\/([^/]+)$/.exec(path);
+    if (gapPerson && method === "GET") {
+      const p = tPerson(decodeURIComponent(gapPerson[1]));
+      if (!p) return tRefusal("training.personNotFound", 404, lang);
+      return ok({ person: { id: p.id, name: p.name, role: p.role, hireDate: p.hire_date || null, language: p.preferred_language || "en", sites: sitesOfPerson(p).map((sid) => ({ id: sid, name: (state.sites.find((s0) => s0.id === sid) || {}).name || "" })) }, items: itemsFor(p, lang, "") });
+    }
+    if (path === "/api/hr/training/sessions" && method === "POST") {
+      const tp = topics().find((x) => x.id === b.topicId);
+      if (!tp) return tRefusal("training.topicNotFound", 404, lang);
+      const ids = Array.isArray(b.people) ? b.people.map(String) : [];
+      if (ids.length > 60) return tRefusal("training.tooManyPeople", 400, lang, { keys: ["people"] });
+      const bad = [];
+      if (!ids.length) bad.push("people");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.day || "")) || String(b.day) > T_TODAY) bad.push("day");
+      if (["en", "es", "fr"].indexOf(b.locale) < 0) bad.push("locale");
+      if (b.siteId && !state.sites.some((s0) => s0.id === b.siteId)) bad.push("siteId");
+      if (!b.trainerId && !String(b.administeredBy || "").trim()) bad.push("administeredBy");
+      if (bad.length) return tRefusal("training.badDetails", 400, lang, { keys: bad });
+      if (ids.some((id) => !tPerson(id))) return tRefusal("training.personNotFound", 404, lang, { keys: ["people"] });
+      const trainer = b.trainerId ? tPerson(String(b.trainerId)) : null;
+      const saved = [];
+      const already = [];
+      ids.forEach((id) => {
+        const had = allRecords().some((r) => r.user_id === id && String(r.completed_date || "").slice(0, 10) === b.day && (r.topic_id === tp.id || tp.recordNames.some((n) => tKey(n) === tKey(r.training_name))));
+        if (had) { already.push(id); return; }
+        const row = {
+          id: "ht-" + trainingNext, user_id: id, training_name: tp.names.en, training_type: tp.safetyCritical ? "safety" : "onboarding", completed_date: b.day,
+          expiry_date: T_FREQ[tp.frequency] ? addMonths(b.day, T_FREQ[tp.frequency]) : null, score: null,
+          administered_by: trainer ? trainer.name : String(b.administeredBy).trim(), notes: { en: "Given in English", es: "Given in Spanish", fr: "Given in French" }[b.locale] + (b.note ? "\n" + String(b.note) : ""),
+          document_id: null, created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(), site_id: b.siteId || null, topic_id: tp.id, attempt_id: null, trainer_id: trainer ? trainer.id : null, locale: b.locale,
+        };
+        trainingNext += 1;
+        trainingRows().push(row);
+        saved.push({ userId: id, recordId: row.id });
+      });
+      return created({ session: { name: tp.names.en, day: b.day, siteId: b.siteId || null }, saved, already });
+    }
+    if (path === "/api/training/library" && method === "GET") {
+      if (!admin) return tRefusal("training.noAccess", 403, lang);
+      const code = query.get("docCode") || "";
+      return ok({ sections: LIBRARY.filter((x) => !code || x.docCode === code) });
+    }
+    const lessonPath = /^\/api\/training\/lessons\/([^/]+)\/(versions|draft|retire)$/.exec(path);
+    if (lessonPath) {
+      const tp = topics().find((x) => x.id === decodeURIComponent(lessonPath[1]));
+      if (!tp) return tRefusal("training.topicNotFound", 404, lang);
+      if (lessonPath[2] === "versions" && method === "GET") {
+        return ok({ versions: versions().filter((v) => v.topicId === tp.id).sort((a, c) => (c.version || 999) - (a.version || 999)).map(versionRow) });
+      }
+      if (!admin) return tRefusal("training.noAccess", 403, lang);
+      if (lessonPath[2] === "draft" && method === "POST") {
+        const open = versions().find((v) => v.topicId === tp.id && v.status === "draft");
+        if (open) return tRefusal("training.draftOpen", 409, lang, { draftId: open.id });
+        const live = publishedOf(tp.id);
+        if (b.from === "published" && !live) return tRefusal("training.noLesson", 404, lang);
+        state.lessonSeq += 1;
+        const v = { id: "lv-" + state.lessonSeq, topicId: tp.id, version: null, status: "draft", publishedAt: null, publishedBy: null, changeNote: "",
+          content: b.from === "published" ? clone(live.content) : BLANK_LESSON(), passPercent: b.from === "published" ? live.passPercent : 80, maxAttempts: b.from === "published" ? live.maxAttempts : 3,
+          needsTrainer: tp.safetyCritical || (b.from === "published" && live.needsTrainer), sources: b.from === "published" ? clone(live.sources) : [], checkedEsBy: null, checkedFrBy: null, stale: false };
+        versions().push(v);
+        return created(draftAnswer(v));
+      }
+      if (lessonPath[2] === "retire" && method === "POST") {
+        const live = publishedOf(tp.id);
+        if (!live) return tRefusal("training.noLesson", 404, lang);
+        live.status = "retired";
+        return ok({ version: versionRow(live) });
+      }
+    }
+    const draftPath = /^\/api\/training\/lesson-drafts\/([^/]+)(?:\/(translate|publish|discard))?$/.exec(path);
+    if (draftPath) {
+      if (!admin) return tRefusal("training.noAccess", 403, lang);
+      const v = versions().find((x) => x.id === decodeURIComponent(draftPath[1]) && x.status === "draft");
+      if (!v) return tRefusal("training.noLesson", 404, lang);
+      const tp = topics().find((x) => x.id === v.topicId);
+      if (!draftPath[2] && method === "GET") return ok(draftAnswer(v));
+      if (!draftPath[2] && method === "PATCH") {
+        if (b.content !== undefined) v.content = clone(b.content);
+        ["passPercent", "maxAttempts"].forEach((k) => { if (b[k] !== undefined) v[k] = Number(b[k]); });
+        if (b.needsTrainer !== undefined) v.needsTrainer = b.needsTrainer === true;
+        if (tp && tp.safetyCritical) v.needsTrainer = true;
+        if (b.sources !== undefined) v.sources = clone(b.sources || []);
+        ["checkedEsBy", "checkedFrBy", "changeNote"].forEach((k) => { if (b[k] !== undefined) v[k] = b[k] == null ? null : String(b[k]); });
+        const bad = [];
+        if (!(v.passPercent >= 50 && v.passPercent <= 100)) bad.push("passPercent");
+        if (!(v.maxAttempts >= 1 && v.maxAttempts <= 10)) bad.push("maxAttempts");
+        if (bad.length) return tRefusal("training.badDetails", 400, lang, { keys: bad });
+        return ok(draftAnswer(v));
+      }
+      if (draftPath[2] === "translate" && method === "POST") {
+        const changed = { es: false, fr: false };
+        const fill = (o) => { if (!o || !String(o.en || "").trim()) return; ["es", "fr"].forEach((l) => { if (b.overwrite || !String(o[l] || "").trim()) { o[l] = o.en + " (" + l + ")"; changed[l] = true; } }); };
+        const c = v.content;
+        fill(c.title); (c.blocks || []).forEach((bl) => { fill(bl.text); (bl.items || []).forEach(fill); });
+        (c.questions || []).forEach((q) => { fill(q.text); (q.options || []).forEach((o) => fill(o.text)); }); fill(c.acknowledgement);
+        if (changed.es) v.checkedEsBy = null;
+        if (changed.fr) v.checkedFrBy = null;
+        return ok(draftAnswer(v));
+      }
+      if (draftPath[2] === "publish" && method === "POST") {
+        const problems = lessonProblems(v, tp).filter((p) => p.path !== "checkedEsBy");
+        if (problems.length) return tRefusal("training.lessonProblems", 400, lang, { problems });
+        if (tp && tp.safetyCritical && !String(v.checkedEsBy || "").trim()) return tRefusal("training.translationUnchecked", 409, lang, { keys: ["checkedEsBy"] });
+        const live = publishedOf(v.topicId);
+        if (live) live.status = "retired";
+        v.version = Math.max(0, ...versions().filter((x) => x.topicId === v.topicId && x.version).map((x) => x.version)) + 1;
+        v.status = "published"; v.publishedAt = seed.NOW_ISO; v.publishedBy = { name: me.firstName + " " + me.lastName }; v.stale = false;
+        return ok({ version: versionRow(v) });
+      }
+      if (draftPath[2] === "discard" && method === "POST") { v.status = "discarded"; return ok({ draft: draftView(v) }); }
+    }
+    if (path === "/api/training/awaiting" && method === "GET") {
+      const siteId = query.get("siteId") || "";
+      return ok({ attempts: attempts().filter((a) => attemptView(a, lang).awaitingTrainer && !a.voidedAt && (!siteId || a.siteId === siteId)).map((a) => Object.assign(attemptView(a, lang), { person: { id: a.userId, name: tPersonName(a.userId) } })) });
+    }
+    const attemptPath = /^\/api\/training\/attempts\/([^/]+)(?:\/(signature|signoff))?$/.exec(path);
+    if (attemptPath) {
+      const a = attempts().find((x) => x.id === decodeURIComponent(attemptPath[1]));
+      if (!a) return tRefusal("training.attemptNotFound", 404, lang);
+      if (!attemptPath[2] && method === "GET") {
+        const v = versions().find((x) => x.id === a.versionId);
+        const c = v ? v.content : BLANK_LESSON();
+        return ok({ attempt: attemptView(a, lang), person: { id: a.userId, name: tPersonName(a.userId) }, lesson: { title: c.title[lang] || c.title.en, version: v ? v.version : null, passPercent: v ? v.passPercent : 80 } });
+      }
+      if (attemptPath[2] === "signature" && method === "GET") {
+        const whoSigned = query.get("who") === "trainer" ? a.trainerSignedAt : a.acknowledgedAt;
+        return whoSigned ? imageAnswer() : tRefusal("training.attemptNotFound", 404, lang);
+      }
+      if (attemptPath[2] === "signoff" && method === "POST") {
+        if (a.userId === me.id) return tRefusal("training.cannotSignOwn", 403, lang);
+        if (!attemptView(a, lang).awaitingTrainer) return tRefusal("training.notReady", 409, lang);
+        if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return tRefusal("training.signatureRequired", 400, lang, { keys: ["signature"] });
+        if (b.demonstrated !== true) return tRefusal("training.demonstrationRequired", 400, lang, { keys: ["demonstrated"] });
+        a.trainerSignedAt = seed.NOW_ISO; a.trainerId = me.id; a.demonstrated = true; a.trainerNote = b.note ? String(b.note) : null;
+        const tp = topics().find((x) => x.id === a.topicId);
+        const v = versions().find((x) => x.id === a.versionId);
+        const rec = { id: "ht-l" + a.id, user_id: a.userId, training_name: tp.names.en, training_type: tp.safetyCritical ? "safety" : "onboarding", completed_date: T_TODAY, expiry_date: null, score: a.scorePercent + "%",
+          administered_by: me.firstName + " " + me.lastName, notes: "Online lesson version " + (v ? v.version : "") + ", given in " + ({ en: "English", es: "Spanish", fr: "French" }[a.locale] || "English"), document_id: null, created_at: seed.NOW_ISO,
+          site_id: a.siteId, topic_id: a.topicId, attempt_id: a.id, trainer_id: me.id, locale: a.locale };
+        lessonRecords().push(rec);
+        return ok({ attempt: attemptView(a, lang), record: trainingTableRow(rec) });
+      }
+    }
+    return base();
+  }
   // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
   function step247Route(method, path, query, body, lang, base) {
     const es = lang === "es";
@@ -4358,7 +4805,8 @@ function createStubs() {
       ? step247Route(method, path, u.searchParams, body, record.language, () => route(method, path, u.searchParams, body, record.language))
       : route(method, path, u.searchParams, body, record.language));
     const over250 = () => (step250 ? step250Route(method, path, u.searchParams, body, record.language, under) : under());
-    const answer = step253 ? step253Route(method, path, u.searchParams, body, record.language, over250) : over250();
+    const over253 = () => (step253 ? step253Route(method, path, u.searchParams, body, record.language, over250) : over250());
+    const answer = step256 ? step256Route(method, path, u.searchParams, body, record.language, over253) : over253();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -4419,6 +4867,8 @@ function createStubs() {
     setStep250: (v) => { step250 = v !== false; if (step250) step247 = true; },
     // The routes and keys of the API's Step 253, on or off; on brings Step 250's and 247's with it.
     setStep253: (v) => { step253 = v !== false; if (step253) { step250 = true; step247 = true; } },
+    // The routes and keys of the API's Step 256, on or off, laid over whichever earlier step the run arms.
+    setStep256: (v) => { step256 = v !== false; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -4465,6 +4915,8 @@ function createStubs() {
       step250 = false; state.requests = null; state.requestActivity = null; requestSeq = 0;
       // Step 253 off, and its findings and corrective action as they started.
       step253 = false; state.findings = null; caTold = null;
+      // Step 256 off, and its topics, lessons, attempts and records as they started.
+      step256 = false; state.topics = null; state.lessonVersions = null; state.attempts = null; state.lessonRecords = null;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

@@ -25,7 +25,16 @@
 //     finding is verified by someone other than its fixer; a completed inspection shows its band and
 //     its findings and asks for a corrective action, whose start names the inspection's site; the
 //     corrective action's window links the open findings at its site and tells the client; and the
-//     evidence pack prints the finding measures.
+//     evidence pack prints the finding measures;
+//   - against the stub's answers for the API's Step 256 (Step 257), at 1280 in English and in Spanish:
+//     the training catalog lists its topics and adds an invented one, refused once under its field,
+//     and says who needs it; Gaps lists the people with their items, prints a page per site and opens
+//     a person's own list; a session is saved for three people in one call, one of whom already had
+//     it that day, and its roster names the topic's document; a lesson draft is refused for want of
+//     its Spanish checker and then published; and a trainer signs off an attempt they watched, never
+//     their own, and its record prints with both signatures. At 390 in English the catalog and Gaps
+//     lines run again, and at 1280 in English a supervisor reads the catalog with no Add a topic and
+//     is never offered their own attempt to sign off.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -47,11 +56,16 @@ const LEFT_ID = "u-staff-12";
 const ADDED_HOLIDAY = { date: "2026-04-03", name: "Office closed for training" };
 // The area the request QR check makes a QR for.
 const SMOKE_AREA = "Loading dock restroom";
+// The topic the catalog check adds, and the topic and people the session check logs (audit/stubs.js,
+// Step 256): the first person already has the topic today.
+const SMOKE_TOPIC = { key: "glass_care", en: "Glass care", es: "Cuidado del vidrio" };
+const SESSION_TOPIC = "tp-1";
+const SESSION_PEOPLE = ["u-staff-7", "u-staff-5", "u-staff-6"];
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin" },
-  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all" },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all" },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone" },
+  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor" },
 ];
 
 const started = Date.now();
@@ -138,11 +152,43 @@ async function recover(d, origin, p) {
 }
 
 // The pause after an item opens was 650 ms until Step 254, whose four lines fit the three minutes
-// at 550.
+// at 550. On the phone the drawer is opened by its button and the item clicked once it has slid in,
+// with no wait for the network to go quiet (Step 257).
 async function openNav(d, id) {
-  if (d.phone) await d.openDrawer();
+  if (d.phone && !(await d.drawerOpen())) await d.page.locator('button[title="' + d.say("Menu") + '"], button[title="Menu"]').first().click();
   await d.page.click('[data-nav-item="' + id + '"]');
   await wait(550);
+}
+
+// A page by its hash, the way d.goto opens one (a hop through another page when the hash already
+// names it, so the page mounts anew), then the selector ready names waited for, or a short pause with
+// none. Since Step 257 the smoke check opens a page this way rather than with d.goto, which waits for
+// the network to go quiet for half a second on every page, and then a fixed pause on top: the stub
+// answers in the same process, so a page has drawn what it read once the thing a check reads is there.
+async function go(d, pageId, sub, ready) {
+  const cur = await d.page.evaluate(() => window.location.hash.replace(/^#/, "").split("/")[0]);
+  if (cur === pageId) {
+    await d.page.evaluate((other) => { window.location.hash = other; }, pageId === "overview" ? "help" : "overview");
+    await wait(120);
+  }
+  const hash = "#" + [pageId].concat(sub ? [].concat(sub) : []).join("/");
+  await d.page.evaluate((h) => { window.location.hash = h; }, hash);
+  if (ready) await d.page.locator(ready).first().waitFor();
+  else await wait(300);
+}
+// The selector's first match, waited for, so a count read after it reads a drawn list.
+const until = (d, sel) => d.page.locator(sel).first().waitFor();
+// How many of the selector the page draws, read once the count has held for three reads in a row: a
+// list whose parts each wait on a route of their own, such as Reports' groups, grows as they answer.
+async function settledCount(d, sel) {
+  let n = await d.page.locator(sel).count();
+  for (let same = 0, i = 0; same < 3 && i < 30; i++) {
+    await wait(120);
+    const again = await d.page.locator(sel).count();
+    same = again === n ? same + 1 : 0;
+    n = again;
+  }
+  return n;
 }
 
 // Step 248's screens, each a line.
@@ -155,28 +201,33 @@ async function step248(d, origin, p) {
     await recover(d, origin, p);
   };
   await check("Settings, Holidays lists the year and adds a day", async () => {
-    await d.goto("settings"); await wait(900);
-    await d.page.getByRole("button", { name: d.say("Holidays"), exact: true }).click(); await wait(700);
+    await go(d, "settings");
+    await d.page.getByRole("button", { name: d.say("Holidays"), exact: true }).click();
+    await until(d, "[data-holidays] table tbody tr");
     const list = d.page.locator("[data-holidays] table tbody tr");
     const rows = await list.count();
     if (rows < 11) return "the year lists " + rows + " holidays";
     await d.page.locator("[data-holiday-add]").click();
     await d.page.locator('[data-holiday-window] input[type="date"]').fill(ADDED_HOLIDAY.date);
     await d.page.locator("[data-holiday-window] input").nth(1).fill(ADDED_HOLIDAY.name);
-    await d.page.locator("[data-holiday-window] button").last().click(); await wait(900);
+    await d.page.locator("[data-holiday-window] button").last().click();
+    await d.page.locator("[data-holiday-window]").waitFor({ state: "detached" }).catch(() => {});
     if ((await d.page.locator("[data-holiday-window]").count()) > 0) return "the window stayed open";
+    await list.filter({ hasText: ADDED_HOLIDAY.name }).first().waitFor({ timeout: 2000 }).catch(() => {});
     return (await list.filter({ hasText: ADDED_HOLIDAY.name }).count()) === 1 ? "" : "the day added is not listed";
   });
   await check("the Rehire window lists the sites to restore", async () => {
-    await d.goto("staff", [LEFT_ID]); await wait(1200);
-    await d.page.locator('[data-employment-action="rehire"]').click(); await wait(500);
+    await go(d, "staff", [LEFT_ID]);
+    await d.page.locator('[data-employment-action="rehire"]').click();
+    await until(d, "[data-restore-sites] [data-restore-site]");
     const rows = await d.page.locator("[data-restore-sites] [data-restore-site]").count();
     const ticked = await d.page.locator("[data-restore-sites] input:checked").count();
     await d.page.locator("[data-employment-window] button").filter({ hasText: d.say("Cancel") }).click();
     return rows !== 3 ? "Sites to restore lists " + rows + " sites" : ticked !== 2 ? ticked + " sites start ticked" : "";
   });
   await check("a client's concern past due draws its Due in red", async () => {
-    await d.goto("forms"); await wait(1200);
+    await go(d, "forms", null, "table tbody tr");
+    await until(d, '[data-complaint-due][data-due-state="late"]').catch(() => {});
     const due = d.page.locator('[data-complaint-due][data-due-state="late"]').first();
     if ((await due.count()) === 0) return "no late concern on Filed forms";
     const rgb = await due.evaluate((e) => getComputedStyle(e).color);
@@ -186,10 +237,11 @@ async function step248(d, origin, p) {
   await check("a client's concern is marked acknowledged by phone", async () => {
     const row = d.page.locator("table tbody tr").filter({ has: d.page.locator("[data-not-acknowledged]") }).first();
     if ((await row.count()) === 0) return "no concern reads Not acknowledged";
-    await row.click(); await wait(1200);
+    await row.click();
     await d.page.locator("[data-mark-acknowledged]").click();
     await d.page.locator("[data-acknowledge-form] select").selectOption("phone");
-    await d.page.locator("[data-acknowledge-form] button").last().click(); await wait(800);
+    await d.page.locator("[data-acknowledge-form] button").last().click();
+    await until(d, "[data-acknowledged]").catch(() => {});
     const line = (await d.page.locator("[data-acknowledged]").count()) ? await d.page.locator("[data-acknowledged]").innerText() : "";
     await d.page.keyboard.press("Escape").catch(() => {});
     return !line ? "no line says it was acknowledged" : (await d.page.locator("[data-mark-acknowledged]").count()) ? "Mark acknowledged is still offered" : "";
@@ -209,24 +261,28 @@ async function step250(d, origin, p, stubs) {
   // The two request checks run on the pass that asks for them (English); the sheet check below proves
   // both languages on its own.
   if (p.requestChecks) await check("Client requests lists the waiting requests and approves one", async () => {
-    await d.goto("issues", ["requests"]); await wait(700);
+    await go(d, "issues", ["requests"], "[data-client-requests] table tbody tr");
     const rows = d.page.locator("[data-client-requests] table tbody tr");
     const n = await rows.count();
     if (n < 3) return "the list holds " + n + " requests";
     const waiting = await rows.filter({ hasText: d.say("Waiting for approval") }).count();
     if (waiting < 2) return waiting + " wait for approval";
-    await rows.first().click(); await wait(900);
-    await d.page.locator("[data-request-approve]").click(); await wait(400);
-    await d.page.locator("[data-request-approve-save]").click(); await wait(900);
+    await rows.first().click();
+    await d.page.locator("[data-request-approve]").click();
+    await d.page.locator("[data-request-approve-save]").click();
+    await d.page.locator("[data-request-approve]").waitFor({ state: "detached" }).catch(() => {});
     if ((await d.page.locator("[data-request-approve]").count()) > 0) return "Approve and assign is still offered";
+    await d.page.locator("[data-request-window]").getByText(d.say("Approved|request")).first().waitFor({ timeout: 2000 }).catch(() => {});
     const text = lower(await d.page.locator("[data-request-window]").innerText());
     await d.page.keyboard.press("Escape").catch(() => {});
     return text.indexOf(lower(d.say("Approved|request"))) < 0 ? "the activity does not read Approved" : "";
   });
   if (p.requestChecks) await check("a second approver's refusal is drawn", async () => {
-    await d.goto("issues", ["requests", "rq-2"]); await wait(700);
-    await d.page.locator("[data-request-approve]").click(); await wait(400);
-    await d.page.locator("[data-request-approve-save]").click(); await wait(900);
+    await go(d, "issues", ["requests", "rq-2"]);
+    await d.page.locator("[data-request-approve]").click();
+    await d.page.locator("[data-request-approve-save]").click();
+    await until(d, "[data-request-said]").catch(() => {});
+    await d.page.locator("[data-request-window]").getByText(d.say("Open|request")).first().waitFor({ timeout: 2000 }).catch(() => {});
     const said = (await d.page.locator("[data-request-said]").count()) ? await d.page.locator("[data-request-said]").innerText() : "";
     const text = lower(await d.page.locator("[data-request-window]").innerText());
     await d.page.keyboard.press("Escape").catch(() => {});
@@ -235,14 +291,16 @@ async function step250(d, origin, p, stubs) {
     return text.indexOf(lower(d.say("Open|request"))) < 0 ? "the row did not refresh to Open" : "";
   });
   await check("a request QR is made and its sheet printed", async () => {
-    await d.goto("forms", ["links"]); await wait(700);
+    await go(d, "forms", ["links"]);
     await d.page.locator("[data-link-kind]").selectOption("request");
     await d.page.locator("[data-link-area-input]").fill(SMOKE_AREA);
-    await d.page.getByRole("button", { name: d.say("Make a request QR") }).click(); await wait(1000);
+    await d.page.getByRole("button", { name: d.say("Make a request QR") }).click();
+    await until(d, "[data-qr-screen] [data-link-area]").catch(() => {});
     if ((await d.page.locator("[data-qr-screen] [data-link-area]").count()) === 0) return "the QR window did not open on the request QR";
     const before = (await d.prints()).length;
-    await d.page.locator("[data-qr-screen]").getByRole("button", { name: d.say("Print sheet") }).click(); await wait(900);
-    const prints = await d.prints();
+    await d.page.locator("[data-qr-screen]").getByRole("button", { name: d.say("Print sheet") }).click();
+    let prints = await d.prints();
+    for (let i = 0; i < 20 && prints.length <= before; i++) { await wait(100); prints = await d.prints(); }
     await d.page.keyboard.press("Escape").catch(() => {});
     if (prints.length <= before) return "no sheet window opened";
     const html = prints[prints.length - 1].html;
@@ -250,11 +308,15 @@ async function step250(d, origin, p, stubs) {
     return html.indexOf("Ask for help here") < 0 || html.indexOf("Pida ayuda aqu") < 0 ? "the sheet does not carry the title in both languages" : "";
   });
   await check("Print label saves the supply's label", async () => {
-    await d.goto("supplies"); await wait(700);
-    await d.page.locator("[data-supply-card]").first().click(); await wait(600);
+    await go(d, "supplies");
+    await d.page.locator("[data-supply-card]").first().click();
+    await until(d, "[data-supply-print-label]").catch(() => {});
     const btn = d.page.locator("[data-supply-print-label]");
     if ((await btn.count()) === 0) return "Print label is not offered";
-    await btn.click(); await wait(900);
+    await btn.click();
+    const labels = async () => (await d.page.evaluate(() => window.__audit.downloads.map((x) => x.name))).indexOf("labels.pdf") >= 0;
+    for (let i = 0; i < 20 && !(await labels()); i++) await wait(100);
+    await wait(150);
     const call = stubs.calls.find((c) => c.path === "/api/supplies/labels.pdf" && /ids=sp-/.test(c.query));
     if (!call) return "labels.pdf was not asked for";
     if (call.status !== 200) return "labels.pdf answered " + call.status;
@@ -274,29 +336,34 @@ async function step253(d, origin, p, stubs) {
     await recover(d, origin, p);
   };
   await check("the Issue Tracker lists the findings and one is verified by someone other than its fixer", async () => {
-    await d.goto("issues"); await wait(500);
-    await d.page.locator("[data-issue-source]").selectOption("inspection"); await wait(300);
+    await go(d, "issues");
+    await d.page.locator("[data-issue-source]").selectOption("inspection");
+    await until(d, "[data-finding-fixed]").catch(() => {});
     const rows = await d.page.locator("[data-issue-row]").count();
     if (rows < 4) return "the Source Inspection lists " + rows + " findings";
     if ((await d.page.locator("[data-finding-fixed]").count()) === 0) return "no row draws Time to fixed";
-    await d.goto("issues", ["f-3"]); await wait(700);
+    await go(d, "issues", ["f-3"]);
+    await until(d, "[data-verify]").catch(() => {});
     if ((await d.page.locator("[data-verify]").count()) === 0) return "Verify is not offered on the fixed finding";
     await d.page.locator("[data-verify] textarea").fill("Checked in person at the dock.");
-    await d.page.locator("[data-verify-save]").click(); await wait(600);
+    await d.page.locator("[data-verify-save]").click();
+    await until(d, "[data-verified]").catch(() => {});
     const verified = await d.page.locator("[data-verified]").count();
     const still = await d.page.locator("[data-verify]").count();
     await d.page.keyboard.press("Escape").catch(() => {});
     return !verified ? "no line says it was verified" : still ? "Verify is still offered" : "";
   });
   await check("a completed inspection shows its band and findings and asks for a corrective action", async () => {
-    await d.goto("inspections"); await wait(500);
-    await d.page.getByRole("button", { name: d.say("Completed|inspections") }).first().click(); await wait(300);
-    await d.page.locator("table tbody tr").filter({ hasText: "Dock area check" }).first().click(); await wait(700);
+    await go(d, "inspections");
+    await d.page.getByRole("button", { name: d.say("Completed|inspections") }).first().click();
+    await d.page.locator("table tbody tr").filter({ hasText: "Dock area check" }).first().click();
+    await until(d, "[data-inspection-finding]").catch(() => {});
     if ((await d.page.locator("[data-inspection-band]").count()) === 0) return "no band is drawn";
     const n = await d.page.locator("[data-inspection-finding]").count();
     if (n < 1) return "the findings list " + n + " rows";
     if ((await d.page.locator("[data-inspection-corrective-required]").count()) === 0) return "no corrective action is asked for";
-    await d.page.locator("[data-inspection-corrective-start]").click(); await wait(600);
+    await d.page.locator("[data-inspection-corrective-start]").click();
+    await d.page.locator("[data-inspection-corrective-refusal], div[style*='z-index: 500']").first().waitFor({ timeout: 3000 }).catch(() => {});
     const call = stubs.calls.find((c) => c.path === "/api/forms/OCSA-FRM-010/drafts" && c.method === "POST");
     if (!call) return "no corrective action was started";
     if (!call.body || call.body.siteId !== seed.SITES[2].id) return "the start does not name the inspection's site";
@@ -305,26 +372,33 @@ async function step253(d, origin, p, stubs) {
     return drawn ? "" : "neither the form nor a refusal is drawn";
   });
   await check("the corrective action links the open findings at its site and tells the client", async () => {
-    await d.goto("forms"); await wait(800);
+    await go(d, "forms", null, "table tbody tr");
     const row = d.page.locator("table tbody tr").filter({ hasText: "Corrective Action Report" }).first();
     if ((await row.count()) === 0) return "no corrective action on Filed forms";
-    await row.click(); await wait(800);
+    await row.click();
+    await until(d, "[data-link-findings]");
+    await until(d, "[data-linked-finding]").catch(() => {});
     const before = await d.page.locator("[data-linked-finding]").count();
-    await d.page.locator("[data-link-findings]").click(); await wait(500);
+    await d.page.locator("[data-link-findings]").click();
+    await until(d, "[data-link-finding]").catch(() => {});
     const offered = await d.page.locator("[data-link-finding]").count();
     if (offered < 2) return "Link findings offers " + offered + " findings";
     const ticked = await d.page.locator("[data-link-findings-form] input:checked").count();
     if (ticked !== offered) return ticked + " of " + offered + " start ticked";
-    await d.page.locator("[data-link-findings-save]").click(); await wait(500);
+    await d.page.locator("[data-link-findings-save]").click();
+    await d.page.locator("[data-link-findings-form]").waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    await d.page.locator("[data-unlink-finding]").nth(before + offered - 1).waitFor({ timeout: 2000 }).catch(() => {});
     const after = await d.page.locator("[data-linked-finding]").count();
     if (after !== before + offered) return "the window lists " + after + " linked findings after linking " + offered + " to " + before;
     if ((await d.page.locator("[data-unlink-finding]").count()) !== after) return "Unlink is not offered on each";
-    await d.page.locator("[data-tell-client-open]").click(); await wait(300);
+    await d.page.locator("[data-tell-client-open]").click();
+    await until(d, "[data-tell-client-form] input:checked").catch(() => {});
     if ((await d.page.locator("[data-tell-client-form] input:checked").count()) < 1) return "no recipient starts ticked";
     await d.page.locator('[data-tell-client-field="whatHappened"]').fill("The inspection found the dock markings worn and the glass streaked.");
     await d.page.locator('[data-tell-client-field="whatWasDone"]').fill("The markings were repainted and the glass cleaned on both sides.");
     await d.page.locator('[data-tell-client-field="prevention"]').fill("The dock is now on the weekly walk.");
-    await d.page.locator("[data-tell-client-send]").click(); await wait(700);
+    await d.page.locator("[data-tell-client-send]").click();
+    await until(d, "[data-client-told]").catch(() => {});
     const told = await d.page.locator("[data-client-told]").count();
     const call = stubs.calls.find((c) => /\/tell-client$/.test(c.path) && c.method === "POST");
     await d.page.keyboard.press("Escape").catch(() => {});
@@ -332,8 +406,9 @@ async function step253(d, origin, p, stubs) {
     return !call || !call.body || !Array.isArray(call.body.to) || !call.body.to.length ? "the send names no recipient" : "";
   });
   await check("the evidence pack prints the finding measures", async () => {
-    await d.goto("reports"); await wait(700);
-    await d.page.locator("text=OCSA-QMS-018").locator("xpath=../..").getByRole("button").first().click(); await wait(500);
+    await go(d, "reports", null, "[data-report-group]");
+    await d.page.locator("text=OCSA-QMS-018").locator("xpath=../..").getByRole("button").first().click();
+    await until(d, "[data-management-review]").catch(() => {});
     if ((await d.page.locator("[data-management-review]").count()) === 0) return "Management review did not open";
     const before = (await d.prints()).length;
     await d.page.locator("[data-management-review]").getByRole("button", { name: d.say("Print the evidence pack") }).click();
@@ -347,11 +422,146 @@ async function step253(d, origin, p, stubs) {
   });
 }
 
+// Step 256's screens, each a line, against the stub armed with setStep256 (audit/stubs.js). The phone
+// pass runs the catalog and Gaps lines; the supervisor's pass its own line.
+async function step256(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const closeTopic = () => d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click();
+  const printed = async (before) => { for (let i = 0; i < 40; i++) { const pr = await d.prints(); if (pr.length > before && pr[pr.length - 1].html) return pr[pr.length - 1].html; await wait(100); } return ""; };
+  if (p.step256 === "supervisor") {
+    await check("a supervisor reads the catalog with no Add a topic and is never offered their own attempt", async () => {
+      await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+      if ((await settledCount(d, "[data-training-catalog] table tbody tr")) < 4) return "the catalog lists too few topics";
+      if ((await d.page.locator("[data-topic-add]").count()) > 0) return "Add a topic is offered";
+      await go(d, "hr", ["training", "awaiting"], "[data-training-awaiting] tbody tr");
+      if ((await d.page.locator('[data-signoff-open="at-2"]').count()) > 0) return "the supervisor's own attempt is offered";
+      return (await d.page.locator('[data-signoff-open="at-8"]').count()) === 1 ? "" : "the admin's attempt is not offered";
+    });
+    return;
+  }
+  await check("the training catalog adds an invented topic and says who needs it", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+    const before = await settledCount(d, "[data-training-catalog] table tbody tr");
+    if (before < 4) return "the catalog lists " + before + " topics";
+    await d.page.locator("[data-topic-add]").click();
+    await d.page.locator('[data-topic-field="key"] input').fill(SMOKE_TOPIC.key);
+    await d.page.locator('[data-topic-field="names.en"] input').fill(SMOKE_TOPIC.en);
+    await d.page.locator('[data-topic-field="names.es"] input').fill(SMOKE_TOPIC.es);
+    await d.page.locator('[data-topic-field="linkUrl"] input').fill("http://training.example.invalid/glass");
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, '[data-topic-refusal="linkUrl"]').catch(() => {});
+    if ((await d.page.locator('[data-topic-refusal="linkUrl"]').count()) === 0) return "the address that is not https is not refused under its field";
+    await d.page.locator('[data-topic-field="linkUrl"] input').fill("https://training.example.invalid/glass");
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, "[data-topic-details]");
+    await d.page.locator('[data-topic-tab="who"]').click();
+    await d.page.locator("[data-who-edit]").click();
+    await d.page.locator('[data-who-role="day_porter"] input').first().check();
+    await d.page.locator("[data-who-save]").click();
+    await until(d, '[data-topic-who] [data-who-role="day_porter"]').catch(() => {});
+    const call = stubs.calls.filter((c) => /\/requirements$/.test(c.path) && c.method === "PUT").pop();
+    if (!call || !call.body || !(call.body.requirements || []).some((r) => r.role === "day_porter")) return "who needs it was not saved";
+    await closeTopic();
+    await d.page.locator("[data-training-catalog] table tbody tr").nth(before).waitFor({ timeout: 3000 }).catch(() => {});
+    const after = await d.page.locator("[data-training-catalog] table tbody tr").count();
+    return after === before + 1 ? "" : "the catalog lists " + after + " topics after adding one to " + before;
+  });
+  await check("Gaps lists each person's items, prints a page per site and opens a person's list", async () => {
+    await go(d, "hr", ["training", "gaps"], "[data-gaps-person]");
+    const people = await settledCount(d, "[data-gaps-person]");
+    if (people < 5) return "Gaps lists " + people + " people";
+    if ((await d.page.locator("[data-gaps-topics] tbody tr").count()) < 3) return "Gaps counts too few topics";
+    if ((await d.page.locator('[data-gap-word="inPerson"]').count()) === 0) return "no item reads Needs an in-person session";
+    if ((await d.page.locator('[data-gap-word="awaitingTrainer"]').count()) === 0) return "no item reads Waiting for trainer";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-gaps-print]").click();
+    const html = await printed(before);
+    if ((html.match(/class="kept/g) || []).length < 2) return "the print is not a page per site";
+    await d.page.locator("[data-gaps-person]").first().click();
+    await until(d, "[data-person-training] [data-training-item]").catch(() => {});
+    const items = await d.page.locator("[data-person-training] [data-training-item]").count();
+    await d.page.locator('[data-person-training] button[aria-label="' + d.say("Close") + '"]').click();
+    return items > 0 ? "" : "the person's list holds no item";
+  });
+  if (p.step256 !== "all") return;
+  await check("a session is saved for three people in one call, one of whom already had it", async () => {
+    await go(d, "hr", ["training"]);
+    await d.page.getByRole("button", { name: d.say("Log training for several people") }).click();
+    await d.page.locator('[data-session-field="topicId"] select option[value="' + SESSION_TOPIC + '"]').waitFor({ state: "attached" });
+    await d.page.locator('[data-session-field="topicId"] select').selectOption(SESSION_TOPIC);
+    await d.page.locator('[data-session-field="trainerId"] select').selectOption(seed.PEOPLE.supervisor.id);
+    await d.page.locator('[data-session-field="locale"] button').nth(1).click();
+    for (const id of SESSION_PEOPLE) await d.page.locator('[data-session-person="' + id + '"] input').check();
+    const singles = stubs.calls.filter((c) => c.path === "/api/hr/training" && c.method === "POST").length;
+    await d.page.locator("[data-session-save]").click();
+    await until(d, "[data-session-saved]");
+    const saved = await d.page.locator("[data-session-saved]").getAttribute("data-session-saved");
+    const already = (await d.page.locator("[data-session-already]").count()) ? await d.page.locator("[data-session-already]").getAttribute("data-session-already") : "0";
+    const calls = stubs.calls.filter((c) => c.path === "/api/hr/training/sessions" && c.method === "POST");
+    if (calls.length !== 1 || (calls[0].body.people || []).length !== 3) return "the session was not sent once with three people";
+    if (stubs.calls.filter((c) => c.path === "/api/hr/training" && c.method === "POST").length !== singles) return "records were sent one by one";
+    if (saved !== "2" || already !== "1") return "the window says " + saved + " saved and " + already + " already had it";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-session-print]").click();
+    const html = await printed(before);
+    await d.page.locator("[data-session-window]").locator("..").locator("..").getByRole("button", { name: d.say("Close") }).click().catch(() => {});
+    return html.indexOf("OCSA-TRN-901 3.2") < 0 ? "the roster's Related Document No. does not name the topic's document" : "";
+  });
+  await check("a lesson draft is refused for its Spanish checker, then published", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+    await d.page.locator("[data-training-catalog] table tbody tr").first().click();
+    await d.page.locator('[data-topic-tab="lesson"]').click();
+    await until(d, "[data-topic-lesson]");
+    if ((await d.page.locator("[data-lesson-stale]").count()) === 0) return "no version reads Stale";
+    await d.page.locator('[data-lesson-new="published"]').click();
+    await until(d, "[data-lesson-editor]");
+    await d.page.locator("[data-lesson-publish]").click();
+    await until(d, '[data-lesson-refusal="checkedEsBy"]').catch(() => {});
+    if ((await d.page.locator('[data-lesson-refusal="checkedEsBy"]').count()) === 0) return "the refusal is not drawn under Spanish checked by";
+    await d.page.locator("[data-lesson-checked=es]").fill("Checked in the office");
+    await d.page.locator("[data-lesson-publish]").click();
+    await until(d, "[data-topic-lesson]").catch(() => {});
+    const first = (await d.page.locator("[data-topic-lesson] tbody tr").count()) ? (await d.page.locator("[data-topic-lesson] tbody tr").first().innerText()) : "";
+    await closeTopic();
+    return /^\s*3\b/.test(first) && first.toLowerCase().indexOf(d.say("Published|lesson").toLowerCase()) >= 0 ? "" : "version 3 is not listed as published";
+  });
+  await check("a trainer signs off an attempt they watched, never their own, and its record prints", async () => {
+    await go(d, "hr", ["training", "awaiting"], "[data-training-awaiting] tbody tr");
+    if ((await d.page.locator('[data-signoff-open="at-8"]').count()) > 0) return "the admin's own attempt is offered";
+    const rows = await d.page.locator("[data-training-awaiting] tbody tr").count();
+    await d.page.locator('[data-signoff-open="at-1"]').click();
+    await d.drawSignature();
+    await d.page.locator("[data-signoff-window] [data-signature-box] button").first().click();
+    await d.page.locator("[data-signoff-watched]").check();
+    await d.page.locator("[data-signoff-note]").fill("Contained a spill with pads at the dock.");
+    await d.page.locator("[data-signoff-send]").click();
+    await until(d, "[data-signoff-done]");
+    const call = stubs.calls.filter((c) => /\/signoff$/.test(c.path) && c.method === "POST").pop();
+    if (!call || call.body.demonstrated !== true || !/^data:image\/png/.test(String(call.body.signature || ""))) return "the sign-off was not sent with the signature and the tick";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-signoff-print]").click();
+    const html = await printed(before);
+    await d.page.locator("[data-signoff-window]").getByRole("button", { name: d.say("Close") }).click();
+    if ((html.match(/<img/g) || []).length < 2 || html.indexOf("Contained a spill") < 0) return "the record does not print both signatures and the note";
+    await d.page.locator('[data-signoff-open="at-1"]').waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    const left = await d.page.locator("[data-training-awaiting] tbody tr").count();
+    return left === rows - 1 ? "" : "Awaiting sign-off lists " + left + " after signing off one of " + rows;
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
   // sees Step 247's alone.
   if (p.step253) stubs.setStep253(true); else if (p.step250) stubs.setStep250(true); else stubs.setStep247(true);
+  // Step 256's answers are laid over whichever of those the pass arms.
+  if (p.step256) stubs.setStep256(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -385,8 +595,8 @@ async function runPass(browser, origin, p) {
 
     if (p.who === "admin") {
       // Reports: one card of each group, and back.
-      await d.goto("reports"); await wait(900);
-      const groups = await d.page.locator("[data-report-group]").count();
+      await go(d, "reports", null, "[data-report-group]");
+      const groups = await settledCount(d, "[data-report-group]");
       say(groups > 0, p.name, "Reports shows " + groups + " groups");
       for (let i = 0; i < groups; i++) {
         const g = d.page.locator("[data-report-group]").nth(i);
@@ -399,15 +609,20 @@ async function runPass(browser, origin, p) {
           say(!why, p.name, "Reports opens a card of " + heading, why);
         } catch (e) { say(false, p.name, "Reports opens a card of " + heading, e.message.split("\n")[0]); }
         await recover(d, origin, p);
-        await d.goto("reports"); await wait(700);
+        await go(d, "reports", null, "[data-report-group]");
       }
       // A filed form, from Filed forms.
       {
-        await d.goto("forms"); await wait(1200);
+        await go(d, "forms", null, "table tbody tr");
         const mark = d.pageErrors.length;
         const row = d.page.locator("table tbody tr").first();
         let why = (await row.count()) === 0 ? "no filed form listed" : "";
-        if (!why) { await row.click(); await wait(1200); why = (await d.page.locator("div[style*='z-index: 500']").count()) === 0 ? "the report did not open" : await trouble(d, mark); }
+        if (!why) {
+          await row.click();
+          await until(d, "div[style*='z-index: 500']").catch(() => {});
+          await wait(400);
+          why = (await d.page.locator("div[style*='z-index: 500']").count()) === 0 ? "the report did not open" : await trouble(d, mark);
+        }
         say(!why, p.name, "a filed form opens", why);
         await d.page.keyboard.press("Escape").catch(() => {});
         await recover(d, origin, p);
@@ -415,7 +630,9 @@ async function runPass(browser, origin, p) {
       // Customer links.
       {
         const mark = d.pageErrors.length;
-        await d.goto("forms", ["links"]); await wait(1200);
+        await go(d, "forms", ["links"]);
+        await until(d, "[data-customer-links-tab]").catch(() => {});
+        await wait(200);
         const why = (await d.page.locator("[data-customer-links-tab]").count()) === 0 ? "the tab did not open" : await trouble(d, mark);
         say(!why, p.name, "Customer links opens", why);
         await recover(d, origin, p);
@@ -424,11 +641,12 @@ async function runPass(browser, origin, p) {
       if (p.step250) await step250(d, origin, p, stubs);
       if (p.step253) await step253(d, origin, p, stubs);
     }
+    if (p.step256) await step256(d, origin, p, stubs);
 
     // Help, asked one question.
     {
       const mark = d.pageErrors.length;
-      await d.goto("help"); await wait(900);
+      await go(d, "help", null, 'button[aria-label="' + d.say("Send") + '"]');
       const send = d.page.locator('button[aria-label="' + d.say("Send") + '"]').first();
       let why = (await send.count()) === 0 ? "no Send button" : "";
       if (!why) {
