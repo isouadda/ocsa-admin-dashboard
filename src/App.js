@@ -3897,6 +3897,15 @@ function ClientRequestsTab({ af, t, sites = [], canViewReports = false, route = 
   </div>);
 }
 
+// The Issue Tracker's rows since the API's Step 250 (STEP250_CONTRACT.md, section 2.6): source is
+// staff, inspection or client_request, a client request carries its reference, due_at and due_state,
+// and its reporter is null. The statuses a row may be set to are the five every source allows;
+// awaiting_approval and declined are reached only through the Client requests tab, so a request in
+// either gets no picker here, only the way to that tab.
+const isClientIssue = (iss) => !!iss && iss.source === "client_request";
+const ISSUE_STATUS_CHOICES = ["open", "in_progress", "escalated", "resolved", "closed"];
+const issueStatusChoices = (iss) => (isClientIssue(iss) && (iss.status === "awaiting_approval" || iss.status === "declined") ? [] : ISSUE_STATUS_CHOICES);
+const openRequest = (id) => { window.location.hash = "issues/requests/" + encodeURIComponent(String(id)); };
 function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute }) {
   // Since the API's Step 250 the page has two tabs, Staff issues and Client requests, the second with
   // a count of those waiting for approval, drawn once GET /api/issues/requests answers.
@@ -3916,31 +3925,46 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const staffList = allStaff; const [assignTask, setAssignTask] = useState(null);
   const [activity, setActivity] = useState([]); const [allPhotos, setAllPhotos] = useState([]);
   const [issuesFailed, setIssuesFailed] = useState(false);
-  const load = () => af("/api/issues").then(d => { setIssues(d); setIssuesFailed(false); }).catch(e => { setIssues([]); setIssuesFailed(true); showToast(e.message, "error"); });
-  useEffect(() => { load(); }, []);
-  const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
+  // The Source filter, All, Staff or Client requests, sends ?source= once the API's Step 250 answers.
+  const [source, setSource] = useState("");
+  const load = () => af("/api/issues" + (source ? "?source=" + encodeURIComponent(source) : "")).then(d => { setIssues(Array.isArray(d) ? d : []); setIssuesFailed(false); }).catch(e => { setIssues([]); setIssuesFailed(true); showToast(e.message, "error"); });
+  useEffect(() => { load(); }, [source]);
+  // The status picker's own refusal, issues.badStatus or issues.cannotClose, drawn under it in the
+  // API's words; any other refusal is toasted as before.
+  const [statusDraft, setStatusDraft] = useState("");
+  const [statusRefusal, setStatusRefusal] = useState("");
+  const openIssue = async (iss) => { setSel(iss); setStatusDraft(iss.status || ""); setStatusRefusal(""); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
-  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: PU };
+  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: PU, awaiting_approval: OR, declined: t.textMut };
   // The words for the codes an issue carries. The code is what the API sent and what is sent back;
   // these are only what the screen says. A code with no word here is drawn as it arrives.
   const filterWord = { all: tr("all|issues"), open: tr("open|issues"), in_progress: tr("in progress"), escalated: tr("escalated|issues"), resolved: tr("resolved|issues") };
-  const stateWord = { open: tr("open|issue"), in_progress: tr("in progress"), escalated: tr("escalated|issue"), resolved: tr("resolved|issue"), closed: tr("closed|issue") };
+  const stateWord = { open: tr("open|issue"), in_progress: tr("in progress"), escalated: tr("escalated|issue"), resolved: tr("resolved|issue"), closed: tr("closed|issue"), awaiting_approval: tr("Waiting for approval"), declined: tr("Declined|request") };
   const sevWord = { high: tr("high"), medium: tr("medium"), low: tr("low") };
   const stateOf = (s) => stateWord[s] || s?.replace("_", " ");
   const sevOf = (s) => sevWord[s] || s;
-  const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
+  const upd = async (id, s) => {
+    setStatusRefusal("");
+    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); setSel(null); }
+    catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
+  };
+  // The reporter line: a staff issue names who reported it; a client request names none, so it reads
+  // Client request, and its reference follows.
+  const reporterLine = (iss) => [isClientIssue(iss) ? tr("Client request") : iss.reported_by_name, ff(iss.reported_at)].filter(Boolean).join(" | ");
+  const sourceOptions = [{ v: "", l: tr("All sources") }, { v: "staff", l: tr("Staff|source") }, { v: "client_request", l: tr("Client requests") }];
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
     {onRequests && <ClientRequestsTab af={af} t={t} sites={sites} canViewReports={canViewReports} route={route} onRoute={onRoute} onWaiting={setWaiting} />}
     {!onRequests && <>
-    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}</div>
+    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}
+      {requestsOn && <div style={{ marginLeft: "auto", minWidth: 180 }}><Sel t={t} aria-label={tr("Source")} data-issue-source="" value={source} onChange={e => setSource(e.target.value)} options={sourceOptions} style={{ minHeight: 36, padding: "6px 10px", fontSize: 12 }} /></div>}</div>
     {issuesFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
     {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
     {issues.length > 0 && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6 }}><Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{iss.reported_by_name} | {ff(iss.reported_at)}</div>
+      <div data-issue-row={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8, flexWrap: "wrap" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{isClientIssue(iss) && <Bdg l={tr("Client request")} c={BL} />}<Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontSize: 10, color: t.textMut, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><span>{reporterLine(iss)}</span>{iss.reference && <span style={{ fontFamily: "monospace", fontSize: 10 }}>{iss.reference}</span>}{(isClientIssue(iss) || iss.due_state) && <span>{tr("Due")}: <ClockCell t={t} cell={requestClock(iss.due_state, iss.due_at, tr("Done|request"))} name="due" /></span>}</div>
         <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>{iss.status === "open" && <button onClick={() => upd(iss.id, "in_progress")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Start|work")}</button>}{iss.status === "in_progress" && <button onClick={() => upd(iss.id, "resolved")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Resolve")}</button>}</div></div>
       {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>{tr("Photo attached")}</div>}
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
@@ -3953,8 +3977,11 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.zone || tr("General")}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.reported_by_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{isClientIssue(sel) ? tr("Client request") : sel.reported_by_name}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.reported_at)}</div></div>
+        {sel.reference && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reference")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontFamily: "monospace" }}>{sel.reference}</div></div>}
+        {(isClientIssue(sel) || sel.respond_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Respond by")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(sel.respond_state, sel.respond_by, tr("Responded|request"))} name="respond" /></div></div>}
+        {(isClientIssue(sel) || sel.due_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(sel.due_state, sel.due_at, tr("Done|request"))} name="due" /></div></div>}
         {sel.assigned_to_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name}</div></div>}
         {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
@@ -3962,14 +3989,22 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", allPhotos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
       {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={sel.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
-        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? tr("Reported") : a.action === "assigned" ? tr("Assigned|issue") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "status_changed" ? tr("Status Changed") : a.action === "resolution_photo" ? tr("Resolution Photo") : a.action === "photo_added" ? tr("Photo Added") : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
+        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? tr("Reported") : a.action === "assigned" ? tr("Assigned|issue") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "status_changed" ? tr("Status Changed") : a.action === "resolution_photo" ? tr("Resolution Photo") : a.action === "photo_added" ? tr("Photo Added") : requestActivityWord(a); const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span>{a.user_name ? <span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span> : null}</div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && a.action !== "client_mailed" && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>{tr("Start Work")}</Btn>}
         {sel.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
         {sel.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
         {(sel.status === "open" || sel.status === "in_progress" || sel.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
+        {isClientIssue(sel) && requestsOn && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setSel(null); openRequest(sel.id); }}>{tr("Open in Client requests")}</Btn>}
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
-      </div></div></Mdl>}
+      </div>
+      {issueStatusChoices(sel).length > 0 && <div data-issue-status="" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} value={statusDraft} onChange={e => { setStatusDraft(e.target.value); setStatusRefusal(""); }} options={issueStatusChoices(sel).map(x => ({ v: x, l: stateOf(x) }))} /></div>
+        <Btn t={t} v="ghost" onClick={() => upd(sel.id, statusDraft)} disabled={!statusDraft || statusDraft === sel.status} style={{ minHeight: 44 }}>{tr("Set status")}</Btn>
+      </div>}
+      {issueStatusChoices(sel).length === 0 && isClientIssue(sel) && <div style={{ fontSize: 12, color: t.textMut, marginTop: 12, lineHeight: 1.5 }}>{tr("A request waiting for approval or declined is decided on the Client requests tab.")}</div>}
+      {statusRefusal && <div data-issue-status-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{statusRefusal}</div>}
+      </div></Mdl>}
     {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
@@ -6972,9 +7007,28 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
   // A severity the filter holds is a code, drawn as its word on the screen and the print.
   const sevWord = { high: tr("High"), medium: tr("Medium"), low: tr("Low") };
   // The targets the report ran with, response then resolution, one sentence on the screen and the print.
-  const targetsSaid = tgt ? tr("Targets, response then resolution. High {0} and {1}. Medium {2} and {3}. Low {4} and {5}. Aging means open past its resolution target.",
-    fmtDurMin(tgt.high.first_response_minutes), fmtDurMin(tgt.high.resolution_minutes), fmtDurMin(tgt.medium.first_response_minutes),
-    fmtDurMin(tgt.medium.resolution_minutes), fmtDurMin(tgt.low.first_response_minutes), fmtDurMin(tgt.low.resolution_minutes)) : "";
+  // Since the API's Step 250 (STEP250_CONTRACT.md, section 2.7) the per-severity targets answer null:
+  // no document gives them, so a null target reads No target and none is invented here. A client
+  // request is judged against its own respond-by and due times, which the rows below carry.
+  const targetOf = (m) => (m === null || m === undefined ? tr("No target") : fmtDurMin(m));
+  const noTargets = !!tgt && ["high", "medium", "low"].every(k => tgt[k] && tgt[k].first_response_minutes == null && tgt[k].resolution_minutes == null);
+  const targetsSaid = !tgt ? "" : noTargets ? tr("No target is set by severity. A client request is judged against its own respond-by and due times; a staff issue carries no target.")
+    : tr("Targets, response then resolution. High {0} and {1}. Medium {2} and {3}. Low {4} and {5}. Aging means open past its resolution target.",
+      targetOf(tgt.high.first_response_minutes), targetOf(tgt.high.resolution_minutes), targetOf(tgt.medium.first_response_minutes),
+      targetOf(tgt.medium.resolution_minutes), targetOf(tgt.low.first_response_minutes), targetOf(tgt.low.resolution_minutes));
+  // The rows the API judges, each with respondBy, dueAt, metResponse and metResolution: true reads
+  // Met, false Missed, and null, no target, reads nothing. Drawn only when the API answers them.
+  const judged = timing && Array.isArray(timing.rows) ? timing.rows : null;
+  const metWord = (v) => (v === true ? { text: tr("Met|target"), color: GR } : v === false ? { text: tr("Missed|target"), color: RD } : { text: "--", color: null });
+  const MetCell = ({ v }) => { const w = metWord(v); return <span data-met={v === true ? "met" : v === false ? "missed" : "none"} style={{ color: w.color || t.textMut, fontWeight: w.color ? 600 : 400 }}>{w.text}</span>; };
+  const judgedColumns = [
+    { header: tr("Issue"), render: r => <span><span style={{ fontWeight: 600, color: t.text }}>{r.title || r.reference || r.id}</span>{r.reference ? <div style={{ fontSize: 11, color: t.textMut, fontFamily: "monospace" }}>{r.reference}</div> : null}</span> },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.site_name || r.siteName || "--" },
+    { header: tr("Respond by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.respondBy ? irWhen(r.respondBy) : tr("No target")) },
+    { header: tr("Response|target"), render: r => <MetCell v={r.metResponse} /> },
+    { header: tr("Due"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.dueAt ? irWhen(r.dueAt) : tr("No target")) },
+    { header: tr("Resolution|target"), render: r => <MetCell v={r.metResolution} /> },
+  ];
 
   const exportPdf = () => {
     if (!sm) { showToast(tr("No data to export"), "error"); return; }
@@ -7014,6 +7068,10 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     ).join("")) : "";
     const slaTable = slaRows ? ('<h2>' + esc(tr("SLA compliance by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Resolution SLA"), tr("Response SLA"), tr("Resolution breaches"), tr("Response breaches")) + '</tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
     const targetsLine = tgt ? ('<p class="meta">' + esc(targetsSaid) + '</p>') : "";
+    const judgedRows = judged ? judged.map(r =>
+      '<tr><td>' + esc(r.title || r.reference || r.id) + (r.reference ? ' (' + esc(r.reference) + ')' : '') + '</td><td>' + esc(r.site_name || r.siteName || '') + '</td><td>' + esc(r.respondBy ? irWhen(r.respondBy) : tr("No target")) + '</td><td>' + esc(metWord(r.metResponse).text) + '</td><td>' + esc(r.dueAt ? irWhen(r.dueAt) : tr("No target")) + '</td><td>' + esc(metWord(r.metResolution).text) + '</td></tr>'
+    ).join("") : "";
+    const judgedTable = judgedRows ? ('<h2>' + esc(tr("Against their targets")) + '</h2><table><thead><tr>' + heads(tr("Issue"), tr("Site"), tr("Respond by"), tr("Response|target"), tr("Due"), tr("Resolution|target")) + '</tr></thead><tbody>' + judgedRows + '</tbody></table>') : "";
     const einLine = showEin ? ('<div>' + esc(tr("EIN {0}", settings.ein)) + '</div>') : "";
     const style = '<style>'
       + 'body{font-family:"Segoe UI",Arial,sans-serif;margin:30px;color:#222}'
@@ -7040,7 +7098,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
       + '<h1>' + esc(tr("Issue Response and Resolution")) + '</h1>'
       + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(sevLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
-      + targetsLine + trendTable + siteTable + sevTable + slaTable
+      + targetsLine + trendTable + siteTable + sevTable + slaTable + judgedTable
       + '<div class="footer">' + esc(cName) + (addr ? (' &middot; ' + esc(addr)) : "") + einLine + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
@@ -7081,6 +7139,11 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
           </div>}
       </ChartCard>
     </div>
+    {hasActivity && judged ? <div data-issue-judged="" style={{ marginBottom: 16 }}>
+      <ChartCard t={t} title={tr("Against their targets")} sub={tr("Each issue the report judged, response then resolution")}>
+        <DataTable t={t} columns={judgedColumns} rows={judged} rowKey={r => r.id || r.reference} empty={tr("No issue was judged in this range.")} />
+      </ChartCard>
+    </div> : null}
     {hasActivity ? <div>
       {out.trend ? <div style={{ marginBottom: 16 }}><IssueTrendWidget timing={timing} t={t} /></div> : null}
       {out.sla ? <div style={{ marginBottom: 16 }}><SlaComplianceTrendWidget timing={timing} t={t} /></div> : null}
