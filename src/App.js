@@ -21987,6 +21987,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const topicsLive = useTrainingLive(af, "topics");
   const gapsLive = useTrainingLive(af, "gaps");
   const awaitingLive = useTrainingLive(af, "awaiting");
+  const sessionsLive = useTrainingLive(af, "sessions");
   const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
@@ -22183,7 +22184,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22295,6 +22296,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
+      {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
@@ -23012,6 +23014,8 @@ const TRAINING_PROBES = {
   topics: ["/api/training/topics", (d) => !!(d && Array.isArray(d.topics))],
   gaps: ["/api/training/gaps", (d) => !!(d && Array.isArray(d.topics) && Array.isArray(d.people))],
   awaiting: ["/api/training/awaiting", (d) => !!(d && Array.isArray(d.attempts))],
+  // Step 263, against the API's Step 262 (STEP262_CONTRACT.md).
+  sessions: ["/api/training/sessions", (d) => !!(d && Array.isArray(d.sessions))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -24015,6 +24019,281 @@ async function printTrainingAttempt({ af, token, id, sites = [] }) {
     w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(tr("Training record")) + "</title>" + KEPT_STYLE + "</head><body>" + html + "</body></html>");
     w.document.close();
     setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
+    return true;
+  } catch (e) {
+    try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
+    return true;
+  }
+}
+
+// ===== SESSIONS SIGNED ON PHONES (Step 263, against the API's Step 262) =====
+// STEP262_CONTRACT.md section 2: the app's signed record replaces the paper OCSA-FRM-033 sign-in. The
+// Training area's Sessions tab is drawn once GET /api/training/sessions answers. A trainer starts a
+// session for 1 to 10 topics; its page shows the QR and the join code large enough to read across a
+// room, and the sign-ins as they arrive, read again every 5 seconds while it is open; a wrong one is
+// removed; the trainer closes it with their signature, and the window then says who was saved and who
+// already had a topic that day; Cancel writes nothing. The roster prints with every signature.
+const SESSION_STATUS = { open: "Open|session", closed: "Closed|session", cancelled: "Cancelled|session" };
+const sessionStatusWord = (s) => (SESSION_STATUS[s] ? tr(SESSION_STATUS[s]) : String(s || ""));
+const SESSION_START_FIELDS = ["title", "day", "siteId", "locale", "topicIds", "note"];
+// The topics of a session as one line, and their documents and sections as another.
+const sessionTopicsLine = (sn) => ((sn && sn.topics) || []).map(x => x.name).filter(Boolean).join(", ");
+const sessionDocsLine = (sn) => ((sn && sn.topics) || []).map(topicDocLine).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(", ");
+const sessionPeopleCount = (sn) => ((sn && sn.signins) || []).length;
+
+function TrainingSessions({ af, t, token, sites = [], staff = [], typeWords = {}, showToast }) {
+  const [f, setF] = useState({ status: "", siteId: "", from: "", to: "" });
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [openId, setOpenId] = useState("");
+  const load = useCallback(async () => {
+    setFailed(false);
+    const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
+    try { const d = await af("/api/training/sessions" + (q ? "?" + q : "")); setList(d && Array.isArray(d.sessions) ? d.sessions : []); }
+    catch (e) { setList([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, f, showToast]);
+  useEffect(() => { setList(null); load(); }, [load]);
+  if (openId) return <TrainingSessionPage af={af} t={t} token={token} id={openId} staff={staff} typeWords={typeWords} showToast={showToast} onBack={() => { setOpenId(""); load(); }} />;
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const cols = [
+    { header: tr("Title"), tdStyle: { minWidth: 140 }, render: sn => <span style={{ color: t.text, fontWeight: 600 }}>{sn.title || sessionTopicsLine(sn)}</span> },
+    { header: tr("Day"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: sn => (sn.day ? fdLong(sn.day) : "") },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: sn => (sn.site && sn.site.name) || "" },
+    { header: tr("Trainer"), tdStyle: { color: t.textSec }, render: sn => (sn.trainer && sn.trainer.name) || "" },
+    { header: tr("Topics"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: sn => sessionTopicsLine(sn) },
+    { header: tr("Status"), render: sn => <Bdg l={sessionStatusWord(sn.status)} c={sn.status === "open" ? GR : sn.status === "closed" ? BL : t.textMut} /> },
+  ];
+  return (<div data-training-sessions="">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <Sel t={t} aria-label={tr("Status")} data-sessions-filter="status" value={f.status} onChange={set("status")} options={[{ v: "", l: tr("All statuses") }].concat(Object.keys(SESSION_STATUS).map(k => ({ v: k, l: sessionStatusWord(k) })))} />
+      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={set("from")} />
+      <Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={set("to")} />
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      {list && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} session|count", list.length)}</span>}
+      <Btn t={t} data-session-start="" onClick={() => setStarting(true)} style={{ marginLeft: "auto" }}>{tr("Start a session")}</Btn>
+    </div>
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={list} rowKey={sn => sn.id} onRowClick={sn => setOpenId(String(sn.id))} empty={tr("No sessions here.")} />}
+    {starting && <StartSessionWindow af={af} t={t} sites={sites} onClose={() => setStarting(false)} onStarted={(sn) => { setStarting(false); setOpenId(String(sn.id)); }} />}
+  </div>);
+}
+
+// Start a session: its title, day, site, language and 1 to 10 topics from the catalog, and a note.
+// The caller is the trainer. A refusal is drawn under the field its keys name.
+function StartSessionWindow({ af, t, sites = [], onClose, onStarted }) {
+  const [topics, setTopics] = useState(null);
+  const [f, setF] = useState({ title: "", day: todayISO(), siteId: "", locale: "", note: "" });
+  const [picked, setPicked] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag())) : []); }).catch(() => { if (alive) setTopics([]); });
+    return () => { alive = false; };
+  }, [af]);
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-session-start-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const toggle = (id) => setPicked(p => (p.indexOf(id) >= 0 ? p.filter(x => x !== id) : p.length >= 10 ? p : p.concat([id])));
+  const ready = f.title.trim() && f.day && f.locale && picked.length >= 1 && picked.length <= 10;
+  const send = async () => {
+    if (!ready || busy) return;
+    setBusy(true); setRefusal(null);
+    try {
+      const d = await af("/api/training/sessions", { method: "POST", body: { title: f.title.trim(), day: f.day, siteId: f.siteId || null, locale: f.locale, topicIds: picked, note: f.note.trim() || null } });
+      if (d && d.session) onStarted(d.session);
+    } catch (e) {
+      const keys = trainingKeysOf(e).filter(k => SESSION_START_FIELDS.indexOf(k) >= 0);
+      setRefusal({ text: e.message || tr("Request failed"), fields: keys });
+    }
+    setBusy(false);
+  };
+  const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
+  const choice = (on) => ({ minWidth: 44, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+    <div data-session-start-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Start a session")}</div>
+      <div data-session-start-field="title"><div style={lbl}>{tr("Title")}</div><Inp t={t} aria-label={tr("Title")} value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder={tr("e.g. Monthly safety talk")} />{bad("title")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        <div data-session-start-field="day"><div style={lbl}>{tr("Day")}</div><Inp t={t} type="date" aria-label={tr("Day")} value={f.day} onChange={e => setF({ ...f, day: e.target.value })} />{bad("day")}</div>
+        <div data-session-start-field="siteId"><div style={lbl}>{tr("Site")}</div><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF({ ...f, siteId: e.target.value })} options={[{ v: "", l: tr("No site") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />{bad("siteId")}</div>
+      </div>
+      <div data-session-start-field="locale"><div style={lbl}>{tr("Language it is given in")}</div>
+        <div role="group" aria-label={tr("Language it is given in")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {TRAINING_LANGUAGES.map(l => <button key={l.id} type="button" aria-pressed={f.locale === l.id} onClick={() => setF({ ...f, locale: l.id })} style={choice(f.locale === l.id)}>{tr(l.word)}</button>)}
+        </div>{bad("locale")}</div>
+      <div data-session-start-field="topicIds"><div style={lbl}>{tr("Topics, 1 to 10")}</div>
+        <div style={{ border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 260, overflowY: "auto" }}>
+          {topics === null ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+            : topics.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("No topics yet.")}</div>
+            : topics.map(tp => <label key={tp.id} data-session-start-topic={tp.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "4px 12px", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text, cursor: "pointer" }}>
+              <input type="checkbox" checked={picked.indexOf(String(tp.id)) >= 0} onChange={() => toggle(String(tp.id))} style={{ width: 20, height: 20, accentColor: GO, flexShrink: 0 }} />
+              <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{tp.name}</span>
+              <span style={{ fontSize: 11, color: t.textMut }}>{topicDocLine(tp)}</span>
+            </label>)}
+        </div>
+        <div role="status" style={{ fontSize: 12, color: picked.length > 10 ? RD : t.textMut, marginTop: 4 }}>{trn("{0} topic picked|count", picked.length)}</div>
+        {bad("topicIds")}</div>
+      <div data-session-start-field="note"><div style={lbl}>{tr("Notes (optional)")}</div><TArea t={t} rows={2} aria-label={tr("Notes (optional)")} value={f.note} onChange={e => setF({ ...f, note: e.target.value })} />{bad("note")}</div>
+      {refusal && refusal.fields.length === 0 && <div role="alert" data-session-start-refusal="" style={{ fontSize: 13, color: RD }}>{refusal.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" disabled={busy} onClick={onClose}>{tr("Cancel")}</Btn>
+        <Btn t={t} data-session-start-send="" disabled={busy || !ready} onClick={send}>{busy ? tr("Saving...") : tr("Start the session")}</Btn>
+      </div>
+    </div>
+  </Mdl>);
+}
+
+// One session's page: GET /api/training/sessions/:id, read again every 5 seconds while it is open.
+function TrainingSessionPage({ af, t, token, id, staff = [], typeWords = {}, showToast, onBack }) {
+  const [sn, setSn] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [qr, setQr] = useState("");
+  const [closing, setClosing] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [result, setResult] = useState(null);
+  const load = useCallback(async () => {
+    try { const d = await af("/api/training/sessions/" + encodeURIComponent(id)); if (d && d.session) { setSn(d.session); setFailed(""); } }
+    catch (e) { setFailed(e.message || tr("This did not load.")); }
+  }, [af, id]);
+  useEffect(() => { load(); }, [load]);
+  const open = !!(sn && sn.status === "open");
+  // The sign-ins as they arrive: the session read again every 5 seconds while it is open.
+  useEffect(() => {
+    if (!open) return undefined;
+    const timer = setInterval(() => { if (!document.hidden) load(); }, 5000);
+    return () => clearInterval(timer);
+  }, [open, load]);
+  // The QR of joinUrl, read with the token while the session is open.
+  useEffect(() => {
+    if (!open || !token) return undefined;
+    let alive = true;
+    let made = "";
+    apiDownload("/api/training/sessions/" + encodeURIComponent(id) + "/qr.png", token).then(f0 => { made = URL.createObjectURL(f0.blob); if (alive) setQr(made); else URL.revokeObjectURL(made); }).catch(e => console.warn("Session QR:", e.message));
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [open, id, token]);
+  const remove = async (si) => {
+    if (!window.confirm(tr("Remove this sign-in? The person can sign in again."))) return;
+    setBusy("remove"); setRefusal("");
+    try { const d = await af("/api/training/sessions/" + encodeURIComponent(id) + "/signins/" + encodeURIComponent(si.id), { method: "DELETE" }); if (d && d.session) setSn(d.session); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const close = async (png) => {
+    setBusy("close"); setRefusal("");
+    try {
+      const d = await af("/api/training/sessions/" + encodeURIComponent(id) + "/close", { method: "POST", body: { signature: png } });
+      if (d && d.session) setSn(d.session);
+      setResult({ saved: (d && d.saved) || [], already: (d && d.already) || [] });
+      setClosing(false);
+      showToast(tr("Session closed. The training records are saved."));
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const cancel = async () => {
+    if (!window.confirm(tr("Cancel this session? Nothing is saved for anyone who signed in."))) return;
+    setBusy("cancel"); setRefusal("");
+    try { const d = await af("/api/training/sessions/" + encodeURIComponent(id) + "/cancel", { method: "POST" }); if (d && d.session) setSn(d.session); showToast(tr("Session cancelled")); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const print = () => printSessionRoster({ af, token, session: sn, staff }).then(okd => { if (!okd) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
+  if (!sn) return <div data-session-page="">
+    <button onClick={onBack} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", padding: 0 }}>{tr("Back to the sessions")}</button>
+    {failed ? <LoadFailed t={t} text={failed} onRetry={load} /> : <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+  </div>;
+  const people = (sn.signins || []);
+  const nameOf = (uid) => { const s0 = people.find(x => x.person && String(x.person.id) === String(uid)); return (s0 && s0.person && s0.person.name) || ((staff.find(p => String(p.id) === String(uid)) || {}).name) || ""; };
+  const topicOf = (tid) => ((sn.topics || []).find(x => String(x.id) === String(tid)) || {}).name || "";
+  const lang = TRAINING_LANGUAGES.find(l => l.id === langCode(sn.locale));
+  return (<div data-session-page={sn.status}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <button onClick={onBack} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", padding: 0 }}>{tr("Back to the sessions")}</button>
+      <span style={{ marginLeft: "auto" }}><Bdg l={sessionStatusWord(sn.status)} c={sn.status === "open" ? GR : sn.status === "closed" ? BL : t.textMut} /></span>
+    </div>
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{sn.title}</div>
+      <div style={{ fontSize: 13, color: t.textSec, marginTop: 4, lineHeight: 1.6 }}>{[sn.day ? fdLong(sn.day) : "", sn.site && sn.site.name, lang ? tr(lang.word) : "", sn.trainer && sn.trainer.name ? tr("Trainer: {0}", sn.trainer.name) : ""].filter(Boolean).join(" . ")}</div>
+      <div style={{ marginTop: 8 }}>{(sn.topics || []).map(tp => <div key={tp.id} style={{ fontSize: 13, color: t.text }}>{tp.name}<span style={{ color: t.textMut, marginLeft: 6, fontSize: 12 }}>{topicDocLine(tp)}</span></div>)}</div>
+      {sn.note && <div style={{ fontSize: 12, color: t.textSec, marginTop: 6, whiteSpace: "pre-line" }}>{sn.note}</div>}
+    </Crd>
+    {open && <Crd t={t} style={{ marginBottom: 14, textAlign: "center" }}>
+      <div data-session-join="" style={{ display: "flex", gap: 20, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+        <div style={{ width: 260, maxWidth: "100%", aspectRatio: "1 / 1", background: "#FFFFFF", borderRadius: R.md, border: "1px solid " + t.border, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {qr ? <img src={qr} alt={tr("QR code to sign in")} data-session-qr="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 12, color: "#666" }}>{tr("Loading...")}</span>}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: t.textSec }}>{tr("Scan the code, or type this code in the staff app")}</div>
+          <div data-session-code="" style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: "clamp(40px, 9vw, 72px)", fontWeight: 700, letterSpacing: 6, color: t.text, lineHeight: 1.2, overflowWrap: "anywhere" }}>{sn.joinCode}</div>
+          {sn.joinUrl && <div style={{ fontSize: 12, color: t.textMut, overflowWrap: "anywhere" }}>{sn.joinUrl}</div>}
+        </div>
+      </div>
+    </Crd>}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+      <div role="status" data-session-count={people.length} style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{trn("{0} signed in|count", people.length)}</div>
+      {open && <span style={{ fontSize: 12, color: t.textMut }}>{tr("The list is read again every 5 seconds.")}</span>}
+    </div>
+    <div role="list" data-session-signins="" style={{ border: "1px solid " + t.border, borderRadius: R.lg, overflow: "hidden", background: t.card, marginBottom: 14 }}>
+      {people.length === 0 ? <div style={{ padding: 14, fontSize: 13, color: t.textMut }}>{tr("Nobody has signed in yet.")}</div>
+        : people.map(si => <div key={si.id} role="listitem" data-session-signin={si.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 14px", borderBottom: "1px solid " + t.border }}>
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(si.person && si.person.name) || ""}</span>
+            <span style={{ display: "block", fontSize: 12, color: t.textSec }}>{si.signedAt ? irWhen(si.signedAt) : ""}</span>
+          </span>
+          {open && <button data-session-remove={si.id} disabled={!!busy} onClick={() => remove(si)} style={{ minHeight: 44, minWidth: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Remove")}</button>}
+        </div>)}
+    </div>
+    {result && <Crd t={t} style={{ marginBottom: 14 }}>
+      <div data-session-close-saved={result.saved.length} style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 4 }}>{trn("{0} training record saved|count", result.saved.length)}</div>
+      {result.saved.map((x, i) => <div key={"s" + i} style={{ fontSize: 13, color: t.textSec }}>{nameOf(x.userId)}{topicOf(x.topicId) ? ", " + topicOf(x.topicId) : ""}</div>)}
+      {result.already.length > 0 && <div data-session-close-already={result.already.length} style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{tr("Already had it that day")}</div>
+        {result.already.map((x, i) => <div key={"a" + i} style={{ fontSize: 13, color: t.textSec }}>{nameOf(x.userId)}{topicOf(x.topicId) ? ", " + topicOf(x.topicId) : ""}</div>)}
+      </div>}
+    </Crd>}
+    {refusal && <div role="alert" data-session-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    {closing && open && <div data-session-closing="" style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 6 }}>{tr("Closing saves a training record for each person and topic. Sign as the trainer.")}</div>
+      <SignatureBox t={t} label={tr("Your signature, as the trainer")} busy={busy === "close"} onSign={close} signWord={tr("Close the session")} busyWord={tr("Saving...")} onCancel={() => setClosing(false)} />
+    </div>}
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {open && !closing && <Btn t={t} data-session-close="" disabled={!!busy} onClick={() => setClosing(true)}>{tr("Close the session")}</Btn>}
+      {open && <Btn t={t} v="ghost" data-session-cancel="" disabled={!!busy} onClick={cancel} style={{ color: RD }}>{tr("Cancel the session")}</Btn>}
+      {sn.status !== "cancelled" && <Btn t={t} v="ghost" data-session-roster="" disabled={!!busy} onClick={print}>{tr("Print the roster")}</Btn>}
+    </div>
+  </div>);
+}
+
+// The OCSA-FRM-033 roster of a session signed on phones: its title and topics, their documents and
+// sections, the day, the site, the language, the trainer, each attendee's name, the time they signed
+// and their signature, and the trainer's attestation and signature, each signature read with the
+// token. The window is opened in the click, so a pop-up blocker lets it through; false when the
+// browser would not open it.
+async function printSessionRoster({ af, token, session, staff = [] }) {
+  const w = keptWindow();
+  if (!w) return false;
+  try {
+    const d = await af("/api/training/sessions/" + encodeURIComponent(session.id));
+    const sn = (d && d.session) || session;
+    const base = "/api/training/sessions/" + encodeURIComponent(sn.id) + "/signature";
+    const people = (sn.signins || []).slice().sort((a, b) => String(a.signedAt || "").localeCompare(String(b.signedAt || "")));
+    const [trainerSig, ...sigs] = await Promise.all([sn.closedAt ? keptImage(base + "?who=trainer", token) : Promise.resolve("")].concat(people.map(si => keptImage(base + "?who=signin&signinId=" + encodeURIComponent(si.id), token))));
+    const lang = TRAINING_LANGUAGES.find(l => l.id === langCode(sn.locale));
+    const sigHtml = (img, line) => '<div style="margin:4px 0 10px">' + (img ? '<img src="' + keptEsc(img) + '" alt="" style="height:48px;max-width:280px;object-fit:contain;display:block;border-bottom:1px solid #999" />' : '<div class="ln"></div>') + (line ? '<div class="note" style="margin:2px 0">' + keptEsc(line) + "</div>" : "") + "</div>";
+    const trainerName = (sn.trainer && sn.trainer.name) || "";
+    const page = { code: "OCSA-FRM-033", site: (sn.site && sn.site.name) || "", range: sn.day ? { start: sn.day, end: sn.day } : null, parts: [
+      { h: "Session Details", fields: [["Training Title or Topic", [sn.title, sessionTopicsLine(sn)].filter(Boolean).join(": ")], ["Training Type", ""], ["Related Document No.", sessionDocsLine(sn)], ["Date", trainingDayWords(sn.day, true)], ["Start Time / End Time", ""], ["Site or Location", (sn.site && sn.site.name) || ""], ["Delivery Method", tr("In person, each attendee signed in on the app")], ["Language(s) Delivered In", lang ? tr(lang.word) : ""], ["Translation Method", ""], ["Understanding Verified By", tr("Each attendee ticked I understood this training")], ["Materials or Equipment Used", ""]] },
+      { h: "Trainer", fields: [["Trainer Name", trainerName], ["Trainer Role", ""], ["Qualification Held", ""]] },
+      { html: '<div class="note"><b>' + keptEsc(tr("Trainer Signature")) + "</b></div>" + sigHtml(trainerSig, sn.closedAt ? tr("Signed {0}", irWhen(sn.closedAt)) : tr("Not signed")) },
+      { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", "Employee ID", "Signed at", "Signature", "Understood"], rows: people.map((si, i) => ["", (si.person && si.person.name) || "", rosterEmployeeId(staff, si.person && si.person.id), si.signedAt ? irWhen(si.signedAt) : "", sigs[i] ? { img: sigs[i] } : "", tr("Yes")]) },
+      { fields: [["Total attendees this session", String(people.length)]] },
+      { h: "Trainer Attestation", note: ROSTER_ATTESTATION },
+      { html: sigHtml(trainerSig, [trainerName, sn.closedAt ? tr("Signed {0}", irWhen(sn.closedAt)) : ""].filter(Boolean).join(", ")) },
+    ] };
+    keptWrite(w, tr("Attendance sheet"), [page]);
     return true;
   } catch (e) {
     try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
