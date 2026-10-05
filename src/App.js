@@ -1345,12 +1345,40 @@ function EmploymentCard({ t, data, onRecord, staffHref }) {
 // reason for someone already ended or on leave, which the same route records without changing
 // anything. A refusal is drawn word for word under the field its keys name, and anything else at
 // the top. Each window says what will happen before it is sent.
+//
+// A rehire also lists the sites to restore (Step 248, STEP247_CONTRACT.md version 2, section 3): the
+// employment answer's pastSites, one checkbox row a site with its role, its shift and the shift's
+// days, the ones held when the person left ticked to start. The window takes pastSites from the
+// answer it was given, and reads GET /api/users/:id/employment itself when it was given none. The
+// send carries restoreAssignmentIds only when the answer carried pastSites, so an API before Step 247
+// is sent what it was always sent. A refusal of the school site guard names its site with siteId and
+// is drawn under that site's row; employment.badSites is drawn at the group.
 const EMPLOYMENT_SEND = { end: "End employment", leave: "Put on leave", "return": "Return from leave", rehire: "Rehire" };
-function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast, initialReason = "" }) {
+const ASSIGNMENT_DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const ASSIGNMENT_DAY_WORDS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const assignmentDaysShown = (v) => (Array.isArray(v) ? v : typeof v === "string" && v ? v.split(",") : []).map(x => {
+  const i = ASSIGNMENT_DAYS.indexOf(String(x).trim().slice(0, 3).toLowerCase());
+  return i >= 0 ? tr(ASSIGNMENT_DAY_WORDS[i]) : String(x).trim();
+}).filter(Boolean).join(", ");
+function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast, initialReason = "", lkMap }) {
   const today = toISO(new Date());
   const [reasons, setReasons] = useState(null);
   const [f, setF] = useState({ reason: initialReason || "", lastDay: "", rehireEligible: "", expectedReturn: "", hireDate: "", note: "" });
-  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "", siteId: "" });
+  const [read, setRead] = useState(null);
+  useEffect(() => {
+    if (mode !== "rehire" || data) return undefined;
+    let alive = true;
+    af("/api/users/" + encodeURIComponent(userId) + "/employment").then(d => { if (alive) setRead(employmentAnswerOf(d)); }).catch(e => { console.warn("Employment:", e.message); });
+    return () => { alive = false; };
+  }, [af, mode, data, userId]);
+  const known = data || read;
+  const pastSites = mode === "rehire" && known && Array.isArray(known.pastSites) ? known.pastSites.filter(p => p && p.assignmentId != null) : null;
+  const [ticks, setTicks] = useState(null);
+  const ticked = ticks || (pastSites ? pastSites.filter(p => p.endedWithEmployment === true).map(p => String(p.assignmentId)) : []);
+  const tick = (id, on) => setTicks((on ? ticked.concat([id]) : ticked.filter(x => x !== id)).filter((x, i, a) => a.indexOf(x) === i));
+  const roleShown = lkMap ? lkMap("site_roles", true) : {};
+  const shiftShown = lkMap ? lkMap("shift_names", true) : {};
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   useEffect(() => {
@@ -1360,24 +1388,28 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     return () => { alive = false; };
   }, [af, mode]);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const FIELDS = ["reason", "lastDay", "rehireEligible", "expectedReturn", "hireDate", "note"];
+  const FIELDS = ["reason", "lastDay", "rehireEligible", "expectedReturn", "hireDate", "note", "restoreAssignmentIds"];
   const fieldOf = (e) => { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; return keys.find(k => FIELDS.indexOf(k) >= 0) || ""; };
+  // A guard refusal names the site it refused with siteId, drawn under that site's row when it is one
+  // of the rows; anything else falls to the field its keys name, or the top.
+  const siteOf = (e) => { const id = e && e.body && e.body.siteId != null ? String(e.body.siteId) : ""; return id && pastSites && pastSites.some(p => String(p.siteId) === id) ? id : ""; };
   const noteNeeded = f.reason === "other";
   const ready = mode === "end" ? !!(f.reason && f.lastDay && f.rehireEligible && (!noteNeeded || f.note.trim()))
     : mode === "leave" ? !!(f.reason && (!noteNeeded || f.note.trim()))
     : mode === "rehire" ? !!f.hireDate : true;
   const send = async () => {
     if (savingRef.current || !ready) return;
-    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "", siteId: "" });
     const note = f.note.trim() || null;
     const body = mode === "end" ? { reason: f.reason, lastDay: f.lastDay, rehireEligible: f.rehireEligible === "yes", note }
       : mode === "leave" ? { reason: f.reason, expectedReturn: f.expectedReturn || null, note }
-      : mode === "rehire" ? { hireDate: f.hireDate, note } : { note };
+      : mode === "rehire" ? Object.assign({ hireDate: f.hireDate, note }, pastSites ? { restoreAssignmentIds: ticked } : {}) : { note };
     try {
       const d = await af("/api/users/" + encodeURIComponent(userId) + "/employment/" + mode, { method: "POST", body });
-      if (showToast) showToast(d && d.changed === false ? tr("Reason recorded.") : tr("Employment updated."));
+      const restored = mode === "rehire" && d && Array.isArray(d.restoredSites) ? d.restoredSites.length : 0;
+      if (showToast) showToast(d && d.changed === false ? tr("Reason recorded.") : restored > 0 ? trn("Rehired. {0} sites restored.|count", restored) : tr("Employment updated."));
       onSaved(d);
-    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    } catch (e) { const site = siteOf(e); setRefusal({ text: e.message || tr("Request failed"), field: site ? "" : fieldOf(e), siteId: site }); }
     savingRef.current = false; setSaving(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-employment-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
@@ -1390,7 +1422,8 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     : mode === "end" ? tr("End the employment of {0}? Every site they are assigned to ends with it.", who)
     : mode === "leave" ? tr("Put {0} on leave? They cannot sign in while on leave, and they keep their sites.", who)
     : mode === "return" ? tr("Bring {0} back from leave? They can sign in again.", who)
-    : tr("Rehire {0}? They can sign in again, and their history stays.", who);
+    : tr("Rehire {0}? They can sign in again, and their history stays.", who)
+      + (pastSites ? " " + (ticked.length > 0 ? trn("{0} sites will be restored.|count", ticked.length) : tr("No sites will be restored.")) : "");
   const title = record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode]);
   return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
@@ -1400,7 +1433,7 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
       </div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
     </div>
-    {refusal.text && !refusal.field && <div data-employment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {refusal.text && !refusal.field && !refusal.siteId && <div data-employment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     {(mode === "end" || mode === "leave") && <div style={{ marginBottom: 12 }}>
       <Lbl>{tr("Reason")}</Lbl>
       <Sel t={t} aria-label={tr("Reason")} value={f.reason} onChange={e => set("reason", e.target.value)} options={reasonOpts} style={box("reason")} />
@@ -1419,6 +1452,30 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     </div>}
     {mode === "rehire" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
       <Lbl>{tr("New hire date")}</Lbl><Inp t={t} type="date" aria-label={tr("New hire date")} value={f.hireDate} onChange={e => set("hireDate", e.target.value)} style={box("hireDate")} />{under("hireDate")}
+    </div>}
+    {pastSites && pastSites.length > 0 && <div data-restore-sites="" role="group" aria-labelledby="restore-sites-label" style={{ marginBottom: 12 }}>
+      <Lbl><span id="restore-sites-label">{tr("Sites to restore")}</span></Lbl>
+      <div style={{ border: "1px solid " + (refusal.field === "restoreAssignmentIds" ? RD : t.border), borderRadius: R.sm }}>
+        {pastSites.map((p, i) => {
+          const id = String(p.assignmentId);
+          const shift = [p.shiftName ? (shiftShown[p.shiftName] || p.shiftName) : "", p.shiftStart ? tr("{0} to {1}", patternTime(p.shiftStart), patternTime(p.shiftEnd)) : "", assignmentDaysShown(p.daysOfWeek)].filter(Boolean).join(", ");
+          const sub = [p.roleAtSite ? (roleShown[p.roleAtSite] || p.roleAtSite) : "", shift].filter(Boolean).join(" | ");
+          return (<div key={id} data-restore-site={id} style={{ borderTop: i ? "1px solid " + t.border : "none" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, padding: "4px 10px 4px 0", cursor: "pointer" }}>
+              <span style={chkWrap}><input type="checkbox" checked={ticked.indexOf(id) >= 0} onChange={e => tick(id, e.target.checked)} disabled={saving} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+              <span style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.siteName || tr("Site")}</span>
+                  {p.endedWithEmployment === true ? <span style={{ fontSize: 11, color: t.textMut }}>{tr("Held when they left")}</span> : null}
+                </span>
+                {sub ? <span style={{ display: "block", fontSize: 11, color: t.textSec, marginTop: 2 }}>{sub}</span> : null}
+              </span>
+            </label>
+            {refusal.text && refusal.siteId && refusal.siteId === String(p.siteId) ? <div data-employment-refusal={"site:" + p.siteId} style={{ fontSize: 12, color: RD, padding: "0 10px 8px 50px" }}>{refusal.text}</div> : null}
+          </div>);
+        })}
+      </div>
+      {under("restoreAssignmentIds")}
     </div>}
     <div style={{ marginBottom: 12 }}>
       <Lbl>{tr("Note")}</Lbl>
@@ -2017,7 +2074,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         </>}
       />
 
-      {empWin && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
+      {empWin && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} lkMap={lkMap} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
