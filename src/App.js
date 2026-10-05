@@ -8932,7 +8932,9 @@ const reviewBySite = (rows, idOf, nameOf) => {
   rows.forEach(r => { const id = String(idOf(r) || ""); if (!m.has(id)) m.set(id, { id, name: nameOf(r) || tr("No site"), rows: [] }); m.get(id).rows.push(r); });
   return Array.from(m.values()).sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag()));
 };
-// The day a corrective action was signed closed, from the report read whole: its Closure sign-off.
+// The day a corrective action was signed closed, from the report read whole: its Closure sign-off. Since
+// the API's Step 247 (STEP247_CONTRACT.md version 2, section 6.2) each row of the list carries closedAt
+// itself, and the pack reads a report whole only when its row does not.
 const reviewClosedOn = (rep) => {
   const f = rep && Array.isArray(rep.fields) ? rep.fields.find(x => x && x.key === "closed") : null;
   const v = (f && f.value) || (rep && rep.draft && rep.draft.answers && rep.draft.answers.closed) || null;
@@ -8954,7 +8956,9 @@ async function reviewSections(af, value) {
     settle(insp(range)), settle(insp(prev)),
     settle(reviewFilings(af, "OCSA-FRM-009", range.start)),
     settle(af("/api/reports/client-ratings?from=" + range.start + "&to=" + range.end)),
-    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => Promise.all(rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => af("/api/forms/responses/" + encodeURIComponent(r.id)).then(rep => ({ r, closed: reviewClosedOn(rep) })))))),
+    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => Promise.all(rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => (Object.prototype.hasOwnProperty.call(r, "closedAt")
+      ? Promise.resolve({ r, closed: r.closedAt ? keptDayOf(r.closedAt) : "" })
+      : af("/api/forms/responses/" + encodeURIComponent(r.id)).then(rep => ({ r, closed: reviewClosedOn(rep) }))))))),
     settle(reviewFilings(af, "OCSA-FRM-016", range.start)), settle(reviewFilings(af, "OCSA-FRM-017", range.start)),
     settle(Promise.all(years.map(y => af("/api/injury-log?year=" + y))).then(list => [].concat(...list.map(d => (d && Array.isArray(d.cases) ? d.cases : []))))),
     settle(af("/api/hr/training").then(d => (Array.isArray(d) ? d : []))),
@@ -15194,7 +15198,15 @@ function SignatureImage({ t, token, responseId, signKey, path }) {
   return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
 }
 
-function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null }) {
+// A client's concern acknowledged by hand (Step 248, STEP247_CONTRACT.md version 2, section 6.1).
+// OCSA-MGT-005 gives a client's complaint one working day to be acknowledged, and a client who left
+// only a phone gets no receipt mail. When the read says canAcknowledge, Mark acknowledged sits above
+// the desk: How and an optional note, sent to POST /api/forms/responses/:id/acknowledge, refusals
+// word for word under the field their keys name. Once acknowledged the report says when, by whom and
+// how, or by the receipt mail when nobody sent it by hand. A read without the keys shows none of it.
+const ACK_METHODS = [{ v: "phone", l: "Phone call", said: "phone call|acknowledged" }, { v: "text", l: "Text message", said: "text message|acknowledged" }, { v: "email", l: "Email", said: "email|acknowledged" }, { v: "in_person", l: "In person", said: "in person|acknowledged" }];
+const ACK_FIELDS = ["method", "note"];
+function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -15223,6 +15235,12 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // Step 203: a supervisor write refused with forms.fieldNotYours names the questions this person may
   // not write in keys, and the refusal is drawn under each of them.
   const [fieldRefusal, setFieldRefusal] = useState({ text: "", keys: [] });
+  // Mark acknowledged (Step 248): the open form, what it holds, and one send at a time.
+  const [ackOpen, setAckOpen] = useState(false);
+  const [ack, setAck] = useState({ method: "", note: "" });
+  const [ackRefusal, setAckRefusal] = useState({ text: "", field: "" });
+  const [acking, setAcking] = useState(false);
+  const ackRef = useRef(false);
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -15317,6 +15335,23 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     sendingRef.current = false; setSending(false);
   };
 
+  const acknowledge = async () => {
+    if (ackRef.current || !ack.method) return;
+    ackRef.current = true; setAcking(true); setAckRefusal({ text: "", field: "" });
+    const note = ack.note.trim();
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/acknowledge", { method: "POST", body: Object.assign({ method: ack.method }, note ? { note } : {}) });
+      const done = { acknowledgedAt: (d && d.acknowledgedAt) || new Date().toISOString(), acknowledgedMethod: (d && d.acknowledgedMethod) || ack.method, acknowledgedBy: (d && d.acknowledgedBy) || null, canAcknowledge: false };
+      setData(prev => (prev ? Object.assign({}, prev, { canAcknowledge: false, draft: Object.assign({}, prev.draft, done) }) : prev));
+      setAckOpen(false); setAck({ method: "", note: "" });
+      if (onAcknowledged) onAcknowledged(id);
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setAckRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => ACK_FIELDS.indexOf(k) >= 0) || "" });
+    }
+    ackRef.current = false; setAcking(false);
+  };
+
   const doVoid = async () => {
     if (voidRef.current) return;
     voidRef.current = true; setVoidBusy(true); setActionError(""); setSentLine("");
@@ -15336,6 +15371,20 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // control draws.
   const canVoid = !!(data && data.canVoid);
   const canResend = !!(data && data.canResend);
+  // The acknowledgement keys, read off the report, or off the read where the API puts them there.
+  const ackKey = (k) => (draft && Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : data && Object.prototype.hasOwnProperty.call(data, k) ? data[k] : undefined);
+  const canAcknowledge = ackKey("canAcknowledge") === true;
+  const ackMethod = ackKey("acknowledgedMethod");
+  const ackAt = ackKey("acknowledgedAt");
+  const ackBy = ackKey("acknowledgedBy");
+  const ackWho = ackBy && typeof ackBy === "object" ? String(ackBy.name || "") : "";
+  const ackHow = ACK_METHODS.find(m => m.v === ackMethod);
+  // Before the API's Step 247 only the receipt mail set acknowledgedAt, so one with no method and no
+  // person is the receipt too.
+  const ackLine = ackMethod === undefined || !ackAt ? ""
+    : ackWho ? tr("Acknowledged {0} by {1}, {2}.", irWhen(ackAt), ackWho, ackHow ? tr(ackHow.said) : String(ackMethod || ""))
+    : (ackMethod === "email" || ackMethod == null) ? tr("Acknowledged {0} by email receipt.", irWhen(ackAt))
+    : tr("Acknowledged {0}.", irWhen(ackAt));
   const isVoid = !!(draft && draft.status === "void");
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
   // Step 203: a question that carries appliesWhen shows only while its rule holds, read by the one
@@ -15648,6 +15697,33 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
         {grouped(agentFields, fieldRow)}
         {averages}
       </div>
+      {(ackLine || canAcknowledge) && <div data-acknowledge="" style={{ marginBottom: 18, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (canAcknowledge ? t.orangeBorder : t.border) }}>
+        {ackLine && <div data-acknowledged="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{ackLine}</div>}
+        {canAcknowledge && !ackOpen && <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Bdg l={tr("Not acknowledged")} c={OR} />
+          <Btn t={t} v="ghost" onClick={() => { setAckOpen(true); setAckRefusal({ text: "", field: "" }); }} style={{ minHeight: 44 }} data-mark-acknowledged="">{tr("Mark acknowledged")}</Btn>
+        </div>}
+        {canAcknowledge && ackOpen && <div data-acknowledge-form="">
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Mark acknowledged")}</div>
+          {ackRefusal.text && !ackRefusal.field && <div data-acknowledge-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{ackRefusal.text}</div>}
+          <div style={{ marginBottom: 12, maxWidth: 280 }}>
+            <Lbl>{tr("How")}</Lbl>
+            <Sel t={t} aria-label={tr("How")} value={ack.method} onChange={e => setAck(a => ({ ...a, method: e.target.value }))} style={ackRefusal.field === "method" ? { borderColor: RD } : {}}
+              options={[{ v: "", l: tr("Choose") }].concat(ACK_METHODS.map(m => ({ v: m.v, l: tr(m.l) })))} />
+            {ackRefusal.text && ackRefusal.field === "method" && <div data-acknowledge-refusal="method" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{ackRefusal.text}</div>}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <Lbl>{tr("Note")}</Lbl>
+            <TArea t={t} rows={2} maxLength={500} aria-label={tr("Note")} value={ack.note} onChange={e => setAck(a => ({ ...a, note: e.target.value }))} style={ackRefusal.field === "note" ? { borderColor: RD } : {}} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional.")}</div>
+            {ackRefusal.text && ackRefusal.field === "note" && <div data-acknowledge-refusal="note" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{ackRefusal.text}</div>}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => { setAckOpen(false); setAckRefusal({ text: "", field: "" }); }} disabled={acking} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={acknowledge} disabled={acking || !ack.method} style={{ minHeight: 44 }}>{acking ? tr("Saving...") : tr("Mark acknowledged")}</Btn>
+          </div>
+        </div>}
+      </div>}
       <div>
         <Lbl>{tr("Supervisor section")}</Lbl>
         {canWriteSupervisor
@@ -17519,6 +17595,8 @@ const isComplaint = (r) => !!r && r.formCode === COMPLAINT_FORM_CODE;
 const complaintFromLink = (r) => isComplaint(r) && r.source === "customer";
 const complaintForController = (r) => isComplaint(r) && (r.forController === true || r.staffConduct === true);
 const complaintTimed = (r) => isComplaint(r) && Object.prototype.hasOwnProperty.call(r, "answeredAt");
+// A client's concern that carries acknowledgedAt, still empty (Step 248).
+const complaintUnacknowledged = (r) => complaintFromLink(r) && Object.prototype.hasOwnProperty.call(r, "acknowledgedAt") && !r.acknowledgedAt;
 // Working days, Monday to Friday, after today up to and including the day due: 0 on the day itself.
 function workingDaysUntil(due, now) {
   const last = new Date(due);
@@ -17704,24 +17782,25 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const customerCell = (r) => (<span>{tr("Customer")}{r.userName ? <div style={{ fontSize: 10, color: t.textMut }}>{r.userName}</div> : null}</span>);
   // Where a filing came from, under its form name, when the API says. A complaint a client filed from
   // a link says From a client, and one about how a member of staff treated someone says For the
-  // Controller (Step 243).
+  // Controller (Step 243). A client's complaint the list says no one has acknowledged yet says Not
+  // acknowledged (Step 248).
   const formCell = (r) => (<span style={{ color: t.text }}>{r.formName}
     {complaintFromLink(r) || complaintForController(r)
-      ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{complaintFromLink(r) && <Bdg l={tr("From a client")} c={BL} />}{complaintForController(r) && <Bdg l={tr("For the Controller")} c={PU} />}</div>
+      ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{complaintFromLink(r) && <Bdg l={tr("From a client")} c={BL} />}{complaintForController(r) && <Bdg l={tr("For the Controller")} c={PU} />}{complaintUnacknowledged(r) && <span data-not-acknowledged=""><Bdg l={tr("Not acknowledged")} c={OR} /></span>}</div>
       : r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
   // A complaint's deadline, on a list that holds one the API times.
   const timed = rows.some(r => complaintTimed(r) || hasDueState(r));
   const dueCell = (r) => { if (!complaintTimed(r) && !hasDueState(r)) return null; const d = complaintDue(r); return <span data-complaint-due="" data-due-state={hasDueState(r) ? String(r.dueState) : undefined} style={{ color: d.color || t.textSec, fontWeight: d.color ? 600 : 400 }}>{d.text}</span>; };
   const submittedCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
-    { header: tr("Form"), render: formCell },
+    { header: tr("Form"), tdStyle: { minWidth: 170 }, render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => (r.userId === null ? customerCell(r) : (r.userName || "--")) },
     ...(timed ? [{ header: tr("Due"), tdStyle: { whiteSpace: "nowrap" }, render: dueCell }] : []),
   ];
   const draftCols = [
     { header: tr("Started"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
-    { header: tr("Form"), render: formCell },
+    { header: tr("Form"), tdStyle: { minWidth: 170 }, render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Started by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
     { header: tr("Answered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => tr("{0} of {1}", Number(r.answered) || 0, (Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
@@ -17740,7 +17819,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   // Continue would be.
   const voidCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
-    { header: tr("Form"), render: formCell },
+    { header: tr("Form"), tdStyle: { minWidth: 170 }, render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => (r.userId === null ? customerCell(r) : (r.userName || "--")) },
     { header: tr("Status"), render: () => <Bdg l={tr("Void|status")} c={RD} /> },
@@ -17763,7 +17842,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : status === "void" ? voidCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : status === "void" ? tr("No void reports.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
-    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} />}
+    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} />}
     {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
