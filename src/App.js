@@ -144,7 +144,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -752,6 +752,9 @@ export default function AdminDashboard() {
   useEffect(() => { const h = () => { const next = pageFromHash(); setPage(prev => (prev === next ? prev : next)); setRoute(subFromHash()); }; window.addEventListener("hashchange", h); return () => window.removeEventListener("hashchange", h); }, []);
   // Replacing the hash adds no history entry and fires no hashchange, so the route is set here too.
   const replaceRoute = useCallback((parts) => { const h = "#" + [page, ...parts].join("/"); window.history.replaceState(null, "", h); setRoute(parts); }, [page]);
+  // The Training page (Step 268): #training/<view> is the Training area's #hr/training/<view>, so the
+  // HR Records page reads it as that route. Kept by reference, so the page does not reset its view.
+  const trainingRoute = useMemo(() => ["training"].concat(route), [route]);
   useEffect(() => {
     const stored = readAuth();
     if (!stored) return;
@@ -823,6 +826,9 @@ export default function AdminDashboard() {
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
+      // Step 268, the owner's change of October 6: Training has its own item, right under HR Records,
+      // for the admins and supervisors HR Records opens for; it opens the Training area as #hr/training does.
+      { id: "training", l: tr("Training"), i: ClpI },
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
@@ -848,7 +854,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1082,6 +1088,7 @@ export default function AdminDashboard() {
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />}
+        {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -1661,6 +1668,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // answers, or null before then.
   const gapsLive = useTrainingLive(af, "gaps");
   const [hrItems, setHrItems] = useState(null);
+  // Step 268, the owner's change of October 6: Assign training from the person's list, once the
+  // API's Step 266 is there (the catalog answers categories), for an admin.
+  const [assigning, setAssigning] = useState(false);
+  const assignLive = useTrainingLive(af, "categories");
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
   // Step 187: the filed reports about this person, the source form items of their HR folder, and
   // the one open in its review window.
@@ -2177,8 +2188,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             {/* Step 257: the person's items, each in its status's words, once the gaps route answers; the
                 records follow, with no status of their own, since the table keeps none. */}
             {hrItems && <div data-profile-training-items="" style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Required training ({0})", hrItems.length)}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Required training ({0})", hrItems.length)}</div>
+                {user && user.role === "admin" && assignLive && profile && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)} style={{ marginLeft: "auto", minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Assign training")}</Btn>}
+              </div>
               <TrainingItemsList t={t} items={hrItems} compact />
+              {assigning && profile && <AssignTrainingWindow af={af} t={t} sites={sites} presetUserIds={[String(profile.id)]} showToast={showToast} onClose={() => setAssigning(false)} onDone={() => loadHrData(profile.id)} />}
             </div>}
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Training Records ({0})", hrTraining.length)}</div>
             {hrTraining.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No training records")}</div>}
@@ -21986,7 +22001,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "" }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "", trainingPage = false }) {
   // Step 257: #hr/training opens the Training area, and #hr/training/<view> one of its tabs.
   const trainingRoute = route[0] === "training";
   const [tab, setTab] = useState(() => (trainingRoute ? "training" : "employees"));
@@ -22012,6 +22027,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const awaitingLive = useTrainingLive(af, "awaiting");
   const sessionsLive = useTrainingLive(af, "sessions");
   const documentsLive = useTrainingLive(af, "documents");
+  // Step 268: the Drafts tab, once GET /api/training/lesson-drafts answers, which it does for admins.
+  const draftsLive = useTrainingLive(af, "drafts");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -22227,7 +22244,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22244,7 +22261,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
-        {tabs.map(tb => (
+        {!trainingPage && tabs.map(tb => (
           <button key={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
         {tab !== "employees" && !(tab === "training" && trCur !== "records") && (
@@ -22337,7 +22354,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trViews.length > 1 && <div role="tablist" data-training-views="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
-      {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
+      {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
+      {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -23061,6 +23079,12 @@ const TRAINING_PROBES = {
   // Step 263, against the API's Step 262 (STEP262_CONTRACT.md).
   sessions: ["/api/training/sessions", (d) => !!(d && Array.isArray(d.sessions))],
   documents: ["/api/documents", (d) => !!(d && Array.isArray(d.documents))],
+  // Step 268, against the API's Step 266 (STEP266_CONTRACT.md): the catalog answering categories is
+  // how that step says it is there, and the pieces with no read of their own (the Image block, the
+  // checker on a published lesson, the void's warning, and Assign training, whose POST shipped in the
+  // same API step with no read beside it) wait on it; the Drafts tab waits on its list.
+  categories: ["/api/training/topics", (d) => !!(d && Array.isArray(d.categories))],
+  drafts: ["/api/training/lesson-drafts", (d) => !!(d && Array.isArray(d.drafts))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23112,21 +23136,85 @@ const trainingKeysOf = (e) => (e && e.body && Array.isArray(e.body.keys) ? e.bod
 // anything else is "".
 const courseLinkOf = (u) => { const x = String(u || "").trim(); return /^https:\/\/\S+$/i.test(x) ? x : ""; };
 
+// ===== CATEGORIES AND ORDER (Step 268, against the API's Step 266) =====
+// STEP266_CONTRACT.md section 2: the categories staff see the catalog by, fixed in code in this order.
+// The catalog groups by them once GET /api/training/topics answers categories, which is how the API's
+// Step 266 says it is there; until then the catalog is the flat list it was. A topic with no category
+// is listed last under Other trainings, which is never stored.
+const TRAINING_CATEGORIES = [
+  { key: "start_here", l: "Start here" }, { key: "safety", l: "Safety at work" }, { key: "chemicals", l: "Chemicals" },
+  { key: "cleaning_methods", l: "Cleaning methods" }, { key: "floor_care", l: "Floor care" }, { key: "equipment", l: "Equipment|category" },
+  { key: "customer_service", l: "Customer service" }, { key: "site_security", l: "Building security" }, { key: "supervisors", l: "For supervisors" },
+];
+const OTHER_CATEGORY = "other";
+const SORT_ORDER_MAX = 9999;
+// The categories as the answer lists them, each with its name in the screen's language (the API's
+// word first, then the code's), and Other trainings last when the answer leaves it out.
+function categoriesOf(answered) {
+  const list = (Array.isArray(answered) ? answered : []).filter(c => c && c.key).map(c => {
+    const own = TRAINING_CATEGORIES.find(x => x.key === c.key);
+    const names = c.names || {};
+    return { key: String(c.key), name: names[getLang()] || c.name || (own ? tr(own.l) : c.key === OTHER_CATEGORY ? tr("Other trainings") : String(c.key)) };
+  });
+  const known = list.filter(c => c.key !== OTHER_CATEGORY);
+  const other = list.find(c => c.key === OTHER_CATEGORY) || { key: OTHER_CATEGORY, name: tr("Other trainings") };
+  return known.concat([other]);
+}
+const topicCategoryKey = (tp) => ((tp && tp.category) || OTHER_CATEGORY);
+const categoryNameOf = (cats, key) => { const c = (cats || []).find(x => x.key === (key || OTHER_CATEGORY)); return c ? c.name : (key ? String(key) : tr("Other trainings")); };
+// Topics in the order the catalog draws them inside a category: by sortOrder, then by name.
+const byTopicOrder = (a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || String(a.name || "").localeCompare(String(b.name || ""), localeTag());
+// The topics that can sign another off (section 6): an active topic whose live lesson is an
+// observation checklist, read from the lesson summary the topic carries, and whichever is named now.
+const signoffCandidates = (topics, self, current) => (topics || []).filter(x => x && x.active !== false && String(x.id) !== String(self || "") && ((x.lesson && x.lesson.kind === "observation") || (current && String(x.id) === String(current))));
+
 // The Catalog tab: every topic with its names, document and section, how often, when due, per site,
 // safety critical, the course link and who it is for. Management reads it; an admin adds a topic,
-// edits one, retires and restores it, and says who needs it.
-function TrainingCatalog({ af, t, isAdmin = false, people = [], showToast, onChanged }) {
+// edits one, retires and restores it, and says who needs it. Since Step 268 the topics are grouped
+// under their category headings once the answer carries categories, a Category filter narrows them,
+// and an admin moves a topic up or down inside its category, saved at once through
+// PUT /api/training/topics/order with the category's topics renumbered.
+function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, people = [], showToast, onChanged }) {
   const [which, setWhich] = useState("true");
   const [topics, setTopics] = useState(null);
+  const [cats, setCats] = useState(null);
+  const [catFilter, setCatFilter] = useState("");
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(null);
+  const [moving, setMoving] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const assignLive = useTrainingLive(af, "categories");
   const load = useCallback(async () => {
     setFailed(false);
-    try { const d = await af("/api/training/topics?active=" + which); setTopics(d && Array.isArray(d.topics) ? d.topics : []); }
+    try { const d = await af("/api/training/topics?active=" + which); setTopics(d && Array.isArray(d.topics) ? d.topics : []); setCats(d && Array.isArray(d.categories) ? d.categories : null); }
     catch (e) { setTopics([]); setFailed(true); showToast(e.message, "error"); }
   }, [af, which, showToast]);
   useEffect(() => { setTopics(null); load(); }, [load]);
   const changed = (tp) => { load(); if (tp) setOpen(o => (o && o !== "new" && o.id === tp.id ? tp : o === "new" ? tp : o)); if (onChanged) onChanged(); };
+  const grouped = cats !== null;
+  const categories = useMemo(() => (grouped ? categoriesOf(cats) : []), [grouped, cats]);
+  // Each category with its topics in order, the empty ones left out, narrowed by the filter.
+  const groups = useMemo(() => {
+    if (!grouped || !topics) return [];
+    return categories.map(c => ({ key: c.key, name: c.name, topics: topics.filter(tp => topicCategoryKey(tp) === c.key).slice().sort(byTopicOrder) })).filter(g => g.topics.length > 0 && (!catFilter || g.key === catFilter));
+  }, [grouped, categories, topics, catFilter]);
+  // A topic moved up or down inside its category: the category's topics renumbered 10, 20, 30 in
+  // their new order and sent as one list; the answer's topics take the place of the ones sent.
+  const move = async (g, i, by) => {
+    const j = i + by;
+    if (j < 0 || j >= g.topics.length || moving) return;
+    const list = g.topics.slice();
+    const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+    const rows = list.map((tp, k) => ({ id: tp.id, category: tp.category || null, sortOrder: (k + 1) * 10 }));
+    setMoving(true);
+    setTopics(prev => (prev || []).map(tp => { const r = rows.find(x => String(x.id) === String(tp.id)); return r ? { ...tp, sortOrder: r.sortOrder } : tp; }));
+    try {
+      const d = await af("/api/training/topics/order", { method: "PUT", body: { topics: rows } });
+      const back = d && Array.isArray(d.topics) ? d.topics : [];
+      if (back.length) setTopics(prev => (prev || []).map(tp => back.find(x => String(x.id) === String(tp.id)) || tp));
+    } catch (e) { showToast(e.message, "error"); load(); }
+    setMoving(false);
+  };
   const columns = [
     { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
     { header: tr("Document"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: tp => topicDocLine(tp) },
@@ -23137,34 +23225,60 @@ function TrainingCatalog({ af, t, isAdmin = false, people = [], showToast, onCha
     { header: tr("Course link"), render: tp => (courseLinkOf(tp.linkUrl) ? <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a> : null) },
     { header: tr("Who it is for"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 160 }, render: tp => topicWhoLine(tp) || <span style={{ color: t.textMut }}>{tr("Nobody yet")}</span> },
   ];
-  return (<div data-training-catalog="">
+  const arrow = { minHeight: 44, minWidth: 44, padding: "0 10px", background: "none", border: "1px solid " + t.border, borderRadius: R.sm, color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
+  const orderColumn = (g) => ({ header: tr("Order|topic"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: tp => {
+    const i = g.topics.findIndex(x => String(x.id) === String(tp.id));
+    return <span style={{ display: "inline-flex", gap: 6 }}>
+      <button type="button" data-topic-up={tp.id} aria-label={tr("Move up")} disabled={moving || i <= 0} onClick={e => { e.stopPropagation(); move(g, i, -1); }} style={{ ...arrow, opacity: i <= 0 ? 0.4 : 1 }}>{tr("Up|order")}</button>
+      <button type="button" data-topic-down={tp.id} aria-label={tr("Move down")} disabled={moving || i >= g.topics.length - 1} onClick={e => { e.stopPropagation(); move(g, i, 1); }} style={{ ...arrow, opacity: i >= g.topics.length - 1 ? 0.4 : 1 }}>{tr("Down|order")}</button>
+    </span>;
+  } });
+  const shown = grouped ? groups.reduce((n, g) => n + g.topics.length, 0) : (topics || []).length;
+  return (<div data-training-catalog={grouped ? "grouped" : ""}>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
       <div style={{ minWidth: 160 }}><Sel t={t} aria-label={tr("Show")} data-catalog-which="" options={[{ v: "true", l: tr("Active topics") }, { v: "false", l: tr("Retired topics") }, { v: "all", l: tr("All topics") }]} value={which} onChange={e => setWhich(e.target.value)} /></div>
-      {topics && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} topic|count", topics.length)}</span>}
-      {isAdmin && <Btn t={t} data-topic-add="" onClick={() => setOpen("new")} style={{ marginLeft: "auto" }}>{tr("Add a topic")}</Btn>}
+      {grouped && <div style={{ minWidth: 180 }}><Sel t={t} aria-label={tr("Category")} data-catalog-category-filter="" options={[{ v: "", l: tr("All categories") }].concat(categories.map(c => ({ v: c.key, l: c.name })))} value={catFilter} onChange={e => setCatFilter(e.target.value)} /></div>}
+      {topics && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} topic|count", shown)}</span>}
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {isAdmin && assignLive && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)}>{tr("Assign training")}</Btn>}
+        {isAdmin && <Btn t={t} data-topic-add="" onClick={() => setOpen("new")}>{tr("Add a topic")}</Btn>}
+      </span>
     </div>
+    <div data-catalog-note="" style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Every topic is assigned automatically to the roles under Who needs it. Use Assign training for anyone else.")}</div>
+    {assigning && <AssignTrainingWindow af={af} t={t} sites={sites} showToast={showToast} onClose={() => setAssigning(false)} />}
     {topics === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
-      : <DataTable t={t} columns={columns} rows={topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={which === "true" ? tr("No topics yet.") : tr("No topics here.")} />}
-    {open && <TrainingTopicWindow af={af} t={t} topic={open === "new" ? null : open} isAdmin={isAdmin} people={people} showToast={showToast} onClose={() => setOpen(null)} onSaved={changed} />}
+      : !grouped ? <DataTable t={t} columns={columns} rows={topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={which === "true" ? tr("No topics yet.") : tr("No topics here.")} />
+      : groups.length === 0 ? <Crd t={t}><div style={{ padding: 10, textAlign: "center", color: t.textMut, fontSize: 13 }}>{which === "true" ? tr("No topics yet.") : tr("No topics here.")}</div></Crd>
+      : groups.map(g => <div key={g.key} data-catalog-category={g.key} style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{g.name}</div>
+          <span style={{ fontSize: 12, color: t.textMut }}>{trn("{0} topic|count", g.topics.length)}</span>
+        </div>
+        <DataTable t={t} columns={isAdmin ? columns.concat([orderColumn(g)]) : columns} rows={g.topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={tr("No topics here.")} />
+      </div>)}
+    {open && <TrainingTopicWindow af={af} t={t} token={token} topic={open === "new" ? null : open} isAdmin={isAdmin} people={people} categories={grouped ? categories : null} topics={topics || []} showToast={showToast} onClose={() => setOpen(null)} onSaved={changed} />}
   </div>);
 }
 
 // The fields a topic's form edits, by the key a refusal names them with.
-const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames"];
+const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId"];
 const topicFieldOf = (k) => (k === "names" ? "names.en" : TOPIC_FIELDS.indexOf(k) >= 0 ? k : "");
 const topicFormOf = (tp) => ({
   key: (tp && tp.key) || "", en: (tp && tp.names && tp.names.en) || "", es: (tp && tp.names && tp.names.es) || "", fr: (tp && tp.names && tp.names.fr) || "",
   docCode: (tp && tp.docCode) || "", docSection: (tp && tp.docSection) || "", frequency: (tp && tp.frequency) || "yearly", dueRule: (tp && tp.dueRule) || "first_day",
   perSite: !!(tp && tp.perSite), safetyCritical: !!(tp && tp.safetyCritical), linkUrl: (tp && tp.linkUrl) || "", evidenceForm: (tp && tp.evidenceForm) || "",
   recordNames: ((tp && tp.recordNames) || []).join("\n"),
+  // Step 268: the category, the order inside it (100 to start, as the API defaults it) and the
+  // checklist topic that signs this one off.
+  category: (tp && tp.category) || "", sortOrder: tp && tp.sortOrder != null ? String(tp.sortOrder) : "100", signoffTopicId: tp && tp.signoffTopicId != null ? String(tp.signoffTopicId) : "",
 });
 
 // One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
 // on its form, and once saved it is a topic like any other. Since Step 257's lessons, a Lesson tab once
 // the topic's versions answer. A lesson draft with changes not saved asks before the window closes or
 // another tab opens.
-function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showToast, onClose: close, onSaved }) {
+function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people = [], categories = null, topics = [], showToast, onClose: close, onSaved }) {
   const [tp, setTp] = useState(topic);
   const [view, setView] = useState("details");
   const [editing, setEditing] = useState(!topic);
@@ -23198,16 +23312,16 @@ function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showT
         </div>}
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-        {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
-        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
+        {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} categories={categories} topics={topics} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
+        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} categories={categories} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
         {tp && view === "who" && <TopicWhoNeedsIt af={af} t={t} tp={tp} isAdmin={isAdmin} people={people} onSaved={saved} />}
-        {tp && view === "lesson" && versions && <TopicLesson af={af} t={t} tp={tp} isAdmin={isAdmin} versions={versions} onReload={loadVersions} showToast={showToast} guard={guard} />}
+        {tp && view === "lesson" && versions && <TopicLesson af={af} t={t} token={token} tp={tp} isAdmin={isAdmin} versions={versions} onReload={loadVersions} showToast={showToast} guard={guard} />}
       </div>
     </div>
   </Mdl>);
 }
 
-function TopicDetails({ af, t, tp, isAdmin, onEdit, onSaved, showToast }) {
+function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, showToast }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState("");
   const setActive = async (active) => {
@@ -23231,6 +23345,9 @@ function TopicDetails({ af, t, tp, isAdmin, onEdit, onSaved, showToast }) {
     {courseLinkOf(tp.linkUrl) && row(tr("Course link"), <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 600 }}>{courseLinkOf(tp.linkUrl)}</a>)}
     {tp.evidenceForm && row(tr("Evidence form"), tp.evidenceForm)}
     {(tp.recordNames || []).length > 0 && row(tr("Names on older records"), tp.recordNames.join("\n"))}
+    {categories && row(tr("Category"), <span data-topic-category={topicCategoryKey(tp)}>{tp.category ? (tp.categoryName || categoryNameOf(categories, tp.category)) : tr("None|category")}</span>)}
+    {categories && row(tr("Order|topic"), tp.sortOrder != null ? String(tp.sortOrder) : "")}
+    {categories && row(tr("Signed off by checklist"), tp.signoffTopicId ? <span data-topic-signoff={tp.signoffTopicId}>{tp.signoffTopicName || String(tp.signoffTopicId)}</span> : tr("None|checklist"))}
     {row(tr("Who it is for"), topicWhoLine(tp) || tr("Nobody yet"))}
     {refusal && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
     {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
@@ -23243,19 +23360,25 @@ function TopicDetails({ af, t, tp, isAdmin, onEdit, onSaved, showToast }) {
 
 // Add a topic, or Edit one: the key once, on a new topic, then the three names, the document and
 // section, how often and when due, per site, safety critical, the course link, the evidence form and
-// the names older records carry. A refusal is drawn under the field its keys name.
-function TopicForm({ af, t, topic, onCancel, onSaved }) {
+// the names older records carry. A refusal is drawn under the field its keys name. Since Step 268,
+// once the catalog answers categories: the Category, the Order inside it and the checklist topic
+// that signs this one off, sent with the rest and refused under their own fields.
+function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onSaved }) {
   const [f, setF] = useState(() => topicFormOf(topic));
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e && e.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e });
   const bad = (k) => refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "";
   const save = async () => {
-    setBusy(true); setRefusal(null);
+    setRefusal(null);
+    const order = Number(f.sortOrder);
+    if (categories && !(Number.isInteger(order) && order >= 0 && order <= SORT_ORDER_MAX)) { setRefusal({ text: tr("The order is a whole number from 0 to 9999."), fields: ["sortOrder"] }); return; }
+    setBusy(true);
     const body = {
       names: { en: f.en.trim(), es: f.es.trim(), fr: f.fr.trim() }, docCode: f.docCode.trim() || null, docSection: f.docSection.trim() || null,
       frequency: f.frequency, dueRule: f.dueRule, perSite: !!f.perSite, safetyCritical: !!f.safetyCritical, linkUrl: f.linkUrl.trim() || null,
       evidenceForm: f.evidenceForm.trim() || null, recordNames: f.recordNames.split("\n").map(x => x.trim()).filter(Boolean),
+      ...(categories ? { category: f.category || null, sortOrder: order, signoffTopicId: f.signoffTopicId || null } : {}),
     };
     try {
       const d = topic
@@ -23264,11 +23387,12 @@ function TopicForm({ af, t, topic, onCancel, onSaved }) {
       if (d && d.topic) onSaved(d.topic);
     } catch (e) {
       const keys = trainingKeysOf(e);
-      const fields = keys.map(topicFieldOf).filter(Boolean).concat(e && e.code === "training.duplicateKey" ? ["key"] : []);
+      const fields = keys.map(topicFieldOf).filter(Boolean).concat(e && e.code === "training.duplicateKey" ? ["key"] : [], e && e.code === "training.badSignoff" ? ["signoffTopicId"] : []);
       setRefusal({ text: e.message || tr("Request failed"), fields });
     }
     setBusy(false);
   };
+  const checklists = categories ? signoffCandidates(topics, topic && topic.id, f.signoffTopicId) : [];
   const field = (k, label, input, hint) => <div data-topic-field={k} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{label}</div>{input}
     {hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{hint}</div>}
@@ -23289,6 +23413,11 @@ function TopicForm({ af, t, topic, onCancel, onSaved }) {
       {field("frequency", tr("How often"), <Sel t={t} value={f.frequency} onChange={set("frequency")} options={TRAINING_FREQUENCIES.map(o => ({ v: o.v, l: tr(o.l) }))} />)}
       {field("dueRule", tr("When due"), <Sel t={t} value={f.dueRule} onChange={set("dueRule")} options={TRAINING_DUE_RULES.map(o => ({ v: o.v, l: tr(o.l) }))} />)}
     </div>
+    {categories && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+      {field("category", tr("Category"), <Sel t={t} aria-label={tr("Category")} value={f.category} onChange={set("category")} options={[{ v: "", l: tr("None|category") }].concat(categories.filter(c => c.key !== OTHER_CATEGORY).map(c => ({ v: c.key, l: c.name })))} />, tr("Staff see the catalog by category, in this order. A topic with none is listed last under Other trainings."))}
+      {field("sortOrder", tr("Order|topic"), <Inp t={t} type="number" min={0} max={SORT_ORDER_MAX} step={1} aria-label={tr("Order|topic")} value={f.sortOrder} onChange={set("sortOrder")} />, tr("A whole number from 0 to 9999. Lower comes first inside the category."))}
+    </div>}
+    {categories && field("signoffTopicId", tr("Signed off by checklist"), <Sel t={t} aria-label={tr("Signed off by checklist")} value={f.signoffTopicId} onChange={set("signoffTopicId")} options={[{ v: "", l: tr("None|checklist") }].concat(checklists.map(x => ({ v: String(x.id), l: x.name })))} />, checklists.length ? tr("When a trainer signs that checklist off for a person, this topic is signed off with it.") : tr("No topic has an observation checklist live yet."))}
     {tick("perSite", tr("Per site"), tr("One record for each site the person works at."))}
     {tick("safetyCritical", tr("Safety critical"), tr("A lesson on this topic needs a trainer to watch a demonstration."))}
     {field("linkUrl", tr("Course link"), <Inp t={t} type="url" value={f.linkUrl} onChange={set("linkUrl")} placeholder="https://" />, tr("An https address for a course taken outside the app. It opens in a new tab."))}
@@ -23424,7 +23553,7 @@ const gapItemColor = (it) => (gapNeedsSession(it) ? RD : gapStatusColor(it.statu
 function GapChip({ item, withName = true }) {
   const t = useT();
   const c = gapItemColor(item);
-  return <span data-gap-chip={item.status} title={[item.name, item.siteName].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
+  return <span data-gap-chip={item.status} data-gap-covered={signoffByOf(item) ? signoffByOf(item).topicId || "" : undefined} title={[item.name, item.siteName, signoffByOf(item) ? tr("Covered by {0}", signoffByOf(item).name) : ""].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
     {withName && <span style={{ color: t.text, fontWeight: 500, overflowWrap: "anywhere" }}>{item.name}{item.siteName ? " (" + item.siteName + ")" : ""}</span>}<span data-gap-word={gapNeedsSession(item) ? "inPerson" : item.status} style={{ whiteSpace: "nowrap" }}>{gapItemWord(item)}</span></span>;
 }
 
@@ -23439,6 +23568,8 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, is
   const [topics, setTopics] = useState([]);
   const [records, setRecords] = useState(null);
   const [person, setPerson] = useState(focusPerson);
+  const [assigning, setAssigning] = useState(false);
+  const assignLive = useTrainingLive(af, "categories");
   // A notice's person (Step 263) opens their list.
   useEffect(() => { if (focusPerson) setPerson(focusPerson); }, [focusPerson]);
   useEffect(() => {
@@ -23483,8 +23614,12 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, is
     </div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
       {data && data.asOf && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{tr("As of {0}", fdLong(data.asOf))}{data.site ? " . " + data.site.name : ""}</span>}
-      <Btn t={t} v="ghost" data-gaps-print="" disabled={!data || data.people.length === 0} onClick={print} style={{ marginLeft: "auto" }}>{tr("Print")}</Btn>
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {isAdmin && assignLive && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)}>{tr("Assign training")}</Btn>}
+        <Btn t={t} v="ghost" data-gaps-print="" disabled={!data || data.people.length === 0} onClick={print}>{tr("Print")}</Btn>
+      </span>
     </div>
+    {assigning && <AssignTrainingWindow af={af} t={t} sites={sites} showToast={showToast} onClose={() => setAssigning(false)} onDone={load} />}
     {data === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> : <>
       <div data-gaps-topics="" style={{ marginBottom: 16 }}>
         <DataTable t={t} columns={topicCols} rows={data.topics} rowKey={x => x.id} onRowClick={x => setF({ ...f, topicId: f.topicId === String(x.id) ? "" : String(x.id) })} empty={tr("No topic asks anything of these people.")} />
@@ -23565,6 +23700,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
       {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
+      {signoffByOf(it) && <div data-item-covered={signoffByOf(it).topicId || ""} style={{ marginTop: 4 }}>{coveredBy(it)}</div>}
       {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
         <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
         {a.voidedAt && <Bdg l={tr("Void|status")} c={RD} />}
@@ -23606,7 +23742,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
   const print = (id) => printTrainingAttempt({ af, token, id, sites }).then(okd => { if (!okd && showToast) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
   // Step 263: an admin voids an attempt with a reason; the attempt is read again and the list with it.
   const [voiding, setVoiding] = useState(null);
-  const voided = (id) => { setVoiding(null); if (showToast) showToast(tr("Attempt voided.")); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
+  const voided = (id, d) => { setVoiding(null); if (showToast) showToast(voidedWord(d)); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
   return (<Mdl t={t} tall onClose={onClose}>
     <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -23621,7 +23757,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
         {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} />}
       </div>
     </div>
-    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => voided(voiding.id)} />}
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
     {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} sites={p && Array.isArray(p.sites) && p.sites.length ? p.sites : sites} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
   </Mdl>);
 }
@@ -23740,24 +23876,47 @@ const lessonContentOf = (c) => {
   const l3 = (o) => ({ en: (o && o.en) || "", es: (o && o.es) || "", fr: (o && o.fr) || "" });
   return {
     title: l3(x.title),
-    blocks: (Array.isArray(x.blocks) ? x.blocks : []).map((b, i) => ({ key: b.key || "b" + (i + 1), kind: b.kind || "text", text: l3(b.text), items: (Array.isArray(b.items) ? b.items : []).map(l3), source: b.source && b.source.docCode ? { docCode: b.source.docCode, sectionRef: b.source.sectionRef } : null })),
+    // Step 268: an image block (STEP266_CONTRACT.md section 4) keeps its drawing or its path, its alt
+    // text and caption, and the src the draft's read answers for the preview.
+    blocks: (Array.isArray(x.blocks) ? x.blocks : []).map((b, i) => (b.kind === "image"
+      ? { key: b.key || "b" + (i + 1), kind: "image", svg: b.svg || null, path: b.path || null, alt: l3(b.alt), caption: l3(b.caption), src: b.src || (b.svg ? svgSrcOf(b.svg) : "") }
+      : { key: b.key || "b" + (i + 1), kind: b.kind || "text", text: l3(b.text), items: (Array.isArray(b.items) ? b.items : []).map(l3), source: b.source && b.source.docCode ? { docCode: b.source.docCode, sectionRef: b.source.sectionRef } : null })),
     questions: (Array.isArray(x.questions) ? x.questions : []).map((q, i) => ({ key: q.key || "q" + (i + 1), text: l3(q.text), options: (Array.isArray(q.options) ? q.options : []).map(o => ({ value: String(o.value), text: l3(o.text) })), correct: q.correct == null ? null : String(q.correct) })),
     // An observation checklist's steps (Step 263, STEP262_CONTRACT.md section 3).
     steps: (Array.isArray(x.steps) ? x.steps : []).map((st, i) => ({ key: st.key || "s" + (i + 1), text: l3(st.text) })),
     acknowledgement: l3(x.acknowledgement),
   };
 };
+// ===== PICTURES IN A LESSON (Step 268, STEP266_CONTRACT.md section 4) =====
+// An image block holds exactly one of a drawing (svg, pasted as text) and a picture (path, uploaded
+// through POST /api/training/lesson-images as JPEG, PNG, WebP or HEIC up to 5 MB, the API converting
+// HEIC to JPEG), with alt text and a caption in the three languages. The preview is drawn from src:
+// the draft's read answers one for a stored block, the upload answers one for a new picture, and a
+// pasted drawing is drawn as itself. The Image kind is offered once the API's Step 266 is there.
+const LESSON_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const LESSON_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const LESSON_IMAGE_MAX = 12;
+const svgSrcOf = (svg) => (/^\s*<svg[\s>]/i.test(String(svg || "")) ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(String(svg)) : "");
+const imageBlockOf = (key) => ({ key, kind: "image", svg: null, path: null, alt: L3E(), caption: L3E(), src: "" });
+const textBlockOf = (key, kind) => ({ key, kind: kind || "text", text: L3E(), items: kind === "list" ? [L3E()] : [], source: null });
+// A block as the draft's PATCH takes it: an image block without its preview, any other as it is.
+const lessonBlockBody = (b) => (b.kind === "image" ? { key: b.key, kind: "image", svg: b.svg || null, path: b.path || null, alt: b.alt, caption: b.caption } : b);
+// A picture refused before it is sent: not one of the kinds taken, or over 5 MB.
+const lessonImageWhy = (f) => (!f ? "" : LESSON_IMAGE_TYPES.indexOf(f.type) < 0 && !/\.(heic|heif)$/i.test(f.name || "") ? tr("Choose a JPEG, PNG, WebP or HEIC picture.") : f.size > LESSON_IMAGE_MAX_BYTES ? tr("The picture is over 5 MB.") : "");
+
 // A lesson's kind, since the API's Step 262: a quiz the person reads and answers, or an observation
 // checklist a trainer ticks step by step while watching the person on the job.
 const LESSON_TYPES = [{ v: "quiz", l: "Quiz" }, { v: "observation", l: "Observation checklist" }];
 const lessonTypeWord = (k) => { const x = LESSON_TYPES.find(o => o.v === (k || "quiz")); return x ? tr(x.l) : String(k || ""); };
 
-function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard }) {
+function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showToast, guard }) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState("");
   const [refusal, setRefusal] = useState("");
   const live = (versions || []).find(v => v.status === "published") || null;
   const open = (versions || []).find(v => v.status === "draft") || null;
+  // Step 268: the checker named on the live lesson of a safety topic, once the API's Step 266 is there.
+  const checkersLive = useTrainingLive(af, "categories");
   const openDraft = async (id) => {
     setBusy("open"); setRefusal("");
     try { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(id)); if (d && d.draft) setDraft(d); }
@@ -23781,9 +23940,9 @@ function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard 
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
-  if (draft) return <LessonDraftEditor af={af} t={t} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
+  if (draft) return <LessonDraftEditor af={af} t={t} token={token} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
   const cols = [
-    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span data-lesson-version={v.version != null ? String(v.version) : "draft"} data-lesson-version-status={v.status || ""} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}</span> },
+    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span data-lesson-version={v.version != null ? String(v.version) : "draft"} data-lesson-version-status={v.status || ""} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}{v.spanishUnchecked === true && spanishUncheckedChip()}{v.missingFrench === true && <span data-lesson-french-missing="" title={tr("Some of this version's French is not written yet. Staff are offered English and Spanish.")}><Bdg l={tr("French missing")} c={BL} /></span>}</span> },
     { header: tr("Status"), render: v => <Bdg l={lessonStatusWord(v.status)} c={lessonStatusColor(v.status)} /> },
   ].concat((versions || []).some(v => v && v.kind) ? [{ header: tr("Kind|lesson"), tdStyle: { color: t.textSec }, render: v => <span data-lesson-version-kind={v.kind || "quiz"}>{lessonTypeWord(v.kind)}</span> }] : [], [
     { header: tr("Published"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => stampDay(v.publishedAt) },
@@ -23794,6 +23953,7 @@ function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard 
   return (<div data-topic-lesson="">
     {!live && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("No lesson is live for this topic.")}</div>}
     <DataTable t={t} columns={cols} rows={versions || []} rowKey={v => v.id} onRowClick={isAdmin ? (v => { if (v.status === "draft") openDraft(v.id); }) : undefined} empty={tr("No lesson written yet.")} />
+    {live && tp.safetyCritical && checkersLive && <LessonCheckers af={af} t={t} tp={tp} live={live} isAdmin={isAdmin} showToast={showToast} onSaved={onReload} />}
     {refusal && <div role="alert" data-lesson-refusal="" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
     {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
       {open ? <Btn t={t} data-lesson-open-draft="" disabled={!!busy} onClick={() => openDraft(open.id)}>{tr("Open the draft")}</Btn> : <>
@@ -23804,6 +23964,45 @@ function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard 
     </div>}
   </div>);
 }
+
+// Spanish checked by, on the published lesson of a safety topic (STEP266_CONTRACT.md section 5, and
+// the owner's change of October 6 matching the API's): staff are offered the Spanish as soon as it is
+// written, and the version reads Spanish not checked yet (spanishUnchecked) until someone fluent has
+// checked it and is named here, through PATCH /api/training/lessons/:topicId/checkers, which records
+// the name on the live version with no new version and clears the chip. The name starts from what the
+// version row carries, when it carries one.
+function LessonCheckers({ af, t, tp, live, isAdmin = false, showToast, onSaved }) {
+  const [name, setName] = useState(() => (live && live.checkedEsBy) || "");
+  const [saved, setSaved] = useState(() => (live && live.checkedEsBy) || "");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  useEffect(() => { const v = (live && live.checkedEsBy) || ""; if (v) { setName(v); setSaved(v); } }, [live]);
+  const save = async () => {
+    setBusy(true); setRefusal("");
+    try {
+      const d = await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/checkers", { method: "PATCH", body: { checkedEsBy: name.trim() || null } });
+      const v = d && d.version;
+      const now = v && Object.prototype.hasOwnProperty.call(v, "checkedEsBy") ? (v.checkedEsBy || "") : name.trim();
+      setSaved(now); setName(now);
+      showToast(now ? tr("Spanish checker saved.") : tr("Spanish checker cleared."));
+      if (onSaved) onSaved();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<div data-lesson-checkers="" style={{ marginTop: 14, padding: 12, border: "1px solid " + t.border, borderRadius: R.md, background: t.card }}>
+    <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{tr("Languages")}</div>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: t.textSec, marginBottom: 8 }}><span>{tr("Version {0} is live.", live.version != null ? live.version : "")}</span>{live.spanishUnchecked === true && spanishUncheckedChip()}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Spanish checked by")}</div>
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 220px", minWidth: 0 }}><Inp t={t} aria-label={tr("Spanish checked by")} data-lesson-checker="es" value={name} disabled={!isAdmin || busy} onChange={e => setName(e.target.value)} placeholder={tr("The name of whoever checked the Spanish")} /></div>
+      {isAdmin && <Btn t={t} v="ghost" data-lesson-checker-save="" disabled={busy || name.trim() === saved.trim()} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>}
+    </div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Staff are offered the Spanish as soon as it is written. Name whoever checked it once they have, and the chip clears.")}</div>
+    {refusal && <div role="alert" data-lesson-checker-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+  </div>);
+}
+// The chip a version or a draft wears while its Spanish is written and not yet checked.
+const spanishUncheckedChip = () => <span data-lesson-spanish-unchecked="" title={tr("The Spanish is offered to staff and no one has checked it yet.")}><Bdg l={tr("Spanish not checked yet")} c={OR} /></span>;
 
 // Three texts of one thing, English first and the Spanish and French under it, each with the problems
 // the API named for it.
@@ -23826,13 +24025,22 @@ function LessonText({ t, path, value, onChange, probs, multiline = false, label 
 
 // The draft editor. Saving is explicit (Save draft); Translate, Publish and Discard save what changed
 // first; leaving the window or the draft with changes not saved asks first, and so does closing the tab.
-function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
+function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, onDone }) {
   const take = (d) => ({ kind: d.kind || "quiz", content: lessonContentOf(d.content), passPercent: d.passPercent != null ? d.passPercent : 80, maxAttempts: d.maxAttempts != null ? d.maxAttempts : 3, needsTrainer: !!d.needsTrainer || !!tp.safetyCritical || d.kind === "observation", checkedEsBy: d.checkedEsBy || "", checkedFrBy: d.checkedFrBy || "", changeNote: d.changeNote || "" });
   // The Kind choice is drawn once the draft's read carries kind (the API's Step 262).
   const kindLive = !!(initial.draft && Object.prototype.hasOwnProperty.call(initial.draft, "kind"));
+  // Step 268: the Image block is offered once the API's Step 266 is there (the catalog answers
+  // categories), or at once when the draft read already holds one.
+  const step266 = useTrainingLive(af, "categories");
+  const imagesLive = step266 || (initial.draft && initial.draft.content && Array.isArray(initial.draft.content.blocks) && initial.draft.content.blocks.some(b => b && b.kind === "image"));
+  const [imageRefusal, setImageRefusal] = useState({});
+  const [uploading, setUploading] = useState(-1);
   const [draft, setDraft] = useState(initial.draft);
   const [f, setF] = useState(() => take(initial.draft));
   const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
+  // Step 268: the notes a draft's read lists beside its problems (French empty, Spanish held on a
+  // safety topic), which never stop publishing.
+  const [notes, setNotes] = useState(Array.isArray(initial.notes) ? initial.notes : []);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
   const [refusal, setRefusal] = useState(null);
@@ -23870,7 +24078,7 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
   };
   // The content sent is the kind's own: a quiz's blocks and questions, or a checklist's steps.
   const body = () => Object.assign(kindLive ? { kind: f.kind } : {}, {
-    content: obs ? { title: c.title, steps: c.steps, acknowledgement: c.acknowledgement } : { title: c.title, blocks: c.blocks, questions: c.questions, acknowledgement: c.acknowledgement },
+    content: obs ? { title: c.title, steps: c.steps, acknowledgement: c.acknowledgement } : { title: c.title, blocks: c.blocks.map(lessonBlockBody), questions: c.questions, acknowledgement: c.acknowledgement },
     passPercent: Number(f.passPercent), maxAttempts: Number(f.maxAttempts), needsTrainer: !!f.needsTrainer || locked, sources: obs ? [] : sourcesOf(c),
     checkedEsBy: f.checkedEsBy.trim() || null, checkedFrBy: f.checkedFrBy.trim() || null, changeNote: f.changeNote.trim() || null });
   const fail = (e) => {
@@ -23878,7 +24086,7 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     if (e && e.body && Array.isArray(e.body.problems)) setProblems(e.body.problems);
     setRefusal({ text: e.message || tr("Request failed"), fields });
   };
-  const after = (d) => { if (d && d.draft) { setDraft(d.draft); setF(take(d.draft)); } if (d && Array.isArray(d.problems)) setProblems(d.problems); setDirty(false); };
+  const after = (d) => { if (d && d.draft) { setDraft(d.draft); setF(take(d.draft)); } if (d && Array.isArray(d.problems)) setProblems(d.problems); if (d && Array.isArray(d.notes)) setNotes(d.notes); setDirty(false); };
   const saveNow = async () => { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id), { method: "PATCH", body: body() }); after(d); return d; };
   const run = async (what, fn) => { setBusy(what); setRefusal(null); try { await fn(); } catch (e) { fail(e); } setBusy(""); };
   const save = () => run("save", async () => { await saveNow(); showToast(tr("Draft saved")); });
@@ -23905,6 +24113,60 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
   const head = (s, extra) => <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "16px 0 8px" }}><div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1 }}>{s}</div>{extra}</div>;
   const small = { minHeight: 44, padding: "0 10px", background: "none", border: "none", color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
   const nq = c.questions.length;
+  const nImages = c.blocks.filter(b => b.kind === "image").length;
+  const blockKinds = LESSON_KINDS.concat(imagesLive ? [{ v: "image", l: "Image|block" }] : []);
+  // A block's kind changed: an image block starts empty, and so does a text block made from one.
+  const changeKind = (i, b, kind) => {
+    if (kind === b.kind) return;
+    if (kind === "image") setBlock(i, imageBlockOf(b.key));
+    else if (b.kind === "image") setBlock(i, textBlockOf(b.key, kind));
+    else setBlock(i, { ...b, kind, items: kind === "list" ? (b.items.length ? b.items : [L3E()]) : b.items });
+  };
+  // A picture uploaded for a block: refused here when it is not a kind taken or is over 5 MB, else
+  // sent as multipart; the answer's path and src take the place of whatever the block held.
+  const uploadImage = async (i, b, file) => {
+    if (!file) return;
+    const why = lessonImageWhy(file);
+    if (why) { setImageRefusal(m => ({ ...m, [b.key]: why })); return; }
+    setUploading(i); setImageRefusal(m => ({ ...m, [b.key]: "" }));
+    const fd0 = new FormData();
+    fd0.append("file", file);
+    try {
+      const d = await apiMultipart("/api/training/lesson-images", token, fd0);
+      const img = (d && d.image) || {};
+      if (!img.path) throw new Error(tr("Request failed"));
+      setBlock(i, { ...b, path: img.path, svg: null, src: img.src || "" });
+    } catch (e) { setImageRefusal(m => ({ ...m, [b.key]: e.message || tr("Request failed") })); }
+    setUploading(-1);
+  };
+  const imageBlock = (b, i) => <div data-lesson-image={i}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 8 }}>
+      <div data-lesson-path={"blocks." + i + ".path"}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>{tr("Upload a picture")}</div>
+        <input type="file" data-lesson-image-file={i} aria-label={tr("Upload a picture")} accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif" disabled={uploading >= 0} onChange={e => { const f0 = e.target.files && e.target.files[0]; e.target.value = ""; uploadImage(i, b, f0); }} style={{ fontSize: 13, color: t.text, minHeight: 44, maxWidth: "100%" }} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{uploading === i ? tr("Uploading...") : tr("A JPEG, PNG, WebP or HEIC picture up to 5 MB.")}</div>
+        {imageRefusal[b.key] && <div role="alert" data-lesson-image-refusal={i} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{imageRefusal[b.key]}</div>}
+        {probs("blocks." + i + ".path")}
+      </div>
+      <div data-lesson-path={"blocks." + i + ".svg"}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>{tr("Paste a drawing (SVG)")}</div>
+        <TArea t={t} rows={3} data-lesson-image-svg={i} aria-label={tr("Paste a drawing (SVG)")} value={b.svg || ""} placeholder="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;>...</svg>" onChange={e => { const svg = e.target.value; setBlock(i, { ...b, svg: svg || null, path: svg ? null : b.path, src: svg ? svgSrcOf(svg) : (b.path ? b.src : "") }); }} style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: 12 }} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Plain text starting with <svg, with xmlns and a viewBox. No scripts, links or outside images.")}</div>
+        {probs("blocks." + i + ".svg")}
+      </div>
+    </div>
+    {b.src ? <div style={{ marginBottom: 8 }}>
+      <img data-lesson-image-preview={i} src={b.src} alt={b.alt.en || ""} style={{ display: "block", maxWidth: "100%", maxHeight: 260, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+        <span style={{ fontSize: 11, color: t.textMut }}>{b.path ? tr("Picture uploaded") : tr("Drawing pasted")}</span>
+        <button style={{ ...small, color: RD }} data-lesson-image-remove={i} onClick={() => setBlock(i, { ...b, svg: null, path: null, src: "" })}>{tr("Remove the picture")}</button>
+      </div>
+    </div> : <div style={{ fontSize: 12, color: t.textMut, marginBottom: 8 }}>{tr("No picture yet. Upload one or paste a drawing.")}</div>}
+    <LessonText t={t} path={"blocks." + i + ".alt"} value={b.alt} onChange={v => setBlock(i, { ...b, alt: v })} probs={probs} label={tr("Alt text")} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: -6, marginBottom: 8 }}>{tr("What the picture shows, read aloud to someone who cannot see it. The English is required.")}</div>
+    <LessonText t={t} path={"blocks." + i + ".caption"} value={b.caption} onChange={v => setBlock(i, { ...b, caption: v })} probs={probs} label={tr("Caption")} />
+    {probs("blocks." + i)}
+  </div>;
   return (<div data-lesson-editor="">
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
       <button onClick={back} style={{ ...small, paddingLeft: 0, color: t.goldText }}>{tr("Back to the versions")}</button>
@@ -23915,6 +24177,10 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
       <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 6 }}>{trn("{0} problem to fix before it is published|count", problems.length)}</div>
       {problems.map((pr, i) => <button key={i} data-lesson-problem={lessonPathOf(pr.path)} onClick={() => goTo(pr.path)} style={{ display: "block", width: "100%", textAlign: "left", minHeight: 36, padding: "4px 0", background: "none", border: "none", color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</button>)}
       {dirty && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Save the draft to check it again.")}</div>}
+    </div>}
+    {notes.length > 0 && <div data-lesson-notes={notes.length} style={{ border: "1px solid " + t.border, background: t.hover, borderRadius: R.md, padding: 12, marginBottom: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>{tr("Notes that do not stop publishing")}</div>
+      {notes.map((pr, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, padding: "2px 0", overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>)}
     </div>}
 
     {kindLive && <div data-lesson-path="kind">
@@ -23947,15 +24213,16 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     </>}
 
     {!obs && <>
-    {head(tr("Blocks"))}
+    {head(tr("Blocks"), imagesLive && nImages > 0 ? <span data-lesson-image-count={nImages} style={{ fontSize: 12, color: nImages > LESSON_IMAGE_MAX ? RD : t.textMut }}>{tr("{0} of up to {1} pictures", nImages, LESSON_IMAGE_MAX)}</span> : null)}
     <div data-lesson-path="blocks">{probs("blocks")}
-      {c.blocks.map((b, i) => <div key={b.key} data-lesson-block={i} style={card}>
+      {c.blocks.map((b, i) => <div key={b.key} data-lesson-block={i} data-lesson-block-kind={b.kind} style={card}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-          <div style={{ width: 150 }}><Sel t={t} aria-label={tr("Kind|block")} value={b.kind} onChange={e => setBlock(i, { ...b, kind: e.target.value, items: e.target.value === "list" ? (b.items.length ? b.items : [L3E()]) : b.items })} options={LESSON_KINDS.map(k => ({ v: k.v, l: tr(k.l) }))} /></div>
+          <div style={{ width: 150 }}><Sel t={t} aria-label={tr("Kind|block")} data-lesson-block-kind-select={i} value={b.kind} onChange={e => changeKind(i, b, e.target.value)} options={blockKinds.map(k => ({ v: k.v, l: tr(k.l) }))} /></div>
           <button style={small} disabled={i === 0} onClick={() => setC(x => ({ ...x, blocks: move(x.blocks, i, -1) }))}>{tr("Move up")}</button>
           <button style={small} disabled={i === c.blocks.length - 1} onClick={() => setC(x => ({ ...x, blocks: move(x.blocks, i, 1) }))}>{tr("Move down")}</button>
           <button style={{ ...small, color: RD, marginLeft: "auto" }} onClick={() => setC(x => ({ ...x, blocks: x.blocks.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
         </div>
+        {b.kind === "image" ? imageBlock(b, i) : <>
         <LessonText t={t} path={"blocks." + i + ".text"} value={b.text} multiline onChange={v => setBlock(i, { ...b, text: v })} probs={probs} label={b.kind === "list" ? tr("The line before the list") : b.kind === "warning" ? tr("Warning|block") : tr("Text|block")} />
         {b.kind === "list" && <div data-lesson-path={"blocks." + i + ".items"}>
           {b.items.map((it, j) => <div key={j} style={{ borderTop: "1px dashed " + t.border, paddingTop: 8 }}>
@@ -23971,8 +24238,12 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
           {probs("blocks." + i + ".source")}
         </div>
         {citing === i && <LessonLibrary af={af} t={t} docCode={(b.source && b.source.docCode) || tp.docCode || ""} onPick={(sec) => { versionsRef.current[sec.docCode + "|" + sec.sectionRef] = sec.docVersion; setBlock(i, { ...b, source: { docCode: sec.docCode, sectionRef: sec.sectionRef } }); setCiting(null); }} onClose={() => setCiting(null)} />}
+        </>}
       </div>)}
-      {c.blocks.length < 30 && <Btn t={t} v="ghost" data-lesson-add-block="" onClick={() => setC(x => ({ ...x, blocks: x.blocks.concat([{ key: lessonKey("b", x.blocks), kind: "text", text: L3E(), items: [], source: null }]) }))}>{tr("Add a block")}</Btn>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {c.blocks.length < 30 && <Btn t={t} v="ghost" data-lesson-add-block="" onClick={() => setC(x => ({ ...x, blocks: x.blocks.concat([textBlockOf(lessonKey("b", x.blocks), "text")]) }))}>{tr("Add a block")}</Btn>}
+        {imagesLive && c.blocks.length < 30 && nImages < LESSON_IMAGE_MAX && <Btn t={t} v="ghost" data-lesson-add-image="" onClick={() => setC(x => ({ ...x, blocks: x.blocks.concat([imageBlockOf(lessonKey("b", x.blocks))]) }))}>{tr("Add a picture")}</Btn>}
+      </div>
     </div>
 
     {head(tr("Questions"), <span data-lesson-question-count={nq} style={{ fontSize: 12, color: nq < 5 || nq > 10 ? RD : t.textMut }}>{tr("{0} of 5 to 10", nq)}</span>)}
@@ -24027,7 +24298,7 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
       <div data-lesson-path="checkedEsBy"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Spanish checked by")}</div>
         <Inp t={t} aria-label={tr("Spanish checked by")} data-lesson-checked="es" value={f.checkedEsBy} onChange={e => edit({ ...f, checkedEsBy: e.target.value })} />
-        {tp.safetyCritical && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A safety lesson is published only once someone fluent has checked the Spanish.")}</div>}
+        {tp.safetyCritical && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{step266 ? tr("A safety lesson publishes without it, and staff are offered the Spanish as soon as it is written. Name whoever checked it, here or on the published lesson, and the Spanish not checked yet chip clears.") : tr("A safety lesson is published only once someone fluent has checked the Spanish.")}</div>}
         {bad("checkedEsBy")}{probs("checkedEsBy")}</div>
       <div data-lesson-path="checkedFrBy"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("French checked by")}</div>
         <Inp t={t} aria-label={tr("French checked by")} data-lesson-checked="fr" value={f.checkedFrBy} onChange={e => edit({ ...f, checkedFrBy: e.target.value })} />
@@ -24079,6 +24350,215 @@ function LessonLibrary({ af, t, docCode = "", onPick, onClose }) {
   </div>;
 }
 
+// ===== DRAFTS PUBLISHED IN ONE PASS (Step 268, STEP266_CONTRACT.md section 7) =====
+// The Training area's Drafts tab, drawn once GET /api/training/lesson-drafts answers: every open draft
+// with its topic and category, its kind, its change note, the problems that stop it publishing and
+// the notes that do not. A draft without problems carries a tick; Select all ready ticks every such
+// draft, and Publish selected sends the ticked ids to POST /api/training/lesson-drafts/publish, which
+// publishes each in its own transaction and refuses one without stopping the rest. The published and
+// the refused are listed after, and the list is read again.
+function TrainingDrafts({ af, t, showToast }) {
+  const [list, setList] = useState(null);
+  const [cats, setCats] = useState([]);
+  const [failed, setFailed] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [refusal, setRefusal] = useState("");
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/training/lesson-drafts"); setList(d && Array.isArray(d.drafts) ? d.drafts : []); }
+    catch (e) { setList([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, showToast]);
+  useEffect(() => { load(); }, [load]);
+  // The category names, from the catalog's answer.
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) setCats(categoriesOf(d && d.categories)); }).catch(() => {});
+    return () => { alive = false; };
+  }, [af]);
+  const ready = (d) => !(Array.isArray(d.problems) && d.problems.length > 0);
+  const readyIds = (list || []).filter(ready).map(d => String(d.id));
+  const toggle = (id) => setPicked(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const nameOf = (d) => d.topicName || String(d.topicId || "");
+  const publish = async () => {
+    const ids = Array.from(picked);
+    if (!ids.length || busy) return;
+    if (!window.confirm(trn("Publish {0} draft? Each is published on its own, and a refusal stops none of the others.|count", ids.length))) return;
+    setBusy(true); setRefusal(""); setResult(null);
+    try {
+      const d = await af("/api/training/lesson-drafts/publish", { method: "POST", body: { ids } });
+      const published = d && Array.isArray(d.published) ? d.published : [];
+      const refused = d && Array.isArray(d.refused) ? d.refused : [];
+      const was = list || [];
+      setResult({ published: published.map(x => ({ ...x, topicName: nameOf(was.find(y => String(y.id) === String(x.id)) || { topicId: x.topicId }) })), refused: refused.map(x => ({ ...x, topicName: nameOf(was.find(y => String(y.id) === String(x.id)) || { topicId: x.topicId }) })) });
+      setPicked(new Set());
+      showToast(published.length ? trn("{0} lesson published|count", published.length) : tr("Nothing was published."));
+      load();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const cols = [
+    { header: "", tdStyle: { width: 44 }, render: d => (ready(d)
+      ? <input type="checkbox" data-draft-tick={d.id} aria-label={tr("Publish {0}", nameOf(d))} checked={picked.has(String(d.id))} onChange={() => toggle(String(d.id))} onClick={e => e.stopPropagation()} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} />
+      : <span data-draft-not-ready={d.id} title={tr("Fix the problems listed first.")} style={{ display: "inline-block", width: 20, height: 20, borderRadius: 4, border: "1px dashed " + t.border }} />) },
+    { header: tr("Topic"), tdStyle: { minWidth: 160 }, render: d => <div><div style={{ color: t.text, fontWeight: 600 }}>{nameOf(d)}</div><div style={{ fontSize: 11, color: t.textMut }}>{categoryNameOf(cats, d.category)}</div>{d.spanishUnchecked === true && <div style={{ marginTop: 4 }}>{spanishUncheckedChip()}</div>}</div> },
+    { header: tr("Kind|lesson"), tdStyle: { color: t.textSec }, render: d => lessonTypeWord(d.kind) },
+    { header: tr("Change note"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: d => d.changeNote || "" },
+    { header: tr("Problems"), tdStyle: { fontSize: 12, minWidth: 180 }, render: d => (ready(d) ? <span data-draft-ready={d.id}><Bdg l={tr("Ready to publish")} c={GR} /></span> : <div data-draft-problems={d.problems.length}>
+      <div style={{ color: RD, fontWeight: 600, marginBottom: 2 }}>{trn("{0} problem|count", d.problems.length)}</div>
+      {d.problems.slice(0, 4).map((pr, i) => <div key={i} style={{ color: t.textSec, overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>)}
+      {d.problems.length > 4 && <div style={{ color: t.textMut }}>{tr("and {0} more", d.problems.length - 4)}</div>}
+    </div>) },
+    { header: tr("Notes"), tdStyle: { fontSize: 12, color: t.textSec, minWidth: 160 }, render: d => (Array.isArray(d.notes) && d.notes.length ? d.notes.map((pr, i) => <div key={i} style={{ overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>) : "") },
+    { header: tr("Updated"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: d => stampDay(d.updatedAt) },
+  ];
+  return (<div data-training-drafts="">
+    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("Every lesson draft still open, by category. Read each one in its topic's Lesson tab, then publish the ones that are ready in one pass.")}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      {list && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} draft|count", list.length)}{" . "}{trn("{0} ready|count", readyIds.length)}</span>}
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {readyIds.length > 0 && readyIds.some(id => !picked.has(id)) && <Btn t={t} v="ghost" data-drafts-select-ready="" disabled={busy} onClick={() => setPicked(new Set(readyIds))}>{tr("Select all ready")}</Btn>}
+        {picked.size > 0 && <Btn t={t} v="ghost" disabled={busy} onClick={() => setPicked(new Set())}>{tr("Clear selection")}</Btn>}
+        <Btn t={t} data-drafts-publish="" disabled={busy || picked.size === 0} onClick={publish}>{busy ? tr("Publishing...") : trn("Publish selected ({0})|count", picked.size)}</Btn>
+      </span>
+    </div>
+    {refusal && <div role="alert" data-drafts-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    {result && <Crd t={t} style={{ marginBottom: 14 }}>
+      <div data-drafts-published={result.published.length} style={{ fontSize: 13, fontWeight: 600, color: result.published.length ? GR : t.textSec, marginBottom: 4 }}>{trn("{0} lesson published|count", result.published.length)}</div>
+      {result.published.map((x, i) => <div key={"p" + i} style={{ fontSize: 13, color: t.textSec }}>{x.topicName}{x.version && x.version.version != null ? ", " + tr("Version {0}", x.version.version) : ""}</div>)}
+      {result.refused.length > 0 && <div data-drafts-refused={result.refused.length} style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 4 }}>{trn("{0} draft refused|count", result.refused.length)}</div>
+        {result.refused.map((x, i) => <div key={"r" + i} style={{ fontSize: 13, marginBottom: 4 }}>
+          <div style={{ color: t.text, fontWeight: 600 }}>{x.topicName}</div>
+          {(x.problems || []).map((pr, j) => <div key={j} style={{ fontSize: 12, color: t.textSec, overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>)}
+        </div>)}
+      </div>}
+    </Crd>}
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={list} rowKey={d => d.id} onRowClick={d => { if (ready(d)) toggle(String(d.id)); }} empty={tr("No draft is open.")} />}
+  </div>);
+}
+
+// ===== ASSIGN TRAINING (Step 268, the owner's change of October 6) =====
+// Every topic reaches the roles under Who needs it on its own; Assign training names topics for
+// anyone else. An admin ticks one or more topics, grouped by category, and one or more people, found
+// by name and narrowed by site and role, with Select all, and Assign sends them once to
+// POST /api/training/assignments { topicIds, userIds }, whose answer says how many were added and how
+// many were already assigned. Opened from Catalog, from Gaps, and from a person's list in their HR
+// Files with that person ticked. The button is offered once the catalog answers categories, the read
+// that marks the API's Step 266, which shipped the POST with no read beside it.
+const ASSIGN_FIELDS = ["topicIds", "userIds"];
+const countOf = (v) => (Array.isArray(v) ? v.length : Number(v) || 0);
+function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast, onClose, onDone }) {
+  const [people, peopleError] = useActivePeople(af);
+  const [topics, setTopics] = useState(null);
+  const [cats, setCats] = useState(null);
+  const [pickedTopics, setPickedTopics] = useState(() => new Set());
+  const [picked, setPicked] = useState(() => new Set(presetUserIds.map(String)));
+  const [q, setQ] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [role, setRole] = useState("");
+  const [atSite, siteError] = useSitePeople(af, siteId);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) { setTopics(d && Array.isArray(d.topics) ? d.topics : []); setCats(d && Array.isArray(d.categories) ? categoriesOf(d.categories) : null); } }).catch(e => { if (alive) { setTopics([]); setRefusal({ text: e.message, fields: [] }); } });
+    return () => { alive = false; };
+  }, [af]);
+  // The topics by category in the catalog's order, or one list in name order before categories answer.
+  const groups = useMemo(() => {
+    const list = (topics || []).filter(tp => tp.active !== false);
+    if (!cats) return list.length ? [{ key: "", name: "", topics: list.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag())) }] : [];
+    return cats.map(c => ({ key: c.key, name: c.name, topics: list.filter(tp => topicCategoryKey(tp) === c.key).slice().sort(byTopicOrder) })).filter(g => g.topics.length > 0);
+  }, [topics, cats]);
+  const needle = q.trim().toLowerCase();
+  const listed = (people || []).filter(p => (!siteId || (atSite && atSite.has(p.id))) && (!role || p.role === role) && (!needle || p.name.toLowerCase().indexOf(needle) >= 0));
+  const allListedPicked = listed.length > 0 && listed.every(p => picked.has(p.id));
+  const toggleIn = (set, id) => (prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-assign-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const ready = pickedTopics.size > 0 && picked.size > 0 && !busy;
+  const send = async () => {
+    if (!ready) return;
+    setBusy(true); setRefusal(null); setResult(null);
+    try {
+      const d = await af("/api/training/assignments", { method: "POST", body: { topicIds: Array.from(pickedTopics), userIds: Array.from(picked) } });
+      setResult({ added: countOf(d && d.added), already: countOf(d && d.already) });
+      if (onDone) onDone();
+    } catch (e) {
+      const keys = trainingKeysOf(e).filter(k => ASSIGN_FIELDS.indexOf(k) >= 0);
+      setRefusal({ text: e.message || tr("Request failed"), fields: keys });
+    }
+    setBusy(false);
+  };
+  const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
+  const tall = { minHeight: 44, minWidth: 44 };
+  const tickStyle = { width: 20, height: 20, accentColor: GO, flexShrink: 0, cursor: "pointer" };
+  const rowStyle = { display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "4px 12px", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text, cursor: "pointer" };
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}>
+    <div data-assign-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Assign training")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("Pick the topics and the people. Each person is asked for each topic, on top of what their role already asks.")}</div>
+        </div>
+        <button onClick={onClose} aria-label={tr("Close")} disabled={busy} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div data-assign-field="topicIds">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}><div style={lbl}>{tr("Topics")}</div><span role="status" style={{ marginLeft: "auto", fontSize: 12, color: t.textSec }}>{trn("{0} topic picked|count", pickedTopics.size)}</span></div>
+          <div style={{ border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 280, overflowY: "auto" }}>
+            {topics === null ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+              : groups.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("No topics yet.")}</div>
+              : groups.map(g => <div key={g.key || "all"} data-assign-category={g.key}>
+                {g.name && <div style={{ padding: "8px 12px 2px", fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1 }}>{g.name}</div>}
+                {g.topics.map(tp => <label key={tp.id} data-assign-topic={tp.id} style={rowStyle}>
+                  <input type="checkbox" checked={pickedTopics.has(String(tp.id))} onChange={() => setPickedTopics(toggleIn(pickedTopics, String(tp.id)))} style={tickStyle} />
+                  <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{tp.name}</span>
+                  <span style={{ fontSize: 11, color: t.textMut }}>{topicDocLine(tp)}</span>
+                </label>)}
+              </div>)}
+          </div>
+          {bad("topicIds")}
+        </div>
+        <div data-assign-field="userIds">
+          <div style={lbl}>{tr("People")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+            <Sel t={t} aria-label={tr("Site")} data-assign-site="" options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} value={siteId} onChange={e => setSiteId(e.target.value)} style={tall} />
+            <Sel t={t} aria-label={tr("Role")} data-assign-role="" options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} value={role} onChange={e => setRole(e.target.value)} style={tall} />
+            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" data-assign-select-all="" onClick={() => setPicked(prev => { const next = new Set(prev); listed.forEach(p => next.add(p.id)); return next; })} style={tall}>{tr("Select all")}</Btn>}
+            {picked.size > 0 && <Btn t={t} v="ghost" onClick={() => setPicked(new Set())} style={tall}>{tr("Clear selection")}</Btn>}
+            <span role="status" style={{ fontSize: 13, fontWeight: 600, color: t.textSec }}>{trn("{0} person selected|count", picked.size)}</span>
+          </div>
+          <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 280, overflowY: "auto" }}>
+            {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
+              : listed.map(p => <label key={p.id} data-assign-person={p.id} style={rowStyle}>
+                <input type="checkbox" checked={picked.has(p.id)} onChange={() => setPicked(toggleIn(picked, p.id))} style={tickStyle} />
+                <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{p.name}</span>
+                <span style={{ fontSize: 11, color: t.textMut, textAlign: "right" }}>{roleWord(p.role)}</span>
+              </label>)}
+          </div>
+          {bad("userIds")}
+        </div>
+        {(peopleError || siteError) && <div role="alert" style={{ fontSize: 13, color: RD, overflowWrap: "anywhere" }}>{peopleError || siteError}</div>}
+        {refusal && refusal.fields.length === 0 && <div role="alert" data-assign-refusal="" style={{ fontSize: 13, color: RD, overflowWrap: "anywhere" }}>{refusal.text}</div>}
+        {result && <div role="status" data-assign-result={result.added} data-assign-already={result.already} style={{ fontSize: 13, fontWeight: 600, color: result.added ? GR : t.textSec }}>{tr("{0} added, {1} already assigned", result.added, result.already)}</div>}
+      </div>
+      <div style={{ borderTop: "1px solid " + t.border, padding: "12px 20px", display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" disabled={busy} onClick={onClose} style={tall}>{result ? tr("Close") : tr("Cancel")}</Btn>
+        <Btn t={t} data-assign-send="" disabled={!ready} onClick={send} style={tall}>{busy ? tr("Saving...") : tr("Assign")}</Btn>
+      </div>
+    </div>
+  </Mdl>);
+}
+
 // ===== SIGN-OFF AND THE TRAINING RECORD (Step 257, slice 2 of the API's Step 256) =====
 // STEP256_CONTRACT.md section 8. Awaiting sign-off is drawn once GET /api/training/awaiting answers:
 // each attempt signed by the person and waiting for a trainer who watched them do it, with the person,
@@ -24087,6 +24567,12 @@ function LessonLibrary({ af, t, docCode = "", onPick, onClose }) {
 // to POST /api/training/attempts/:id/signoff, and the record is written with it.
 const scoreWord = (v) => (v == null || v === "" ? "" : Math.round(Number(v)) + "%");
 const trainingLangWord = (code) => { const l = TRAINING_LANGUAGES.find(x => x.id === langCode(code)); return l ? tr(l.word) : ""; };
+// Step 268 (STEP266_CONTRACT.md section 6): an attempt or a gap item whose topic names a checklist
+// that signs it off carries signoffBy, and reads Covered by that checklist.
+const signoffByOf = (x) => (x && x.signoffBy && typeof x.signoffBy === "object" && x.signoffBy.name ? x.signoffBy : null);
+const coveredBy = (x) => { const s0 = signoffByOf(x); return s0 ? <span data-signoff-covered={s0.topicId || ""} title={tr("A trainer signing that checklist off for this person signs this off with it.")}><Bdg l={tr("Covered by {0}", s0.name)} c={BL} /></span> : null; };
+// How many modules an observation's sign-off or void carried with it, from alsoSigned or returned.
+const carriedCount = (d, key) => (d && Array.isArray(d[key]) ? d[key].length : 0);
 function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = false, focusAttempt = null, showToast }) {
   const [siteId, setSiteId] = useState("");
   const [list, setList] = useState(null);
@@ -24107,7 +24593,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = fal
   const print = (a) => printTrainingAttempt({ af, token, id: a.id, sites }).then(okd => { if (!okd) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
   const cols = [
     { header: tr("Person"), tdStyle: { minWidth: 120 }, render: a => <span style={{ color: t.text, fontWeight: 600 }}>{(a.person && a.person.name) || ""}</span> },
-    { header: tr("Topic"), tdStyle: { color: t.textSec, minWidth: 120 }, render: a => a.topicName || "" },
+    { header: tr("Topic"), tdStyle: { color: t.textSec, minWidth: 120 }, render: a => <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>{a.topicName || ""}{a.kind === "observation" && <Bdg l={tr("Observation checklist")} c={PU} />}{coveredBy(a)}</span> },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: a => siteName(a.siteId) },
     { header: tr("Score"), align: "right", tdStyle: { color: t.textSec }, render: a => scoreWord(a.scorePercent) },
     { header: tr("Signed"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: a => (a.acknowledgedAt ? irWhen(a.acknowledgedAt) : "") },
@@ -24127,7 +24613,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = fal
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
       : <DataTable t={t} columns={cols} rows={shown} rowKey={a => a.id} empty={tr("Nobody is waiting for a sign-off.")} />}
     {signing && <SignOffWindow af={af} t={t} attempt={signing} siteName={siteName(signing.siteId)} onPrint={() => print(signing)} onClose={() => setSigning(null)} onDone={() => { load(); }} showToast={showToast} />}
-    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => { setVoiding(null); showToast(tr("Attempt voided.")); load(); }} />}
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => { setVoiding(null); showToast(voidedWord(d)); load(); }} />}
   </div>);
 }
 
@@ -24138,13 +24624,16 @@ function SignOffWindow({ af, t, attempt, siteName = "", onClose, onDone, onPrint
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState(null);
   const [done, setDone] = useState(false);
+  // Step 268: the modules an observation checklist's sign-off signed off with it (alsoSigned).
+  const [also, setAlso] = useState([]);
   const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "");
   const send = async () => {
     if (!sig) { setRefusal({ text: tr("Sign first."), fields: ["signature"] }); return; }
     if (!watched) { setRefusal({ text: tr("Tick that you watched them do it."), fields: ["demonstrated"] }); return; }
     setBusy(true); setRefusal(null);
     try {
-      await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/signoff", { method: "POST", body: { signature: sig, demonstrated: true, note: note.trim() || null } });
+      const d = await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/signoff", { method: "POST", body: { signature: sig, demonstrated: true, note: note.trim() || null } });
+      setAlso(d && Array.isArray(d.alsoSigned) ? d.alsoSigned : []);
       setDone(true); showToast(tr("Signed off. The training record is saved.")); onDone();
     } catch (e) {
       const keys = trainingKeysOf(e).concat(e && e.code === "training.demonstrationRequired" ? ["demonstrated"] : [], e && e.code === "training.signatureRequired" ? ["signature"] : []);
@@ -24160,8 +24649,10 @@ function SignOffWindow({ af, t, attempt, siteName = "", onClose, onDone, onPrint
         <div style={{ color: t.text, fontWeight: 600 }}>{(attempt.person && attempt.person.name) || ""}</div>
         <div>{[attempt.topicName, siteName].filter(Boolean).join(" . ")}</div>
         <div>{[tr("Score: {0}", scoreWord(attempt.scorePercent)), attempt.acknowledgedAt ? tr("Signed {0}", irWhen(attempt.acknowledgedAt)) : "", trainingLangWord(attempt.locale)].filter(Boolean).join(" . ")}</div>
+        {signoffByOf(attempt) && <div style={{ marginTop: 4 }}>{coveredBy(attempt)}</div>}
+        {attempt.kind === "observation" && !done && <div style={{ fontSize: 12, color: t.textMut, marginTop: 4 }}>{tr("Signing this checklist off also signs off every module of this person that names it.")}</div>}
       </div>
-      {done ? <div data-signoff-done="" style={{ fontSize: 13, color: GR, fontWeight: 600 }}>{tr("Signed off. The training record is saved.")}</div> : <>
+      {done ? <div data-signoff-done="" style={{ fontSize: 13, color: GR, fontWeight: 600 }}>{tr("Signed off. The training record is saved.")}{also.length > 0 && <div data-signoff-also={also.length} style={{ fontSize: 12, color: t.textSec, fontWeight: 400, marginTop: 4 }}>{trn("Also signed: {0} module|count", also.length)}</div>}</div> : <>
         {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
           : <SignatureBox t={t} label={tr("Your signature, as the trainer")} busy={busy} refusal={bad("signature")} onSign={png => setSig(png)} signWord={tr("Sign")} />}
         {sig && bad("signature") && <div role="alert" style={{ fontSize: 12, color: RD }}>{bad("signature")}</div>}
@@ -24923,15 +25414,21 @@ function useOpenProperty(af, userId, known, on) {
 }
 
 // A training attempt voided by an admin, with the reason (1 to 500 characters), at
-// POST /api/training/attempts/:id/void. The record it wrote is removed with it.
+// POST /api/training/attempts/:id/void. The record it wrote is removed with it. Since Step 268
+// (STEP266_CONTRACT.md section 6.3) voiding an observation checklist's attempt also returns every
+// module it signed off to waiting for a trainer: the window warns so before, with the count when the
+// attempt says how many it signed (alsoSigned), and the answer's returned is handed to onDone.
+const voidedWord = (d) => { const n = carriedCount(d, "returned"); return n ? tr("Attempt voided.") + " " + trn("{0} module returned to waiting for a trainer.|count", n) : tr("Attempt voided."); };
 function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState("");
+  const observation = attempt && attempt.kind === "observation";
+  const signed = carriedCount(attempt, "alsoSigned");
   const send = async () => {
     if (busy || !reason.trim()) return;
     setBusy(true); setRefusal("");
-    try { await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/void", { method: "POST", body: { reason: reason.trim() } }); onDone(); }
+    try { const d = await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/void", { method: "POST", body: { reason: reason.trim() } }); onDone(d); }
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy(false);
   };
@@ -24939,6 +25436,7 @@ function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Void this attempt")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{[attempt.topicName, attempt.attemptNo != null ? tr("Try {0}", attempt.attemptNo) : ""].filter(Boolean).join(" . ")}</div>
     <div style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("The training record written from it is removed with it. Why is it being voided?")}</div>
+    {observation && <div role="alert" data-attempt-void-returns={signed || ""} style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{signed ? trn("This returns {0} module to waiting for a trainer.|count", signed) : tr("This returns every module this checklist signed off to waiting for a trainer.")}</div>}
     <TArea t={t} rows={3} maxLength={500} aria-label={tr("Reason")} data-attempt-void-reason="" value={reason} onChange={e => setReason(e.target.value)} />
     <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("{0} of 500", reason.length)}</div>
     {refusal && <div role="alert" data-attempt-void-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal}</div>}

@@ -48,6 +48,14 @@
 //     is sent with it, while a topic taken once asks for none. The lesson line waits for the published
 //     row it reads and the session line for the QR image to have loaded, the two things those lines
 //     read that arrive from a route of their own after the page is drawn.
+//   - against the stub's answers for the API's Step 266 (Step 268), at 1280 in English and in Spanish:
+//     the Training item on the side panel opens the Training area; the catalog groups its topics by
+//     category, a topic moves down inside its category and the topic window reads its category and
+//     offers the checklist that signs it off; an image block is uploaded, previewed and saved; Drafts
+//     lists every open draft and Publish selected publishes the ready ones and refuses one; a safety
+//     lesson reads Spanish not checked yet until its checker is named on the published lesson; and
+//     Assign training posts once with two topics and three people. At 390 in English the side panel
+//     and catalog lines run again. With Step 266 armed the lesson line publishes without a checker.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -78,13 +86,21 @@ const SESSION_PEOPLE = ["u-staff-7", "u-staff-5", "u-staff-6"];
 // for, and the person who holds company property.
 const SESSION_CODE = "K7Q4PZ";
 const CHECKLIST_TOPIC = { en: "Ladder use", es: "Uso de escaleras" };
+// Step 268's stub (Step 266): the topic whose lesson the lesson lines open, the topic the ladder one
+// moves under in its category, the topics and people Assign training sends, and a one-pixel PNG the
+// image line uploads.
+const LESSON_TOPIC = { en: "Spill response", es: "Respuesta a derrames" };
+const CHILD_TOPIC = { en: "Reporting a concern about a child", es: "Reportar una preocupación sobre un menor" };
+const ASSIGN_TOPICS = ["tp-1", "tp-4"];
+const ASSIGN_PEOPLE = ["u-staff-5", "u-staff-7", "u-staff-8"];
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 // Step 265: a topic taken once, and one taken at each site, for the certificate line.
 const CERTIFICATE_TOPICS = { once: "tp-1", perSite: "tp-2" };
 const PROPERTY_PERSON = "u-staff-5";
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all" },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all" },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all" },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all" },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor" },
 ];
 
@@ -533,19 +549,24 @@ async function step256(d, origin, p, stubs) {
     await d.page.locator("[data-session-window]").locator("..").locator("..").getByRole("button", { name: d.say("Close") }).click().catch(() => {});
     return html.indexOf("OCSA-TRN-901 3.2") < 0 ? "the roster's Related Document No. does not name the topic's document" : "";
   });
-  await check("a lesson draft is refused for its Spanish checker, then published", async () => {
+  // Step 268: with the API's Step 266 armed a safety lesson publishes without its Spanish checker
+  // (decision 339), so the refusal is not asked for; the checker is named on the published lesson in
+  // step266's own line. The topic is found by its name, since the catalog is grouped by category.
+  await check(p.step266 ? "a lesson draft from the live lesson is published without a Spanish checker" : "a lesson draft is refused for its Spanish checker, then published", async () => {
     await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
-    await d.page.locator("[data-training-catalog] table tbody tr").first().click();
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: LESSON_TOPIC[p.lang] }).first().click();
     await d.page.locator('[data-topic-tab="lesson"]').click();
     await until(d, "[data-topic-lesson]");
     if ((await d.page.locator("[data-lesson-stale]").count()) === 0) return "no version reads Stale";
     await d.page.locator('[data-lesson-new="published"]').click();
     await until(d, "[data-lesson-editor]");
     await d.page.locator("[data-lesson-publish]").click();
-    await until(d, '[data-lesson-refusal="checkedEsBy"]').catch(() => {});
-    if ((await d.page.locator('[data-lesson-refusal="checkedEsBy"]').count()) === 0) return "the refusal is not drawn under Spanish checked by";
-    await d.page.locator("[data-lesson-checked=es]").fill("Checked in the office");
-    await d.page.locator("[data-lesson-publish]").click();
+    if (!p.step266) {
+      await until(d, '[data-lesson-refusal="checkedEsBy"]').catch(() => {});
+      if ((await d.page.locator('[data-lesson-refusal="checkedEsBy"]').count()) === 0) return "the refusal is not drawn under Spanish checked by";
+      await d.page.locator("[data-lesson-checked=es]").fill("Checked in the office");
+      await d.page.locator("[data-lesson-publish]").click();
+    }
     // Step 265: the versions list is drawn again the moment the editor closes, with the versions it
     // held, and read anew after; so the row this line reads, version 3 published, is waited for.
     await until(d, '[data-lesson-version="3"][data-lesson-version-status="published"]').catch(() => {});
@@ -738,6 +759,135 @@ async function step262(d, origin, p, stubs) {
   });
 }
 
+// Step 268's screens, each a line, against the stub armed with setStep266 (audit/stubs.js). The phone
+// pass runs the side panel and catalog lines.
+async function step266(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const closeTopic = () => d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click();
+  const lastCall = async (test) => { let call = null; for (let i = 0; i < 30 && !call; i++) { call = stubs.calls.filter(test).pop() || null; if (!call) await wait(100); } return call; };
+  await check("the Training item on the side panel opens the Training area", async () => {
+    await openNav(d, "training");
+    await until(d, "[data-training-views]");
+    if ((await d.page.evaluate(() => window.location.hash)).indexOf("#training") !== 0) return "the address does not read #training";
+    if ((await d.page.locator('[data-training-view="catalog"]').count()) === 0) return "the Training area offers no Catalog tab";
+    await d.page.locator('[data-training-view="drafts"]').click();
+    await until(d, "[data-training-drafts]");
+    return "";
+  });
+  await check("the catalog groups its topics by category and a topic moves down inside its category", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-catalog-category]");
+    const groups = await settledCount(d, "[data-catalog-category]");
+    if (groups < 3) return "the catalog draws " + groups + " categories";
+    const first = () => d.page.locator('[data-catalog-category="safety"] tbody tr').first().innerText();
+    if ((await first()).indexOf(CHECKLIST_TOPIC[p.lang]) < 0) return "the safety category does not start with the ladder topic";
+    await d.page.locator('[data-topic-down="tp-3"]').click();
+    const call = await lastCall((c) => c.path === "/api/training/topics/order" && c.method === "PUT");
+    const rows = (call && call.body && call.body.topics) || [];
+    if (rows.length !== 2 || rows[0].id !== "tp-4" || rows[0].sortOrder !== 10 || rows[1].id !== "tp-3" || rows[1].sortOrder !== 20) return "the order sent reads " + JSON.stringify(rows);
+    await d.page.locator('[data-catalog-category="safety"] tbody tr').first().filter({ hasText: CHILD_TOPIC[p.lang] }).waitFor({ timeout: 3000 }).catch(() => {});
+    if ((await first()).indexOf(CHILD_TOPIC[p.lang]) < 0) return "the ladder topic did not move down";
+    await d.page.locator("[data-catalog-category-filter]").selectOption("safety");
+    if ((await settledCount(d, "[data-catalog-category]")) !== 1) return "the Category filter does not narrow the list";
+    await d.page.locator('[data-catalog-category="safety"] tbody tr').first().click();
+    await until(d, "[data-topic-details]");
+    if ((await d.page.locator('[data-topic-category="safety"]').count()) === 0) return "the topic window does not read its category";
+    await d.page.locator("[data-topic-edit]").click();
+    await until(d, '[data-topic-field="category"] select');
+    const cat = await d.page.locator('[data-topic-field="category"] select').inputValue();
+    const offered = await d.page.locator('[data-topic-field="signoffTopicId"] select option[value="tp-3"]').count();
+    await closeTopic();
+    if (cat !== "safety") return "Category does not start from the topic's";
+    return offered === 1 ? "" : "Signed off by checklist does not offer the ladder checklist";
+  });
+  if (p.step266 !== "all") return;
+  await check("an image block is uploaded, previewed and saved in the lesson editor", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: LESSON_TOPIC[p.lang] }).first().click();
+    await d.page.locator('[data-topic-tab="lesson"]').click();
+    await until(d, "[data-topic-lesson]");
+    await d.page.locator('[data-lesson-new="published"]').click();
+    await until(d, "[data-lesson-add-image]");
+    const at = await d.page.locator("[data-lesson-block]").count();
+    await d.page.locator("[data-lesson-add-image]").click();
+    await until(d, '[data-lesson-image="' + at + '"]');
+    await d.page.locator('[data-lesson-image-file="' + at + '"]').setInputFiles({ name: "spill-kit.png", mimeType: "image/png", buffer: PNG });
+    const drawn = await d.page.waitForFunction((i) => { const img = document.querySelector('[data-lesson-image-preview="' + i + '"]'); return !!(img && img.complete && img.naturalWidth > 0); }, at, { timeout: 8000 }).then(() => true).catch(() => false);
+    if (!drawn) return "the preview did not draw";
+    const up = stubs.calls.filter((c) => c.path === "/api/training/lesson-images" && c.method === "POST").pop();
+    if (!up || up.status !== 201) return "the picture was not uploaded";
+    await d.page.locator('[data-lesson-path="blocks.' + at + '.alt.en"] input').fill("A spill kit on its shelf");
+    const patches = () => stubs.calls.filter((c) => /lesson-drafts\/[^/]+$/.test(c.path) && c.method === "PATCH");
+    const sent = patches().length;
+    await d.page.locator("[data-lesson-save]").click();
+    for (let i = 0; i < 30 && patches().length === sent; i++) await wait(100);
+    const call = patches().length > sent ? patches().pop() : null;
+    const b = call && call.body && call.body.content && Array.isArray(call.body.content.blocks) ? call.body.content.blocks[at] : null;
+    await d.page.locator("[data-lesson-editor]").getByText(d.say("Changes not saved")).waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    await d.page.locator("[data-lesson-editor] button").filter({ hasText: d.say("Back to the versions") }).click();
+    await until(d, "[data-topic-lesson]");
+    await closeTopic();
+    if (!b || b.kind !== "image" || !/^lessons\//.test(String(b.path || "")) || b.svg !== null || !b.alt || b.alt.en !== "A spill kit on its shelf" || "src" in b) return "the draft was not sent with the image block, its path and its alt text";
+    return "";
+  });
+  await check("Drafts lists every open draft, and Publish selected publishes the ready ones and refuses one", async () => {
+    await go(d, "hr", ["training", "drafts"], "[data-training-drafts] tbody tr");
+    const rows = await settledCount(d, "[data-training-drafts] tbody tr");
+    if (rows < 3) return "Drafts lists " + rows + " drafts";
+    if ((await d.page.locator('[data-draft-not-ready="lv-4"]').count()) !== 1) return "the draft with its Spanish missing carries a tick";
+    if ((await d.page.locator('[data-draft-tick="lv-5"]').count()) !== 1) return "the ready draft carries no tick";
+    if ((await d.page.locator("[data-training-drafts] [data-lesson-spanish-unchecked]").count()) === 0) return "no draft reads Spanish not checked yet";
+    await d.page.locator("[data-drafts-select-ready]").click();
+    await d.page.locator("[data-drafts-publish]").click();
+    await until(d, "[data-drafts-published]");
+    const call = stubs.calls.filter((c) => c.path === "/api/training/lesson-drafts/publish" && c.method === "POST").pop();
+    const ids = (call && call.body && call.body.ids) || [];
+    if (ids.length < 2 || ids.indexOf("lv-4") >= 0) return "Publish selected sent " + JSON.stringify(ids);
+    const published = Number(await d.page.locator("[data-drafts-published]").getAttribute("data-drafts-published"));
+    const refused = (await d.page.locator("[data-drafts-refused]").count()) ? Number(await d.page.locator("[data-drafts-refused]").getAttribute("data-drafts-refused")) : 0;
+    if (published < 1 || refused !== 1) return "the page says " + published + " published and " + refused + " refused";
+    for (let i = 0; i < 30 && (await d.page.locator("[data-training-drafts] tbody tr").count()) !== rows - published; i++) await wait(100);
+    return (await d.page.locator("[data-training-drafts] tbody tr").count()) === rows - published ? "" : "the list was not read again";
+  });
+  await check("a safety lesson reads Spanish not checked yet until its checker is named", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: LESSON_TOPIC[p.lang] }).first().click();
+    await d.page.locator('[data-topic-tab="lesson"]').click();
+    await until(d, "[data-lesson-checkers]");
+    const chip = '[data-lesson-version-status="published"] [data-lesson-spanish-unchecked]';
+    if ((await d.page.locator(chip).count()) === 0) return "the live version does not read Spanish not checked yet";
+    if ((await d.page.locator("[data-lesson-french-missing]").count()) === 0) return "no version reads French missing";
+    await d.page.locator('[data-lesson-checker="es"]').fill("Checked in the office");
+    await d.page.locator("[data-lesson-checker-save]").click();
+    await d.page.locator(chip).waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+    const call = stubs.calls.filter((c) => /\/checkers$/.test(c.path) && c.method === "PATCH").pop();
+    const left = await d.page.locator(chip).count();
+    await closeTopic();
+    if (!call || !call.body || call.body.checkedEsBy !== "Checked in the office") return "the checker was not sent";
+    return left === 0 ? "" : "the chip did not clear";
+  });
+  await check("Assign training posts once with two topics and three people", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-assign-training]");
+    await d.page.locator("[data-assign-training]").click();
+    await until(d, "[data-assign-window]");
+    for (const id of ASSIGN_TOPICS) await d.page.locator('[data-assign-topic="' + id + '"] input').check();
+    for (const id of ASSIGN_PEOPLE) await d.page.locator('[data-assign-person="' + id + '"] input').check();
+    await d.page.locator("[data-assign-send]").click();
+    await until(d, "[data-assign-result]");
+    const calls = stubs.calls.filter((c) => c.path === "/api/training/assignments" && c.method === "POST");
+    const added = await d.page.locator("[data-assign-result]").getAttribute("data-assign-result");
+    const already = await d.page.locator("[data-assign-result]").getAttribute("data-assign-already");
+    await d.page.locator('[data-assign-window] button[aria-label="' + d.say("Close") + '"]').click();
+    if (calls.length !== 1 || ((calls[0].body || {}).topicIds || []).length !== 2 || ((calls[0].body || {}).userIds || []).length !== 3) return "the assignment was not sent once with two topics and three people";
+    return added === "5" && already === "1" ? "" : "the window says " + added + " added and " + already + " already assigned";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -747,6 +897,8 @@ async function runPass(browser, origin, p) {
   if (p.step256) stubs.setStep256(true);
   // Step 262's answers are laid over Step 256's.
   if (p.step262) stubs.setStep262(true);
+  // Step 266's answers are laid over Step 262's.
+  if (p.step266) stubs.setStep266(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -828,6 +980,7 @@ async function runPass(browser, origin, p) {
     }
     if (p.step256) await step256(d, origin, p, stubs);
     if (p.step262) await step262(d, origin, p, stubs);
+    if (p.step266) await step266(d, origin, p, stubs);
 
     // Help, asked one question.
     {

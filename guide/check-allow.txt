@@ -97,3 +97,9 @@
 **Cost summary** (**Resumen de costos**)
 **Monthly bid price** (**Precio mensual de la oferta**)
 **Price against the local range** (**Precio frente al rango local**)
+
+# A composition: the chip Covered by {0}, before the checklist's name (Step 268).
+**Covered by** (**Cubierto por**)
+
+# A composition: the button Publish selected ({0}) with the count filled in (Step 268).
+**Publish selected** (**Publicar seleccionados**)

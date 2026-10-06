@@ -35,6 +35,8 @@ const PAGES = [
   { id: "announcements", label: "Announcements", expect: "New announcement", gated: true },
   // Step 187: for a holder of build_forms, whom the API names by default among admins only.
   { id: "form-builder", label: "Form builder", expect: "Every form the apps offer", gated: true },
+  // Step 268: the Training area on its own item, for the admins and supervisors HR Records opens for.
+  { id: "training", label: "Training", expect: "Records", gated: false },
 ];
 
 // ---------------------------------------------------------------------------
