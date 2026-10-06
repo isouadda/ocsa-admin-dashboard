@@ -949,6 +949,19 @@ async function step270(d, origin, p, stubs) {
     for (let i = 0; i < 30 && (await d.page.locator("[data-signature-requests] table tbody tr").count()) !== rows - 1; i++) await wait(100);
     return (await d.page.locator("[data-signature-requests] table tbody tr").count()) === rows - 1 ? "" : "the signed request is still listed under Open";
   });
+  await check("the address #hr/signatures/<id> opens Waiting for signatures with the Not right request open, which offers no Remind", async () => {
+    await go(d, "hr", ["signatures", "sr-1"], '[data-signature-request-window="sr-1"]');
+    const win = d.page.locator('[data-signature-request-window="sr-1"]');
+    await win.locator("[data-signature-state]").waitFor();
+    if ((await win.locator('[data-signature-state="disputed"]').count()) !== 1) return "the window does not read Not right";
+    if (((await win.locator("[data-signature-note]").innerText()) || "").indexOf(DISPUTE_NOTE) < 0) return "the window does not carry the note";
+    if ((await win.locator("[data-signature-remind]").count()) !== 0) return "Remind is offered on a Not right request";
+    if ((await win.locator("[data-signature-cancel]").count()) !== 1 || (await win.locator("[data-signature-sign-here]").count()) !== 1) return "Cancel and Sign here now are not offered";
+    await win.locator("[data-signature-request-close]").click();
+    await d.page.locator('[data-signature-request-window="sr-1"]').waitFor({ state: "detached" });
+    if ((await d.page.evaluate(() => window.location.hash)) !== "#hr/signatures") return "the address did not fall back to #hr/signatures";
+    return (await d.page.locator("[data-signature-requests] table tbody tr").count()) > 0 ? "" : "the list is not under the window";
+  });
   await check("Who needs it reads From a key on file and offers no Remove on it", async () => {
     await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
     await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: KEYS_TOPIC[p.lang] }).first().click();

@@ -4391,3 +4391,5 @@ Nothing is waiting for a signature.,No hay nada a la espera de firma.,"HR Record
 No request matches.,Ninguna solicitud coincide.,"HR Records, Waiting for signatures, the empty list under a filter"
 From a key on file,Por una llave registrada,"HR Records, Training, Catalog, a topic's Who needs it, a person the keys on file put there"
 "It is removed by itself when every key, badge and fob of theirs is marked returned.","Se quita por sí solo cuando todas sus llaves, credenciales y llaveros electrónicos se marcan como devueltos.","HR Records, Training, Catalog, Edit who needs it, the hint on From a key on file"
+Signature request,Solicitud de firma,"HR Records, Waiting for signatures, a request's window, the title when the request has none"
+Reminders,Recordatorios,"HR Records, Waiting for signatures, a request's window"

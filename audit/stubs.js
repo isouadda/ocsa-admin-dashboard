@@ -3829,9 +3829,11 @@ function createStubs() {
   // by this stub, so their requests are seeded in the list alone. Every value is invented.
   let step270 = false;
   const S270_WORDS = {
-    "signatures.notFound": ["No such request.", "No existe esa solicitud."],
-    "signatures.closed": ["This request is already closed.", "Esta solicitud ya est\u00e1 cerrada."],
-    "signatures.badSignature": ["Draw the signature first.", "Dibuje la firma primero."],
+    "signatures.notFound": ["That signature request was not found", "No se encontr\u00f3 esa solicitud de firma"],
+    "signatures.notOpen": ["This request is no longer waiting for a signature", "Esta solicitud ya no espera una firma"],
+    "signatures.reminderLimit": ["This request has been reminded as many times as allowed", "Esta solicitud ya se record\u00f3 el m\u00e1ximo de veces"],
+    "signatures.signatureRequired": ["Sign in the box first", "Primero firme en el recuadro"],
+    "signatures.badDetails": ["Some details are missing or not valid", "Faltan algunos datos o no son v\u00e1lidos"],
   };
   const r270 = (code, status, lang, extra) => ({ status, json: Object.assign({ code, error: S270_WORDS[code] ? S270_WORDS[code][lang === "es" ? 1 : 0] : code }, extra || {}) });
   const PROPERTY_WORDS = { uniform_shirt: ["Uniform shirt", "Camisa de uniforme"], uniform_other: ["Other uniform", "Otro uniforme"], key: ["Key", "Llave"], badge: ["Badge", "Credencial"], fob: ["Fob", "Llavero electr\u00f3nico"] };
@@ -3890,6 +3892,14 @@ function createStubs() {
     const me = person();
     const mgmt = me.role === "admin" || me.role === "supervisor";
     requests270();
+    // The bell holds the office's notice of the badge sent back as not right, linked to the request
+    // the way the API links it (helpers/signatureNotices.js), on a dashboard address that is not
+    // this one.
+    if (/^\/api\/notifications/.test(path) && !state.notif270) {
+      state.notif270 = true;
+      if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+      state.notifications.unshift({ id: "n-270-1", title: "A signature was sent back as not right", body: "Badge: This badge opens the other building, not mine.", subjectType: "signature_disputed", subjectId: "sr-1", link: "https://dashboard.example.invalid/signatures/sr-1", createdAt: seed.shift(0) + "T23:30:00Z", readAt: null });
+    }
     if (path === "/api/hr/property" && method === "GET") {
       const a = base();
       if (a && a.status === 200 && a.json && Array.isArray(a.json.issues)) a.json.issues.forEach((x) => { const sg = signatureOf270("property_issue", x.id); if (sg) x.signature = sg; });
@@ -3917,11 +3927,16 @@ function createStubs() {
     }
     if (path === "/api/signatures" && method === "GET") {
       if (!mgmt) return tRefusal("training.noAccess", 403, lang);
-      const st = query.get("state") || "";
+      // state is one of the five, open (waiting and disputed, the default) or all; the disputed first,
+      // then the oldest, as the API answers.
+      const st = query.get("state") || "open";
       const kind = query.get("kind") || "";
       const siteId = query.get("siteId") || "";
-      const rows = requests270().filter((r) => (!st || r.state === st) && (!kind || r.kind === kind) && (!siteId || (itemOf270(r, lang).site || {}).id === siteId));
-      return ok({ requests: rows.slice().sort((a, c) => c.requestedAt.localeCompare(a.requestedAt)).map((r) => signRequestView(r, lang)) });
+      if (["waiting", "disputed", "signed", "declined", "cancelled", "open", "all"].indexOf(st) < 0) return r270("signatures.badDetails", 400, lang, { keys: ["state"] });
+      const inState = (r) => (st === "all" ? true : st === "open" ? r.state === "waiting" || r.state === "disputed" : r.state === st);
+      const rows = requests270().filter((r) => inState(r) && (!kind || r.kind === kind) && (!siteId || (itemOf270(r, lang).site || {}).id === siteId));
+      const first = (r) => (r.state === "disputed" ? 0 : 1);
+      return ok({ requests: rows.slice().sort((a, c) => first(a) - first(c) || a.requestedAt.localeCompare(c.requestedAt)).map((r) => signRequestView(r, lang)) });
     }
     // Who needs it saved: the rows the keys on file put there stay, whatever the set sent (section 3).
     const rq = /^\/api\/training\/topics\/([^/]+)\/requirements$/.exec(path);
@@ -3938,11 +3953,16 @@ function createStubs() {
       if (!r) return r270("signatures.notFound", 404, lang);
       if (!sr[2] && method === "GET") return ok({ request: signRequestView(r, lang) });
       if (sr[2] && method === "POST") {
-        if (r.state !== "waiting" && r.state !== "disputed") return r270("signatures.closed", 409, lang);
-        if (sr[2] === "remind") r.reminders += 1;
-        else if (sr[2] === "cancel") r.state = "cancelled";
+        if (r.state !== "waiting" && r.state !== "disputed") return r270("signatures.notOpen", 409, lang);
+        if (sr[2] === "remind") {
+          // Remind is for a waiting request, at most twenty times in all.
+          if (r.state !== "waiting") return r270("signatures.notOpen", 409, lang);
+          if (r.reminders >= 20) return r270("signatures.reminderLimit", 409, lang);
+          r.reminders += 1;
+        } else if (sr[2] === "cancel") r.state = "cancelled";
         else {
-          if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return r270("signatures.badSignature", 400, lang, { keys: ["signature"] });
+          if (b.locale !== undefined && b.locale !== null && ["en", "es"].indexOf(b.locale) < 0) return r270("signatures.badDetails", 400, lang, { keys: ["locale"] });
+          if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return r270("signatures.signatureRequired", 400, lang, { keys: ["signature"] });
           r.state = "signed"; r.signedAt = seed.NOW_ISO; r.signedWhere = "office";
         }
         return ok({ request: signRequestView(r, lang) });
@@ -5715,7 +5735,7 @@ function createStubs() {
       step262 = false; state.sessions = null; state.docs262 = null; state.acks262 = null; state.cert262 = false; state.property = null; state.notif262 = false;
       // Step 266 off, and its store and assignments as they started.
       step266 = false; state.lessonImages = null; state.imageSeq = 0; state.assignments = null;
-      step270 = false; state.requests270 = null; state.requestSeq = 0;
+      step270 = false; state.requests270 = null; state.requestSeq = 0; state.notif270 = false;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

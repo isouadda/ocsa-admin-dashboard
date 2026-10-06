@@ -4606,6 +4606,8 @@ export const WORDS = {
   "No request matches.": { es: "Ninguna solicitud coincide." },
   "From a key on file": { es: "Por una llave registrada" },
   "It is removed by itself when every key, badge and fob of theirs is marked returned.": { es: "Se quita por s\u00ed solo cuando todas sus llaves, credenciales y llaveros electr\u00f3nicos se marcan como devueltos." },
+  "Signature request": { es: "Solicitud de firma" },
+  "Reminders": { es: "Recordatorios" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

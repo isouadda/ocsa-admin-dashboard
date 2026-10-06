@@ -6818,6 +6818,10 @@ const notifTarget = (link) => {
   // person's list in Gaps; /training/people/<userId> opens that person's list in Gaps.
   const trn0 = /^\/training\/(attempts|people)\/([^/]+)\/?$/.exec(u.pathname || "");
   if (trn0) return { kind: "page", page: "hr", hash: "hr/training/" + trn0[1] + "/" + trn0[2] };
+  // The office's signature notices (Step 272, against the API's Step 270): /signatures/<requestId>
+  // opens Waiting for signatures in HR Records with that request open.
+  const sg0 = /^\/signatures\/([^/]+)\/?$/.exec(u.pathname || "");
+  if (sg0) return { kind: "page", page: "hr", hash: "hr/signatures/" + sg0[1] };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -6917,6 +6921,9 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     // the person its link names, else Gaps.
     if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     if (n.subjectType === "training_expiring") { if (!canOpenPage("hr")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "hr/training/people/" + m[1] : "hr/training/gaps"); onClose(); return; }
+    // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
+    // it in Waiting for signatures.
+    if ((n.subjectType === "signature_disputed" || n.subjectType === "signature_declined" || n.subjectType === "signature_overdue") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/signatures/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -22028,10 +22035,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
 function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "", trainingPage = false }) {
   // Step 257: #hr/training opens the Training area, and #hr/training/<view> one of its tabs.
   const trainingRoute = route[0] === "training";
-  const [tab, setTab] = useState(() => (trainingRoute ? "training" : "employees"));
+  // Step 272: #hr/signatures opens Waiting for signatures, and #hr/signatures/<requestId> one request.
+  const signaturesRoute = route[0] === "signatures";
+  const [tab, setTab] = useState(() => (trainingRoute ? "training" : signaturesRoute ? "signatures" : "employees"));
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
-  const [folderUserId, setFolderUserId] = useState(() => (route[0] && !trainingRoute ? String(route[0]) : null));
+  const [folderUserId, setFolderUserId] = useState(() => (route[0] && !trainingRoute && !signaturesRoute ? String(route[0]) : null));
   // #hr/<id> opens that person's record, and #hr/<id>/clearances brings their Clearances into view
   // (Step 211), so a refusal or the Clearances page can send someone straight there.
   const [focusClearances, setFocusClearances] = useState(() => route[1] === "clearances");
@@ -22044,6 +22053,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   useEffect(() => {
     if (!route[0]) return;
     if (route[0] === "training") { setTab("training"); setFolderUserId(null); setTrView(trViewOf(route[1])); return; }
+    if (route[0] === "signatures") { setTab("signatures"); setFolderUserId(null); return; }
     setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
   }, [route]);
   const topicsLive = useTrainingLive(af, "topics");
@@ -22383,7 +22393,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
-      {tab === "signatures" && <SignatureRequests af={af} t={t} sites={sites} showToast={showToast} />}
+      {tab === "signatures" && signaturesLive && <SignatureRequests af={af} t={t} sites={sites} showToast={showToast} focusId={signaturesRoute && route[1] ? String(route[1]) : ""} onFocusDone={() => { if (onRoute && signaturesRoute && route[1]) onRoute(["signatures"]); }} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -25312,9 +25322,11 @@ function sentToPhoneLine(name) { return name ? tr("Sent to {0}'s phone to sign."
 // A record sent to a phone carries signature: { state, requestId, requestedAt, signedAt, signedWhere },
 // and the office's list carries the Request itself (section 2). The chip reads the state: Waiting for
 // signature, Signed on their phone or in the office, Not right with the person's note, Declined (a
-// warning), Cancelled. On a waiting or not right one, Remind sends the notice again, Cancel closes the
-// request (signed on paper, or entered by mistake) and Sign here now takes the signature on this
-// screen, through the request's own routes.
+// warning, with its note), Cancelled. Remind sends the notice again on a waiting one, as the API
+// allows it (409 signatures.notOpen on a not right one, 409 signatures.reminderLimit after twenty);
+// on a waiting or not right one, Cancel closes the request (signed on paper, or entered by mistake)
+// and Sign here now takes the signature on this screen, with the screen's language, through the
+// request's own routes.
 const SIGN_STATES = { waiting: "Waiting for signature", disputed: "Not right", signed: "Signed|signature", declined: "Declined|signature", cancelled: "Cancelled|signature" };
 const SIGN_KINDS = [{ v: "property_issue", l: "Property|signature" }, { v: "ppe_issue", l: "PPE" }, { v: "warning", l: "Warning|signature" }];
 const signKindWord = (k) => { const x = SIGN_KINDS.find(o => o.v === k); return x ? tr(x.l) : String(k || ""); };
@@ -25327,7 +25339,7 @@ function SignatureChip({ t, sig }) {
   if (!sig) return null;
   const c = sig.state === "signed" ? GR : sig.state === "waiting" ? OR : sig.state === "cancelled" ? t.textMut : RD;
   const where = sig.state === "signed" ? (sig.signedWhere === "phone" ? tr("on their phone") : sig.signedWhere === "office" ? tr("in the office") : "") : "";
-  const note = sig.state === "disputed" ? String(sig.disputeNote || sig.note || "") : "";
+  const note = sig.state === "disputed" || sig.state === "declined" ? String(sig.disputeNote || sig.note || "") : "";
   return <span data-signature-state={sig.state} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
     <Bdg l={tr(SIGN_STATES[sig.state] || sig.state)} c={c} />
     {where && <span style={{ fontSize: 11, color: t.textMut }}>{where}</span>}
@@ -25347,7 +25359,7 @@ function SignatureActions({ af, t, sig, personName = "", onChanged, showToast })
     setBusy("");
   };
   return <span data-signature-actions={id} style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
-    <Btn t={t} v="ghost" data-signature-remind={id} disabled={!!busy} onClick={() => post("remind")} style={small}>{busy === "remind" ? tr("Sending...") : tr("Remind")}</Btn>
+    {sig.state === "waiting" && <Btn t={t} v="ghost" data-signature-remind={id} disabled={!!busy} onClick={() => post("remind")} style={small}>{busy === "remind" ? tr("Sending...") : tr("Remind")}</Btn>}
     <Btn t={t} v="ghost" data-signature-cancel={id} disabled={!!busy} onClick={() => { if (window.confirm(tr("Cancel this request? Do this when it was signed on paper or entered by mistake."))) post("cancel"); }} style={{ ...small, color: RD }}>{tr("Cancel")}</Btn>
     <Btn t={t} data-signature-sign-here={id} disabled={!!busy} onClick={() => setSigning(true)} style={small}>{tr("Sign here now")}</Btn>
     {signing && <SignHereWindow af={af} t={t} requestId={id} personName={personName} onClose={() => setSigning(false)} onDone={() => { setSigning(false); if (showToast) showToast(tr("Signed in the office. It is on the record.")); if (onChanged) onChanged(); }} />}
@@ -25367,7 +25379,7 @@ function SignHereWindow({ af, t, requestId, personName = "", onClose, onDone }) 
   }, [af, requestId]);
   const sign = async (png) => {
     setBusy(true); setRefusal("");
-    try { await af("/api/signatures/" + encodeURIComponent(requestId) + "/sign-here", { method: "POST", body: { signature: png } }); onDone(); }
+    try { await af("/api/signatures/" + encodeURIComponent(requestId) + "/sign-here", { method: "POST", body: { signature: png, locale: getLang() } }); onDone(); }
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy(false);
   };
@@ -25393,8 +25405,12 @@ function SignHereWindow({ af, t, requestId, personName = "", onClose, onDone }) 
 // route's own filters; Open, the default, is waiting and not right together, read with no state and
 // kept here.
 const SIGN_LIST_STATES = [{ v: "open", l: "Open|requests" }, { v: "waiting", l: "Waiting for signature" }, { v: "disputed", l: "Not right" }, { v: "signed", l: "Signed|signature" }, { v: "declined", l: "Declined|signature" }, { v: "cancelled", l: "Cancelled|signature" }, { v: "all", l: "All|requests" }];
-function SignatureRequests({ af, t, sites = [], showToast }) {
+function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocusDone }) {
   const [list, setList] = useState(null);
+  // The request open in its window: a row clicked, or the one the address or a notice names.
+  const [open, setOpen] = useState(focusId);
+  useEffect(() => { if (focusId) setOpen(focusId); }, [focusId]);
+  const closeOpen = () => { setOpen(""); if (onFocusDone) onFocusDone(); };
   const [failed, setFailed] = useState(false);
   const [kind, setKind] = useState("");
   const [site, setSite] = useState("");
@@ -25406,7 +25422,7 @@ function SignatureRequests({ af, t, sites = [], showToast }) {
     const q = [];
     if (kind) q.push("kind=" + encodeURIComponent(kind));
     if (site) q.push("siteId=" + encodeURIComponent(site));
-    if (state !== "open" && state !== "all") q.push("state=" + encodeURIComponent(state));
+    q.push("state=" + encodeURIComponent(state));
     af("/api/signatures" + (q.length ? "?" + q.join("&") : ""))
       .then(d => { if (alive) setList(d && Array.isArray(d.requests) ? d.requests : []); })
       .catch(e => { if (alive) { setList([]); setFailed(true); showToast(e.message, "error"); } });
@@ -25427,7 +25443,7 @@ function SignatureRequests({ af, t, sites = [], showToast }) {
     { header: tr("Requested"), render: r => <div><div style={{ color: t.textSec, whiteSpace: "nowrap" }}>{r.requestedAt ? keptDay(r.requestedAt) : ""}</div>
       <div data-signature-age={daysSince(r.requestedAt)} style={{ fontSize: 11, color: t.textMut, whiteSpace: "nowrap" }}>{trn("{0} days|count", daysSince(r.requestedAt))}{Number(r.reminders) > 0 ? ", " + trn("{0} reminder|count", Number(r.reminders)) : ""}</div></div> },
     { header: tr("State"), tdStyle: { minWidth: 160 }, render: r => <SignatureChip t={t} sig={sigOf(r)} /> },
-    { header: "", render: r => <SignatureActions af={af} t={t} sig={sigOf(r)} personName={nameOf(r)} onChanged={() => setAgain(n => n + 1)} showToast={showToast} /> },
+    { header: "", render: r => <span onClick={e => e.stopPropagation()}><SignatureActions af={af} t={t} sig={sigOf(r)} personName={nameOf(r)} onChanged={() => setAgain(n => n + 1)} showToast={showToast} /></span> },
   ];
   const box = { flex: "1 1 160px", minWidth: 0 };
   return (<div data-signature-requests="">
@@ -25442,8 +25458,49 @@ function SignatureRequests({ af, t, sites = [], showToast }) {
     </Crd>
     {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} /></Crd>
-      : <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} empty={state === "open" ? tr("Nothing is waiting for a signature.") : tr("No request matches.")} />}
+      : <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(String(r.id))} empty={state === "open" ? tr("Nothing is waiting for a signature.") : tr("No request matches.")} />}
+    {open && <SignatureRequestWindow af={af} t={t} requestId={open} onClose={closeOpen} onChanged={() => setAgain(n => n + 1)} showToast={showToast} />}
   </div>);
+}
+// One request, opened from its row, from the address #hr/signatures/<id>, or from the bell's notices
+// signature_disputed, signature_declined and signature_overdue, which link /signatures/<id>: read from
+// GET /api/signatures/:id, what it is, who it went to and when, its state with the person's note, the
+// reminders sent, the warning's summary, and the actions its state allows.
+function SignatureRequestWindow({ af, t, requestId, onClose, onChanged, showToast }) {
+  const [req, setReq] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    af("/api/signatures/" + encodeURIComponent(requestId))
+      .then(d => { if (alive) { setReq(d && d.request ? d.request : {}); setFailed(d && d.request ? "" : tr("This did not load.")); } })
+      .catch(e => { if (alive) { setReq({}); setFailed(e.message || tr("This did not load.")); } });
+    return () => { alive = false; };
+  }, [af, requestId, again]);
+  const r = req || {};
+  const it = r.item || {};
+  const who = (r.person && r.person.name) || "";
+  const sig = r.state ? { state: r.state, requestId: r.id, requestedAt: r.requestedAt, signedAt: r.signedAt, signedWhere: r.signedWhere, disputeNote: r.disputeNote } : null;
+  const line = (l, v) => (v ? <div style={{ display: "flex", gap: 10, fontSize: 13, padding: "6px 0", borderBottom: "1px solid " + t.border }}><span style={{ color: t.textMut, minWidth: 100, flexShrink: 0 }}>{l}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{v}</span></div> : null);
+  const where = r.signedWhere === "phone" ? tr("on their phone") : r.signedWhere === "office" ? tr("in the office") : "";
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-signature-request-window={requestId}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{r.title || tr("Signature request")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{who}</div>
+    {req === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <div role="alert" style={{ fontSize: 12, color: RD }}>{failed}</div> : <div>
+      {sig && <div style={{ marginBottom: 10 }}><SignatureChip t={t} sig={sig} /></div>}
+      {line(tr("Kind"), signKindWord(r.kind))}
+      {line(tr("Item"), [it.label, it.size].filter(Boolean).join(", ") + (Number(it.quantity) > 1 ? " x " + it.quantity : ""))}
+      {line(tr("Site"), it.site && it.site.name)}
+      {line(tr("Date"), it.date ? keptDay(it.date) : "")}
+      {line(tr("Requested"), r.requestedAt ? [keptDay(r.requestedAt), r.requestedBy && r.requestedBy.name].filter(Boolean).join(", ") : "")}
+      {line(tr("Reminders"), Number(r.reminders) > 0 ? String(r.reminders) : "")}
+      {line(tr("Signed|signature"), r.signedAt ? [keptDay(r.signedAt), where].filter(Boolean).join(", ") : "")}
+      {r.warning && r.warning.summary ? <div style={{ fontSize: 13, color: t.text, marginTop: 10, lineHeight: 1.5, overflowWrap: "anywhere" }}>{r.warning.summary}</div> : null}
+      {r.statement ? <div data-signature-request-statement="" style={{ fontSize: 12, color: t.textSec, marginTop: 10, lineHeight: 1.5 }}>{r.statement}</div> : null}
+      {sig && signatureOpen(sig) && <div style={{ marginTop: 14 }}><SignatureActions af={af} t={t} sig={sig} personName={who} onChanged={() => { setAgain(n => n + 1); if (onChanged) onChanged(); }} showToast={showToast} /></div>}
+    </div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><Btn t={t} v="ghost" data-signature-request-close="" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn></div>
+  </div></Mdl>);
 }
 
 // ===== COMPANY PROPERTY (Step 263, STEP262_CONTRACT.md section 7) =====
