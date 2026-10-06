@@ -144,7 +144,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -325,6 +325,8 @@ const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 // The circular arrow a refresh control draws, the same path the Dashboard's Refresh button carries.
 const RfI = p => <Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" {...p} />;
+// A line that climbs, for the owner's dashboard (Step 273).
+const TrdI = p => <Ic d="M22 7l-8.5 8.5-5-5L2 17 M16 7h6v6" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter", contractor: "Contractor" };
 // A role and a person's status as words in the language the screen is drawn in. The code is what is
 // sent and compared; a code with no word here is drawn as it arrives.
@@ -633,6 +635,10 @@ export default function AdminDashboard() {
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
+    // The owner's dashboard (Step 273) is offered to a holder of view_owner_dashboard, which
+    // GET /api/users/me/permissions names (the API's Step 269: admins by default, supervisors not).
+    // The role defaults here do not hold it, so the item waits for the API to name it.
+    if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn]);
   const [sites, setSites] = useState([]);
@@ -818,7 +824,7 @@ export default function AdminDashboard() {
   const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
 
   const sidebarGroups = [
-    { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }] },
+    { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
     { label: tr("Operations"), items: [
       { id: "operations", l: tr("Live Ops"), i: ClI },
       { id: "sites", l: tr("Sites"), i: MpI },
@@ -854,7 +860,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1085,6 +1091,9 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
+        {/* The API decides who reads it: a person the side panel does not offer it to, who reaches it
+            by its address, is shown the API's refusal in its own words. */}
+        {page === "owner" && <OwnerDashboardPage af={af} t={t} sites={sites} lang={lang} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />}
@@ -8649,16 +8658,19 @@ function keptPageHtml(page) {
 // The window a print is written into, opened in the click so a pop-up blocker lets it through, or
 // null when the browser would not open it.
 const keptWindow = () => { try { return window.open("", "_blank") || null; } catch (e) { return null; } };
-function keptWrite(w, title, pages) {
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(title) + "</title>" + KEPT_STYLE + "</head><body>" + pages.map(keptPageHtml).join("") + "</body></html>");
+// paper, where a print names its sheet, is a CSS @page size such as "letter" or "letter landscape"
+// (Step 273); without it the browser's own sheet is used, as before.
+function keptWrite(w, title, pages, paper) {
+  const sheet = paper ? "<style>@page{size:" + paper + "}</style>" : "";
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(title) + "</title>" + KEPT_STYLE + sheet + "</head><body>" + pages.map(keptPageHtml).join("") + "</body></html>");
   w.document.close();
   setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
 }
 // One print of pages already in hand. False when the browser would not open the window.
-function printKeptRecord(pages, title) {
+function printKeptRecord(pages, title, paper) {
   const w = keptWindow();
   if (!w) return false;
-  keptWrite(w, title, pages);
+  keptWrite(w, title, pages, paper);
   return true;
 }
 
@@ -10067,6 +10079,139 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
         </div>
       </Crd>
     </div>
+  </div>);
+}
+
+// ===== THE OWNER'S DASHBOARD (Step 273, against the API's Step 269) =====
+// One screen that answers how the company is doing in the measures its own documents name, for a
+// month or a quarter against the one before it, company wide or at one site:
+// GET /api/owner/dashboard?period=YYYY-MM|YYYY-Qn&siteId= answers { period, asOf, site, sections },
+// each section's measures with their label, value, unit, previous value, trend, which way is better,
+// the value at each site, the document and section they come from, and, for a value the platform
+// cannot work out yet, what it needs. Titles, labels and needs come in the screen's language. A
+// measure with no value says what it needs and never reads as a zero. The API decides who reads it
+// (view_owner_dashboard) and its refusal is shown in its own words.
+// The periods offered: the last 12 months and the last 8 quarters, the current one of each first, as
+// the keys the route reads.
+function ownerPeriods(today) {
+  const [y, m] = String(today).split("-").map(Number);
+  const months = [];
+  for (let i = 0; i < 12; i++) { const d = new Date(y, m - 1 - i, 1); months.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")); }
+  const quarters = [];
+  let qy = y, qn = Math.floor((m - 1) / 3) + 1;
+  for (let i = 0; i < 8; i++) { quarters.push(qy + "-Q" + qn); qn -= 1; if (qn < 1) { qn = 4; qy -= 1; } }
+  return months.concat(quarters);
+}
+// A period key in words: "October 2026", or "Q4 2026".
+const ownerPeriodWord = (key) => { const q = /^(\d{4})-Q([1-4])$/.exec(String(key || "")); return q ? tr("Q{0} {1}", q[2], q[1]) : keptMonth(key); };
+const ownerNumber = (v, digits) => Number(v).toLocaleString(localeTag(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+// A value in its unit: a percent with one decimal, a count as a whole number, minutes and hours as
+// numbers with their unit, square feet with thousands separators, dollars as money.
+function ownerValueWord(v, unit) {
+  if (v == null || v === "" || !isFinite(Number(v))) return "";
+  const n = Number(v);
+  if (unit === "percent") return ownerNumber(n, 1) + "%";
+  if (unit === "minutes") return tr("{0} min", ownerNumber(n, n % 1 ? 1 : 0));
+  if (unit === "hours") return tr("{0} h|hours", ownerNumber(n, n % 1 ? 1 : 0));
+  if (unit === "squareFeet") return ownerNumber(Math.round(n), 0) + " " + tr("sq ft");
+  if (unit === "dollars") return "$" + ownerNumber(n, 2);
+  return ownerNumber(Math.round(n), 0);
+}
+// Whether a measure moved the better way, the other way, or neither: better when its trend is the
+// way the API says is good, worse when it is the other, neutral when it held, when there is nothing
+// to compare, or when neither way is good in itself.
+const ownerTone = (m) => (!m || !m.trend || m.trend === "same" || !m.better ? "neutral" : m.trend === m.better ? "better" : "worse");
+const ownerChangeWord = (m) => {
+  if (!m || !m.trend) return "";
+  const moved = m.trend === "up" ? tr("Up|trend") : m.trend === "down" ? tr("Down|trend") : tr("Same|trend");
+  const tone = ownerTone(m);
+  return tone === "better" ? moved + ", " + tr("better|trend") : tone === "worse" ? moved + ", " + tr("worse|trend") : moved;
+};
+const OWNER_ARROWS = { up: "M12 19V5 M5 12l7-7 7 7", down: "M12 5v14 M19 12l-7 7-7-7", same: "M5 12h14" };
+const ownerSourceLine = (m) => [m && m.source && m.source.docCode, m && m.source && m.source.section].filter(x => x != null && String(x).trim() !== "").join(" ");
+function OwnerMeasure({ t, m }) {
+  const [open, setOpen] = useState(false);
+  const tone = ownerTone(m);
+  const ink = tone === "better" ? GR : tone === "worse" ? RD : t.textMut;
+  const bySite = Array.isArray(m.bySite) ? m.bySite : [];
+  const src = ownerSourceLine(m);
+  return (<div data-owner-measure={m.key} style={{ padding: 12, borderRadius: R.md, border: "1px solid " + t.border, background: t.cardAlt, minWidth: 0 }}>
+    <div style={{ fontSize: 12, fontWeight: 600, color: t.textSec, lineHeight: 1.4, overflowWrap: "anywhere" }}>{m.label}</div>
+    {m.value == null
+      ? <div data-owner-needs="" style={{ fontSize: 13, color: t.textMut, marginTop: 6, lineHeight: 1.45, overflowWrap: "anywhere" }}><span style={{ fontWeight: 600 }}>{tr("Needs:")}</span> {m.needs || ""}</div>
+      : <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+        <span data-owner-value="" style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: t.text }}>{ownerValueWord(m.value, m.unit)}</span>
+        {m.trend && OWNER_ARROWS[m.trend] && <span role="img" data-owner-trend={m.trend} data-owner-tone={tone} title={ownerChangeWord(m)} aria-label={ownerChangeWord(m)} style={{ display: "inline-flex" }}><Ic d={OWNER_ARROWS[m.trend]} sz={18} c={ink} strokeWidth="2.5" /></span>}
+      </div>}
+    <div data-owner-previous="" style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{m.previous == null ? tr("Previous period: no value") : tr("Previous period: {0}", ownerValueWord(m.previous, m.unit))}</div>
+    {bySite.length > 0 && <button type="button" data-owner-by-site-toggle="" aria-expanded={open} onClick={() => setOpen(o => !o)} style={{ minHeight: 44, padding: 0, marginTop: 2, background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{open ? tr("Hide the sites") : tr("By site")}</button>}
+    {open && bySite.length > 0 && <table data-owner-by-site="" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 4 }}>
+      <thead><tr><th style={{ textAlign: "left", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Site")}</th><th style={{ textAlign: "right", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Value")}</th></tr></thead>
+      <tbody>{bySite.map(x => <tr key={x.siteId} data-owner-site={x.siteId} style={{ borderTop: "1px solid " + t.border }}>
+        <td style={{ padding: "5px 8px 5px 0", color: t.text, overflowWrap: "anywhere" }}>{x.siteName}</td>
+        <td style={{ padding: "5px 0", textAlign: "right", whiteSpace: "nowrap", color: x.value == null ? t.textMut : t.text }}>{x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit)}</td>
+      </tr>)}</tbody>
+    </table>}
+    {src && <div data-owner-source="" style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{src}</div>}
+  </div>);
+}
+// The dashboard on paper, letter size, for the quarterly review: every section as a table of its
+// measures, a measure's sites under it, with the period, the site and the day it was printed.
+function ownerPages(d, siteWord) {
+  const parts = [{ fields: [["Period", ownerPeriodWord(d.period && d.period.key)], ["Compared with", ownerPeriodWord(d.period && d.period.previousKey)], ["Site", siteWord]] }];
+  (d.sections || []).forEach(sec => {
+    const rows = [];
+    (sec.measures || []).forEach(m => {
+      rows.push([m.label, m.value == null ? tr("Needs:") + " " + (m.needs || "") : ownerValueWord(m.value, m.unit), m.previous == null ? "" : ownerValueWord(m.previous, m.unit), m.value == null ? "" : ownerChangeWord(m), ownerSourceLine(m)]);
+      (Array.isArray(m.bySite) ? m.bySite : []).forEach(x => rows.push(["    " + x.siteName, x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit), "", "", ""]));
+    });
+    parts.push({ h: sec.title, cols: ["Measure", "This period", "Previous period", "Change|trend", "Source"], rows });
+  });
+  return [{ code: "", title: "Owner's dashboard", site: siteWord, range: d.period ? { start: d.period.start, end: d.period.end } : null, parts }];
+}
+function OwnerDashboardPage({ af, t, sites = [], lang = "en" }) {
+  const periods = useMemo(() => ownerPeriods(todayISO()), []);
+  const [period, setPeriod] = useState(periods[0]);
+  const [siteId, setSiteId] = useState("");
+  const [d, setD] = useState(null);
+  const [refusal, setRefusal] = useState(null);
+  const [printBlocked, setPrintBlocked] = useState(false);
+  // Only the latest read is drawn, so a period changed while an earlier one is still loading never
+  // shows that earlier one's numbers.
+  const seq = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++seq.current;
+    setD(null); setRefusal(null);
+    try {
+      const x = await af("/api/owner/dashboard?period=" + encodeURIComponent(period) + (siteId ? "&siteId=" + encodeURIComponent(siteId) : ""));
+      if (n === seq.current) setD(x && Array.isArray(x.sections) ? x : { period: null, asOf: "", site: null, sections: [] });
+    } catch (e) { if (n === seq.current) setRefusal({ text: e.message || tr("This did not load."), code: e.code || "", status: e.status || 0 }); }
+  }, [af, period, siteId]);
+  // Read again when the screen's language changes, since the API writes the titles and labels in it.
+  useEffect(() => { load(); }, [load, lang]);
+  const siteWord = d && d.site ? d.site.name : siteId ? ((sites.find(s0 => String(s0.id) === siteId) || {}).name || "") : tr("All sites");
+  const print = () => { setPrintBlocked(false); if (d && !printKeptRecord(ownerPages(d, siteWord), tr("Owner's dashboard") + " " + ownerPeriodWord(d.period && d.period.key), "letter")) setPrintBlocked(true); };
+  return (<div data-owner-dashboard="" style={{ animation: "fadeIn 0.3s ease" }}>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 14 }}>
+      <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: 260 }}><Lbl>{tr("Period")}</Lbl><Sel t={t} aria-label={tr("Period")} data-owner-period="" value={period} onChange={e => setPeriod(e.target.value)} options={periods.map(k => ({ v: k, l: ownerPeriodWord(k) }))} /></div>
+      <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: 260 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-owner-site-choice="" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} /></div>
+      <span style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" data-owner-print="" disabled={!d || d.sections.length === 0} onClick={print}>{tr("Print")}</Btn></span>
+    </div>
+    {printBlocked && <div role="alert" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{tr("Allow pop-ups to print the sheet")}</div>}
+    {refusal ? <Crd t={t}><div role="alert" data-owner-refusal={refusal.code} style={{ padding: 10, textAlign: "center", fontSize: 14, color: t.text }}>{refusal.text}</div>{refusal.status !== 403 && <div style={{ textAlign: "center" }}><Btn t={t} v="ghost" onClick={load}>{tr("Try again")}</Btn></div>}</Crd>
+      : d === null ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : <>
+        <div role="status" data-owner-heading="" style={{ fontSize: 13, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{[d.period ? ownerPeriodWord(d.period.key) : "", siteWord, d.period && d.period.previousKey ? tr("Compared with {0}", ownerPeriodWord(d.period.previousKey)) : "", d.asOf ? tr("As of {0}", fdLong(d.asOf)) : ""].filter(Boolean).join(" . ")}</div>
+        {d.sections.length === 0 ? <Crd t={t}><div style={{ textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Nothing to show for this period.")}</div></Crd>
+          : d.sections.map(sec => <Crd key={sec.key} t={t} style={{ marginBottom: 16 }}>
+            <div data-owner-section={sec.key}>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, marginBottom: 12 }}>{sec.title}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+                {(sec.measures || []).map(m => <OwnerMeasure key={m.key} t={t} m={m} />)}
+              </div>
+            </div>
+          </Crd>)}
+      </>}
   </div>);
 }
 

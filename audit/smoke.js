@@ -58,6 +58,9 @@
 //     and catalog lines run again. With Step 266 armed the lesson line publishes without a checker.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
+// Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
+// each pass's lines are printed together, in the order the passes are listed, once it is done.
+// SMOKE_LANES sets how many run at once (1 runs them one after another, as before).
 "use strict";
 const { createStubs } = require("./stubs");
 const { serve } = require("./lib/serve");
@@ -109,10 +112,15 @@ const PASSES = [
 ];
 
 const started = Date.now();
+const LANES = Math.max(1, Number(process.env.SMOKE_LANES) || 2);
 let failures = 0;
+// Each pass's lines, held until the passes before it have printed theirs; a line outside a pass is
+// printed at once.
+const held = {};
 function say(ok, pass, what, why) {
   if (!ok) failures += 1;
-  process.stdout.write((ok ? "ok    " : "FAIL  ") + pass.padEnd(20) + what + (why ? "  (" + why + ")" : "") + "\n");
+  const line = (ok ? "ok    " : "FAIL  ") + pass.padEnd(20) + what + (why ? "  (" + why + ")" : "") + "\n";
+  if (held[pass]) held[pass].push(line); else process.stdout.write(line);
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -1104,10 +1112,30 @@ async function runPass(browser, origin, p) {
   const server = await serve(BUILD_DIR);
   const browser = await launch();
   try {
-    for (const p of PASSES) {
-      try { await runPass(browser, server.origin, p); }
-      catch (e) { say(false, p.name, "runs", e.message.split("\n")[0]); }
-    }
+    PASSES.forEach((p) => { held[p.name] = []; });
+    const done = PASSES.map(() => false);
+    let printed = 0;
+    const flush = () => {
+      while (printed < PASSES.length && done[printed]) {
+        const name = PASSES[printed].name;
+        process.stdout.write(held[name].join(""));
+        delete held[name];
+        printed += 1;
+      }
+    };
+    let next = 0;
+    const lane = async () => {
+      while (next < PASSES.length) {
+        const i = next;
+        next += 1;
+        const p = PASSES[i];
+        try { await runPass(browser, server.origin, p); }
+        catch (e) { say(false, p.name, "runs", e.message.split("\n")[0]); }
+        done[i] = true;
+        flush();
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(LANES, PASSES.length) }, lane));
   } finally {
     await browser.close();
     await server.close();
