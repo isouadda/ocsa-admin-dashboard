@@ -2,6 +2,8 @@
 // every API call from the stub, and records what is on screen, what a window sent, what a toast
 // said, what a download held and what a print export wrote.
 "use strict";
+const fs = require("fs");
+const path = require("path");
 const seed = require("../seed");
 const stream = require("../stream");
 // The words the driver itself waits on. It waits for the sign-in button and the bell, and in a
@@ -106,6 +108,13 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
   await context.route("**://fonts.googleapis.com/**", (r) => r.fulfill({ status: 200, contentType: "text/css", body: "" }));
   await context.route("**://fonts.gstatic.com/**", (r) => r.fulfill({ status: 200, body: "" }));
   await context.route("**://api.qrserver.com/**", (r) => r.fulfill({ status: 200, contentType: "image/png", body: Buffer.alloc(0) }));
+  // A picture of the screen Help draws from another app's address, the staff portal's, is answered
+  // from public/guide-shots by its file name, or not found, so a run never reaches the portal (Step 278).
+  await context.route((u) => u.origin !== origin && u.pathname.indexOf("/guide-shots/") === 0, (r) => {
+    const file = path.join(__dirname, "..", "..", "public", "guide-shots", path.basename(new URL(r.request().url()).pathname));
+    if (fs.existsSync(file)) return r.fulfill({ status: 200, contentType: "image/jpeg", body: fs.readFileSync(file) });
+    return r.fulfill({ status: 404, contentType: "text/plain", body: "" });
+  });
 
   await context.route("**/api/**", async (route) => {
     const req = route.request();

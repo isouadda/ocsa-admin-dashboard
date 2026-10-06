@@ -1568,6 +1568,12 @@ function createStubs() {
   // The API stores each question and its answer in the conversation, which is where a page reads an
   // answer back from after a dropped connection.
   const AGENT_REPLY = "Here is what the dashboard shows for that.";
+  // Step 278: with setStep278 armed, an answer to a question that asks how to do something carries the
+  // pictures of the guide entry it draws on, the way the API's Step 276 builds them from the sections it
+  // cites, and cites the app guide; an answer to anything else carries none (STEP276_CONTRACT.md,
+  // section 2). An armed answer that names its own pictures keeps them.
+  const HOW_TO = /^\s*(\u00bf\s*)?(how|c\u00f3mo|como)\b/i;
+  const HELP_PICTURES = [{ app: "dashboard", name: "management-review-pack", entry: "Print the management review evidence pack (admin dashboard)" }];
   let agentStream = null;
   let agentAsked = 0;
   let agentTalk = {};
@@ -1592,12 +1598,17 @@ function createStubs() {
       text += String(p);
     });
     const done = Object.assign({ reply: text, conversationId }, s.done || {});
+    if (step278 && done.pictures === undefined) {
+      const howTo = HOW_TO.test(String((body && body.text) || ""));
+      done.pictures = howTo ? clone(HELP_PICTURES) : [];
+      if (howTo && done.citedDocs === undefined) done.citedDocs = ["APP-DASHBOARD"];
+    }
     if (s.error) { steps.push({ event: "error", data: s.error, pause }); total += pause; }
     else if (s.drop) steps.push({ drop: true });
     else steps.push({ event: "done", data: done });
     if (!s.error) {
       const answer = { role: "assistant", text: done.reply };
-      ["citedDocs", "degraded", "noProcedure"].forEach((k) => { if (done[k] !== undefined) answer[k] = done[k]; });
+      ["citedDocs", "degraded", "noProcedure", "pictures"].forEach((k) => { if (done[k] !== undefined) answer[k] = done[k]; });
       // Since Step 183 an answer is stored with its id and the names of what it cited, which the
       // conversation route reads back beside it.
       if (done.messageId !== undefined) answer.id = done.messageId;
@@ -5834,7 +5845,8 @@ function createStubs() {
   };
 
   // Step 278: what the pictures of the screen need beyond the API's steps, answered only once a run
-  // arms it with setStep278, which npm run shots does: the screens no check had drawn, from
+  // arms it with setStep278, which npm run shots does, and npm run smoke before its Help pictures
+  // lines: the pictures a how-to answer carries (agentAnswer, above), the screens no check had drawn, from
   // audit/pictures-stub.js, the capabilities those screens ask for, and a stand-in for every one-pixel
   // image. Every value is invented.
   let step278 = false;

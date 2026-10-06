@@ -346,6 +346,18 @@ const SHOTS = [
       await c.page.locator("textarea").first().fill(HELP_QUESTION[c.lang]);
       await c.page.locator('button[aria-label="' + c.say("Send") + '"]').first().click();
       await c.page.getByText(c.say("Was this helpful?")).first().waitFor();
+      await until(c, "[data-help-picture] img");
+    } },
+  // The same answer's picture open full screen, with its entry's title under it and Close (Step 278).
+  { name: "help-picture-open", entry: "Ask Help a question from the dashboard",
+    open: "help", ready: "textarea",
+    act: async (c) => {
+      c.stubs.setAgentStream({ pieces: [HELP_ANSWER[c.lang]], done: { citedDocs: ["APP-DASHBOARD"], messageId: "am-shots-2" } });
+      await c.page.locator("textarea").first().fill(HELP_QUESTION[c.lang]);
+      await c.page.locator('button[aria-label="' + c.say("Send") + '"]').first().click();
+      await until(c, "[data-help-picture] img");
+      await click(c, "[data-help-picture]");
+      await until(c, "[data-help-picture-open] img");
     } },
   // Every other entry, in the guide's order.
   { name: "sign-in-card", entry: "Sign in to the admin dashboard", as: "signedOut",

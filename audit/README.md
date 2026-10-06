@@ -82,6 +82,12 @@ Then it checks, one line a check:
   Not right request open, which offers Cancel and Sign here now and no Remind; and Who needs it on the
   keys and access topic reads From a key on file with no Remove. With Step 270 armed the shirt line chooses Sign here now first, since Send to their
   phone is the default. At 390 in English the key line runs again.
+- against the stub's answers for the API's Step 276 contract (Step 278), which the smoke check arms with
+  `setStep278` once Help has answered as it always has: at 1280 in English and in Spanish, a how-to
+  answer draws its picture under it from `/guide-shots/<name>.<lang>.jpg` in the screen's language,
+  described by its entry's title, and the picture opens full screen and closes; an answer to anything
+  else draws none; and at 1280 in English a portal picture is read from the portal's address, which the
+  driver answers from `public/guide-shots`, so nothing leaves the machine.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -124,7 +130,9 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-signature-age`, `data-signature-remind`, `data-signature-cancel`, `data-signature-sign-here`,
 `data-sign-here-window`, `data-sign-here-statement`, `data-hr-tab`, `data-signature-requests`,
 `data-signature-kind`, `data-signature-site`, `data-signature-filter-state`, `data-warning-sent-phone`,
-`data-warning-signature`, `data-who-source`, `data-signature-request-window` and `data-signature-request-close`.
+`data-warning-signature`, `data-who-source`, `data-signature-request-window` and
+`data-signature-request-close`, and Step 278's by `data-help-answer`, `data-help-picture`,
+`data-help-picture-open` and `data-help-picture-close`.
 
 ## Pictures of the screen
 
@@ -146,7 +154,7 @@ guide. `npm run shots -- <name>` takes one picture, an entry's title takes its p
 check, and it takes about two minutes.
 
 The stub serves the pictures with every step the API has built armed, the way live answers, and with
-`setStep278`, which nothing else arms: invented answers for the screens no check had drawn before, such
+`setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and
 the filed forms each guide entry opens, kept in `pictures-stub.js`, and the one-pixel image every other
 run is served swapped for a drawn signature, a made-up photo of a floor and a QR code of an invented

@@ -5995,7 +5995,7 @@ const agentMessageFrom = (m, i) => {
   const names = agentPick(m, ["citedNames", "cited_names"]);
   const rowId = agentPick(m, ["id", "messageId", "message_id"]);
   const fb = m && m.feedback && typeof m.feedback === "object" ? m.feedback : null;
-  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], citedNames: Array.isArray(names) ? names : [], messageId: role === "assistant" && rowId !== undefined ? String(rowId) : "", feedback: role === "assistant" ? fb : null, degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
+  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], citedNames: Array.isArray(names) ? names : [], pictures: role === "assistant" ? agentPicturesFrom(agentPick(m, ["pictures"])) : [], messageId: role === "assistant" && rowId !== undefined ? String(rowId) : "", feedback: role === "assistant" ? fb : null, degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
 };
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
 // What is still unanswered, for the line on the Help page. The API names the questions when it can:
@@ -6053,9 +6053,22 @@ const agentSourcesLine = (codes, say = agentEnglish, names) => {
   named.forEach(n => { if (n.name && !list.some(c => String(c) === String(n.code))) add(String(n.name)); });
   return out.join(", ");
 };
+// The pictures of the screen an answer carries (Step 278, STEP276_CONTRACT.md sections 2 and 3): the
+// app each one is of, its name and the title of the guide entry it shows, at most two, in the order
+// sent. One whose name breaks the pattern, or of another app, is left out.
+const AGENT_PICTURE_NAME = /^[a-z0-9-]{1,60}$/;
+const agentPicturesFrom = (list) => (Array.isArray(list) ? list : []).filter(p => p && typeof p === "object" && (p.app === "dashboard" || p.app === "portal") && AGENT_PICTURE_NAME.test(String(p.name == null ? "" : p.name))).slice(0, 2).map(p => ({ app: p.app, name: String(p.name), entry: String(p.entry == null ? "" : p.entry) }));
+// Where a picture is read from: a dashboard picture from this app's own address, a portal picture from
+// the portal's, in the screen's language when it has files and in English for any other language.
+const AGENT_PICTURE_LANGS = ["en", "es"];
+const agentPictureSrc = (p, lang, portal) => (p.app === "portal" ? String(portal || "").replace(/\/+$/, "") : "") + "/guide-shots/" + p.name + "." + (AGENT_PICTURE_LANGS.indexOf(lang) >= 0 ? lang : "en") + ".jpg";
+// The pictures this page draws: its own, and the portal's once it knows the portal's address.
+const agentPicturesShown = (pictures, portal) => (Array.isArray(pictures) ? pictures : []).filter(p => p && (p.app === "dashboard" || (p.app === "portal" && !!portal)));
 // AGENT_HELPERS_END
 // Which app a Help message comes from, so the answer gives steps for this app.
 const AGENT_APP = "dashboard";
+// The staff portal's address, where its pictures of the screen are served (Step 278).
+const AGENT_PORTAL = (clientConfig.portal && clientConfig.portal.url) || "";
 const AGENT_MAX_PHOTOS = 3;
 // The unfinished reports list stops at three rows, each 44 high with 8 above and below and a line
 // between, and scrolls inside itself past that.
@@ -6089,6 +6102,20 @@ async function agentPreparePhoto(file) {
   for (const q of [0.85, 0.7, 0.5]) { blob = await encode(q); if (blob.size <= AGENT_PHOTO_MAX_BYTES) break; }
   return blob;
 }
+// One picture under an answer, in the screen's language. A file that does not load is read in English,
+// and a picture whose English does not load either is left out. Its description is the entry's title,
+// and a tap opens it full screen (Step 278).
+function HelpPicture({ p, lang, t, onOpen }) {
+  const want = agentPictureSrc(p, lang, AGENT_PORTAL);
+  const english = agentPictureSrc(p, "en", AGENT_PORTAL);
+  const [src, setSrc] = useState(want);
+  const [gone, setGone] = useState(false);
+  useEffect(() => { setSrc(want); setGone(false); }, [want]);
+  if (gone) return null;
+  return (<button type="button" onClick={(e) => onOpen({ src, entry: p.entry, from: e.currentTarget })} aria-haspopup="dialog" data-help-picture={p.app + ":" + p.name} style={{ flex: "1 1 160px", maxWidth: 240, minWidth: 0, minHeight: 44, padding: 0, border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden", background: t.card, cursor: "zoom-in", display: "block" }}>
+    <img src={src} alt={p.entry} onError={() => { if (src !== english) setSrc(english); else setGone(true); }} style={{ display: "block", width: "100%", height: "auto" }} />
+  </button>);
+}
 function HelpPage({ af, sf, uf, showToast, t }) {
   const [drafts, setDrafts] = useState([]);
   const [thread, setThread] = useState([]);
@@ -6104,6 +6131,16 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   const [resuming, setResuming] = useState(false);
   // What a screen reader hears: the finished answer, once. Cleared when a question is sent.
   const [said, setSaid] = useState("");
+  // The picture open full screen, { src, entry, from }, or null. Escape closes it, and the picture
+  // under the answer that opened it has the focus again.
+  const [picture, setPicture] = useState(null);
+  const closePicture = () => { const from = picture && picture.from; setPicture(null); if (from && from.focus) setTimeout(() => from.focus(), 0); };
+  useEffect(() => {
+    if (!picture) return undefined;
+    const onKey = (e) => { if (e.key !== "Escape") return; e.stopPropagation(); setPicture(null); if (picture.from && picture.from.focus) setTimeout(() => picture.from.focus(), 0); };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [picture]);
   const busy = sending || submitting || resuming;
   const endRef = useRef(null);
   const composerRef = useRef(null);
@@ -6190,7 +6227,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
       const found = agentStoredAnswer(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom), question);
       if (found) {
         stopWait(replyId);
-        patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, citedNames: found.citedNames, messageId: found.messageId, feedback: found.feedback, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
+        patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, citedNames: found.citedNames, pictures: found.pictures, messageId: found.messageId, feedback: found.feedback, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
         setSaid(agentSpokenText(found.text));
         loadDrafts();
         return true;
@@ -6248,7 +6285,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         } else if (event === "done") {
           const r = d || {};
           if (r.conversationId) setConversationId(r.conversationId);
-          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
+          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], pictures: agentPicturesFrom(r.pictures), messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
           if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
           setThread(p => [...p.filter(m => m.id !== replyId).map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
           setText(cur => cur === body ? "" : cur);
@@ -6376,7 +6413,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
           const words = arriving ? agentArrivingText(m.text) : m.text;
           if (arriving && !words && !m.dropped) return null;
           return (
-          <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
+          <div key={m.id} data-help-answer={isMe ? undefined : ""} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
             <div style={{ maxWidth: "75%", minWidth: 0 }}>
               {(!arriving || words) && <div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : (m.noProcedure ? t.goldBg : t.cardAlt), border: isMe ? "none" : "1px solid " + (m.noProcedure ? GO : t.border), color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: m.status === "sending" ? 0.6 : 1 }}>
                 {isMe && m.photos && m.photos.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 6 : 0 }}>{m.photos.map((p, i) => <img key={i} src={p.url} alt="" style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, display: "block" }} />)}</div>}
@@ -6385,6 +6422,9 @@ function HelpPage({ af, sf, uf, showToast, t }) {
                   if (line.step !== null) return <div key={li} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}><span style={{ flexShrink: 0, minWidth: 18, textAlign: "right" }}>{line.step}.</span><span style={{ minWidth: 0 }}>{inline}</span></div>;
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
+              </div>}
+              {!isMe && !arriving && agentPicturesShown(m.pictures, AGENT_PORTAL).length > 0 && <div data-help-pictures="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                {agentPicturesShown(m.pictures, AGENT_PORTAL).map(p => <HelpPicture key={p.app + ":" + p.name} p={p} lang={getLang()} t={t} onOpen={setPicture} />)}
               </div>}
               {!isMe && agentSourcesLine(m.citedDocs, tr, m.citedNames) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr, m.citedNames))}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
@@ -6428,6 +6468,11 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         <button onClick={send} aria-label={tr("Send")} disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
       </div>
     </Crd>
+    {picture && <div role="dialog" aria-modal="true" aria-label={picture.entry} data-help-picture-open="" onClick={closePicture} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 510, background: "rgba(0,0,0,0.88)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 16 }}>
+      <img src={picture.src} alt={picture.entry} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "calc(100% - 96px)", objectFit: "contain", borderRadius: 8 }} />
+      <div style={{ color: "#F8F7F4", fontSize: 12, textAlign: "center", wordBreak: "break-word" }}>{picture.entry}</div>
+      <Btn t={t} v="ghost" autoFocus onClick={(e) => { e.stopPropagation(); closePicture(); }} data-help-picture-close="" style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
+    </div>}
   </div>);
 }
 // ===== HELP INSIGHTS: what people ask Help, overall and per person (Step 185) =====

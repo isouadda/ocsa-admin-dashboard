@@ -72,6 +72,10 @@
 //     the day in the matrix and in Gaps; and a key for a person without Keys and access draws the line
 //     under the kind, which a uniform shirt does not. At 390 in English and in Spanish the matrix and
 //     key lines run again.
+//   - against the stub's answers for the API's Step 276 contract (Step 278), at 1280 in English and in
+//     Spanish, once Help has answered: a how-to answer draws its picture under it from the screen's
+//     language's file, described by its entry's title, opens it full screen and closes it; an answer to
+//     anything else draws none; and, in English, a portal picture is read from the portal's address.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -133,6 +137,10 @@ const REFRESHER = { id: "tp-7", en: "Annual safety refresher", es: "Repaso anual
 const FOLLOWS = "tp-1";
 const PER_SITE_TOPIC = "tp-2";
 const FIRST_DUE_PERSON = "u-staff-5";
+// Step 278's stub (setStep278): the question a how-to answer is given for, in each language, and the
+// picture of the guide entry that answer carries.
+const HELP_QUESTION = { en: "How do I print the evidence pack?", es: "\u00bfC\u00f3mo imprimo el paquete de evidencias?" };
+const HELP_PICTURE = { name: "management-review-pack", entry: "Print the management review evidence pack (admin dashboard)" };
 const LAST_WEEK = (() => {
   const d = new Date(seed.TODAY + "T12:00:00Z");
   const mon = new Date(d.getTime() - (((d.getUTCDay() + 6) % 7) + 7) * 86400000);
@@ -140,8 +148,8 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all" },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
@@ -1211,6 +1219,58 @@ async function step275(d, origin, p, stubs) {
   });
 }
 
+// Step 278's Help pictures, each a line, against the stub armed with setStep278 (audit/stubs.js) once
+// Help has answered as before: a how-to answer draws its picture under it from the screen's
+// language's file, described by its entry's title, and opens it full screen and closes it; an answer
+// to anything else draws none; and, in English, a portal picture is read from the portal's address,
+// which the driver answers from public/guide-shots, so nothing leaves the machine.
+async function step278(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  // An image is drawn once it has loaded with a width.
+  const loaded = async (img) => { await img.waitFor(); return d.page.waitForFunction((el) => el.complete && el.naturalWidth > 0, await img.elementHandle()).then(() => true).catch(() => false); };
+  const ask = async (words) => {
+    const before = await d.page.locator("[data-help-answer]").count();
+    await d.page.locator("textarea").first().fill(words);
+    await d.page.locator('button[aria-label="' + d.say("Send") + '"]').first().click();
+    const answer = d.page.locator("[data-help-answer]").nth(before);
+    await answer.getByText(d.say("Was this helpful?")).or(answer.getByText(HELP_REPLY)).first().waitFor();
+    return answer;
+  };
+  await check("a how-to answer draws its picture in the screen's language, and it opens full screen and closes", async () => {
+    await go(d, "help", null, 'button[aria-label="' + d.say("Send") + '"]');
+    const answer = await ask(HELP_QUESTION[p.lang]);
+    const img = answer.locator('[data-help-picture="dashboard:' + HELP_PICTURE.name + '"] img');
+    if (!(await loaded(img))) return "the picture did not load";
+    const src = await img.getAttribute("src");
+    if (src !== "/guide-shots/" + HELP_PICTURE.name + "." + p.lang + ".jpg") return "the picture reads " + src;
+    if ((await img.getAttribute("alt")) !== HELP_PICTURE.entry) return "the picture is not described by its entry's title";
+    await answer.locator('[data-help-picture="dashboard:' + HELP_PICTURE.name + '"]').click();
+    if (!(await loaded(d.page.locator("[data-help-picture-open] img")))) return "the picture did not open full screen";
+    await d.page.locator("[data-help-picture-close]").click();
+    await d.page.locator("[data-help-picture-open]").waitFor({ state: "detached" });
+    return "";
+  });
+  await check("an answer to anything else draws no picture", async () => {
+    const answer = await ask(p.lang === "es" ? "Gracias" : "Thanks");
+    return (await answer.locator("[data-help-picture]").count()) === 0 ? "" : "the answer draws a picture";
+  });
+  if (p.lang !== "en") return;
+  await check("a portal picture is read from the portal's address", async () => {
+    stubs.setAgentStream({ pieces: [HELP_REPLY], done: { citedDocs: ["APP-PORTAL"], pictures: [{ app: "portal", name: HELP_PICTURE.name, entry: "See your shifts (staff portal)" }] } });
+    const answer = await ask("How do I see my shifts on the phone?");
+    const img = answer.locator('[data-help-picture="portal:' + HELP_PICTURE.name + '"] img');
+    if (!(await loaded(img))) return "the portal picture did not load";
+    const src = (await img.getAttribute("src")) || "";
+    return /^https:\/\//.test(src) && src.indexOf(origin) !== 0 && /\/guide-shots\/[a-z0-9-]+\.en\.jpg$/.test(src) ? "" : "the portal picture reads " + src;
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -1330,6 +1390,8 @@ async function runPass(browser, origin, p) {
       }
       say(!why, p.name, "Help answers", why);
     }
+    // Step 278's answers are laid over the rest once Help has answered as it always has.
+    if (p.step278) { stubs.setStep278(true); await step278(d, origin, p, stubs); }
   } finally {
     await d.close();
   }

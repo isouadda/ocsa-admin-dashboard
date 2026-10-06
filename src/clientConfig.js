@@ -22,6 +22,11 @@ const clientConfig = {
     blueDeep: '#0D2C93',
     panelLight: '#15558F',
   },
+  // The staff portal's address, the one the API builds its QR codes and join links from
+  // (STAFF_PORTAL_URL, whose default this is). Help reads the portal's pictures of the screen from it.
+  portal: {
+    url: process.env.REACT_APP_PORTAL_URL || 'https://staff.ocsaco.com',
+  },
   employee: {
     idPrefix: 'OCSA',
   },

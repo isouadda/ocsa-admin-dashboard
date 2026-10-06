@@ -371,12 +371,14 @@ Who can do this: admins and supervisors
 2. Type your question, or click **Add a photo** to show it a picture.
 3. Click **Send**. The answer appears as it is written, in plain words, and takes its bold and its numbered steps once it is finished.
 4. Under the answer, a line says what it is based on: **Based on the app guide** for steps in the staff portal or the admin dashboard, **Based on the ADP guide** for the ADP time clock, **Based on general cleaning guidance** for general cleaning answers, and an OCSA document by its name.
-5. If Help is filling in a report with you and it cannot be sent yet, **Still needed before you can submit:** (**Falta esto antes de poder enviarlo:**) lists the questions left to answer, worded the way the form asks them.
-6. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
+5. An answer that says how to do something on the dashboard or the staff portal can show up to two pictures of the screen under it, drawn in the language the dashboard is shown in. A picture of the staff portal shows a phone screen, so you can show someone what they will see. Click a picture to see it full screen, with the name of its guide entry under it; **Close** (**Cerrar**) puts it away.
+6. If Help is filling in a report with you and it cannot be sent yet, **Still needed before you can submit:** (**Falta esto antes de poder enviarlo:**) lists the questions left to answer, worded the way the form asks them.
+7. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
 If it does not work: if **The connection dropped. Your answer is saved.** (**Se perdió la conexión. La respuesta quedó guardada.**) shows under the answer, click **Try again** (**Intentar de nuevo**) to read the saved answer back. If **This question is still being answered. The answer will show here.** (**Esta pregunta todavía se está respondiendo. La respuesta aparecerá aquí.**) shows, the question was already sent and Help is still writing its answer. The answer shows there by itself when it is ready, looked for every few seconds for two minutes; to look at once, or after the two minutes, click **Try again** (**Intentar de nuevo**). If a question reads Not sent, click **Retry** (**Reintentar**). Retry sends the same question again, and Help answers it once.
-Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer, still being answered.
+Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer, still being answered, picture of the screen, show me the screen, screenshot.
 Picture: help-answer
-Last checked: 2026-09-30
+Picture: help-picture-open
+Last checked: 2026-10-06
 
 ## Run a report (admin dashboard)
 Who can do this: admins and supervisors
