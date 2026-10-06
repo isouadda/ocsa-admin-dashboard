@@ -58,10 +58,11 @@ Then it checks, one line a check:
   sign-ins, a wrong one is removed, the session is closed with the trainer's signature and says who was
   saved and who already had a topic, and its roster prints every signature; an observation checklist
   draft is saved with its steps and no questions, Needs a trainer locked on, and the versions list says
-  its kind; a document's signatures list the people by site, the ones not signed first, a signature
-  opens and the print gives a page per site; a shirt is issued with the person's signature and marked
-  returned; and the End employment window lists what is still out. At 390 in English the document line
-  runs again.
+  its kind; a document's signatures list the people by site, the ones not signed first, Who must sign
+  reads the set in force from its own route and its editor starts from it with Everyone ticked
+  (Step 265), a signature opens and the print gives a page per site; a shirt is issued with the
+  person's signature and marked returned; and the End employment window lists what is still out. At 390
+  in English the document line runs again.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -83,7 +84,8 @@ and `data-supply-print-label`, and Step 257's by `data-training-catalog`, `data-
 `data-session-remove`, `data-session-closing`, `data-session-close-saved`, `data-session-roster`,
 `data-lesson-kind`, `data-lesson-version-kind`, `data-doc-site`, `data-doc-state`,
 `data-doc-signature`, `data-doc-print`, `data-property-row`, `data-property-kind`,
-`data-property-return` and `data-collect-item`.
+`data-property-return` and `data-collect-item`, and Step 265's by `data-doc-who-row`, `data-doc-who-edit`,
+`data-doc-who-form` and `data-doc-who-everyone`.
 
 ## What comes out
 

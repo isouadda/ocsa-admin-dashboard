@@ -1851,14 +1851,14 @@ Last checked: 2026-10-05
 ## See who signed a document, and say who must sign it (admin dashboard)
 Who can do this: admins and supervisors read it; admins change who must sign
 1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Documents to sign** (**Documentos por firmar**). Each document shows its version, how many **Must sign** (**Deben firmar**), how many **Signed** (**Firmado**) its current version, and how many have **Not signed** (**Sin firmar**).
-2. Click a document. **Who must sign** (**Quién debe firmar**) lists **Everyone** (**Todos**), the roles and the people named.
+2. Click a document. **Who must sign** (**Quién debe firmar**) lists the people the system holds as of that moment: **Everyone** (**Todos**), the roles and the people named.
 3. Below it, the people are listed by site, the ones who have not signed the current version first, each with the version they signed, when and in what language. **Signed an older version** (**Firmó una versión anterior**) means they must sign the new one. Narrow the list with **All sites** (**Todos los sitios**) and **All roles** (**Todos los roles**).
 4. **Open the signature** (**Abrir la firma**) shows the signature a person drew.
 5. **Print for the assessor** (**Imprimir para el auditor**) prints a page per site.
-6. Admins: click **Change who must sign** (**Cambiar quién debe firmar**), tick **Everyone** (**Todos**) or the roles, name people with **Name a person...** (**Nombrar a una persona...**) and **Add** (**Agregar**), and click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and each person added is told once.
-If it does not work: the tab shows once the system answers it. A refusal is shown under the row it names.
+6. Admins: click **Change who must sign** (**Cambiar quién debe firmar**). The list opens with what is in force already ticked. Tick or untick **Everyone** (**Todos**) or the roles, name people with **Name a person...** (**Nombrar a una persona...**) and **Add** (**Agregar**), and click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and each person added is told once. Nothing left ticked is dropped.
+If it does not work: the tab shows once the system answers it. While the system does not send who must sign, the page says **The list in force is not sent with this document yet.** (**La lista vigente todavía no se envía con este documento.**) and the list cannot be changed. A refusal is shown under the row it names.
 Words people use for this: documents to sign, handbook, acknowledgment, who signed, read and sign, signature list, firmar documentos.
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## Issue company property and mark it returned (admin dashboard)
 Who can do this: admins and supervisors

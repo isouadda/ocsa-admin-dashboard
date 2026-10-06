@@ -24557,12 +24557,13 @@ function TrainingDocuments({ af, t, token, sites = [], people = [], isAdmin = fa
 }
 
 // One document: Who must sign, then the people by site with their signatures. The site and role filters
-// are sent to the API.
+// are sent to the API. Who must sign is the set in force, read from GET .../requirements (Step 265):
+// undefined while it is asked, null when that route does not answer, else the rows.
 function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], isAdmin = false, showToast, onBack }) {
   const [f, setF] = useState({ siteId: "", role: "" });
   const [d, setD] = useState(null);
   const [failed, setFailed] = useState(false);
-  const [reqs, setReqs] = useState(Array.isArray(doc.requirements) ? doc.requirements : null);
+  const [reqs, setReqs] = useState(undefined);
   const path = "/api/documents/" + encodeURIComponent(doc.docCode);
   const load = useCallback(async () => {
     setFailed(false);
@@ -24570,10 +24571,14 @@ function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], is
     try {
       const x = await af(path + "/signatures" + (q ? "?" + q : ""));
       setD({ version: x && x.version != null ? x.version : doc.version, people: x && Array.isArray(x.people) ? x.people : [] });
-      if (x && Array.isArray(x.requirements)) setReqs(x.requirements);
     } catch (e) { setD({ version: doc.version, people: [] }); setFailed(true); showToast(e.message, "error"); }
   }, [af, path, f, doc.version, showToast]);
   useEffect(() => { setD(null); load(); }, [load]);
+  const loadReqs = useCallback(async () => {
+    try { const x = await af(path + "/requirements"); setReqs(x && Array.isArray(x.requirements) ? x.requirements : null); }
+    catch (e) { console.warn("Who must sign:", e.message); setReqs(null); }
+  }, [af, path]);
+  useEffect(() => { setReqs(undefined); loadReqs(); }, [loadReqs]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const groups = d ? docGroupsOf(d.people, f.siteId) : [];
   const notSigned = d ? d.people.filter(p => !p.current).length : 0;
@@ -24602,7 +24607,7 @@ function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], is
     </div>
     <Crd t={t} style={{ marginBottom: 14 }}>
       <SecT t={t}>{tr("Who must sign")}</SecT>
-      <DocumentWhoMustSign af={af} t={t} doc={doc} reqs={reqs} isAdmin={isAdmin} people={people} onSaved={(rows) => { setReqs(rows); load(); }} />
+      <DocumentWhoMustSign af={af} t={t} doc={doc} reqs={reqs} isAdmin={isAdmin} people={people} onSaved={(rows) => { setReqs(rows); loadReqs(); load(); }} />
     </Crd>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 12 }}>
       <Sel t={t} aria-label={tr("Site")} data-doc-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
@@ -24621,9 +24626,10 @@ function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], is
 }
 
 // Who must sign a document: Everyone, roles and named people. Admins change the whole set at once; a
-// refusal naming requirements[i] is drawn under the row it came from. The set in force is read from the
-// document's row or the signatures answer when the API sends it.
-function DocumentWhoMustSign({ af, t, doc, reqs = null, isAdmin = false, people = [], onSaved }) {
+// refusal naming requirements[i] is drawn under the row it came from. The editor starts from the set in
+// force, read from GET .../requirements before it opens, so saving never drops a row nobody unticked;
+// until that route answers (reqs null), the editor stays closed behind the line that says so.
+function DocumentWhoMustSign({ af, t, doc, reqs, isAdmin = false, people = [], onSaved }) {
   const fromRows = useCallback((rows) => {
     const s = { everyone: false, roles: {}, named: [] };
     (rows || []).map(docReqOf).filter(Boolean).forEach(r => {
@@ -24658,14 +24664,15 @@ function DocumentWhoMustSign({ af, t, doc, reqs = null, isAdmin = false, people 
   if (!edit) {
     const roles = TRAINING_ROLES.filter(r => shown.roles[r]);
     return (<div data-doc-who="">
-      {reqs === null ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("The list in force is not sent with this document yet.")}</div>
+      {reqs === undefined ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("Loading...")}</div>
+        : reqs === null ? <div data-doc-who-unread="" style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("The list in force is not sent with this document yet.")}</div>
         : !shown.everyone && roles.length === 0 && shown.named.length === 0 ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("Nobody must sign it yet.")}</div>
         : <div>
           {shown.everyone && <div data-doc-who-row="everyone" style={{ ...line, fontWeight: 600 }}>{tr("Everyone")}</div>}
           {roles.map(r => <div key={r} data-doc-who-row={"role:" + r} style={line}>{roleWord(r)}</div>)}
           {shown.named.map(p => <div key={p.id} data-doc-who-row={"person:" + p.id} style={line}>{p.name}</div>)}
         </div>}
-      {isAdmin && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-doc-who-edit="" onClick={() => { setEdit(fromRows(reqs)); setRefusal(null); }}>{tr("Change who must sign")}</Btn></div>}
+      {isAdmin && Array.isArray(reqs) && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-doc-who-edit="" onClick={() => { setEdit(fromRows(reqs)); setRefusal(null); }}>{tr("Change who must sign")}</Btn></div>}
     </div>);
   }
   const count = rowsOf(edit).length;

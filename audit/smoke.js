@@ -640,11 +640,22 @@ async function step262(d, origin, p, stubs) {
       return kinds.indexOf("observation") >= 0 ? "" : "the versions list does not say the draft's kind";
     });
   }
-  await check("a document's signatures list the people by site, the ones not signed first", async () => {
+  await check("a document's signatures list the people by site, the ones not signed first, and Who must sign starts from the set in force", async () => {
     await go(d, "hr", ["training", "documents"], "[data-training-documents] tbody tr");
     if ((await d.page.locator("[data-training-documents] tbody tr").count()) !== 2) return "the list does not hold the two documents";
     await d.page.locator("[data-training-documents] tbody tr").first().click();
     await until(d, "[data-doc-person]");
+    // Step 265: the set in force comes from GET .../requirements, a route of its own, so it is waited
+    // for; the editor opens from it, Everyone ticked for the handbook, and is closed with nothing saved.
+    await until(d, "[data-doc-who-row]").catch(() => {});
+    if ((await d.page.locator('[data-doc-who-row="everyone"]').count()) === 0) return "Who must sign does not read Everyone";
+    if (!stubs.calls.some((c) => /^\/api\/documents\/.*\/requirements$/.test(c.path) && c.method === "GET")) return "who must sign was not read from its route";
+    await d.page.locator("[data-doc-who-edit]").click();
+    await until(d, "[data-doc-who-form]");
+    if (!(await d.page.locator("[data-doc-who-everyone]").isChecked())) return "the editor does not start with Everyone ticked";
+    await d.page.locator("[data-doc-who-form]").getByRole("button", { name: d.say("Cancel") }).click();
+    await d.page.locator("[data-doc-who-form]").waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    if (stubs.calls.some((c) => /^\/api\/documents\/.*\/requirements$/.test(c.path) && c.method === "PUT")) return "cancelling the editor saved";
     const groups = await d.page.locator("[data-doc-site]").count();
     if (groups < 2) return "the people are not grouped by site";
     const order = await d.page.locator("[data-document-page] [data-doc-site]").evaluateAll((es) => es.map((e) => Array.from(e.parentElement.querySelectorAll("[data-doc-state]")).map((x) => x.getAttribute("data-doc-state"))));
