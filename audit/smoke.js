@@ -56,8 +56,27 @@
 //     lesson reads Spanish not checked yet until its checker is named on the published lesson; and
 //     Assign training posts once with two topics and three people. At 390 in English the side panel
 //     and catalog lines run again. With Step 266 armed the lesson line publishes without a checker.
+//   - against the stub's answers for the API's Step 269 (Step 273), at 1280 in English and in Spanish:
+//     the owner's dashboard draws its eight sections, a measure with no value reads Needs and what it
+//     needs and draws no value, a measure's sites open, and its arrows are toned by which way is
+//     better; it prints every section on letter paper with the period, the site and the day; the time
+//     report reads the last full week with its totals and saves its CSV under the name the office
+//     reads; and the matrix opens a cell taken at each site with each site's status, prints in
+//     landscape and saves its CSV. At 390 in English and in Spanish the dashboard, time and matrix
+//     lines run again (the Spanish pass with Step 270's key sent to a phone), and at 1280 in English a supervisor is not offered the dashboard, is shown the API's refusal at
+//     its address, and reads the matrix for their own sites alone.
+//   - against the stub's answers for the API's Step 275 contract (Step 273), at 1280 in English and in
+//     Spanish: the catalog reads a refresher first due 12 months after the topic it follows, the editor
+//     offers First due after with it chosen, draws the API's refusal under the field and saves it, and
+//     with the answer carrying no firstDueAfter neither shows; a person coming due reads First due and
+//     the day in the matrix and in Gaps; and a key for a person without Keys and access draws the line
+//     under the kind, which a uniform shirt does not. At 390 in English and in Spanish the matrix and
+//     key lines run again.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
+// Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
+// each pass's lines are printed together, in the order the passes are listed, once it is done.
+// SMOKE_LANES sets how many run at once (1 runs them one after another, as before).
 "use strict";
 const { createStubs } = require("./stubs");
 const { serve } = require("./lib/serve");
@@ -101,18 +120,44 @@ const PROPERTY_PERSON = "u-staff-5";
 // topic the keys on file put a person on.
 const DISPUTE_NOTE = "This badge opens the other building, not mine.";
 const KEYS_TOPIC = { en: "Keys and access", es: "Llaves y acceso" };
+// Step 273's stub (Step 269): the measure with no value, the measure with a value at each site, the
+// person whose orientation is taken at two sites, the supervisor's own sites, and the last full week
+// before the seed's day, Monday to Sunday.
+const NEEDS_MEASURE = "voluntary";
+const SITES_MEASURE = "inspectionAverage";
+const TWO_SITE_PERSON = "u-staff-6";
+const SUPERVISOR_SITES = seed.SITES.filter((s0) => s0.supervisor_id === seed.PEOPLE.supervisor.id).map((s0) => s0.id);
+// Step 275's stub (STEP275_CONTRACT.md): the refresher, the topic it follows, a topic taken at each site
+// it cannot follow, and the person it is coming due for.
+const REFRESHER = { id: "tp-7", en: "Annual safety refresher", es: "Repaso anual de seguridad" };
+const FOLLOWS = "tp-1";
+const PER_SITE_TOPIC = "tp-2";
+const FIRST_DUE_PERSON = "u-staff-5";
+const LAST_WEEK = (() => {
+  const d = new Date(seed.TODAY + "T12:00:00Z");
+  const mon = new Date(d.getTime() - (((d.getUTCDay() + 6) % 7) + 7) * 86400000);
+  const day = (x) => x.toISOString().slice(0, 10);
+  return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
+})();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all" },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all" },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone" },
-  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all" },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all" },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone" },
+  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
+  // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
+  { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
 ];
 
 const started = Date.now();
+const LANES = Math.max(1, Number(process.env.SMOKE_LANES) || 2);
 let failures = 0;
+// Each pass's lines, held until the passes before it have printed theirs; a line outside a pass is
+// printed at once.
+const held = {};
 function say(ok, pass, what, why) {
   if (!ok) failures += 1;
-  process.stdout.write((ok ? "ok    " : "FAIL  ") + pass.padEnd(20) + what + (why ? "  (" + why + ")" : "") + "\n");
+  const line = (ok ? "ok    " : "FAIL  ") + pass.padEnd(20) + what + (why ? "  (" + why + ")" : "") + "\n";
+  if (held[pass]) held[pass].push(line); else process.stdout.write(line);
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -977,6 +1022,195 @@ async function step270(d, origin, p, stubs) {
   });
 }
 
+// Step 273's screens, each a line, against the stub armed with setStep269 (audit/stubs.js). Every line
+// waits for what it reads. The phone pass runs the screen lines without the prints; the supervisor
+// pass runs its own two.
+async function step269(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const lastCall = (test) => stubs.calls.filter(test).pop() || null;
+  const printed = async (before) => { await d.page.waitForFunction((n) => window.__audit.prints.length > n, before); const all = await d.prints(); return all[all.length - 1].html; };
+  const saved = async (name) => { await d.page.waitForFunction((x) => window.__audit.downloads.some((y) => y.name === x), name); return true; };
+  if (p.step269 === "supervisor") {
+    await check("is not offered the owner's dashboard, and its address shows the API's refusal", async () => {
+      if ((await d.page.locator('[data-nav-item="owner"]').count()) !== 0) return "the side panel offers it";
+      await go(d, "owner", null, "[data-owner-refusal]");
+      const said = (await d.page.locator("[data-owner-refusal]").innerText()).trim();
+      const call = lastCall((c) => c.path === "/api/owner/dashboard");
+      if (!call || call.status !== 403) return "the dashboard was not refused";
+      if ((await d.page.locator("[data-owner-section]").count()) !== 0) return "a section is drawn";
+      return said === call.json.error ? "" : "the page reads " + JSON.stringify(said);
+    });
+    await check("reads the matrix for their own sites alone", async () => {
+      await go(d, "training", ["matrix"], "[data-matrix-cell]");
+      await d.page.locator('[data-matrix-filter="siteId"] option').nth(SUPERVISOR_SITES.length).waitFor({ state: "attached" });
+      const values = await d.page.locator('[data-matrix-filter="siteId"] option').evaluateAll((os) => os.map((o) => o.value));
+      if (values[0] !== "" || values.slice(1).join(",") !== SUPERVISOR_SITES.join(",")) return "the Site choice holds " + JSON.stringify(values);
+      const first = await d.page.locator('[data-matrix-filter="siteId"] option').first().innerText();
+      return first === d.say("All my sites") ? "" : "the first choice reads " + JSON.stringify(first);
+    });
+    return;
+  }
+  await check("the owner's dashboard reads Needs on a measure with no value, opens a measure's sites, and tones its arrows", async () => {
+    await go(d, "owner", null, "[data-owner-section]");
+    const call = lastCall((c) => c.path === "/api/owner/dashboard");
+    if (!call || !/(^|[?&])period=\d{4}-\d{2}(&|$)/.test(call.query)) return "the period was not sent";
+    const sections = await d.page.locator("[data-owner-section]").count();
+    if (sections !== call.json.sections.length) return sections + " sections are drawn";
+    const m = [].concat(...call.json.sections.map((x) => x.measures)).find((x) => x.key === NEEDS_MEASURE);
+    const needs = d.page.locator('[data-owner-measure="' + NEEDS_MEASURE + '"] [data-owner-needs]');
+    if ((await needs.count()) !== 1) return "no Needs line on the measure with no value";
+    const text = await needs.innerText();
+    if (text.indexOf(d.say("Needs:")) < 0 || text.indexOf(m.needs) < 0) return "the Needs line reads " + JSON.stringify(text);
+    if ((await d.page.locator('[data-owner-measure="' + NEEDS_MEASURE + '"] [data-owner-value]').count()) !== 0) return "a value is drawn on the measure with no value";
+    await d.page.locator('[data-owner-measure="' + SITES_MEASURE + '"] [data-owner-by-site-toggle]').click();
+    await until(d, '[data-owner-measure="' + SITES_MEASURE + '"] [data-owner-by-site] tbody tr');
+    const rows = await d.page.locator('[data-owner-measure="' + SITES_MEASURE + '"] [data-owner-by-site] tbody tr').count();
+    if (rows !== 3) return "the measure's sites list " + rows + " rows";
+    if ((await d.page.locator('[data-owner-measure="findingsOpened"] [data-owner-trend="up"][data-owner-tone="worse"]').count()) !== 1) return "a count that should go down and went up is not toned worse";
+    if ((await d.page.locator('[data-owner-measure="' + SITES_MEASURE + '"] [data-owner-trend="up"][data-owner-tone="better"]').count()) !== 1) return "a score that went up is not toned better";
+    return (await d.page.locator('[data-owner-measure="clientRequests"] [data-owner-tone="neutral"]').count()) === 1 ? "" : "a count neither way better is not gray";
+  });
+  if (p.step269 === "all") await check("the owner's dashboard prints every section on letter paper with the period, the site and the day", async () => {
+    const quarter = await d.page.locator("[data-owner-period] option").evaluateAll((os) => (os.find((o) => /-Q\d$/.test(o.value)) || {}).value);
+    await d.page.locator("[data-owner-period]").selectOption(quarter);
+    await d.page.waitForFunction((q) => !!document.querySelector("[data-owner-section]") && (document.querySelector("[data-owner-period]") || {}).value === q, quarter);
+    await until(d, "[data-owner-section]");
+    const call = lastCall((c) => c.path === "/api/owner/dashboard");
+    if (call.query.indexOf("period=" + quarter) < 0) return "the quarter was not sent";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-owner-print]").click();
+    const html = await printed(before);
+    if (html.indexOf("@page{size:letter}") < 0) return "the print does not ask for letter paper";
+    const missing = call.json.sections.filter((x) => html.indexOf(x.title) < 0);
+    if (missing.length) return "the print leaves out " + missing.map((x) => x.key).join(", ");
+    if (html.indexOf(d.say("All sites")) < 0) return "the print does not name the site";
+    if (html.indexOf(d.say("Printed on {0}").split("{0}")[0].trim()) < 0) return "the print does not carry the day";
+    const label = await d.page.locator("[data-owner-period] option:checked").innerText();
+    return html.indexOf(label) < 0 ? "the print does not name the period" : "";
+  });
+  await check("the time report reads the last full week with its totals and saves its CSV", async () => {
+    await go(d, "training", ["time"], "[data-training-time] table tbody tr");
+    await until(d, "[data-time-total]");
+    const call = lastCall((c) => c.path === "/api/training/time" && /from=/.test(c.query));
+    if (!call || call.query.indexOf("from=" + LAST_WEEK.from) < 0 || call.query.indexOf("to=" + LAST_WEEK.to) < 0) return "the range asked for is " + (call ? call.query : "nothing");
+    const people = call.json.people.length;
+    const rows = await d.page.locator("[data-training-time] table tbody tr").count();
+    if (rows !== people + 1) return rows + " rows for " + people + " people and the totals";
+    const total = await d.page.locator("[data-training-time] table tbody tr").last().locator("[data-time-minutes]").getAttribute("data-time-minutes");
+    if (Number(total) !== call.json.totals.minutes) return "the totals row reads " + total + " minutes";
+    if ((await d.page.locator("[data-time-note]").innerText()).indexOf(d.say("Minutes are time in phone lessons, each attempt capped at 60. Session hours are not recorded; add them from the session list.")) < 0) return "the line under the table is not there";
+    const name = "training-time-" + LAST_WEEK.from + "-to-" + LAST_WEEK.to + ".csv";
+    await d.page.locator("[data-time-download]").click();
+    await saved(name);
+    const csv = lastCall((c) => c.path === "/api/training/time" && /format=csv/.test(c.query));
+    return csv && csv.status === 200 ? "" : "the CSV was not asked for";
+  });
+  await check("the matrix opens a cell taken at each site with each site's status", async () => {
+    await go(d, "training", ["matrix"], "[data-matrix-cell]");
+    const legend = await d.page.locator("[data-matrix-legend-item]").count();
+    if (legend !== 7) return "the legend holds " + legend + " statuses";
+    await d.page.locator('[data-matrix-cell-person="' + TWO_SITE_PERSON + '"][data-matrix-per-site]').first().click();
+    await until(d, "[data-matrix-detail] [data-matrix-site]");
+    const states = await d.page.locator("[data-matrix-detail] [data-matrix-site]").evaluateAll((xs) => xs.map((x) => x.getAttribute("data-matrix-site-status")).sort().join(","));
+    if (states !== "current,missing") return "the sites read " + states;
+    if ((await d.page.locator("[data-matrix-detail] [data-matrix-method]").count()) !== 1) return "the cell does not say how it was done";
+    await d.page.locator('[data-matrix-detail] button[aria-label="' + d.say("Close") + '"]').click();
+    await d.page.locator("[data-matrix-detail]").waitFor({ state: "detached" });
+    if (p.step269 !== "all") return "";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-matrix-print]").click();
+    const html = await printed(before);
+    if (html.indexOf("@page{size:letter landscape}") < 0) return "the print is not landscape";
+    if (html.indexOf(d.say("Training matrix")) < 0) return "the print is not titled";
+    await d.page.locator("[data-matrix-download]").click();
+    await d.page.waitForFunction(() => window.__audit.downloads.some((y) => /^training-matrix-.*\.csv$/.test(y.name)));
+    const csv = lastCall((c) => c.path === "/api/training/matrix" && /format=csv/.test(c.query));
+    return csv && csv.status === 200 ? "" : "the CSV was not asked for";
+  });
+}
+
+// Step 273's First due after and keys heads-up, each a line, against the stub armed with setStep275
+// (audit/stubs.js) over Step 269's. Every line waits for what it reads.
+async function step275(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const lastCall = (test) => stubs.calls.filter(test).pop() || null;
+  const lead = (key) => d.say(key).split("{0}")[0].trim();
+  const closeTopic = async () => { await d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click(); await d.page.locator("[data-topic-window]").waitFor({ state: "detached" }); };
+  const openTopicForm = async (name) => {
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: name }).first().click();
+    await d.page.locator("[data-topic-edit]").click();
+    await until(d, "[data-topic-form]");
+  };
+  if (p.step275 === "all") await check("the catalog reads First due after, the editor offers it and draws the API's refusal, and none shows without the key", async () => {
+    await go(d, "training", ["catalog"], '[data-topic-first-due="' + FOLLOWS + '"]');
+    const line = await d.page.locator('[data-topic-first-due="' + FOLLOWS + '"]').first().innerText();
+    if (line.indexOf("12") < 0 || line.indexOf(LESSON_TOPIC[p.lang]) < 0) return "the catalog reads " + JSON.stringify(line);
+    await openTopicForm(REFRESHER[p.lang]);
+    const field = d.page.locator('[data-topic-field="firstDueAfterTopicId"] select');
+    if ((await field.inputValue()) !== FOLLOWS) return "First due after does not start on the topic it follows";
+    await field.selectOption(PER_SITE_TOPIC);
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, '[data-topic-refusal="firstDueAfterTopicId"]');
+    const refused = lastCall((c) => c.path === "/api/training/topics/" + REFRESHER.id && c.method === "PATCH");
+    if (!refused || refused.status !== 400 || refused.body.firstDueAfterTopicId !== PER_SITE_TOPIC) return "the per-site topic was not sent and refused";
+    if ((await d.page.locator('[data-topic-refusal="firstDueAfterTopicId"]').innerText()).trim() !== refused.json.error) return "the refusal is not drawn in the API's words";
+    await field.selectOption(FOLLOWS);
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, "[data-topic-details] [data-topic-first-due]");
+    const kept = lastCall((c) => c.path === "/api/training/topics/" + REFRESHER.id && c.method === "PATCH");
+    if (kept.status !== 200 || kept.body.firstDueAfterTopicId !== FOLLOWS) return "the save did not send the topic it follows";
+    await closeTopic();
+    stubs.setStep275(false);
+    try {
+      await go(d, "training", ["catalog"], "[data-training-catalog] table tbody tr");
+      if ((await d.page.locator("[data-topic-first-due]").count()) !== 0) return "a first due line shows with no firstDueAfter in the answer";
+      await openTopicForm(LESSON_TOPIC[p.lang]);
+      const offered = await d.page.locator('[data-topic-field="firstDueAfterTopicId"]').count();
+      await d.page.locator("[data-topic-form] button").filter({ hasText: d.say("Cancel") }).click();
+      await closeTopic();
+      return offered ? "the editor offers First due after with no firstDueAfter in the answer" : "";
+    } finally { stubs.setStep275(true); }
+  });
+  await check("a person coming due reads First due and the day in the matrix and in Gaps", async () => {
+    const cell = '[data-matrix-cell-person="' + FIRST_DUE_PERSON + '"][data-matrix-cell-topic="' + REFRESHER.id + '"] [data-matrix-first-due]';
+    await go(d, "training", ["matrix"], cell);
+    const text = await d.page.locator(cell).innerText();
+    if (text.indexOf(lead("First due {0}")) !== 0 || text.trim() === lead("First due {0}")) return "the cell reads " + JSON.stringify(text);
+    if (p.step275 !== "all") return "";
+    await go(d, "training", ["gaps"], '[data-gaps-person="' + FIRST_DUE_PERSON + '"] [data-gap-first-due]');
+    const chip = await d.page.locator('[data-gaps-person="' + FIRST_DUE_PERSON + '"] [data-gap-first-due] [data-gap-word]').innerText();
+    return chip.indexOf(lead("First due {0}")) === 0 ? "" : "the Gaps line reads " + JSON.stringify(chip);
+  });
+  await check("a key for a person without Keys and access draws the line under the kind, and a uniform shirt does not", async () => {
+    await go(d, "hr", [FIRST_DUE_PERSON], "[data-property-issue]");
+    await d.page.locator("[data-property-issue]").click();
+    await d.page.locator('[data-property-kind="key"]').click();
+    await until(d, "[data-keys-heads-up]");
+    const line = (await d.page.locator("[data-keys-heads-up]").innerText()).trim();
+    if (line !== d.say("Keys and access is not done yet. OCSA-HR-013 Section 3 asks for it before any key, badge, fob or code is issued. If they already hold this one, record it; the training is assigned from the record.")) return "the line reads " + JSON.stringify(line);
+    const read = lastCall((c) => c.path === "/api/training/gaps/people/" + FIRST_DUE_PERSON);
+    if (!read || read.status !== 200) return "the person's training was not read";
+    await d.page.locator('[data-property-kind="uniform_shirt"]').click();
+    await d.page.locator("[data-keys-heads-up]").waitFor({ state: "detached" });
+    const save = await d.page.locator("[data-property-save]").count();
+    await d.page.locator("[data-property-window] button").filter({ hasText: d.say("Cancel") }).click();
+    await d.page.locator("[data-property-window]").waitFor({ state: "detached" });
+    return save ? "" : "the window lost its save";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -990,6 +1224,10 @@ async function runPass(browser, origin, p) {
   if (p.step266) stubs.setStep266(true);
   // Step 270's answers are laid over Step 266's.
   if (p.step270) stubs.setStep270(true);
+  // Step 269's answers are laid over whichever of those the pass arms.
+  if (p.step269) stubs.setStep269(true);
+  // Step 275's answers are laid over Step 269's.
+  if (p.step275) stubs.setStep275(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -1073,6 +1311,8 @@ async function runPass(browser, origin, p) {
     if (p.step262) await step262(d, origin, p, stubs);
     if (p.step266) await step266(d, origin, p, stubs);
     if (p.step270) await step270(d, origin, p, stubs);
+    if (p.step269) await step269(d, origin, p, stubs);
+    if (p.step275) await step275(d, origin, p, stubs);
 
     // Help, asked one question.
     {
@@ -1104,10 +1344,30 @@ async function runPass(browser, origin, p) {
   const server = await serve(BUILD_DIR);
   const browser = await launch();
   try {
-    for (const p of PASSES) {
-      try { await runPass(browser, server.origin, p); }
-      catch (e) { say(false, p.name, "runs", e.message.split("\n")[0]); }
-    }
+    PASSES.forEach((p) => { held[p.name] = []; });
+    const done = PASSES.map(() => false);
+    let printed = 0;
+    const flush = () => {
+      while (printed < PASSES.length && done[printed]) {
+        const name = PASSES[printed].name;
+        process.stdout.write(held[name].join(""));
+        delete held[name];
+        printed += 1;
+      }
+    };
+    let next = 0;
+    const lane = async () => {
+      while (next < PASSES.length) {
+        const i = next;
+        next += 1;
+        const p = PASSES[i];
+        try { await runPass(browser, server.origin, p); }
+        catch (e) { say(false, p.name, "runs", e.message.split("\n")[0]); }
+        done[i] = true;
+        flush();
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(LANES, PASSES.length) }, lane));
   } finally {
     await browser.close();
     await server.close();

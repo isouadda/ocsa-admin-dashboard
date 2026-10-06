@@ -1761,9 +1761,10 @@ Who can do this: admins and supervisors read it; admins add, edit, retire and re
 2. The topics are listed under their category headings, in the order staff see them, with the topics that have no category last under **Other trainings** (**Otras capacitaciones**). Narrow them with **All categories** (**Todas las categorías**). Each topic shows its **Document** (**Documento**) and section, **How often** (**Con qué frecuencia**), **When due** (**Cuándo se requiere**), **Per site** (**Por sitio**), **Safety critical** (**Crítico para la seguridad**), its **Course link** (**Enlace del curso**) and **Who it is for** (**Para quién es**). Point at a topic's name to read it in English, Spanish and French. Pick **Retired topics** (**Temas dados de baja**) or **All topics** (**Todos los temas**) to see the others. The line above the list says that every topic reaches the roles under **Who needs it** (**Quién la necesita**) on its own, and that **Assign training** (**Asignar capacitación**) is for anyone else.
 3. To add one, click **Add a topic** (**Agregar un tema**). Type the **Key** (**Clave**) in lowercase letters, numbers and underscores; it never changes. Type the **Name in English** (**Nombre en inglés**), the **Name in Spanish** (**Nombre en español**) and the **Name in French** (**Nombre en francés**), the **Document** (**Documento**) and the **Section** (**Sección**), and pick **How often** (**Con qué frecuencia**) and **When due** (**Cuándo se requiere**).
 4. Pick the **Category** (**Categoría**) staff find it under, or **None** (**Ninguna**), and type its **Order** (**Orden**) inside the category, a whole number from 0 to 9999 with the lowest first. Under **Signed off by checklist** (**Firmado con la lista de verificación**), pick the topic whose observation checklist signs this one off, or **None** (**Ninguna**); only a topic with such a checklist live is offered.
-5. Tick **Per site** (**Por sitio**) when each site a person works at needs its own record, and **Safety critical** (**Crítico para la seguridad**) for a safety topic. A **Course link** (**Enlace del curso**) is the https address of a course taken outside the app, which opens in a new tab. Under **Names on older records** (**Nombres en registros anteriores**), list the names older records were saved under, one a line, so they count for the topic. Click **Add the topic** (**Agregar el tema**).
-6. To change one, click it, then **Edit** (**Editar**), and **Save** (**Guardar**). **Retire** (**Dar de baja**) stops asking anyone for the topic; **Restore** (**Restaurar**) brings it back.
-If it does not work: a refusal is shown under the field it names, such as a key another topic already uses or a checklist topic that has no observation checklist. The catalog shows once the system answers it, and the categories once the system answers them; until then the topics are one list.
+5. For a refresher, such as a yearly safety refresher first due twelve months after a person's first safety training, pick that training under **First due after** (**Vence por primera vez después de**), or leave **None** (**Ninguno**). The topic is then first due its renewal months after the person first completes the training picked, and nobody is asked for it before. Its **When due** (**Cuándo se requiere**) reads first due so many months after that training, and a person coming due reads the day it is first due in **Gaps** (**Brechas**) and **Matrix** (**Matriz**).
+6. Tick **Per site** (**Por sitio**) when each site a person works at needs its own record, and **Safety critical** (**Crítico para la seguridad**) for a safety topic. A **Course link** (**Enlace del curso**) is the https address of a course taken outside the app, which opens in a new tab. Under **Names on older records** (**Nombres en registros anteriores**), list the names older records were saved under, one a line, so they count for the topic. Click **Add the topic** (**Agregar el tema**).
+7. To change one, click it, then **Edit** (**Editar**), and **Save** (**Guardar**). **Retire** (**Dar de baja**) stops asking anyone for the topic; **Restore** (**Restaurar**) brings it back.
+If it does not work: a refusal is shown under the field it names, such as a key another topic already uses, a checklist topic that has no observation checklist, or a topic that cannot be first due after the one picked, such as one taken at each site or one that does not renew. The catalog shows once the system answers it, and the categories once the system answers them; until then the topics are one list. **First due after** (**Vence por primera vez después de**) shows once the system answers it.
 Words people use for this: training catalog, required trainings, training topics, add a training topic, course link, mandated training, training category, catálogo de capacitación.
 Last checked: 2026-10-06
 
@@ -1868,13 +1869,13 @@ Last checked: 2026-10-06
 ## Issue company property and mark it returned (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**) and open the person's folder. **Company property** (**Propiedad de la empresa**) lists what they were given, what is **Still out** (**Sin devolver**) first.
-2. Click **Issue property** (**Entregar propiedad**) and pick what was issued: **Uniform shirt** (**Camisa de uniforme**), **Other uniform** (**Otro uniforme**), **Key** (**Llave**), **Badge** (**Credencial**), **Fob** (**Llavero electrónico**) or **Other** (**Otro**), which needs a description.
+2. Click **Issue property** (**Entregar propiedad**) and pick what was issued: **Uniform shirt** (**Camisa de uniforme**), **Other uniform** (**Otro uniforme**), **Key** (**Llave**), **Badge** (**Credencial**), **Fob** (**Llavero electrónico**) or **Other** (**Otro**), which needs a description. For a key, a badge or a fob, when the person does not hold the keys and access training yet, a line under the choice says so: OCSA-HR-013 Section 3 asks for it before any key, badge, fob or code is issued. It is a reminder only. When they already hold the key, record it anyway; the record puts them on the training.
 3. Fill in the **Size** (**Talla**) for a uniform, the **Quantity** (**Cantidad**), the **Site** (**Sitio**) for a key, a badge or a fob, the **Date** (**Fecha**), and a **Note** (**Nota**) if needed.
 4. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen. Click **Send to sign** (**Enviar a firmar**): the person is told on their phone and signs there, and the record reads **Waiting for signature** (**A la espera de firma**) until they do.
 5. To take the signature on this screen instead, choose **Sign here now** (**Firmar aquí ahora**) and hand the screen to the person. They sign in the box and tap **Sign** (**Firmar**). Click **Save** (**Guardar**).
 6. When it comes back, click **Mark returned** (**Marcar como devuelto**), set **Returned on** (**Fecha de devolución**), add a note if needed, and click **Mark returned** (**Marcar como devuelto**) again.
 7. **Signature** (**Firma**) shows what the person signed. A key, a badge or a fob also puts the person on the keys and access training on its own; see the entry on saying who needs a training topic.
-If it does not work: a refusal is shown under the field it names. The block shows once the system answers it, and **Who signs** (**Quién firma**) once it answers the signature requests.
+If it does not work: a refusal is shown under the field it names. The block shows once the system answers it, **Who signs** (**Quién firma**) once it answers the signature requests, and the keys and access line once it answers the person's training list.
 Words people use for this: uniform, shirt, keys, badge, fob, company property, return a uniform, hand out keys, entregar uniforme.
 Last checked: 2026-10-06
 
@@ -1958,4 +1959,47 @@ Who can do this: admins see every request; supervisors see their sites
 5. A notice in the bell that a signature was sent back as not right, declined, or is overdue opens that request here when you click it, and so does its link.
 If it does not work: the tab shows once the system answers the signature requests. A request opened from a notice that is not yours to see says so.
 Words people use for this: waiting for signatures, who has not signed, unsigned, pending signatures, reminders, firmas pendientes.
+Last checked: 2026-10-06
+
+## Read the owner's dashboard (admin dashboard)
+Who can do this: admins, and anyone else the system gives the owner's dashboard to. Supervisors do not see it.
+1. Click **Owner's dashboard** (**Tablero del propietario**) on the side panel, under **Dashboard** (**Panel**).
+2. Pick the **Period** (**Periodo**), one of the last 12 months or the last 8 quarters, the current one first, and the **Site** (**Sitio**), or leave **All sites** (**Todos los sitios**).
+3. The line over the sections names the period, the site, the period it is compared with and the day the numbers are as of.
+4. Each section is a card: service quality, customers, corrective actions, health and safety, training, people, labor and resources. Each measure shows its value, the previous period's value and an arrow: green when it moved the better way, red when it moved the other way, gray when it held or when neither way is better. The document and section the measure comes from sit under it.
+5. A measure the system cannot work out yet reads **Needs:** (**Necesita:**) and what it needs, such as a workload plan or the ADP key. It never reads as a zero.
+6. Click **By site** (**Por sitio**) under a measure to see its value at each site, and **Hide the sites** (**Ocultar los sitios**) to close it.
+If it does not work: the item shows once the system gives you the owner's dashboard. Opened another way without it, the page says so in the system's words.
+Words people use for this: owner's dashboard, how is the company doing, key numbers, monthly numbers, quarterly numbers, inspection average, turnover, tablero del propietario.
+Last checked: 2026-10-06
+
+## Print the owner's dashboard for a review (admin dashboard)
+Who can do this: admins, and anyone else the system gives the owner's dashboard to
+1. Open **Owner's dashboard** (**Tablero del propietario**) and pick the **Period** (**Periodo**), a quarter for the quarterly review, and the **Site** (**Sitio**).
+2. Click **Print** (**Imprimir**). Every section prints on letter paper as a table: each measure with this period, the previous period, the change and the document it comes from, its sites under it, and what a measure with no value needs.
+3. The top of the page names the period, the period it is compared with, the site and the day it was printed.
+If it does not work: allow pop-ups for the dashboard in the browser, then click **Print** (**Imprimir**) again.
+Words people use for this: print the owner's dashboard, quarterly review, management review numbers, review packet, imprimir el tablero.
+Last checked: 2026-10-06
+
+## Pay phone training time (admin dashboard)
+Who can do this: admins, and anyone allowed to read reports
+1. Click **Training** (**Capacitación**) on the side panel, then **Time** (**Tiempo**).
+2. **From** (**Desde**) and **To** (**Hasta**) start on the last full week, Monday to Sunday. Change them for another range of up to 62 days, and narrow it by **Site** (**Sitio**).
+3. The table lists each person with training in those days: lessons passed, attempts, time in lessons in hours and minutes, sessions signed and checklists signed, with the totals in the last row.
+4. Time in lessons runs from opening a lesson on the phone to signing it, each attempt counting at most 60 minutes. Session hours are not recorded; add them from the session list.
+5. Click **Download CSV** (**Descargar CSV**) to save the table as a spreadsheet for payroll.
+If it does not work: a range of more than 62 days, or with To before From, is not asked for and the page says so. The tab shows once the system answers it.
+Words people use for this: training time, pay for training, paid training hours, phone lesson time, payroll training, tiempo de capacitación.
+Last checked: 2026-10-06
+
+## Show the assessor who is trained (admin dashboard)
+Who can do this: admins see everyone; supervisors see the people at their own sites
+1. Click **Training** (**Capacitación**) on the side panel, then **Matrix** (**Matriz**).
+2. Narrow it with **All sites** (**Todos los sitios**), **All roles** (**Todos los roles**) and **All categories** (**Todas las categorías**). A supervisor's site list reads **All my sites** (**Todos mis sitios**) and holds only their own sites.
+3. People run down the side and the topics across the top, under their categories. Each cell reads its status and day: **Done** (**Hecha**) in green, **Expires soon** (**Vence pronto**) and **Refresher due** (**Repaso pendiente**) in amber, **Missing** (**Falta**) and **Expired** (**Vencida**) in red, **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**) in blue. A refresher coming due for the first time reads the day it is first due. A blank cell is a topic the person does not need. The legend over the grid says the same.
+4. Tap a cell to see **How it was done** (**Cómo se hizo**), its days, and for a topic taken **At each site** (**En cada sitio**), each site's status.
+5. Click **Print** (**Imprimir**) for the assessor: a table per category on landscape letter paper, with the day it was printed. **Download CSV** (**Descargar CSV**) saves the grid as a spreadsheet.
+If it does not work: allow pop-ups for the dashboard in the browser to print. A wide grid scrolls sideways inside its card. The tab shows once the system answers it.
+Words people use for this: training matrix, who is trained, assessor, proof of training, training by person, matriz de capacitación.
 Last checked: 2026-10-06

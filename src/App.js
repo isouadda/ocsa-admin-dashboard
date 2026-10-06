@@ -47,12 +47,13 @@ async function apiDownload(path, token, fallbackName) {
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
 // A file the API makes, fetched through apiDownload and handed to the browser to save under the name
-// the API gives it, or the fallback when that name cannot be read.
-async function saveDownload(path, token, fallbackName) {
+// the API gives it, or the fallback when that name cannot be read. A screen that names the file
+// itself passes name, which is used whatever the API calls it.
+async function saveDownload(path, token, fallbackName, name) {
   const f = await apiDownload(path, token, fallbackName);
   const url = URL.createObjectURL(f.blob);
   const a = document.createElement("a");
-  a.href = url; a.download = f.filename;
+  a.href = url; a.download = name || f.filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
@@ -144,7 +145,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -325,6 +326,8 @@ const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 // The circular arrow a refresh control draws, the same path the Dashboard's Refresh button carries.
 const RfI = p => <Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" {...p} />;
+// A line that climbs, for the owner's dashboard (Step 273).
+const TrdI = p => <Ic d="M22 7l-8.5 8.5-5-5L2 17 M16 7h6v6" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter", contractor: "Contractor" };
 // A role and a person's status as words in the language the screen is drawn in. The code is what is
 // sent and compared; a code with no word here is drawn as it arrives.
@@ -633,6 +636,10 @@ export default function AdminDashboard() {
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
+    // The owner's dashboard (Step 273) is offered to a holder of view_owner_dashboard, which
+    // GET /api/users/me/permissions names (the API's Step 269: admins by default, supervisors not).
+    // The role defaults here do not hold it, so the item waits for the API to name it.
+    if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn]);
   const [sites, setSites] = useState([]);
@@ -818,7 +825,7 @@ export default function AdminDashboard() {
   const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
 
   const sidebarGroups = [
-    { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }] },
+    { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
     { label: tr("Operations"), items: [
       { id: "operations", l: tr("Live Ops"), i: ClI },
       { id: "sites", l: tr("Sites"), i: MpI },
@@ -854,7 +861,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1085,6 +1092,9 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
+        {/* The API decides who reads it: a person the side panel does not offer it to, who reaches it
+            by its address, is shown the API's refusal in its own words. */}
+        {page === "owner" && <OwnerDashboardPage af={af} t={t} sites={sites} lang={lang} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />}
@@ -8649,16 +8659,19 @@ function keptPageHtml(page) {
 // The window a print is written into, opened in the click so a pop-up blocker lets it through, or
 // null when the browser would not open it.
 const keptWindow = () => { try { return window.open("", "_blank") || null; } catch (e) { return null; } };
-function keptWrite(w, title, pages) {
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(title) + "</title>" + KEPT_STYLE + "</head><body>" + pages.map(keptPageHtml).join("") + "</body></html>");
+// paper, where a print names its sheet, is a CSS @page size such as "letter" or "letter landscape"
+// (Step 273); without it the browser's own sheet is used, as before.
+function keptWrite(w, title, pages, paper) {
+  const sheet = paper ? "<style>@page{size:" + paper + "}</style>" : "";
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(title) + "</title>" + KEPT_STYLE + sheet + "</head><body>" + pages.map(keptPageHtml).join("") + "</body></html>");
   w.document.close();
   setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
 }
 // One print of pages already in hand. False when the browser would not open the window.
-function printKeptRecord(pages, title) {
+function printKeptRecord(pages, title, paper) {
   const w = keptWindow();
   if (!w) return false;
-  keptWrite(w, title, pages);
+  keptWrite(w, title, pages, paper);
   return true;
 }
 
@@ -10067,6 +10080,139 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
         </div>
       </Crd>
     </div>
+  </div>);
+}
+
+// ===== THE OWNER'S DASHBOARD (Step 273, against the API's Step 269) =====
+// One screen that answers how the company is doing in the measures its own documents name, for a
+// month or a quarter against the one before it, company wide or at one site:
+// GET /api/owner/dashboard?period=YYYY-MM|YYYY-Qn&siteId= answers { period, asOf, site, sections },
+// each section's measures with their label, value, unit, previous value, trend, which way is better,
+// the value at each site, the document and section they come from, and, for a value the platform
+// cannot work out yet, what it needs. Titles, labels and needs come in the screen's language. A
+// measure with no value says what it needs and never reads as a zero. The API decides who reads it
+// (view_owner_dashboard) and its refusal is shown in its own words.
+// The periods offered: the last 12 months and the last 8 quarters, the current one of each first, as
+// the keys the route reads.
+function ownerPeriods(today) {
+  const [y, m] = String(today).split("-").map(Number);
+  const months = [];
+  for (let i = 0; i < 12; i++) { const d = new Date(y, m - 1 - i, 1); months.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")); }
+  const quarters = [];
+  let qy = y, qn = Math.floor((m - 1) / 3) + 1;
+  for (let i = 0; i < 8; i++) { quarters.push(qy + "-Q" + qn); qn -= 1; if (qn < 1) { qn = 4; qy -= 1; } }
+  return months.concat(quarters);
+}
+// A period key in words: "October 2026", or "Q4 2026".
+const ownerPeriodWord = (key) => { const q = /^(\d{4})-Q([1-4])$/.exec(String(key || "")); return q ? tr("Q{0} {1}", q[2], q[1]) : keptMonth(key); };
+const ownerNumber = (v, digits) => Number(v).toLocaleString(localeTag(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+// A value in its unit: a percent with one decimal, a count as a whole number, minutes and hours as
+// numbers with their unit, square feet with thousands separators, dollars as money.
+function ownerValueWord(v, unit) {
+  if (v == null || v === "" || !isFinite(Number(v))) return "";
+  const n = Number(v);
+  if (unit === "percent") return ownerNumber(n, 1) + "%";
+  if (unit === "minutes") return tr("{0} min", ownerNumber(n, n % 1 ? 1 : 0));
+  if (unit === "hours") return tr("{0} h|hours", ownerNumber(n, n % 1 ? 1 : 0));
+  if (unit === "squareFeet") return ownerNumber(Math.round(n), 0) + " " + tr("sq ft");
+  if (unit === "dollars") return "$" + ownerNumber(n, 2);
+  return ownerNumber(Math.round(n), 0);
+}
+// Whether a measure moved the better way, the other way, or neither: better when its trend is the
+// way the API says is good, worse when it is the other, neutral when it held, when there is nothing
+// to compare, or when neither way is good in itself.
+const ownerTone = (m) => (!m || !m.trend || m.trend === "same" || !m.better ? "neutral" : m.trend === m.better ? "better" : "worse");
+const ownerChangeWord = (m) => {
+  if (!m || !m.trend) return "";
+  const moved = m.trend === "up" ? tr("Up|trend") : m.trend === "down" ? tr("Down|trend") : tr("Same|trend");
+  const tone = ownerTone(m);
+  return tone === "better" ? moved + ", " + tr("better|trend") : tone === "worse" ? moved + ", " + tr("worse|trend") : moved;
+};
+const OWNER_ARROWS = { up: "M12 19V5 M5 12l7-7 7 7", down: "M12 5v14 M19 12l-7 7-7-7", same: "M5 12h14" };
+const ownerSourceLine = (m) => [m && m.source && m.source.docCode, m && m.source && m.source.section].filter(x => x != null && String(x).trim() !== "").join(" ");
+function OwnerMeasure({ t, m }) {
+  const [open, setOpen] = useState(false);
+  const tone = ownerTone(m);
+  const ink = tone === "better" ? GR : tone === "worse" ? RD : t.textMut;
+  const bySite = Array.isArray(m.bySite) ? m.bySite : [];
+  const src = ownerSourceLine(m);
+  return (<div data-owner-measure={m.key} style={{ padding: 12, borderRadius: R.md, border: "1px solid " + t.border, background: t.cardAlt, minWidth: 0 }}>
+    <div style={{ fontSize: 12, fontWeight: 600, color: t.textSec, lineHeight: 1.4, overflowWrap: "anywhere" }}>{m.label}</div>
+    {m.value == null
+      ? <div data-owner-needs="" style={{ fontSize: 13, color: t.textMut, marginTop: 6, lineHeight: 1.45, overflowWrap: "anywhere" }}><span style={{ fontWeight: 600 }}>{tr("Needs:")}</span> {m.needs || ""}</div>
+      : <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+        <span data-owner-value="" style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: t.text }}>{ownerValueWord(m.value, m.unit)}</span>
+        {m.trend && OWNER_ARROWS[m.trend] && <span role="img" data-owner-trend={m.trend} data-owner-tone={tone} title={ownerChangeWord(m)} aria-label={ownerChangeWord(m)} style={{ display: "inline-flex" }}><Ic d={OWNER_ARROWS[m.trend]} sz={18} c={ink} strokeWidth="2.5" /></span>}
+      </div>}
+    <div data-owner-previous="" style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{m.previous == null ? tr("Previous period: no value") : tr("Previous period: {0}", ownerValueWord(m.previous, m.unit))}</div>
+    {bySite.length > 0 && <button type="button" data-owner-by-site-toggle="" aria-expanded={open} onClick={() => setOpen(o => !o)} style={{ minHeight: 44, padding: 0, marginTop: 2, background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{open ? tr("Hide the sites") : tr("By site")}</button>}
+    {open && bySite.length > 0 && <table data-owner-by-site="" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 4 }}>
+      <thead><tr><th style={{ textAlign: "left", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Site")}</th><th style={{ textAlign: "right", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Value")}</th></tr></thead>
+      <tbody>{bySite.map(x => <tr key={x.siteId} data-owner-site={x.siteId} style={{ borderTop: "1px solid " + t.border }}>
+        <td style={{ padding: "5px 8px 5px 0", color: t.text, overflowWrap: "anywhere" }}>{x.siteName}</td>
+        <td style={{ padding: "5px 0", textAlign: "right", whiteSpace: "nowrap", color: x.value == null ? t.textMut : t.text }}>{x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit)}</td>
+      </tr>)}</tbody>
+    </table>}
+    {src && <div data-owner-source="" style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{src}</div>}
+  </div>);
+}
+// The dashboard on paper, letter size, for the quarterly review: every section as a table of its
+// measures, a measure's sites under it, with the period, the site and the day it was printed.
+function ownerPages(d, siteWord) {
+  const parts = [{ fields: [["Period", ownerPeriodWord(d.period && d.period.key)], ["Compared with", ownerPeriodWord(d.period && d.period.previousKey)], ["Site", siteWord]] }];
+  (d.sections || []).forEach(sec => {
+    const rows = [];
+    (sec.measures || []).forEach(m => {
+      rows.push([m.label, m.value == null ? tr("Needs:") + " " + (m.needs || "") : ownerValueWord(m.value, m.unit), m.previous == null ? "" : ownerValueWord(m.previous, m.unit), m.value == null ? "" : ownerChangeWord(m), ownerSourceLine(m)]);
+      (Array.isArray(m.bySite) ? m.bySite : []).forEach(x => rows.push(["    " + x.siteName, x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit), "", "", ""]));
+    });
+    parts.push({ h: sec.title, cols: ["Measure", "This period", "Previous period", "Change|trend", "Source"], rows });
+  });
+  return [{ code: "", title: "Owner's dashboard", site: siteWord, range: d.period ? { start: d.period.start, end: d.period.end } : null, parts }];
+}
+function OwnerDashboardPage({ af, t, sites = [], lang = "en" }) {
+  const periods = useMemo(() => ownerPeriods(todayISO()), []);
+  const [period, setPeriod] = useState(periods[0]);
+  const [siteId, setSiteId] = useState("");
+  const [d, setD] = useState(null);
+  const [refusal, setRefusal] = useState(null);
+  const [printBlocked, setPrintBlocked] = useState(false);
+  // Only the latest read is drawn, so a period changed while an earlier one is still loading never
+  // shows that earlier one's numbers.
+  const seq = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++seq.current;
+    setD(null); setRefusal(null);
+    try {
+      const x = await af("/api/owner/dashboard?period=" + encodeURIComponent(period) + (siteId ? "&siteId=" + encodeURIComponent(siteId) : ""));
+      if (n === seq.current) setD(x && Array.isArray(x.sections) ? x : { period: null, asOf: "", site: null, sections: [] });
+    } catch (e) { if (n === seq.current) setRefusal({ text: e.message || tr("This did not load."), code: e.code || "", status: e.status || 0 }); }
+  }, [af, period, siteId]);
+  // Read again when the screen's language changes, since the API writes the titles and labels in it.
+  useEffect(() => { load(); }, [load, lang]);
+  const siteWord = d && d.site ? d.site.name : siteId ? ((sites.find(s0 => String(s0.id) === siteId) || {}).name || "") : tr("All sites");
+  const print = () => { setPrintBlocked(false); if (d && !printKeptRecord(ownerPages(d, siteWord), tr("Owner's dashboard") + " " + ownerPeriodWord(d.period && d.period.key), "letter")) setPrintBlocked(true); };
+  return (<div data-owner-dashboard="" style={{ animation: "fadeIn 0.3s ease" }}>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 14 }}>
+      <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: 260 }}><Lbl>{tr("Period")}</Lbl><Sel t={t} aria-label={tr("Period")} data-owner-period="" value={period} onChange={e => setPeriod(e.target.value)} options={periods.map(k => ({ v: k, l: ownerPeriodWord(k) }))} /></div>
+      <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: 260 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-owner-site-choice="" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} /></div>
+      <span style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" data-owner-print="" disabled={!d || d.sections.length === 0} onClick={print}>{tr("Print")}</Btn></span>
+    </div>
+    {printBlocked && <div role="alert" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{tr("Allow pop-ups to print the sheet")}</div>}
+    {refusal ? <Crd t={t}><div role="alert" data-owner-refusal={refusal.code} style={{ padding: 10, textAlign: "center", fontSize: 14, color: t.text }}>{refusal.text}</div>{refusal.status !== 403 && <div style={{ textAlign: "center" }}><Btn t={t} v="ghost" onClick={load}>{tr("Try again")}</Btn></div>}</Crd>
+      : d === null ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : <>
+        <div role="status" data-owner-heading="" style={{ fontSize: 13, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{[d.period ? ownerPeriodWord(d.period.key) : "", siteWord, d.period && d.period.previousKey ? tr("Compared with {0}", ownerPeriodWord(d.period.previousKey)) : "", d.asOf ? tr("As of {0}", fdLong(d.asOf)) : ""].filter(Boolean).join(" . ")}</div>
+        {d.sections.length === 0 ? <Crd t={t}><div style={{ textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Nothing to show for this period.")}</div></Crd>
+          : d.sections.map(sec => <Crd key={sec.key} t={t} style={{ marginBottom: 16 }}>
+            <div data-owner-section={sec.key}>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, marginBottom: 12 }}>{sec.title}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+                {(sec.measures || []).map(m => <OwnerMeasure key={m.key} t={t} m={m} />)}
+              </div>
+            </div>
+          </Crd>)}
+      </>}
   </div>);
 }
 
@@ -22066,6 +22212,11 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // Step 272: the Waiting for signatures tab, once GET /api/signatures answers, which it does for
   // management.
   const signaturesLive = useTrainingLive(af, "signatures");
+  // Step 273: the Time tab, once GET /api/training/time answers this person (admins, and anyone
+  // holding view_reports).
+  const timeLive = useTrainingLive(af, "time");
+  // Step 273: the Matrix tab, once GET /api/training/matrix answers, which it does for management.
+  const matrixLive = useTrainingLive(af, "matrix");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -22281,7 +22432,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : [], matrixLive ? [{ id: "matrix", l: tr("Matrix|training") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22397,6 +22548,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
+      {tab === "training" && trCur === "matrix" && <TrainingMatrix af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} showToast={showToast} />}
+      {tab === "training" && trCur === "time" && <TrainingTime af={af} t={t} token={token} sites={sites} showToast={showToast} />}
       {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} isAdmin={isAdmin} focusAttempt={trFocus && trFocus.attempt} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
@@ -23127,12 +23280,22 @@ const TRAINING_PROBES = {
   // requests answering is how that step says it is there. Who signs in the three windows, the chips'
   // Remind, Cancel and Sign here now, and the Waiting for signatures tab wait on it.
   signatures: ["/api/signatures", (d) => !!(d && Array.isArray(d.requests))],
+  // Step 273, against the API's Step 269: the time report is a read the API keeps a record of, so it
+  // is asked with no dates, which it refuses. Its own 400 training.badDetails says the route is there
+  // and that this person may read it, since the API checks who may read it first (admins, and anyone
+  // holding view_reports). Anything else, an answer included, keeps the tab away.
+  time: ["/api/training/time", () => false, (e) => !!e && e.status === 400 && e.code === "training.badDetails"],
+  // The matrix is the heaviest read the training routes answer, so it is asked the same way, with a
+  // format it refuses (management only; a supervisor reads their own sites).
+  matrix: ["/api/training/matrix?format=probe", () => false, (e) => !!e && e.status === 400 && e.code === "training.badDetails"],
 };
 const trainingProbes = {};
+// A probe passes on the answer its test accepts, or, for a probe that names one, on the refusal it
+// expects.
 const probeTraining = (af, key) => {
   if (!trainingProbes[key]) {
-    const [path, test] = TRAINING_PROBES[key];
-    trainingProbes[key] = af(path).then(test).catch(e => { console.warn("Training:", e.message); trainingProbes[key] = null; return false; });
+    const [path, test, refusal] = TRAINING_PROBES[key];
+    trainingProbes[key] = af(path).then(test).catch(e => { if (refusal && refusal(e)) return true; console.warn("Training:", e.message); trainingProbes[key] = null; return false; });
   }
   return trainingProbes[key];
 };
@@ -23204,6 +23367,19 @@ function categoriesOf(answered) {
 }
 const topicCategoryKey = (tp) => ((tp && tp.category) || OTHER_CATEGORY);
 const categoryNameOf = (cats, key) => { const c = (cats || []).find(x => x.key === (key || OTHER_CATEGORY)); return c ? c.name : (key ? String(key) : tr("Other trainings")); };
+// ===== FIRST DUE AFTER (Step 273, against the API's Step 275, STEP275_CONTRACT.md section 3) =====
+// A refresher first due a set time after another training: a topic that names firstDueAfter is first
+// due its renewal months after the person's first record of that topic, and nobody is asked for it
+// before. The catalog and the topic window read it, the editor offers it as firstDueAfterTopicId, and
+// an item or a matrix cell marked firstDue reads its first due day in place of its expiry. Nothing of
+// it shows until a Topic answer carries the key firstDueAfter.
+const hasFirstDueKey = (tp) => !!tp && Object.prototype.hasOwnProperty.call(tp, "firstDueAfter");
+const firstDueLine = (tp) => {
+  const a = tp && tp.firstDueAfter;
+  if (!a || a.topicId == null) return "";
+  return tp.renewMonths != null && Number(tp.renewMonths) > 0 ? trn("First due {0} months after {1}|count", Number(tp.renewMonths), a.name || "") : tr("First due after {0}", a.name || "");
+};
+const firstDueDayWord = (x) => (x && x.firstDue && x.expiresOn ? tr("First due {0}", fdLong(x.expiresOn)) : "");
 // Topics in the order the catalog draws them inside a category: by sortOrder, then by name.
 const byTopicOrder = (a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || String(a.name || "").localeCompare(String(b.name || ""), localeTag());
 // The topics that can sign another off (section 6): an active topic whose live lesson is an
@@ -23261,7 +23437,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
     { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
     { header: tr("Document"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: tp => topicDocLine(tp) },
     { header: tr("How often"), tdStyle: { color: t.textSec }, render: tp => trainingFrequencyWord(tp.frequency) },
-    { header: tr("When due"), tdStyle: { color: t.textSec }, render: tp => trainingDueWord(tp.dueRule) },
+    { header: tr("When due"), tdStyle: { color: t.textSec }, render: tp => (firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule)) },
     { header: tr("Per site"), tdStyle: { color: t.textSec }, render: tp => (tp.perSite ? tr("Yes") : "") },
     { header: tr("Safety critical"), render: tp => (tp.safetyCritical ? <Bdg l={tr("Safety critical")} c={RD} /> : null) },
     { header: tr("Course link"), render: tp => (courseLinkOf(tp.linkUrl) ? <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a> : null) },
@@ -23304,7 +23480,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
 }
 
 // The fields a topic's form edits, by the key a refusal names them with.
-const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId"];
+const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId", "firstDueAfterTopicId"];
 const topicFieldOf = (k) => (k === "names" ? "names.en" : TOPIC_FIELDS.indexOf(k) >= 0 ? k : "");
 const topicFormOf = (tp) => ({
   key: (tp && tp.key) || "", en: (tp && tp.names && tp.names.en) || "", es: (tp && tp.names && tp.names.es) || "", fr: (tp && tp.names && tp.names.fr) || "",
@@ -23314,6 +23490,8 @@ const topicFormOf = (tp) => ({
   // Step 268: the category, the order inside it (100 to start, as the API defaults it) and the
   // checklist topic that signs this one off.
   category: (tp && tp.category) || "", sortOrder: tp && tp.sortOrder != null ? String(tp.sortOrder) : "100", signoffTopicId: tp && tp.signoffTopicId != null ? String(tp.signoffTopicId) : "",
+  // Step 273: the topic this one is first due after, or none.
+  firstDueAfterTopicId: tp && tp.firstDueAfter && tp.firstDueAfter.topicId != null ? String(tp.firstDueAfter.topicId) : "",
 });
 
 // One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
@@ -23381,7 +23559,7 @@ function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, 
     {row(tr("Name in French"), n.fr || <span style={{ color: t.textMut }}>{tr("Not written yet")}</span>)}
     {row(tr("Document"), topicDocLine(tp))}
     {row(tr("How often"), trainingFrequencyWord(tp.frequency))}
-    {row(tr("When due"), trainingDueWord(tp.dueRule))}
+    {row(tr("When due"), firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule))}
     {row(tr("Per site"), tp.perSite ? tr("Yes") : tr("No"))}
     {row(tr("Safety critical"), tp.safetyCritical ? tr("Yes") : tr("No"))}
     {courseLinkOf(tp.linkUrl) && row(tr("Course link"), <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 600 }}>{courseLinkOf(tp.linkUrl)}</a>)}
@@ -23409,6 +23587,17 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
   const [f, setF] = useState(() => topicFormOf(topic));
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState(null);
+  // Step 273: First due after, once a Topic answer carries firstDueAfter: this topic's, or for a new
+  // one any of the catalog's. Its choice is every active topic but this one, read on its own, since
+  // the catalog may be showing the retired ones.
+  const firstDueOn = topic ? hasFirstDueKey(topic) : (topics || []).some(hasFirstDueKey);
+  const [actives, setActives] = useState(null);
+  useEffect(() => {
+    if (!firstDueOn) return undefined;
+    let alive = true;
+    af("/api/training/topics?active=true").then(d => { if (alive) setActives(d && Array.isArray(d.topics) ? d.topics : null); }).catch(e => console.warn("Topics:", e.message));
+    return () => { alive = false; };
+  }, [af, firstDueOn]);
   const set = (k) => (e) => setF({ ...f, [k]: e && e.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e });
   const bad = (k) => refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "";
   const save = async () => {
@@ -23421,6 +23610,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
       frequency: f.frequency, dueRule: f.dueRule, perSite: !!f.perSite, safetyCritical: !!f.safetyCritical, linkUrl: f.linkUrl.trim() || null,
       evidenceForm: f.evidenceForm.trim() || null, recordNames: f.recordNames.split("\n").map(x => x.trim()).filter(Boolean),
       ...(categories ? { category: f.category || null, sortOrder: order, signoffTopicId: f.signoffTopicId || null } : {}),
+      ...(firstDueOn ? { firstDueAfterTopicId: f.firstDueAfterTopicId || null } : {}),
     };
     try {
       const d = topic
@@ -23435,6 +23625,8 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
     setBusy(false);
   };
   const checklists = categories ? signoffCandidates(topics, topic && topic.id, f.signoffTopicId) : [];
+  const anchors = (actives || topics || []).filter(x => x && x.active !== false && String(x.id) !== String((topic && topic.id) || ""));
+  const anchorNow = f.firstDueAfterTopicId && !anchors.some(x => String(x.id) === f.firstDueAfterTopicId) ? [{ id: f.firstDueAfterTopicId, name: (topic && topic.firstDueAfter && topic.firstDueAfter.name) || f.firstDueAfterTopicId }] : [];
   const field = (k, label, input, hint) => <div data-topic-field={k} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{label}</div>{input}
     {hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{hint}</div>}
@@ -23460,6 +23652,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
       {field("sortOrder", tr("Order|topic"), <Inp t={t} type="number" min={0} max={SORT_ORDER_MAX} step={1} aria-label={tr("Order|topic")} value={f.sortOrder} onChange={set("sortOrder")} />, tr("A whole number from 0 to 9999. Lower comes first inside the category."))}
     </div>}
     {categories && field("signoffTopicId", tr("Signed off by checklist"), <Sel t={t} aria-label={tr("Signed off by checklist")} value={f.signoffTopicId} onChange={set("signoffTopicId")} options={[{ v: "", l: tr("None|checklist") }].concat(checklists.map(x => ({ v: String(x.id), l: x.name })))} />, checklists.length ? tr("When a trainer signs that checklist off for a person, this topic is signed off with it.") : tr("No topic has an observation checklist live yet."))}
+    {firstDueOn && field("firstDueAfterTopicId", tr("First due after"), <Sel t={t} aria-label={tr("First due after")} value={f.firstDueAfterTopicId} onChange={set("firstDueAfterTopicId")} options={[{ v: "", l: tr("None|first due") }].concat(anchorNow.concat(anchors).map(x => ({ v: String(x.id), l: x.name })))} />, tr("With a topic chosen, this one is first due its renewal months after the person first completes that topic, and nobody is asked for it before."))}
     {tick("perSite", tr("Per site"), tr("One record for each site the person works at."))}
     {tick("safetyCritical", tr("Safety critical"), tr("A lesson on this topic needs a trainer to watch a demonstration."))}
     {field("linkUrl", tr("Course link"), <Inp t={t} type="url" value={f.linkUrl} onChange={set("linkUrl")} placeholder="https://" />, tr("An https address for a course taken outside the app. It opens in a new tab."))}
@@ -23592,13 +23785,14 @@ const GAP_STATUSES = [
 const gapStatusWord = (s) => { const x = GAP_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };
 const gapStatusColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : s === "awaitingTrainer" ? PU : BL);
 const gapNeedsSession = (it) => !!(it && it.lesson && it.lesson.attemptsLeft != null && Number(it.lesson.attemptsLeft) === 0 && it.status !== "current" && it.status !== "awaitingTrainer");
-const gapItemWord = (it) => (gapNeedsSession(it) ? tr("Needs an in-person session") : gapStatusWord(it.status));
+// Since Step 273 an item marked firstDue reads its first due day in place of its status.
+const gapItemWord = (it) => (gapNeedsSession(it) ? tr("Needs an in-person session") : firstDueDayWord(it) || gapStatusWord(it.status));
 const gapItemColor = (it) => (gapNeedsSession(it) ? RD : gapStatusColor(it.status));
 // An item as a chip: its topic, the site of a per-site topic, and its status.
 function GapChip({ item, withName = true }) {
   const t = useT();
   const c = gapItemColor(item);
-  return <span data-gap-chip={item.status} data-gap-covered={signoffByOf(item) ? signoffByOf(item).topicId || "" : undefined} title={[item.name, item.siteName, signoffByOf(item) ? tr("Covered by {0}", signoffByOf(item).name) : ""].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
+  return <span data-gap-chip={item.status} data-gap-first-due={item.firstDue ? "" : undefined} data-gap-covered={signoffByOf(item) ? signoffByOf(item).topicId || "" : undefined} title={[item.name, item.siteName, signoffByOf(item) ? tr("Covered by {0}", signoffByOf(item).name) : ""].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
     {withName && <span style={{ color: t.text, fontWeight: 500, overflowWrap: "anywhere" }}>{item.name}{item.siteName ? " (" + item.siteName + ")" : ""}</span>}<span data-gap-word={gapNeedsSession(item) ? "inPerson" : item.status} style={{ whiteSpace: "nowrap" }}>{gapItemWord(item)}</span></span>;
 }
 
@@ -23710,7 +23904,7 @@ function trainingGapPages(data, f, topics, sites) {
   return order.filter(k => !f.siteId || k === String(f.siteId) || k === "").map(k => {
     const g = bySite.get(k);
     const rows = [];
-    g.people.forEach(p => (p.items || []).filter(it => !it.siteId || String(it.siteId) === k).forEach(it => rows.push([p.name, roleWord(p.role), it.name, gapItemWord(it), it.completedDate ? keptDay(it.completedDate) : "", it.expiresOn ? keptDay(it.expiresOn) : ""])));
+    g.people.forEach(p => (p.items || []).filter(it => !it.siteId || String(it.siteId) === k).forEach(it => rows.push([p.name, roleWord(p.role), it.name, gapItemWord(it), it.completedDate ? keptDay(it.completedDate) : "", it.expiresOn && !it.firstDue ? keptDay(it.expiresOn) : ""])));
     return { code: "", title: "Training gaps", site: g.name, asOf: data.asOf || todayISO(), parts: [
       filters ? { fields: [["Showing", filters]] } : null,
       { cols: ["Person", "Role", "Topic", "Status", "Completed", "Expires"], rows },
@@ -23741,7 +23935,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
       <div style={{ fontSize: compact ? 12 : 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{it.name}{it.siteName ? " (" + it.siteName + ")" : ""}</div>
-      <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
+      <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn && !it.firstDue ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
       {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
@@ -23805,6 +23999,215 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
     {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} sites={p && Array.isArray(p.sites) && p.sites.length ? p.sites : sites} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
   </Mdl>);
+}
+
+// ===== THE TRAINING MATRIX, FOR THE ASSESSOR (Step 273, against the API's Step 269) =====
+// Who is trained in what: GET /api/training/matrix?siteId=&role=&category= answers the active topics in
+// category order and each person with a cell for every topic they hold, the cell's status from the
+// gaps, its dates, how its record was made, and for a topic taken at each site each site's status (the
+// cell reports the worst). People run down the side, held in place while the topics scroll across,
+// grouped under their categories. A blank cell is a topic the person does not need. A tap opens the
+// cell. Download CSV saves format=csv; Print gives the grid on landscape letter paper with the day.
+// Management reads it; a supervisor is held to their own sites, which the Site choice lists from the
+// assignments GET /api/auth/me answers.
+const MATRIX_STATUSES = [
+  { v: "current", l: "Done|training" }, { v: "dueSoon", l: "Expires soon" }, { v: "refresherDue", l: "Refresher due" },
+  { v: "missing", l: "Missing|training" }, { v: "expired", l: "Expired|training" }, { v: "inProgress", l: "In progress|training" }, { v: "awaitingTrainer", l: "Waiting for trainer" },
+];
+const matrixStatusWord = (s) => { const x = MATRIX_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };
+const matrixColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : BL);
+// The day a cell shows: when it expires for one coming due or past it, else when it was done.
+const matrixDay = (c) => (!c || c.status === "missing" ? null : c.status === "dueSoon" || c.status === "expired" || c.status === "refresherDue" ? (c.expiresOn || c.completedDate) : c.completedDate);
+const matrixCellLine = (c) => firstDueDayWord(c) || [matrixStatusWord(c.status), matrixDay(c) ? fdLong(matrixDay(c)) : ""].filter(Boolean).join(" ");
+const MATRIX_METHODS = { lesson: "Lesson on the phone", session: "Training session", certificate: "Certificate from a course", checklist: "Checklist watched by a trainer", record: "Record entered by the office", form: "Filed form" };
+const matrixMethodWord = (m) => (MATRIX_METHODS[m] ? tr(MATRIX_METHODS[m]) : m ? String(m) : tr("No record yet"));
+// The topics in the answer's order, grouped by category as they run.
+const matrixGroups = (topics) => (topics || []).reduce((out, tp) => { const last = out[out.length - 1]; if (last && last.key === tp.category) last.topics.push(tp); else out.push({ key: tp.category, name: tp.categoryName || categoryNameOf(null, tp.category), topics: [tp] }); return out; }, []);
+const matrixEmpty = { asOf: "", topics: [], people: [] };
+function TrainingMatrix({ af, t, token, sites = [], isAdmin = false, showToast }) {
+  const [f, setF] = useState({ siteId: "", role: "", category: "" });
+  const [d, setD] = useState(null);
+  const [refusal, setRefusal] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [busy, setBusy] = useState(false);
+  // A supervisor's own sites, from their assignments; an admin chooses from every site.
+  const [mine, setMine] = useState(null);
+  useEffect(() => {
+    if (isAdmin) return undefined;
+    let alive = true;
+    af("/api/auth/me").then(x => { if (alive) setMine((x && Array.isArray(x.sites) ? x.sites : []).filter(s0 => s0 && s0.siteId != null).map(s0 => ({ id: String(s0.siteId), name: s0.siteName || "" }))); }).catch(e => { if (alive) setMine([]); console.warn("Own sites:", e.message); });
+    return () => { alive = false; };
+  }, [af, isAdmin]);
+  const siteChoices = isAdmin ? sites.map(s0 => ({ id: String(s0.id), name: s0.name })) : (mine || []);
+  const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
+  // Only the latest read is drawn.
+  const seq = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++seq.current;
+    setD(null); setRefusal(null);
+    try { const x = await af("/api/training/matrix" + (q ? "?" + q : "")); if (n === seq.current) setD(x && Array.isArray(x.people) && Array.isArray(x.topics) ? x : matrixEmpty); }
+    catch (e) { if (n === seq.current) { setD(matrixEmpty); setRefusal({ text: e.message || tr("This did not load."), keys: trainingKeysOf(e) }); } }
+  }, [af, q]);
+  useEffect(() => { load(); }, [load]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const groups = useMemo(() => matrixGroups(d && d.topics), [d]);
+  const siteName = (p, id) => ((p && (p.sites || []).find(x => String(x.id) === String(id))) || siteChoices.find(x => x.id === String(id)) || sites.find(x => String(x.id) === String(id)) || {}).name || "";
+  const siteWord = f.siteId ? ((siteChoices.find(x => x.id === f.siteId) || {}).name || "") : isAdmin ? tr("All sites") : tr("All my sites");
+  const download = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await saveDownload("/api/training/matrix?" + (q ? q + "&" : "") + "format=csv", token, "training-matrix-" + ((d && d.asOf) || todayISO()) + ".csv"); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setBusy(false);
+  };
+  // On paper a table per category, each listing the people who hold one of its topics.
+  const print = () => {
+    if (!d) return;
+    const filters = [f.role ? roleWord(f.role) : "", f.category ? (groups.find(g => g.key === f.category) || {}).name || "" : ""].filter(Boolean).join(", ");
+    const parts = (filters ? [{ fields: [["Showing", filters]] }] : []).concat(groups.map(g => ({ h: g.name, num: "", cols: ["Person", "Role"].concat(g.topics.map(tp => tp.name)),
+      rows: d.people.filter(p => g.topics.some(tp => p.cells && p.cells[tp.id])).map(p => [p.name, roleWord(p.role)].concat(g.topics.map(tp => (p.cells && p.cells[tp.id] ? matrixCellLine(p.cells[tp.id]) : "")))) })));
+    if (!printKeptRecord([{ code: "", title: "Training matrix", site: siteWord, asOf: d.asOf || todayISO(), parts }], tr("Training matrix"), "letter landscape")) showToast(tr("Allow pop-ups to print the sheet"), "error");
+  };
+  const stick = { position: "sticky", left: 0, zIndex: 1, background: t.card };
+  const th = { padding: "8px 10px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, color: t.textMut, textAlign: "left", verticalAlign: "bottom", borderBottom: "1px solid " + t.border };
+  return (<div data-training-matrix="">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Sel t={t} aria-label={tr("Site")} data-matrix-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: isAdmin ? tr("All sites") : tr("All my sites") }].concat(siteChoices.map(s0 => ({ v: s0.id, l: s0.name })))} />{refusal && refusal.keys.indexOf("siteId") >= 0 ? <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null}</div>
+      <Sel t={t} aria-label={tr("Role")} data-matrix-filter="role" value={f.role} onChange={set("role")} options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} />
+      <Sel t={t} aria-label={tr("Category")} data-matrix-filter="category" value={f.category} onChange={set("category")} options={[{ v: "", l: tr("All categories") }].concat(TRAINING_CATEGORIES.map(c => ({ v: c.key, l: tr(c.l) })), [{ v: OTHER_CATEGORY, l: tr("Other trainings") }])} />
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      {d && d.asOf && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{[tr("As of {0}", fdLong(d.asOf)), siteWord, trn("{0} person|count", d.people.length)].join(" . ")}</span>}
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" data-matrix-download="" disabled={busy || !d || d.people.length === 0} onClick={download}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><DlI sz={14} c="currentColor" />{tr("Download CSV")}</span></Btn>
+        <Btn t={t} v="ghost" data-matrix-print="" disabled={!d || d.people.length === 0} onClick={print}>{tr("Print")}</Btn>
+      </span>
+    </div>
+    <div role="list" aria-label={tr("Legend")} data-matrix-legend="" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      {MATRIX_STATUSES.map(o => <span key={o.v} role="listitem" data-matrix-legend-item={o.v} style={{ padding: "3px 10px", borderRadius: R.pill, background: matrixColor(o.v) + "1f", color: matrixColor(o.v), fontSize: 12, fontWeight: 600 }}>{tr(o.l)}</span>)}
+      <span role="listitem" style={{ fontSize: 12, color: t.textMut }}>{tr("A blank cell is a topic the person does not need.")}</span>
+    </div>
+    {refusal && refusal.keys.indexOf("siteId") < 0 && <div role="alert" data-matrix-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {d === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : d.people.length === 0 || d.topics.length === 0 ? <Crd t={t}><div style={{ textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Nobody matches these filters.")}</div></Crd>
+      : <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div data-matrix-scroll="" style={{ overflowX: "auto" }}>
+        <table style={{ borderCollapse: "separate", borderSpacing: 0, fontSize: 12, minWidth: "100%" }}>
+          <thead>
+            <tr>
+              <th rowSpan={2} style={{ ...th, ...stick, zIndex: 2, minWidth: 150, background: t.cardAlt }}>{tr("Person")}</th>
+              {groups.map((g, i) => <th key={g.key + i} colSpan={g.topics.length} data-matrix-category={g.key} style={{ ...th, background: t.cardAlt, color: t.goldText, textTransform: "uppercase", letterSpacing: 0.4, borderLeft: "1px solid " + t.border }}>{g.name}</th>)}
+            </tr>
+            <tr>{groups.map(g => g.topics.map((tp, i) => <th key={tp.id} data-matrix-topic={tp.id} title={topicDocLine(tp)} style={{ ...th, background: t.cardAlt, minWidth: 118, maxWidth: 160, fontWeight: 600, color: t.textSec, borderLeft: i === 0 ? "1px solid " + t.border : "none", whiteSpace: "normal", lineHeight: 1.3 }}>{tp.name}{tp.perSite ? <div style={{ fontSize: 10, fontWeight: 500, color: t.textMut }}>{tr("At each site")}</div> : null}</th>))}</tr>
+          </thead>
+          <tbody>{d.people.map(p => <tr key={p.id} data-matrix-person={p.id}>
+            <th scope="row" style={{ ...stick, padding: "8px 10px", textAlign: "left", borderBottom: "1px solid " + t.border, fontWeight: 600, color: t.text, minWidth: 150, maxWidth: 200, overflowWrap: "anywhere" }}>{p.name}<div style={{ fontSize: 11, fontWeight: 400, color: t.textMut }}>{roleWord(p.role)}</div></th>
+            {groups.map(g => g.topics.map((tp, i) => { const c = p.cells && p.cells[tp.id]; const ink = c ? matrixColor(c.status) : null; return <td key={tp.id} style={{ padding: 3, borderBottom: "1px solid " + t.border, borderLeft: i === 0 ? "1px solid " + t.border : "none" }}>
+              {c ? <button type="button" data-matrix-cell={c.status} data-matrix-cell-person={p.id} data-matrix-cell-topic={tp.id} data-matrix-per-site={Array.isArray(c.sites) && c.sites.length ? "" : undefined} onClick={() => setOpen({ p, tp, c })} aria-label={p.name + ", " + tp.name + ": " + matrixCellLine(c)}
+                style={{ width: "100%", minHeight: 44, padding: "4px 8px", borderRadius: 6, border: "none", background: ink + "1f", color: goldToText(t, ink), textAlign: "left", fontSize: 11, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", lineHeight: 1.3 }}>
+                {firstDueDayWord(c) ? <div data-matrix-first-due="">{firstDueDayWord(c)}</div> : <><div>{matrixStatusWord(c.status)}</div>{matrixDay(c) ? <div style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{fdLong(matrixDay(c))}</div> : null}</>}
+              </button> : null}
+            </td>; }))}
+          </tr>)}</tbody>
+        </table>
+      </div></Crd>}
+    {open && <Mdl t={t} onClose={() => setOpen(null)}><div data-matrix-detail="" style={{ padding: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{open.tp.name}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[open.p.name, roleWord(open.p.role), topicDocLine(open.tp)].filter(Boolean).join(" . ")}</div>
+        </div>
+        <button onClick={() => setOpen(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ marginBottom: 10 }}><Bdg l={firstDueDayWord(open.c) || matrixStatusWord(open.c.status)} c={matrixColor(open.c.status)} /></div>
+      {[[tr("How it was done"), <span data-matrix-method={open.c.method || ""}>{matrixMethodWord(open.c.method)}</span>], [tr("Completed|training"), open.c.completedDate ? fdLong(open.c.completedDate) : ""], [tr("Expires|training"), open.c.expiresOn && !open.c.firstDue ? fdLong(open.c.expiresOn) : ""]].filter(([, v]) => v).map(([l, v]) => <div key={l} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, flexWrap: "wrap" }}><div style={{ flex: "0 0 140px", color: t.textMut }}>{l}</div><div style={{ flex: "1 1 160px", color: t.text }}>{v}</div></div>)}
+      {Array.isArray(open.c.sites) && open.c.sites.length > 0 && <div data-matrix-sites="" style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 6 }}>{tr("At each site")}</div>
+        {open.c.sites.map(x => <div key={x.siteId} data-matrix-site={x.siteId} data-matrix-site-status={x.status} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+          <span style={{ flex: "1 1 160px", minWidth: 0, color: t.text, overflowWrap: "anywhere" }}>{siteName(open.p, x.siteId)}</span>
+          <Bdg l={matrixStatusWord(x.status)} c={matrixColor(x.status)} />
+          {x.completedDate ? <span style={{ fontSize: 12, color: t.textSec }}>{tr("Completed: {0}", fdLong(x.completedDate))}</span> : null}
+        </div>)}
+      </div>}
+    </div></Mdl>}
+  </div>);
+}
+
+// ===== TRAINING TIME, FOR PAY (Step 273, against the API's Step 269) =====
+// The time staff spent in phone lessons, which the office pays as training time, for a range of 1 to
+// 62 days and a site: GET /api/training/time?from=&to=&siteId= answers each person with any training
+// in the range (lessons passed, attempts, minutes, sessions signed, checklists signed) and the totals,
+// and format=csv the same as a file. Minutes run from opening a lesson to signing it, each attempt
+// capped at 60. A session's length is not recorded, so the office adds session hours itself.
+const TIME_DAYS_MAX = 62;
+// The last full week before the day given, Monday to Sunday.
+function lastFullWeek(today) {
+  const d = localDate(today);
+  const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7) - 7);
+  return { from: toISO(mon), to: toISO(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)) };
+}
+const daysFromTo = (from, to) => Math.round((localDate(to) - localDate(from)) / 86400000) + 1;
+// Minutes as hours and minutes: 45 m, 2 h 15 m, 31 h 0 m. Pay is counted in hours, so never days.
+const hoursMinutes = (m) => { const n = Math.max(0, Math.round(Number(m) || 0)); return n < 60 ? tr("{0} m|minutes", n) : tr("{0} h {1} m", Math.floor(n / 60), n % 60); };
+function TrainingTime({ af, t, token, sites = [], showToast }) {
+  const week = useMemo(() => lastFullWeek(todayISO()), []);
+  const [f, setF] = useState({ from: week.from, to: week.to, siteId: "" });
+  const [d, setD] = useState(null);
+  const [refusal, setRefusal] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const days = f.from && f.to ? daysFromTo(f.from, f.to) : 0;
+  const rangeOk = !!f.from && !!f.to && days >= 1 && days <= TIME_DAYS_MAX;
+  const q = "from=" + encodeURIComponent(f.from) + "&to=" + encodeURIComponent(f.to) + (f.siteId ? "&siteId=" + encodeURIComponent(f.siteId) : "");
+  // Only the latest read is drawn.
+  const seq = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++seq.current;
+    setRefusal(null);
+    setD(null);
+    if (!rangeOk) return;
+    try { const x = await af("/api/training/time?" + q); if (n === seq.current) setD(x && Array.isArray(x.people) ? x : { people: [], totals: null }); }
+    catch (e) { if (n === seq.current) { setD({ people: [], totals: null }); setRefusal({ text: e.message || tr("This did not load."), keys: trainingKeysOf(e) }); } }
+  }, [af, q, rangeOk]);
+  useEffect(() => { load(); }, [load]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const fileName = "training-time-" + f.from + "-to-" + f.to + ".csv";
+  const download = async () => {
+    if (busy || !rangeOk) return;
+    setBusy(true);
+    try { await saveDownload("/api/training/time?" + q + "&format=csv", token, fileName, fileName); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-time-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const num = (v) => (Number(v) > 0 ? <span style={{ fontWeight: 600 }}>{v}</span> : <span style={{ color: t.textMut }}>0</span>);
+  const totals = d && d.totals ? d.totals : null;
+  const rows = d ? d.people.concat(totals && d.people.length ? [Object.assign({ id: "", total: true }, totals)] : []) : [];
+  const bold = (r, v) => (r.total ? <span data-time-total="" style={{ fontWeight: 700, color: t.text }}>{v}</span> : v);
+  const columns = [
+    { header: tr("Name"), tdStyle: { minWidth: 150 }, render: r => (r.total ? bold(r, tr("Total, {0}", trn("{0} person|count", r.people))) : <span style={{ color: t.text, fontWeight: 600 }}>{r.name}</span>) },
+    { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: r => (r.total ? "" : roleWord(r.role)) },
+    { header: tr("Sites"), tdStyle: { color: t.textSec, minWidth: 140 }, render: r => (r.total ? "" : (r.sites || []).map(x => x.name).join(", ")) },
+    { header: tr("Lessons passed"), align: "right", render: r => bold(r, num(r.lessonsPassed)) },
+    { header: tr("Attempts"), align: "right", render: r => bold(r, num(r.attempts)) },
+    { header: tr("Time in lessons"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: r => bold(r, <span data-time-minutes={r.minutes}>{hoursMinutes(r.minutes)}</span>) },
+    { header: tr("Sessions signed"), align: "right", render: r => bold(r, num(r.sessionsSigned)) },
+    { header: tr("Checklists signed"), align: "right", render: r => bold(r, num(r.checklistsSigned)) },
+  ];
+  return (<div data-training-time="">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" aria-label={tr("From")} data-time-from="" value={f.from} max={f.to || undefined} onChange={set("from")} />{under("from")}</div>
+      <div><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" aria-label={tr("To")} data-time-to="" value={f.to} min={f.from || undefined} onChange={set("to")} />{under("to")}</div>
+      <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-time-site="" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />{under("siteId")}</div>
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      {rangeOk ? <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} days|count", days)}</span>
+        : <span role="alert" data-time-range="" style={{ fontSize: 13, color: RD }}>{tr("Pick 1 to 62 days, with To on or after From.")}</span>}
+      <span style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" data-time-download="" disabled={busy || !rangeOk} onClick={download}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><DlI sz={14} c="currentColor" />{tr("Download CSV")}</span></Btn></span>
+    </div>
+    {refusal && refusal.keys.length === 0 && <div role="alert" data-time-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {!rangeOk ? null : d === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : <DataTable t={t} columns={columns} rows={rows} rowKey={r => (r.total ? "total" : r.id)} empty={tr("Nobody spent time in training in these days.")} />}
+    <div data-time-note="" style={{ fontSize: 12, color: t.textSec, marginTop: 10, lineHeight: 1.5 }}>{tr("Minutes are time in phone lessons, each attempt capped at 60. Session hours are not recorded; add them from the session list.")}</div>
+  </div>);
 }
 
 // ===== CERTIFICATES FROM OUTSIDE COURSES (Step 263, STEP262_CONTRACT.md section 4) =====
@@ -25564,6 +25967,12 @@ function PersonProperty({ af, token, t, userId, sites = [], name = "", showToast
 // key, a badge or a fob, the day, a note, and the person's drawing on this screen. A refusal is drawn
 // under the box its keys name, and one without keys at the top.
 const PROPERTY_FIELDS = ["kind", "description", "size", "quantity", "siteId", "issuedOn", "note", "signature"];
+// Step 273 (OCSA-HR-013 Section 3, keys and access before any key, badge, fob or code is issued): the
+// topic whose current record a key, a badge or a fob looks for, by its key.
+const KEYS_TOPIC_KEY = "site_security_access";
+// Whether a person's training list holds the keys and access topic as current: true, false, or null
+// until the list answers (or when it fails). A first due item coming due is one not held yet.
+const holdsKeysTopic = (d, failed) => (!d || failed ? null : (d.items || []).some(it => it && it.topicKey === KEYS_TOPIC_KEY && (it.status === "current" || (it.status === "dueSoon" && !it.firstDue))));
 function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, onSaved }) {
   const [f, setF] = useState({ kind: "", description: "", size: "", quantity: "1", siteId: "", issuedOn: todayISO(), note: "" });
   const [sig, setSig] = useState("");
@@ -25577,6 +25986,12 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
   const qty = Number(f.quantity);
   const sited = PROPERTY_SITED.indexOf(f.kind) >= 0;
   const sized = PROPERTY_SIZED.indexOf(f.kind) >= 0;
+  // Step 273: the person's own training list (GET /api/training/gaps/people/:userId), read once a key,
+  // a badge or a fob is picked. A person who does not hold Keys and access as current gets a line under
+  // the kind; it never stops the save, since the office is recording keys people already hold and the
+  // record puts them on the training.
+  const [keysList, keysFailed] = useTrainingItems(af, userId, sited);
+  const keysLine = sited && holdsKeysTopic(keysList, keysFailed) === false;
   const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && (phone || !!sig);
   const bad = (k) => refusal.keys.indexOf(k) >= 0;
   const under = (k) => (bad(k) ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
@@ -25608,7 +26023,8 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
     <div style={{ marginBottom: 12 }}><Lbl>{tr("What was issued")}</Lbl>
       <div role="group" aria-label={tr("What was issued")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {Object.keys(PROPERTY_KINDS).map(k => <button key={k} type="button" data-property-kind={k} aria-pressed={f.kind === k} onClick={() => set("kind", k)} style={choice(f.kind === k)}>{propertyKindWord(k)}</button>)}
-      </div>{under("kind")}</div>
+      </div>{under("kind")}
+      {keysLine && <div data-keys-heads-up="" role="note" style={{ fontSize: 12, color: OR, marginTop: 8, lineHeight: 1.5 }}>{tr("Keys and access is not done yet. OCSA-HR-013 Section 3 asks for it before any key, badge, fob or code is issued. If they already hold this one, record it; the training is assigned from the record.")}</div>}</div>
     {f.kind && <div style={{ marginBottom: 12 }}><Lbl>{f.kind === "other" ? tr("Description") : tr("Description (optional)")}</Lbl>
       <Inp t={t} aria-label={f.kind === "other" ? tr("Description") : tr("Description (optional)")} data-property-field="description" value={f.description} onChange={e => set("description", e.target.value)} maxLength={200} placeholder={f.kind === "key" ? tr("Which door or closet") : ""} style={box("description")} />{under("description")}</div>}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
