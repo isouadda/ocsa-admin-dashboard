@@ -1230,10 +1230,11 @@ Who can do this: admins and supervisors for a written warning; admins for a fina
 6. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**) A Yes needs the date in **Discussed with the Controller on** (**Consultado con el Contralor el**).
 7. Choose the **Language of the warning** (**Idioma de la advertencia**) and click **Save as draft** (**Guardar como borrador**).
 8. Under **Issue** (**Emitir**), draw your signature in **The issuer signs** (**Firma quien la emite**) and click **Sign** (**Firmar**).
-9. Hand the screen to the person. **Signing confirms they received this warning. It does not mean they agree.** (**Al firmar confirma que recibió esta advertencia. No significa que esté de acuerdo.**) They draw their signature and click **Sign** (**Firmar**).
-10. Add **Their account** (**Su versión**) if they want their words on the warning, and click **Issue** (**Emitir**).
+9. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen: the person is told on their phone and signs there. To take the signature on this screen, choose **Sign here now** (**Firmar aquí ahora**) and hand the screen to the person. **Signing confirms they received this warning. It does not mean they agree.** (**Al firmar confirma que recibió esta advertencia. No significa que esté de acuerdo.**) They draw their signature and click **Sign** (**Firmar**).
+10. Add **Their account** (**Su versión**) if they want their words on the warning, and click **Issue and send to sign** (**Emitir y enviar a firmar**), or **Issue** (**Emitir**) when they signed here. A warning sent to their phone reads **Waiting for signature** (**A la espera de firma**) until they sign; see the entry on sending something to a person's phone to sign.
+If it does not work: **Who signs** (**Quién firma**) shows once the system answers the signature requests. Until then the person signs in the box, as before.
 Words people use for this: written warning, final warning, final written warning, write up, write-up, suspension, discipline, advertencia por escrito.
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## Issue a termination (admin dashboard)
 Who can do this: admins
@@ -1259,13 +1260,14 @@ Last checked: 2026-10-01
 
 ## When a person declines to sign a warning (admin dashboard)
 Who can do this: admins and supervisors
-1. Issue the written or final written warning as far as the person's signature.
+1. Issue the written or final written warning as far as the person's signature, and choose **Sign here now** (**Firmar aquí ahora**) under **Who signs** (**Quién firma**).
 2. Tick **Declined to sign** (**Se negó a firmar**).
 3. Type the name of the **Witness** (**Testigo**) who saw it, if one did.
 4. Add **Their account** (**Su versión**) if they want their words on the warning.
 5. Click **Issue** (**Emitir**). The warning shows **Declined to sign** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
+6. A person who will not sign a warning sent to their phone declines there. The warning then reads **Declined** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
 Words people use for this: refused to sign, would not sign, declined to sign, witness, write-up, se negó a firmar.
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## Rescind a warning (admin dashboard)
 Who can do this: admins
@@ -1504,11 +1506,12 @@ Who can do this: admins and supervisors
 3. From a person's folder, pick the **Site** (**Sitio**); from a site, pick the **Person** (**Persona**).
 4. Pick the **Item** (**Elemento**) from the site's PPE stock, or **Something else, typed** (**Otra cosa, escrita**) and type what was issued.
 5. Fill in **Size** (**Talla**) and **Quantity** (**Cantidad**), and answer **Fits well?** (**¿Le queda bien?**) with **Yes** (**Sí**) or **No** (**No**). Add a **Note** (**Nota**) if there is one.
-6. Hand the screen to the person. They draw their signature and click **Sign** (**Firmar**).
-7. Click **Save** (**Guardar**). The issue shows under **PPE issued** (**EPP entregado**), and **Signature** (**Firma**) shows the drawing. Each issue prints on the PPE compliance log.
-If it does not work: **Save** (**Guardar**) waits until there is a site, an item, a quantity of 1 or more, an answer to **Fits well?** (**¿Le queda bien?**) and a signature. A box the server refuses is marked in red with the reason under it.
+6. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen. Click **Send to sign** (**Enviar a firmar**): the person is told on their phone and signs there, and the issue reads **Waiting for signature** (**A la espera de firma**) until they do.
+7. To take the signature on this screen instead, choose **Sign here now** (**Firmar aquí ahora**) and hand the screen to the person. They draw their signature and click **Sign** (**Firmar**), then click **Save** (**Guardar**).
+8. The issue shows under **PPE issued** (**EPP entregado**), and **Signature** (**Firma**) shows the drawing once there is one. Each issue prints on the PPE compliance log; one still waiting prints **Waiting for signature** (**A la espera de firma**) in place of the signature.
+If it does not work: the button waits until there is a site, an item, a quantity of 1 or more, an answer to **Fits well?** (**¿Le queda bien?**) and, under **Sign here now** (**Firmar aquí ahora**), a signature. A box the server refuses is marked in red with the reason under it. **Who signs** (**Quién firma**) shows once the system answers the signature requests.
 Words people use for this: issue ppe, hand out gloves, safety glasses, ppe sign off, ppe records, entregar epp.
-Last checked: 2026-10-02
+Last checked: 2026-10-06
 
 ## Keep the equipment register (admin dashboard)
 Who can do this: admins and supervisors
@@ -1771,9 +1774,10 @@ Who can do this: admins
 3. Tick each role that needs the topic. Under a role, tick service lines to ask for it only at sites with those lines, such as schools; with none ticked, the role needs it at every site.
 4. To name one person, pick them in **Name a person...** (**Nombrar a una persona...**) and click **Add** (**Agregar**).
 5. Click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and **Gaps** (**Brechas**) counts from it.
+6. A person marked **From a key on file** (**Por una llave registrada**) is on the keys and access topic because a key, a badge or a fob was issued to them. The row has no **Remove** (**Quitar**); it goes by itself when every key, badge and fob of theirs is marked returned.
 If it does not work: a refusal is shown under the role or the person it names.
 Words people use for this: who needs this training, training by role, required for a role, assign training to a role, training requirement, quién necesita la capacitación.
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## See training gaps by role and site (admin dashboard)
 Who can do this: admins and supervisors
@@ -1866,12 +1870,13 @@ Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**) and open the person's folder. **Company property** (**Propiedad de la empresa**) lists what they were given, what is **Still out** (**Sin devolver**) first.
 2. Click **Issue property** (**Entregar propiedad**) and pick what was issued: **Uniform shirt** (**Camisa de uniforme**), **Other uniform** (**Otro uniforme**), **Key** (**Llave**), **Badge** (**Credencial**), **Fob** (**Llavero electrónico**) or **Other** (**Otro**), which needs a description.
 3. Fill in the **Size** (**Talla**) for a uniform, the **Quantity** (**Cantidad**), the **Site** (**Sitio**) for a key, a badge or a fob, the **Date** (**Fecha**), and a **Note** (**Nota**) if needed.
-4. Hand the screen to the person. They sign in the box and tap **Sign** (**Firmar**). Click **Save** (**Guardar**).
-5. When it comes back, click **Mark returned** (**Marcar como devuelto**), set **Returned on** (**Fecha de devolución**), add a note if needed, and click **Mark returned** (**Marcar como devuelto**) again.
-6. **Signature** (**Firma**) shows what the person signed.
-If it does not work: a refusal is shown under the field it names. The block shows once the system answers it.
+4. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen. Click **Send to sign** (**Enviar a firmar**): the person is told on their phone and signs there, and the record reads **Waiting for signature** (**A la espera de firma**) until they do.
+5. To take the signature on this screen instead, choose **Sign here now** (**Firmar aquí ahora**) and hand the screen to the person. They sign in the box and tap **Sign** (**Firmar**). Click **Save** (**Guardar**).
+6. When it comes back, click **Mark returned** (**Marcar como devuelto**), set **Returned on** (**Fecha de devolución**), add a note if needed, and click **Mark returned** (**Marcar como devuelto**) again.
+7. **Signature** (**Firma**) shows what the person signed. A key, a badge or a fob also puts the person on the keys and access training on its own; see the entry on saying who needs a training topic.
+If it does not work: a refusal is shown under the field it names. The block shows once the system answers it, and **Who signs** (**Quién firma**) once it answers the signature requests.
 Words people use for this: uniform, shirt, keys, badge, fob, company property, return a uniform, hand out keys, entregar uniforme.
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## Find training on the dashboard (admin dashboard)
 Who can do this: admins and supervisors
@@ -1931,4 +1936,25 @@ Every topic reaches the roles under **Who needs it** (**Quién la necesita**) on
 4. Click **Assign** (**Asignar**). The topics and the people are sent once, and the window says how many were added and how many were already assigned.
 If it does not work: a refusal is shown under the topics or the people. The button shows once the system answers the catalog's categories.
 Words people use for this: assign training, assign a topic to a person, training for one person, extra training, who gets this training, asignar capacitación.
+Last checked: 2026-10-06
+
+## Send something to a person's phone to sign (admin dashboard)
+Who can do this: admins and supervisors
+1. Open **Issue property** (**Entregar propiedad**) or **Issue PPE** (**Entregar EPP**) from the person's folder in **HR Records** (**Expedientes de personal**), or issue a written warning from **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
+2. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen. Fill in the rest and click **Send to sign** (**Enviar a firmar**), or **Issue and send to sign** (**Emitir y enviar a firmar**) on a warning. The person is told on their phone and signs there; nobody has to come to the office.
+3. The record reads **Waiting for signature** (**A la espera de firma**) until they sign, then **Signed** (**Firmado**) with **on their phone** (**en su teléfono**). A person who sends property or PPE back reads **Not right** (**No es correcto**) with their note. A person who will not sign a warning reads **Declined** (**Se negó a firmar**).
+4. On a record still waiting or not right, click **Remind** (**Recordar**) to send the notice again, **Cancel** (**Cancelar**) to close the request when it was signed on paper or entered by mistake, or **Sign here now** (**Firmar aquí ahora**) to have the person sign on the screen in front of them. It then reads **Signed** (**Firmado**) with **in the office** (**en la oficina**).
+5. To take the signature on the spot from the start, choose **Sign here now** (**Firmar aquí ahora**) under **Who signs** (**Quién firma**), and the box is drawn as before.
+If it does not work: **Who signs** (**Quién firma**) and the chips show once the system answers the signature requests. Until then the person signs in the box, as before. A refusal is shown under the field it names.
+Words people use for this: sign on their phone, send to sign, signature request, remind to sign, sign here, not right, waiting for signature, firmar en el teléfono.
+Last checked: 2026-10-06
+
+## See what is waiting for a signature (admin dashboard)
+Who can do this: admins see every request; supervisors see their sites
+1. Click **HR Records** (**Expedientes de personal**), then the **Waiting for signatures** (**A la espera de firmas**) tab.
+2. Every request still open is listed: the **Person** (**Persona**), the **Kind** (**Tipo**) with what was issued, the **Site** (**Sitio**), when it was **Requested** (**Solicitado**) with its age in days and how many reminders went, and its **State** (**Estado**). The ones that read **Not right** (**No es correcto**) come first, each with the person's note, then the oldest.
+3. Narrow the list by **Kind** (**Tipo**), **Site** (**Sitio**) and **State** (**Estado**). **Open** (**Abiertas**) is the waiting and not right ones together; pick a state to see the signed, declined or cancelled ones too.
+4. On a row, click **Remind** (**Recordar**), **Cancel** (**Cancelar**) or **Sign here now** (**Firmar aquí ahora**), as in the entry on sending something to a person's phone to sign.
+If it does not work: the tab shows once the system answers the signature requests.
+Words people use for this: waiting for signatures, who has not signed, unsigned, pending signatures, reminders, firmas pendientes.
 Last checked: 2026-10-06

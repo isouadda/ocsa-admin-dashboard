@@ -74,6 +74,13 @@ Then it checks, one line a check:
   lesson, and a version reads French missing; and Assign training posts once with two topics and three
   people. With Step 266 armed the lesson line publishes without a Spanish checker, as the API does
   since decision 339. At 390 in English the side panel and catalog lines run again.
+- against the stub's answers for the API's Step 270, which the smoke check arms with `setStep270` over
+  Step 266's: at 1280 in English and in Spanish, a key is sent to the person's phone with no drawing,
+  its row reads Waiting for signature and Remind posts; Waiting for signatures on HR Records lists the
+  Not right request first with its note, and Sign here now on the key posts the drawing and takes the
+  request off the open list; and Who needs it on the keys and access topic reads From a key on file
+  with no Remove. With Step 270 armed the shirt line chooses Sign here now first, since Send to their
+  phone is the default. At 390 in English the key line runs again.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -111,7 +118,12 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-drafts-publish`, `data-drafts-published`, `data-drafts-refused`, `data-lesson-checkers`,
 `data-lesson-checker`, `data-lesson-checker-save`, `data-lesson-spanish-unchecked`,
 `data-lesson-french-missing`, `data-assign-training`, `data-assign-window`, `data-assign-topic`,
-`data-assign-person`, `data-assign-send` and `data-assign-result`.
+`data-assign-person`, `data-assign-send` and `data-assign-result`, and Step 272's by
+`data-who-signs-field`, `data-who-signs`, `data-signature-state`, `data-signature-note`,
+`data-signature-age`, `data-signature-remind`, `data-signature-cancel`, `data-signature-sign-here`,
+`data-sign-here-window`, `data-sign-here-statement`, `data-hr-tab`, `data-signature-requests`,
+`data-signature-kind`, `data-signature-site`, `data-signature-filter-state`, `data-warning-sent-phone`,
+`data-warning-signature` and `data-who-source`.
 
 ## What comes out
 
