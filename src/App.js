@@ -23843,19 +23843,40 @@ const lessonContentOf = (c) => {
   const l3 = (o) => ({ en: (o && o.en) || "", es: (o && o.es) || "", fr: (o && o.fr) || "" });
   return {
     title: l3(x.title),
-    blocks: (Array.isArray(x.blocks) ? x.blocks : []).map((b, i) => ({ key: b.key || "b" + (i + 1), kind: b.kind || "text", text: l3(b.text), items: (Array.isArray(b.items) ? b.items : []).map(l3), source: b.source && b.source.docCode ? { docCode: b.source.docCode, sectionRef: b.source.sectionRef } : null })),
+    // Step 268: an image block (STEP266_CONTRACT.md section 4) keeps its drawing or its path, its alt
+    // text and caption, and the src the draft's read answers for the preview.
+    blocks: (Array.isArray(x.blocks) ? x.blocks : []).map((b, i) => (b.kind === "image"
+      ? { key: b.key || "b" + (i + 1), kind: "image", svg: b.svg || null, path: b.path || null, alt: l3(b.alt), caption: l3(b.caption), src: b.src || (b.svg ? svgSrcOf(b.svg) : "") }
+      : { key: b.key || "b" + (i + 1), kind: b.kind || "text", text: l3(b.text), items: (Array.isArray(b.items) ? b.items : []).map(l3), source: b.source && b.source.docCode ? { docCode: b.source.docCode, sectionRef: b.source.sectionRef } : null })),
     questions: (Array.isArray(x.questions) ? x.questions : []).map((q, i) => ({ key: q.key || "q" + (i + 1), text: l3(q.text), options: (Array.isArray(q.options) ? q.options : []).map(o => ({ value: String(o.value), text: l3(o.text) })), correct: q.correct == null ? null : String(q.correct) })),
     // An observation checklist's steps (Step 263, STEP262_CONTRACT.md section 3).
     steps: (Array.isArray(x.steps) ? x.steps : []).map((st, i) => ({ key: st.key || "s" + (i + 1), text: l3(st.text) })),
     acknowledgement: l3(x.acknowledgement),
   };
 };
+// ===== PICTURES IN A LESSON (Step 268, STEP266_CONTRACT.md section 4) =====
+// An image block holds exactly one of a drawing (svg, pasted as text) and a picture (path, uploaded
+// through POST /api/training/lesson-images as JPEG, PNG, WebP or HEIC up to 5 MB, the API converting
+// HEIC to JPEG), with alt text and a caption in the three languages. The preview is drawn from src:
+// the draft's read answers one for a stored block, the upload answers one for a new picture, and a
+// pasted drawing is drawn as itself. The Image kind is offered once the API's Step 266 is there.
+const LESSON_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const LESSON_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const LESSON_IMAGE_MAX = 12;
+const svgSrcOf = (svg) => (/^\s*<svg[\s>]/i.test(String(svg || "")) ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(String(svg)) : "");
+const imageBlockOf = (key) => ({ key, kind: "image", svg: null, path: null, alt: L3E(), caption: L3E(), src: "" });
+const textBlockOf = (key, kind) => ({ key, kind: kind || "text", text: L3E(), items: kind === "list" ? [L3E()] : [], source: null });
+// A block as the draft's PATCH takes it: an image block without its preview, any other as it is.
+const lessonBlockBody = (b) => (b.kind === "image" ? { key: b.key, kind: "image", svg: b.svg || null, path: b.path || null, alt: b.alt, caption: b.caption } : b);
+// A picture refused before it is sent: not one of the kinds taken, or over 5 MB.
+const lessonImageWhy = (f) => (!f ? "" : LESSON_IMAGE_TYPES.indexOf(f.type) < 0 && !/\.(heic|heif)$/i.test(f.name || "") ? tr("Choose a JPEG, PNG, WebP or HEIC picture.") : f.size > LESSON_IMAGE_MAX_BYTES ? tr("The picture is over 5 MB.") : "");
+
 // A lesson's kind, since the API's Step 262: a quiz the person reads and answers, or an observation
 // checklist a trainer ticks step by step while watching the person on the job.
 const LESSON_TYPES = [{ v: "quiz", l: "Quiz" }, { v: "observation", l: "Observation checklist" }];
 const lessonTypeWord = (k) => { const x = LESSON_TYPES.find(o => o.v === (k || "quiz")); return x ? tr(x.l) : String(k || ""); };
 
-function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard }) {
+function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showToast, guard }) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState("");
   const [refusal, setRefusal] = useState("");
@@ -23884,9 +23905,9 @@ function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard 
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
-  if (draft) return <LessonDraftEditor af={af} t={t} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
+  if (draft) return <LessonDraftEditor af={af} t={t} token={token} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
   const cols = [
-    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span data-lesson-version={v.version != null ? String(v.version) : "draft"} data-lesson-version-status={v.status || ""} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}</span> },
+    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span data-lesson-version={v.version != null ? String(v.version) : "draft"} data-lesson-version-status={v.status || ""} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}{v.spanishUnchecked === true && spanishUncheckedChip()}{v.missingFrench === true && <span data-lesson-french-missing="" title={tr("Some of this version's French is not written yet. Staff are offered English and Spanish.")}><Bdg l={tr("French missing")} c={BL} /></span>}</span> },
     { header: tr("Status"), render: v => <Bdg l={lessonStatusWord(v.status)} c={lessonStatusColor(v.status)} /> },
   ].concat((versions || []).some(v => v && v.kind) ? [{ header: tr("Kind|lesson"), tdStyle: { color: t.textSec }, render: v => <span data-lesson-version-kind={v.kind || "quiz"}>{lessonTypeWord(v.kind)}</span> }] : [], [
     { header: tr("Published"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => stampDay(v.publishedAt) },
@@ -23929,10 +23950,16 @@ function LessonText({ t, path, value, onChange, probs, multiline = false, label 
 
 // The draft editor. Saving is explicit (Save draft); Translate, Publish and Discard save what changed
 // first; leaving the window or the draft with changes not saved asks first, and so does closing the tab.
-function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
+function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, onDone }) {
   const take = (d) => ({ kind: d.kind || "quiz", content: lessonContentOf(d.content), passPercent: d.passPercent != null ? d.passPercent : 80, maxAttempts: d.maxAttempts != null ? d.maxAttempts : 3, needsTrainer: !!d.needsTrainer || !!tp.safetyCritical || d.kind === "observation", checkedEsBy: d.checkedEsBy || "", checkedFrBy: d.checkedFrBy || "", changeNote: d.changeNote || "" });
   // The Kind choice is drawn once the draft's read carries kind (the API's Step 262).
   const kindLive = !!(initial.draft && Object.prototype.hasOwnProperty.call(initial.draft, "kind"));
+  // Step 268: the Image block is offered once the API's Step 266 is there (the catalog answers
+  // categories), or at once when the draft read already holds one.
+  const step266 = useTrainingLive(af, "categories");
+  const imagesLive = step266 || (initial.draft && initial.draft.content && Array.isArray(initial.draft.content.blocks) && initial.draft.content.blocks.some(b => b && b.kind === "image"));
+  const [imageRefusal, setImageRefusal] = useState({});
+  const [uploading, setUploading] = useState(-1);
   const [draft, setDraft] = useState(initial.draft);
   const [f, setF] = useState(() => take(initial.draft));
   const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
@@ -23973,7 +24000,7 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
   };
   // The content sent is the kind's own: a quiz's blocks and questions, or a checklist's steps.
   const body = () => Object.assign(kindLive ? { kind: f.kind } : {}, {
-    content: obs ? { title: c.title, steps: c.steps, acknowledgement: c.acknowledgement } : { title: c.title, blocks: c.blocks, questions: c.questions, acknowledgement: c.acknowledgement },
+    content: obs ? { title: c.title, steps: c.steps, acknowledgement: c.acknowledgement } : { title: c.title, blocks: c.blocks.map(lessonBlockBody), questions: c.questions, acknowledgement: c.acknowledgement },
     passPercent: Number(f.passPercent), maxAttempts: Number(f.maxAttempts), needsTrainer: !!f.needsTrainer || locked, sources: obs ? [] : sourcesOf(c),
     checkedEsBy: f.checkedEsBy.trim() || null, checkedFrBy: f.checkedFrBy.trim() || null, changeNote: f.changeNote.trim() || null });
   const fail = (e) => {
@@ -24008,6 +24035,60 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
   const head = (s, extra) => <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "16px 0 8px" }}><div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1 }}>{s}</div>{extra}</div>;
   const small = { minHeight: 44, padding: "0 10px", background: "none", border: "none", color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
   const nq = c.questions.length;
+  const nImages = c.blocks.filter(b => b.kind === "image").length;
+  const blockKinds = LESSON_KINDS.concat(imagesLive ? [{ v: "image", l: "Image|block" }] : []);
+  // A block's kind changed: an image block starts empty, and so does a text block made from one.
+  const changeKind = (i, b, kind) => {
+    if (kind === b.kind) return;
+    if (kind === "image") setBlock(i, imageBlockOf(b.key));
+    else if (b.kind === "image") setBlock(i, textBlockOf(b.key, kind));
+    else setBlock(i, { ...b, kind, items: kind === "list" ? (b.items.length ? b.items : [L3E()]) : b.items });
+  };
+  // A picture uploaded for a block: refused here when it is not a kind taken or is over 5 MB, else
+  // sent as multipart; the answer's path and src take the place of whatever the block held.
+  const uploadImage = async (i, b, file) => {
+    if (!file) return;
+    const why = lessonImageWhy(file);
+    if (why) { setImageRefusal(m => ({ ...m, [b.key]: why })); return; }
+    setUploading(i); setImageRefusal(m => ({ ...m, [b.key]: "" }));
+    const fd0 = new FormData();
+    fd0.append("file", file);
+    try {
+      const d = await apiMultipart("/api/training/lesson-images", token, fd0);
+      const img = (d && d.image) || {};
+      if (!img.path) throw new Error(tr("Request failed"));
+      setBlock(i, { ...b, path: img.path, svg: null, src: img.src || "" });
+    } catch (e) { setImageRefusal(m => ({ ...m, [b.key]: e.message || tr("Request failed") })); }
+    setUploading(-1);
+  };
+  const imageBlock = (b, i) => <div data-lesson-image={i}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 8 }}>
+      <div data-lesson-path={"blocks." + i + ".path"}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>{tr("Upload a picture")}</div>
+        <input type="file" data-lesson-image-file={i} aria-label={tr("Upload a picture")} accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif" disabled={uploading >= 0} onChange={e => { const f0 = e.target.files && e.target.files[0]; e.target.value = ""; uploadImage(i, b, f0); }} style={{ fontSize: 13, color: t.text, minHeight: 44, maxWidth: "100%" }} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{uploading === i ? tr("Uploading...") : tr("A JPEG, PNG, WebP or HEIC picture up to 5 MB.")}</div>
+        {imageRefusal[b.key] && <div role="alert" data-lesson-image-refusal={i} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{imageRefusal[b.key]}</div>}
+        {probs("blocks." + i + ".path")}
+      </div>
+      <div data-lesson-path={"blocks." + i + ".svg"}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>{tr("Paste a drawing (SVG)")}</div>
+        <TArea t={t} rows={3} data-lesson-image-svg={i} aria-label={tr("Paste a drawing (SVG)")} value={b.svg || ""} placeholder="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;>...</svg>" onChange={e => { const svg = e.target.value; setBlock(i, { ...b, svg: svg || null, path: svg ? null : b.path, src: svg ? svgSrcOf(svg) : (b.path ? b.src : "") }); }} style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: 12 }} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Plain text starting with <svg, with xmlns and a viewBox. No scripts, links or outside images.")}</div>
+        {probs("blocks." + i + ".svg")}
+      </div>
+    </div>
+    {b.src ? <div style={{ marginBottom: 8 }}>
+      <img data-lesson-image-preview={i} src={b.src} alt={b.alt.en || ""} style={{ display: "block", maxWidth: "100%", maxHeight: 260, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+        <span style={{ fontSize: 11, color: t.textMut }}>{b.path ? tr("Picture uploaded") : tr("Drawing pasted")}</span>
+        <button style={{ ...small, color: RD }} data-lesson-image-remove={i} onClick={() => setBlock(i, { ...b, svg: null, path: null, src: "" })}>{tr("Remove the picture")}</button>
+      </div>
+    </div> : <div style={{ fontSize: 12, color: t.textMut, marginBottom: 8 }}>{tr("No picture yet. Upload one or paste a drawing.")}</div>}
+    <LessonText t={t} path={"blocks." + i + ".alt"} value={b.alt} onChange={v => setBlock(i, { ...b, alt: v })} probs={probs} label={tr("Alt text")} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: -6, marginBottom: 8 }}>{tr("What the picture shows, read aloud to someone who cannot see it. The English is required.")}</div>
+    <LessonText t={t} path={"blocks." + i + ".caption"} value={b.caption} onChange={v => setBlock(i, { ...b, caption: v })} probs={probs} label={tr("Caption")} />
+    {probs("blocks." + i)}
+  </div>;
   return (<div data-lesson-editor="">
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
       <button onClick={back} style={{ ...small, paddingLeft: 0, color: t.goldText }}>{tr("Back to the versions")}</button>
@@ -24050,15 +24131,16 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     </>}
 
     {!obs && <>
-    {head(tr("Blocks"))}
+    {head(tr("Blocks"), imagesLive && nImages > 0 ? <span data-lesson-image-count={nImages} style={{ fontSize: 12, color: nImages > LESSON_IMAGE_MAX ? RD : t.textMut }}>{tr("{0} of up to {1} pictures", nImages, LESSON_IMAGE_MAX)}</span> : null)}
     <div data-lesson-path="blocks">{probs("blocks")}
-      {c.blocks.map((b, i) => <div key={b.key} data-lesson-block={i} style={card}>
+      {c.blocks.map((b, i) => <div key={b.key} data-lesson-block={i} data-lesson-block-kind={b.kind} style={card}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-          <div style={{ width: 150 }}><Sel t={t} aria-label={tr("Kind|block")} value={b.kind} onChange={e => setBlock(i, { ...b, kind: e.target.value, items: e.target.value === "list" ? (b.items.length ? b.items : [L3E()]) : b.items })} options={LESSON_KINDS.map(k => ({ v: k.v, l: tr(k.l) }))} /></div>
+          <div style={{ width: 150 }}><Sel t={t} aria-label={tr("Kind|block")} data-lesson-block-kind-select={i} value={b.kind} onChange={e => changeKind(i, b, e.target.value)} options={blockKinds.map(k => ({ v: k.v, l: tr(k.l) }))} /></div>
           <button style={small} disabled={i === 0} onClick={() => setC(x => ({ ...x, blocks: move(x.blocks, i, -1) }))}>{tr("Move up")}</button>
           <button style={small} disabled={i === c.blocks.length - 1} onClick={() => setC(x => ({ ...x, blocks: move(x.blocks, i, 1) }))}>{tr("Move down")}</button>
           <button style={{ ...small, color: RD, marginLeft: "auto" }} onClick={() => setC(x => ({ ...x, blocks: x.blocks.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
         </div>
+        {b.kind === "image" ? imageBlock(b, i) : <>
         <LessonText t={t} path={"blocks." + i + ".text"} value={b.text} multiline onChange={v => setBlock(i, { ...b, text: v })} probs={probs} label={b.kind === "list" ? tr("The line before the list") : b.kind === "warning" ? tr("Warning|block") : tr("Text|block")} />
         {b.kind === "list" && <div data-lesson-path={"blocks." + i + ".items"}>
           {b.items.map((it, j) => <div key={j} style={{ borderTop: "1px dashed " + t.border, paddingTop: 8 }}>
@@ -24074,8 +24156,12 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
           {probs("blocks." + i + ".source")}
         </div>
         {citing === i && <LessonLibrary af={af} t={t} docCode={(b.source && b.source.docCode) || tp.docCode || ""} onPick={(sec) => { versionsRef.current[sec.docCode + "|" + sec.sectionRef] = sec.docVersion; setBlock(i, { ...b, source: { docCode: sec.docCode, sectionRef: sec.sectionRef } }); setCiting(null); }} onClose={() => setCiting(null)} />}
+        </>}
       </div>)}
-      {c.blocks.length < 30 && <Btn t={t} v="ghost" data-lesson-add-block="" onClick={() => setC(x => ({ ...x, blocks: x.blocks.concat([{ key: lessonKey("b", x.blocks), kind: "text", text: L3E(), items: [], source: null }]) }))}>{tr("Add a block")}</Btn>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {c.blocks.length < 30 && <Btn t={t} v="ghost" data-lesson-add-block="" onClick={() => setC(x => ({ ...x, blocks: x.blocks.concat([textBlockOf(lessonKey("b", x.blocks), "text")]) }))}>{tr("Add a block")}</Btn>}
+        {imagesLive && c.blocks.length < 30 && nImages < LESSON_IMAGE_MAX && <Btn t={t} v="ghost" data-lesson-add-image="" onClick={() => setC(x => ({ ...x, blocks: x.blocks.concat([imageBlockOf(lessonKey("b", x.blocks))]) }))}>{tr("Add a picture")}</Btn>}
+      </div>
     </div>
 
     {head(tr("Questions"), <span data-lesson-question-count={nq} style={{ fontSize: 12, color: nq < 5 || nq > 10 ? RD : t.textMut }}>{tr("{0} of 5 to 10", nq)}</span>)}
