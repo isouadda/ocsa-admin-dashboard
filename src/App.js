@@ -9097,7 +9097,7 @@ function PpeIssues({ af, token, t, userId = "", siteId = "", sites = [], people 
           {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/ppe-issues/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
         </div>))}
     </div>
-    {win && <IssuePpeWindow af={af} t={t} userId={userId} siteId={siteId} sites={sites} people={people} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("PPE issue saved.")); load(); }} />}
+    {win && <IssuePpeWindow af={af} t={t} userId={userId} siteId={siteId} sites={sites} people={people} name={name} onClose={() => setWin(false)} onSaved={(phone) => { setWin(false); if (showToast) showToast(phone ? sentToPhoneLine(name) : tr("PPE issue saved.")); load(); }} />}
   </Crd>);
 }
 // The item comes from the site's PPE stock or is typed, with its size, how many, whether it fits, a
@@ -9110,6 +9110,10 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
   const [sig, setSig] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  // Step 272: Who signs, once the API's Step 270 answers; Send to their phone is the default.
+  const phoneLive = useTrainingLive(af, "signatures");
+  const [signer, setSigner] = useState(SIGN_PHONE);
+  const phone = phoneLive && signer === SIGN_PHONE;
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   useEffect(() => {
     setStock([]);
@@ -9121,7 +9125,7 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
   const who = name || ppePersonName((people || []).find(p => String(p.id) === String(f.userId)));
   const typed = f.supplyId === PPE_TYPED;
   const qty = Number(f.quantity);
-  const ready = !!f.userId && !!f.siteId && (typed ? !!f.item.trim() : !!f.supplyId) && Number.isInteger(qty) && qty >= 1 && (f.fitOk === true || f.fitOk === false) && !!sig;
+  const ready = !!f.userId && !!f.siteId && (typed ? !!f.item.trim() : !!f.supplyId) && Number.isInteger(qty) && qty >= 1 && (f.fitOk === true || f.fitOk === false) && (phone || !!sig);
   const bad = (k) => refusal.keys.indexOf(k) >= 0;
   const under = (k) => (bad(k) ? <div data-ppe-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const box = (k) => (bad(k) ? { borderColor: RD } : {});
@@ -9129,8 +9133,8 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
     if (busy || !ready) return;
     setBusy(true); setRefusal({ text: "", keys: [] });
     try {
-      await af("/api/ppe-issues", { method: "POST", body: Object.assign({ userId: f.userId, siteId: f.siteId, size: f.size.trim(), quantity: qty, fitOk: f.fitOk, note: f.note.trim(), employeeSignature: sig }, typed ? { item: f.item.trim() } : { supplyId: f.supplyId }) });
-      onSaved();
+      await af("/api/ppe-issues", { method: "POST", body: Object.assign({ userId: f.userId, siteId: f.siteId, size: f.size.trim(), quantity: qty, fitOk: f.fitOk, note: f.note.trim() }, phone ? { signOnPhone: true } : { employeeSignature: sig }, typed ? { item: f.item.trim() } : { supplyId: f.supplyId }) });
+      onSaved(phone);
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       const sigRefused = e && e.code === "ppe.signatureRequired";
@@ -9168,11 +9172,13 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
         <button type="button" aria-pressed={f.fitOk === false} onClick={() => set("fitOk", false)} style={choice(f.fitOk === false)}>{tr("No")}</button>
       </div>{under("fitOk")}</div>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
-    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+    {phoneLive && <WhoSigns t={t} value={signer} onChange={setSigner} disabled={busy} name={who} />}
+    {phone ? null : sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
       : <SignatureBox t={t} label={who ? tr("{0} signs for what they received", who) : tr("The person signs for what they received")} busy={busy} refusal={bad("employeeSignature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    {phone && bad("employeeSignature") && <div role="alert" data-ppe-refusal="employeeSignature" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+      <Btn t={t} data-ppe-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : phone ? tr("Send to sign") : tr("Save")}</Btn>
     </div>
   </div></Mdl>);
 }
@@ -21133,6 +21139,11 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   });
   const [f, setF] = useState(() => draftOf(row));
   const [issue, setIssue] = useState({ issuerSignature: "", employeeSignature: "", declined: false, witnessName: "", employeeAccount: "" });
+  // Step 272: Who signs for the person's signature, once the API's Step 270 answers; Send to their
+  // phone is the default, and the issuer still signs here.
+  const phoneLive = useTrainingLive(af, "signatures");
+  const [who, setWho] = useState(SIGN_PHONE);
+  const [phoneLine, setPhoneLine] = useState("");
   const [refusal, setRefusal] = useState({ text: "", field: "" });
   const [busy, setBusy] = useState("");
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -21151,6 +21162,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const type = issued ? (w.type || w.action_type) : f.type;
   const verbal = type === "verbal_warning";
   const personSigns = type === "written_warning" || type === "final_warning";
+  const phone = personSigns && phoneLive && who === SIGN_PHONE;
   const FIELDS = ["type", "category", "incidentDate", "description", "policyRef", "expectations", "expectedBy", "suspensionStart", "suspensionEnd", "followsProtectedActivity", "controllerDiscussedOn", "language", "employeeSignature", "issuerSignature", "witnessName", "employeeAccount", "reason", "to", "method"];
   const refuse = (e, fallback) => {
     const code = String((e && e.code) || "");
@@ -21174,17 +21186,18 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     if (onChanged) onChanged();
   });
   const draftReady = !!(f.type && f.category && f.incidentDate && f.description.trim() && (f.follows === "no" || (f.follows === "yes" && f.controllerDiscussedOn)));
-  const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || !!issue.employeeSignature || issue.declined)));
+  const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || phone || !!issue.employeeSignature || issue.declined)));
   const doIssue = () => run("issue", async () => {
-    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/issue", { method: "POST", body: {
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/issue", { method: "POST", body: Object.assign({
       issuerSignature: verbal ? null : (issue.issuerSignature || null),
-      employeeSignature: personSigns && !issue.declined ? (issue.employeeSignature || null) : null,
-      declinedToSign: personSigns && issue.declined, witnessName: personSigns && issue.declined ? (issue.witnessName.trim() || null) : null,
+      employeeSignature: personSigns && !phone && !issue.declined ? (issue.employeeSignature || null) : null,
+      declinedToSign: personSigns && !phone && issue.declined, witnessName: personSigns && !phone && issue.declined ? (issue.witnessName.trim() || null) : null,
       employeeAccount: issue.employeeAccount.trim() || null,
-    } });
+    }, phone ? { signOnPhone: true } : {}) });
     const got = warningOf(d);
     setW(Object.assign({}, w || {}, got && typeof got === "object" ? got : {}, { status: (got && got.status) || "open", issuedAt: (got && (got.issuedAt || got.issued_at)) || new Date().toISOString() }));
-    if (showToast) showToast(tr("Warning issued."));
+    if (phone) setPhoneLine(sentToPhoneLine(personName));
+    if (showToast) showToast(phone ? sentToPhoneLine(personName) : tr("Warning issued."));
     if (onChanged) onChanged();
     if (type === "termination" || (d && d.employmentEndUrl)) setEndOpen(true);
   });
@@ -21259,17 +21272,20 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
           {signed("issuerSignature")}
           {personSigns && <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 12, color: t.textSec, marginBottom: 6, lineHeight: 1.5 }}>{tr("Signing confirms they received this warning. It does not mean they agree.")}</div>
-            {!issue.declined && <SignatureBox t={t} label={tr("{0} signs", personName || tr("The person"))} busy={busy === "issue"} refusal={refusal.field === "employeeSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, employeeSignature: png }))} signWord={tr("Sign")} />}
-            {!issue.declined && signed("employeeSignature")}
-            <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, marginTop: 6 }}><span style={chkWrap}><input type="checkbox" checked={issue.declined} onChange={e => setIssue(p => ({ ...p, declined: e.target.checked, employeeSignature: "" }))} style={{ width: 22, height: 22 }} /></span>{tr("Declined to sign")}</label>
-            {issue.declined && <div style={{ maxWidth: 320 }}><Lbl>{tr("Witness")}</Lbl><Inp t={t} aria-label={tr("Witness")} value={issue.witnessName} onChange={e => setIssue(p => ({ ...p, witnessName: e.target.value }))} placeholder={tr("Optional.")} style={box("witnessName")} />{under("witnessName")}</div>}
+            {phoneLive && <WhoSigns t={t} value={who} onChange={setWho} disabled={busy === "issue"} name={personName} />}
+            {!phone && !issue.declined && <SignatureBox t={t} label={tr("{0} signs", personName || tr("The person"))} busy={busy === "issue"} refusal={refusal.field === "employeeSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, employeeSignature: png }))} signWord={tr("Sign")} />}
+            {!phone && !issue.declined && signed("employeeSignature")}
+            {!phone && <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, marginTop: 6 }}><span style={chkWrap}><input type="checkbox" checked={issue.declined} onChange={e => setIssue(p => ({ ...p, declined: e.target.checked, employeeSignature: "" }))} style={{ width: 22, height: 22 }} /></span>{tr("Declined to sign")}</label>}
+            {!phone && issue.declined && <div style={{ maxWidth: 320 }}><Lbl>{tr("Witness")}</Lbl><Inp t={t} aria-label={tr("Witness")} value={issue.witnessName} onChange={e => setIssue(p => ({ ...p, witnessName: e.target.value }))} placeholder={tr("Optional.")} style={box("witnessName")} />{under("witnessName")}</div>}
+            {phone && under("employeeSignature")}
           </div>}
         </div>}
         <div style={{ marginTop: 12 }}><Lbl>{tr("Their account")}</Lbl><TArea t={t} rows={3} aria-label={tr("Their account")} value={issue.employeeAccount} onChange={e => setIssue(p => ({ ...p, employeeAccount: e.target.value }))} placeholder={tr("Optional. What the person says, recorded on the warning.")} style={box("employeeAccount")} />{under("employeeAccount")}</div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : tr("Issue|warning")}</Btn></div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} data-warning-issue-send="" onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : phone ? tr("Issue and send to sign") : tr("Issue|warning")}</Btn></div>
       </div>}
     </div>}
     {!isDraft && <div>
+      {phoneLine && <div data-warning-sent-phone="" style={{ fontSize: 12, color: GR, fontWeight: 600, marginBottom: 8 }}>{phoneLine}</div>}
       <div data-warning-summary="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
         {(w.category ? warningCategoryWord(w.category, steps.categories) : "")}{(w.incidentDate || w.incident_date) ? (w.category ? ", " : "") + fdLong(w.incidentDate || w.incident_date) : ""}
         {(w.description || w.summary) ? <div style={{ color: t.text, whiteSpace: "pre-wrap", marginTop: 4 }}>{w.description || w.summary}</div> : null}
@@ -23085,6 +23101,10 @@ const TRAINING_PROBES = {
   // same API step with no read beside it) wait on it; the Drafts tab waits on its list.
   categories: ["/api/training/topics", (d) => !!(d && Array.isArray(d.categories))],
   drafts: ["/api/training/lesson-drafts", (d) => !!(d && Array.isArray(d.drafts))],
+  // Step 272, against the API's Step 270 (STEP270_CONTRACT.md): the office's list of signature
+  // requests answering is how that step says it is there. Who signs in the three windows, the chips'
+  // Remind, Cancel and Sign here now, and the Waiting for signatures tab wait on it.
+  signatures: ["/api/signatures", (d) => !!(d && Array.isArray(d.requests))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -25252,6 +25272,28 @@ async function printDocumentSignatures({ af, token, doc, version, groups = [] })
   }
 }
 
+// ===== SIGNING ON THEIR PHONE (Step 272, STEP270_CONTRACT.md) =====
+// The office has no signature pad. Issue property, Issue PPE and a written warning's employee signature
+// ask Who signs: Send to their phone, the default, posts signOnPhone: true in place of the person's
+// drawing, the record is written waiting for the signature and the person is told on their phone; Sign
+// here now keeps the box as it was. The choice is drawn once GET /api/signatures answers, which is how
+// the API's Step 270 says it is there; before that the box alone, as before.
+const SIGN_PHONE = "phone";
+const SIGN_HERE = "here";
+function WhoSigns({ t, value, onChange, disabled = false, name = "" }) {
+  const choice = (on) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: disabled ? "default" : "pointer" });
+  return <div data-who-signs-field="" style={{ marginBottom: 12 }}>
+    <Lbl>{tr("Who signs")}</Lbl>
+    <div role="group" aria-label={tr("Who signs")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <button type="button" data-who-signs={SIGN_PHONE} aria-pressed={value === SIGN_PHONE} disabled={disabled} onClick={() => onChange(SIGN_PHONE)} style={choice(value === SIGN_PHONE)}>{tr("Send to their phone")}</button>
+      <button type="button" data-who-signs={SIGN_HERE} aria-pressed={value === SIGN_HERE} disabled={disabled} onClick={() => onChange(SIGN_HERE)} style={choice(value === SIGN_HERE)}>{tr("Sign here now")}</button>
+    </div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{value === SIGN_PHONE ? (name ? tr("{0} is told on their phone and signs there. The record waits for the signature until then.", name) : tr("The person is told on their phone and signs there. The record waits for the signature until then.")) : tr("The person signs in the box on this screen.")}</div>
+  </div>;
+}
+// The line said once a record is sent to the person's phone to sign.
+function sentToPhoneLine(name) { return name ? tr("Sent to {0}'s phone to sign.", name) : tr("Sent to their phone to sign."); }
+
 // ===== COMPANY PROPERTY (Step 263, STEP262_CONTRACT.md section 7) =====
 // What the company issued a person, on their HR folder once GET /api/hr/property answers: a uniform
 // shirt or other uniform with its size, a key, a badge or a fob with its site, or something else
@@ -25303,7 +25345,7 @@ function PersonProperty({ af, token, t, userId, sites = [], name = "", showToast
           {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/hr/property/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
         </div>))}
     </div>
-    {win && <IssuePropertyWindow af={af} t={t} userId={userId} sites={sites} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("Property issue saved.")); load(); }} />}
+    {win && <IssuePropertyWindow af={af} t={t} userId={userId} sites={sites} name={name} onClose={() => setWin(false)} onSaved={(phone) => { setWin(false); if (showToast) showToast(phone ? sentToPhoneLine(name) : tr("Property issue saved.")); load(); }} />}
     {returning && <ReturnPropertyWindow af={af} t={t} issue={returning} onClose={() => setReturning(null)} onSaved={() => { setReturning(null); if (showToast) showToast(tr("Marked returned.")); load(); }} onStale={() => { setReturning(null); load(); }} />}
   </Crd>);
 }
@@ -25316,11 +25358,15 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
   const [sig, setSig] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  // Step 272: Who signs, once the API's Step 270 answers; Send to their phone is the default.
+  const phoneLive = useTrainingLive(af, "signatures");
+  const [who, setWho] = useState(SIGN_PHONE);
+  const phone = phoneLive && who === SIGN_PHONE;
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const qty = Number(f.quantity);
   const sited = PROPERTY_SITED.indexOf(f.kind) >= 0;
   const sized = PROPERTY_SIZED.indexOf(f.kind) >= 0;
-  const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && !!sig;
+  const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && (phone || !!sig);
   const bad = (k) => refusal.keys.indexOf(k) >= 0;
   const under = (k) => (bad(k) ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const box = (k) => (bad(k) ? { borderColor: RD } : {});
@@ -25328,8 +25374,8 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
     if (busy || !ready) return;
     setBusy(true); setRefusal({ text: "", keys: [] });
     try {
-      await af("/api/hr/property", { method: "POST", body: { userId: String(userId), kind: f.kind, description: f.description.trim() || null, size: sized ? f.size.trim() || null : null, quantity: qty, siteId: sited ? f.siteId || null : null, issuedOn: f.issuedOn, note: f.note.trim() || null, signature: sig } });
-      onSaved();
+      await af("/api/hr/property", { method: "POST", body: Object.assign({ userId: String(userId), kind: f.kind, description: f.description.trim() || null, size: sized ? f.size.trim() || null : null, quantity: qty, siteId: sited ? f.siteId || null : null, issuedOn: f.issuedOn, note: f.note.trim() || null }, phone ? { signOnPhone: true } : { signature: sig }) });
+      onSaved(phone);
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       setRefusal({ text: e.message || tr("Request failed"), keys });
@@ -25362,11 +25408,13 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
     {sited && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
       <Sel t={t} aria-label={tr("Site")} data-property-field="siteId" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
-    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+    {phoneLive && <WhoSigns t={t} value={who} onChange={setWho} disabled={busy} name={name} />}
+    {phone ? null : sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
       : <SignatureBox t={t} label={name ? tr("{0} signs for what they received", name) : tr("The person signs for what they received")} busy={busy} refusal={bad("signature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    {phone && bad("signature") && <div role="alert" data-property-refusal="signature" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-      <Btn t={t} data-property-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+      <Btn t={t} data-property-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : phone ? tr("Send to sign") : tr("Save")}</Btn>
     </div>
   </div></Mdl>);
 }
