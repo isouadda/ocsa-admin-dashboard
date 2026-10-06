@@ -43,6 +43,9 @@
 //     signatures list the people by site, the ones not signed first, a signature opens and the print
 //     gives a page per site; a shirt is issued with the person's signature and marked returned; and the
 //     End employment window lists what is still out. At 390 in English the document line runs again.
+//   - Step 265: Who must sign reads the set in force from its own route and its editor starts from it
+//     (in the document line), and a certificate for a topic taken at each site asks for the site and
+//     is sent with it, while a topic taken once asks for none.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -73,6 +76,8 @@ const SESSION_PEOPLE = ["u-staff-7", "u-staff-5", "u-staff-6"];
 // for, and the person who holds company property.
 const SESSION_CODE = "K7Q4PZ";
 const CHECKLIST_TOPIC = { en: "Ladder use", es: "Uso de escaleras" };
+// Step 265: a topic taken once, and one taken at each site, for the certificate line.
+const CERTIFICATE_TOPICS = { once: "tp-1", perSite: "tp-2" };
 const PROPERTY_PERSON = "u-staff-5";
 const PASSES = [
   { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all" },
@@ -638,6 +643,32 @@ async function step262(d, origin, p, stubs) {
       const kinds = await d.page.locator("[data-lesson-version-kind]").evaluateAll((es) => es.map((e) => e.getAttribute("data-lesson-version-kind")));
       await d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click();
       return kinds.indexOf("observation") >= 0 ? "" : "the versions list does not say the draft's kind";
+    });
+    // Step 265: a certificate for a topic taken at each site asks for the site and is sent with it; a
+    // topic taken once asks for none.
+    await check("a certificate for a per-site topic asks for the site and is sent with it", async () => {
+      await go(d, "hr", ["training", "gaps"], "[data-gaps-person]");
+      await d.page.locator("[data-gaps-person]").first().click();
+      await until(d, "[data-person-training] [data-certificate-upload]");
+      await d.page.locator("[data-certificate-upload]").click();
+      await until(d, "[data-certificate-window]");
+      const topic = d.page.locator('[data-certificate-field="topicId"] select');
+      await topic.locator('option[value="' + CERTIFICATE_TOPICS.perSite + '"]').waitFor({ state: "attached" });
+      await topic.selectOption(CERTIFICATE_TOPICS.once);
+      if ((await d.page.locator('[data-certificate-field="siteId"]').count()) !== 0) return "a topic taken once asks for the site";
+      await topic.selectOption(CERTIFICATE_TOPICS.perSite);
+      await until(d, '[data-certificate-field="siteId"] select');
+      await d.page.locator('[data-certificate-field="file"] input[type="file"]').setInputFiles({ name: "certificate.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 smoke certificate") });
+      if (await d.page.locator("[data-certificate-send]").isEnabled()) return "Upload is offered before the site is picked";
+      const siteId = await d.page.locator('[data-certificate-field="siteId"] select option').nth(1).getAttribute("value");
+      await d.page.locator('[data-certificate-field="siteId"] select').selectOption(siteId);
+      await d.page.locator("[data-certificate-send]").click();
+      await d.page.locator("[data-certificate-window]").waitFor({ state: "detached" });
+      const call = stubs.calls.filter((c) => c.path === "/api/hr/training/certificates" && c.method === "POST").pop();
+      const field = (k) => { const m = new RegExp('name="' + k + '"\\r\\n\\r\\n([^\\r]*)').exec(String((call && call.body) || "")); return m ? m[1] : ""; };
+      await d.page.locator('[data-person-training] button[aria-label="' + d.say("Close") + '"]').click();
+      if (!call || field("topicId") !== CERTIFICATE_TOPICS.perSite) return "the certificate was not sent for the per-site topic";
+      return field("siteId") === siteId ? "" : "the certificate was sent with site " + JSON.stringify(field("siteId")) + " and not " + siteId;
     });
   }
   await check("a document's signatures list the people by site, the ones not signed first, and Who must sign starts from the set in force", async () => {

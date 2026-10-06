@@ -23622,7 +23622,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
       </div>
     </div>
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => voided(voiding.id)} />}
-    {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
+    {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} sites={p && Array.isArray(p.sites) && p.sites.length ? p.sites : sites} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
   </Mdl>);
 }
 
@@ -23642,10 +23642,11 @@ async function openTrainingCertificate(token, recordId) {
 // Upload a certificate from an outside course for one person: the topic, the day it was completed, the
 // expiry (left empty, the API sets it by the topic's frequency) and the file, a PDF, JPEG or PNG up to
 // 10 MB, sent as multipart to POST /api/hr/training/certificates. A refusal is drawn under the field it
-// names, the file's own under the file.
-function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], onClose, onSaved }) {
+// names, the file's own under the file. Since Step 265 a topic taken at each site asks for the site, the
+// person's own sites first, and sends siteId, which the API requires for it; any other topic sends none.
+function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], sites = [], onClose, onSaved }) {
   const [topics, setTopics] = useState(null);
-  const [f, setF] = useState({ topicId: "", completedDate: todayISO(), expiryDate: "" });
+  const [f, setF] = useState({ topicId: "", siteId: "", completedDate: todayISO(), expiryDate: "" });
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState(null);
@@ -23659,7 +23660,10 @@ function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], 
   const ordered = (topics || []).slice().sort((a, b) => (mine.has(String(b.id)) - mine.has(String(a.id))) || (!!b.linkUrl - !!a.linkUrl));
   const fileWhy = (x) => (!x ? "" : CERTIFICATE_TYPES.indexOf(x.type) < 0 ? tr("Choose a PDF, JPEG or PNG file.") : x.size > CERTIFICATE_MAX_BYTES ? tr("The file is over 10 MB.") : "");
   const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-certificate-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  const ready = f.topicId && f.completedDate && file && !fileWhy(file);
+  const picked = (topics || []).find(tp => String(tp.id) === f.topicId) || null;
+  const perSite = !!(picked && picked.perSite === true);
+  const siteOptions = sites.map(s0 => ({ v: String(s0.id), l: s0.name || String(s0.id) }));
+  const ready = f.topicId && (!perSite || f.siteId) && f.completedDate && file && !fileWhy(file);
   const send = async () => {
     if (!ready || busy) return;
     setBusy(true); setRefusal(null);
@@ -23667,11 +23671,12 @@ function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], 
     fd0.append("file", file);
     fd0.append("userId", String(userId));
     fd0.append("topicId", f.topicId);
+    if (perSite) fd0.append("siteId", f.siteId);
     fd0.append("completedDate", f.completedDate);
     if (f.expiryDate) fd0.append("expiryDate", f.expiryDate);
     try { const d = await apiMultipart("/api/hr/training/certificates", token, fd0); onSaved(d && d.record); }
     catch (e) {
-      const keys = trainingKeysOf(e).map(k => (k === "file" || k === "topicId" || k === "completedDate" || k === "expiryDate" ? k : ""));
+      const keys = trainingKeysOf(e).map(k => (k === "file" || k === "topicId" || k === "siteId" || k === "completedDate" || k === "expiryDate" ? k : ""));
       const fields = keys.filter(Boolean).concat(e && (e.code === "training.badFile" || e.code === "training.fileTooLarge") ? ["file"] : []);
       setRefusal({ text: e.message || tr("Request failed"), fields });
     }
@@ -23686,6 +23691,10 @@ function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], 
       </div>
       <div data-certificate-field="topicId"><div style={lbl}>{tr("Topic")}</div>
         <Sel t={t} aria-label={tr("Topic")} value={f.topicId} onChange={e => setF({ ...f, topicId: e.target.value })} options={[{ v: "", l: topics === null ? tr("Loading...") : tr("Pick a topic...") }].concat(ordered.map(tp => ({ v: String(tp.id), l: tp.name })))} />{bad("topicId")}</div>
+      {perSite && <div data-certificate-field="siteId"><div style={lbl}>{tr("Site")}</div>
+        <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF({ ...f, siteId: e.target.value })} options={[{ v: "", l: tr("Pick a site...") }].concat(siteOptions)} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("This topic is taken at each site. Pick the site this certificate counts for.")}</div>
+        {bad("siteId")}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         <div data-certificate-field="completedDate"><div style={lbl}>{tr("Completed Date")}</div><Inp t={t} type="date" aria-label={tr("Completed Date")} value={f.completedDate} onChange={e => setF({ ...f, completedDate: e.target.value })} />{bad("completedDate")}</div>
         <div data-certificate-field="expiryDate"><div style={lbl}>{tr("Expiry Date (optional)")}</div><Inp t={t} type="date" aria-label={tr("Expiry Date (optional)")} value={f.expiryDate} onChange={e => setF({ ...f, expiryDate: e.target.value })} />{bad("expiryDate")}</div>

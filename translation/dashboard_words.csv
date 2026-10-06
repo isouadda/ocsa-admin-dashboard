@@ -4211,6 +4211,7 @@ Upload a certificate,Subir un certificado,"HR Records, Training, Gaps, a person'
 Open the certificate,Abrir el certificado,"HR Records, Training, Gaps, a person's list; HR Records, Training, Records"
 Certificate saved,Certificado guardado,"HR Records, Training, a person's list, Upload a certificate"
 "Left empty, the expiry is set by how often the topic is taken.","Si se deja vacía, el vencimiento se fija según la frecuencia del tema.","HR Records, Training, a person's list, Upload a certificate"
+This topic is taken at each site. Pick the site this certificate counts for.,Este tema se toma en cada sitio. Elija el sitio para el que cuenta este certificado.,"HR Records, Training, a person's list, Upload a certificate, a topic taken at each site"
 "The certificate, a PDF, JPEG or PNG up to 10 MB","El certificado, un PDF, JPEG o PNG de hasta 10 MB","HR Records, Training, a person's list, Upload a certificate"
 "Choose a PDF, JPEG or PNG file.","Elija un archivo PDF, JPEG o PNG.","HR Records, Training, a person's list, Upload a certificate, a file refused"
 The file is over 10 MB.,El archivo pasa de 10 MB.,"HR Records, Training, a person's list, Upload a certificate, a file refused"

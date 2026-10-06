@@ -3297,13 +3297,15 @@ function createStubs() {
       const bad = [];
       if (!tPerson(m.fields.userId)) bad.push("userId");
       if (!tp) bad.push("topicId");
+      // Step 265: a topic taken at each site needs the site the certificate counts for.
+      if (tp && tp.perSite && !(m.fields.siteId && state.sites.some((s0) => s0.id === m.fields.siteId))) bad.push("siteId");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fields.completedDate || "")) bad.push("completedDate");
       if (m.fields.expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(m.fields.expiryDate)) bad.push("expiryDate");
       if (bad.length) return r262("training.badDetails", 400, lang, { keys: bad });
       const row = {
         id: "ht-" + trainingNext, user_id: m.fields.userId, training_name: tp.names.en, training_type: tp.safetyCritical ? "safety" : "onboarding", completed_date: m.fields.completedDate,
         expiry_date: m.fields.expiryDate || (T_FREQ[tp.frequency] ? addMonths(m.fields.completedDate, T_FREQ[tp.frequency]) : null), score: null, administered_by: null, notes: null, document_id: null,
-        created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(), site_id: null, topic_id: tp.id, attempt_id: null, trainer_id: null, locale: null, session_id: null, certificate_path: "certificates/ht-" + trainingNext + ".pdf",
+        created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(), site_id: tp.perSite ? m.fields.siteId : null, topic_id: tp.id, attempt_id: null, trainer_id: null, locale: null, session_id: null, certificate_path: "certificates/ht-" + trainingNext + ".pdf",
       };
       trainingNext += 1;
       trainingRows().push(row);

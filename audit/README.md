@@ -61,8 +61,9 @@ Then it checks, one line a check:
   its kind; a document's signatures list the people by site, the ones not signed first, Who must sign
   reads the set in force from its own route and its editor starts from it with Everyone ticked
   (Step 265), a signature opens and the print gives a page per site; a shirt is issued with the
-  person's signature and marked returned; and the End employment window lists what is still out. At 390
-  in English the document line runs again.
+  person's signature and marked returned; the End employment window lists what is still out; and a
+  certificate for a topic taken at each site asks for the site and is sent with it, while a topic taken
+  once asks for none (Step 265). At 390 in English the document line runs again.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -85,7 +86,8 @@ and `data-supply-print-label`, and Step 257's by `data-training-catalog`, `data-
 `data-lesson-kind`, `data-lesson-version-kind`, `data-doc-site`, `data-doc-state`,
 `data-doc-signature`, `data-doc-print`, `data-property-row`, `data-property-kind`,
 `data-property-return` and `data-collect-item`, and Step 265's by `data-doc-who-row`, `data-doc-who-edit`,
-`data-doc-who-form` and `data-doc-who-everyone`.
+`data-doc-who-form`, `data-doc-who-everyone`, `data-certificate-upload`, `data-certificate-window`,
+`data-certificate-field` and `data-certificate-send`.
 
 ## What comes out
 

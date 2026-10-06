@@ -1841,12 +1841,12 @@ Last checked: 2026-10-05
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Gaps** (**Brechas**), and click the person.
 2. Click **Upload a certificate** (**Subir un certificado**).
-3. Pick the **Topic** (**Tema**) and fill in the **Completed Date** (**Fecha de finalización**). Leave the **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) empty to have it set by how often the topic is taken.
+3. Pick the **Topic** (**Tema**). For a topic taken at each site, a **Site** (**Sitio**) field appears under it: pick the site this certificate counts for, the person's own sites first. Fill in the **Completed Date** (**Fecha de finalización**). Leave the **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) empty to have it set by how often the topic is taken.
 4. Choose the certificate, a PDF, JPEG or PNG up to 10 MB.
 5. Click **Upload** (**Subir**). The training record is saved with the certificate on file, and **Open the certificate** (**Abrir el certificado**) shows beside it in the person's list and in **Records** (**Registros**).
-If it does not work: a file of another kind, or one over 10 MB, is refused under the file. The button shows once the system answers it.
+If it does not work: a file of another kind, or one over 10 MB, is refused under the file. A topic taken at each site cannot be uploaded until its site is picked, and the system refuses one sent without it under **Site** (**Sitio**). The button shows once the system answers it.
 Words people use for this: upload a certificate, outside course, external training, certificate on file, proof of training, subir certificado.
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## See who signed a document, and say who must sign it (admin dashboard)
 Who can do this: admins and supervisors read it; admins change who must sign
