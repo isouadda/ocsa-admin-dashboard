@@ -22215,6 +22215,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // Step 273: the Time tab, once GET /api/training/time answers this person (admins, and anyone
   // holding view_reports).
   const timeLive = useTrainingLive(af, "time");
+  // Step 273: the Matrix tab, once GET /api/training/matrix answers, which it does for management.
+  const matrixLive = useTrainingLive(af, "matrix");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -22430,7 +22432,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : [], matrixLive ? [{ id: "matrix", l: tr("Matrix|training") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22546,6 +22548,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
+      {tab === "training" && trCur === "matrix" && <TrainingMatrix af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} showToast={showToast} />}
       {tab === "training" && trCur === "time" && <TrainingTime af={af} t={t} token={token} sites={sites} showToast={showToast} />}
       {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} isAdmin={isAdmin} focusAttempt={trFocus && trFocus.attempt} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
@@ -23282,6 +23285,9 @@ const TRAINING_PROBES = {
   // and that this person may read it, since the API checks who may read it first (admins, and anyone
   // holding view_reports). Anything else, an answer included, keeps the tab away.
   time: ["/api/training/time", () => false, (e) => !!e && e.status === 400 && e.code === "training.badDetails"],
+  // The matrix is the heaviest read the training routes answer, so it is asked the same way, with a
+  // format it refuses (management only; a supervisor reads their own sites).
+  matrix: ["/api/training/matrix?format=probe", () => false, (e) => !!e && e.status === 400 && e.code === "training.badDetails"],
 };
 const trainingProbes = {};
 // A probe passes on the answer its test accepts, or, for a probe that names one, on the refusal it
@@ -23962,6 +23968,137 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
     {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} sites={p && Array.isArray(p.sites) && p.sites.length ? p.sites : sites} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
   </Mdl>);
+}
+
+// ===== THE TRAINING MATRIX, FOR THE ASSESSOR (Step 273, against the API's Step 269) =====
+// Who is trained in what: GET /api/training/matrix?siteId=&role=&category= answers the active topics in
+// category order and each person with a cell for every topic they hold, the cell's status from the
+// gaps, its dates, how its record was made, and for a topic taken at each site each site's status (the
+// cell reports the worst). People run down the side, held in place while the topics scroll across,
+// grouped under their categories. A blank cell is a topic the person does not need. A tap opens the
+// cell. Download CSV saves format=csv; Print gives the grid on landscape letter paper with the day.
+// Management reads it; a supervisor is held to their own sites, which the Site choice lists from the
+// assignments GET /api/auth/me answers.
+const MATRIX_STATUSES = [
+  { v: "current", l: "Done|training" }, { v: "dueSoon", l: "Expires soon" }, { v: "refresherDue", l: "Refresher due" },
+  { v: "missing", l: "Missing|training" }, { v: "expired", l: "Expired|training" }, { v: "inProgress", l: "In progress|training" }, { v: "awaitingTrainer", l: "Waiting for trainer" },
+];
+const matrixStatusWord = (s) => { const x = MATRIX_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };
+const matrixColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : BL);
+// The day a cell shows: when it expires for one coming due or past it, else when it was done.
+const matrixDay = (c) => (!c || c.status === "missing" ? null : c.status === "dueSoon" || c.status === "expired" || c.status === "refresherDue" ? (c.expiresOn || c.completedDate) : c.completedDate);
+const matrixCellLine = (c) => [matrixStatusWord(c.status), matrixDay(c) ? fdLong(matrixDay(c)) : ""].filter(Boolean).join(" ");
+const MATRIX_METHODS = { lesson: "Lesson on the phone", session: "Training session", certificate: "Certificate from a course", checklist: "Checklist watched by a trainer", record: "Record entered by the office", form: "Filed form" };
+const matrixMethodWord = (m) => (MATRIX_METHODS[m] ? tr(MATRIX_METHODS[m]) : m ? String(m) : tr("No record yet"));
+// The topics in the answer's order, grouped by category as they run.
+const matrixGroups = (topics) => (topics || []).reduce((out, tp) => { const last = out[out.length - 1]; if (last && last.key === tp.category) last.topics.push(tp); else out.push({ key: tp.category, name: tp.categoryName || categoryNameOf(null, tp.category), topics: [tp] }); return out; }, []);
+const matrixEmpty = { asOf: "", topics: [], people: [] };
+function TrainingMatrix({ af, t, token, sites = [], isAdmin = false, showToast }) {
+  const [f, setF] = useState({ siteId: "", role: "", category: "" });
+  const [d, setD] = useState(null);
+  const [refusal, setRefusal] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [busy, setBusy] = useState(false);
+  // A supervisor's own sites, from their assignments; an admin chooses from every site.
+  const [mine, setMine] = useState(null);
+  useEffect(() => {
+    if (isAdmin) return undefined;
+    let alive = true;
+    af("/api/auth/me").then(x => { if (alive) setMine((x && Array.isArray(x.sites) ? x.sites : []).filter(s0 => s0 && s0.siteId != null).map(s0 => ({ id: String(s0.siteId), name: s0.siteName || "" }))); }).catch(e => { if (alive) setMine([]); console.warn("Own sites:", e.message); });
+    return () => { alive = false; };
+  }, [af, isAdmin]);
+  const siteChoices = isAdmin ? sites.map(s0 => ({ id: String(s0.id), name: s0.name })) : (mine || []);
+  const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
+  // Only the latest read is drawn.
+  const seq = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++seq.current;
+    setD(null); setRefusal(null);
+    try { const x = await af("/api/training/matrix" + (q ? "?" + q : "")); if (n === seq.current) setD(x && Array.isArray(x.people) && Array.isArray(x.topics) ? x : matrixEmpty); }
+    catch (e) { if (n === seq.current) { setD(matrixEmpty); setRefusal({ text: e.message || tr("This did not load."), keys: trainingKeysOf(e) }); } }
+  }, [af, q]);
+  useEffect(() => { load(); }, [load]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const groups = useMemo(() => matrixGroups(d && d.topics), [d]);
+  const siteName = (p, id) => ((p && (p.sites || []).find(x => String(x.id) === String(id))) || siteChoices.find(x => x.id === String(id)) || sites.find(x => String(x.id) === String(id)) || {}).name || "";
+  const siteWord = f.siteId ? ((siteChoices.find(x => x.id === f.siteId) || {}).name || "") : isAdmin ? tr("All sites") : tr("All my sites");
+  const download = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await saveDownload("/api/training/matrix?" + (q ? q + "&" : "") + "format=csv", token, "training-matrix-" + ((d && d.asOf) || todayISO()) + ".csv"); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setBusy(false);
+  };
+  // On paper a table per category, each listing the people who hold one of its topics.
+  const print = () => {
+    if (!d) return;
+    const filters = [f.role ? roleWord(f.role) : "", f.category ? (groups.find(g => g.key === f.category) || {}).name || "" : ""].filter(Boolean).join(", ");
+    const parts = (filters ? [{ fields: [["Showing", filters]] }] : []).concat(groups.map(g => ({ h: g.name, num: "", cols: ["Person", "Role"].concat(g.topics.map(tp => tp.name)),
+      rows: d.people.filter(p => g.topics.some(tp => p.cells && p.cells[tp.id])).map(p => [p.name, roleWord(p.role)].concat(g.topics.map(tp => (p.cells && p.cells[tp.id] ? matrixCellLine(p.cells[tp.id]) : "")))) })));
+    if (!printKeptRecord([{ code: "", title: "Training matrix", site: siteWord, asOf: d.asOf || todayISO(), parts }], tr("Training matrix"), "letter landscape")) showToast(tr("Allow pop-ups to print the sheet"), "error");
+  };
+  const stick = { position: "sticky", left: 0, zIndex: 1, background: t.card };
+  const th = { padding: "8px 10px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, color: t.textMut, textAlign: "left", verticalAlign: "bottom", borderBottom: "1px solid " + t.border };
+  return (<div data-training-matrix="">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Sel t={t} aria-label={tr("Site")} data-matrix-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: isAdmin ? tr("All sites") : tr("All my sites") }].concat(siteChoices.map(s0 => ({ v: s0.id, l: s0.name })))} />{refusal && refusal.keys.indexOf("siteId") >= 0 ? <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null}</div>
+      <Sel t={t} aria-label={tr("Role")} data-matrix-filter="role" value={f.role} onChange={set("role")} options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} />
+      <Sel t={t} aria-label={tr("Category")} data-matrix-filter="category" value={f.category} onChange={set("category")} options={[{ v: "", l: tr("All categories") }].concat(TRAINING_CATEGORIES.map(c => ({ v: c.key, l: tr(c.l) })), [{ v: OTHER_CATEGORY, l: tr("Other trainings") }])} />
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      {d && d.asOf && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{[tr("As of {0}", fdLong(d.asOf)), siteWord, trn("{0} person|count", d.people.length)].join(" . ")}</span>}
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" data-matrix-download="" disabled={busy || !d || d.people.length === 0} onClick={download}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><DlI sz={14} c="currentColor" />{tr("Download CSV")}</span></Btn>
+        <Btn t={t} v="ghost" data-matrix-print="" disabled={!d || d.people.length === 0} onClick={print}>{tr("Print")}</Btn>
+      </span>
+    </div>
+    <div role="list" aria-label={tr("Legend")} data-matrix-legend="" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      {MATRIX_STATUSES.map(o => <span key={o.v} role="listitem" data-matrix-legend-item={o.v} style={{ padding: "3px 10px", borderRadius: R.pill, background: matrixColor(o.v) + "1f", color: matrixColor(o.v), fontSize: 12, fontWeight: 600 }}>{tr(o.l)}</span>)}
+      <span role="listitem" style={{ fontSize: 12, color: t.textMut }}>{tr("A blank cell is a topic the person does not need.")}</span>
+    </div>
+    {refusal && refusal.keys.indexOf("siteId") < 0 && <div role="alert" data-matrix-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {d === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : d.people.length === 0 || d.topics.length === 0 ? <Crd t={t}><div style={{ textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Nobody matches these filters.")}</div></Crd>
+      : <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div data-matrix-scroll="" style={{ overflowX: "auto" }}>
+        <table style={{ borderCollapse: "separate", borderSpacing: 0, fontSize: 12, minWidth: "100%" }}>
+          <thead>
+            <tr>
+              <th rowSpan={2} style={{ ...th, ...stick, zIndex: 2, minWidth: 150, background: t.cardAlt }}>{tr("Person")}</th>
+              {groups.map((g, i) => <th key={g.key + i} colSpan={g.topics.length} data-matrix-category={g.key} style={{ ...th, background: t.cardAlt, color: t.goldText, textTransform: "uppercase", letterSpacing: 0.4, borderLeft: "1px solid " + t.border }}>{g.name}</th>)}
+            </tr>
+            <tr>{groups.map(g => g.topics.map((tp, i) => <th key={tp.id} data-matrix-topic={tp.id} title={topicDocLine(tp)} style={{ ...th, background: t.cardAlt, minWidth: 118, maxWidth: 160, fontWeight: 600, color: t.textSec, borderLeft: i === 0 ? "1px solid " + t.border : "none", whiteSpace: "normal", lineHeight: 1.3 }}>{tp.name}{tp.perSite ? <div style={{ fontSize: 10, fontWeight: 500, color: t.textMut }}>{tr("At each site")}</div> : null}</th>))}</tr>
+          </thead>
+          <tbody>{d.people.map(p => <tr key={p.id} data-matrix-person={p.id}>
+            <th scope="row" style={{ ...stick, padding: "8px 10px", textAlign: "left", borderBottom: "1px solid " + t.border, fontWeight: 600, color: t.text, minWidth: 150, maxWidth: 200, overflowWrap: "anywhere" }}>{p.name}<div style={{ fontSize: 11, fontWeight: 400, color: t.textMut }}>{roleWord(p.role)}</div></th>
+            {groups.map(g => g.topics.map((tp, i) => { const c = p.cells && p.cells[tp.id]; const ink = c ? matrixColor(c.status) : null; return <td key={tp.id} style={{ padding: 3, borderBottom: "1px solid " + t.border, borderLeft: i === 0 ? "1px solid " + t.border : "none" }}>
+              {c ? <button type="button" data-matrix-cell={c.status} data-matrix-cell-person={p.id} data-matrix-cell-topic={tp.id} data-matrix-per-site={Array.isArray(c.sites) && c.sites.length ? "" : undefined} onClick={() => setOpen({ p, tp, c })} aria-label={p.name + ", " + tp.name + ": " + matrixCellLine(c)}
+                style={{ width: "100%", minHeight: 44, padding: "4px 8px", borderRadius: 6, border: "none", background: ink + "1f", color: goldToText(t, ink), textAlign: "left", fontSize: 11, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", lineHeight: 1.3 }}>
+                <div>{matrixStatusWord(c.status)}</div>{matrixDay(c) ? <div style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{fdLong(matrixDay(c))}</div> : null}
+              </button> : null}
+            </td>; }))}
+          </tr>)}</tbody>
+        </table>
+      </div></Crd>}
+    {open && <Mdl t={t} onClose={() => setOpen(null)}><div data-matrix-detail="" style={{ padding: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{open.tp.name}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[open.p.name, roleWord(open.p.role), topicDocLine(open.tp)].filter(Boolean).join(" . ")}</div>
+        </div>
+        <button onClick={() => setOpen(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ marginBottom: 10 }}><Bdg l={matrixStatusWord(open.c.status)} c={matrixColor(open.c.status)} /></div>
+      {[[tr("How it was done"), <span data-matrix-method={open.c.method || ""}>{matrixMethodWord(open.c.method)}</span>], [tr("Completed|training"), open.c.completedDate ? fdLong(open.c.completedDate) : ""], [tr("Expires|training"), open.c.expiresOn ? fdLong(open.c.expiresOn) : ""]].filter(([, v]) => v).map(([l, v]) => <div key={l} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, flexWrap: "wrap" }}><div style={{ flex: "0 0 140px", color: t.textMut }}>{l}</div><div style={{ flex: "1 1 160px", color: t.text }}>{v}</div></div>)}
+      {Array.isArray(open.c.sites) && open.c.sites.length > 0 && <div data-matrix-sites="" style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 6 }}>{tr("At each site")}</div>
+        {open.c.sites.map(x => <div key={x.siteId} data-matrix-site={x.siteId} data-matrix-site-status={x.status} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+          <span style={{ flex: "1 1 160px", minWidth: 0, color: t.text, overflowWrap: "anywhere" }}>{siteName(open.p, x.siteId)}</span>
+          <Bdg l={matrixStatusWord(x.status)} c={matrixColor(x.status)} />
+          {x.completedDate ? <span style={{ fontSize: 12, color: t.textSec }}>{tr("Completed: {0}", fdLong(x.completedDate))}</span> : null}
+        </div>)}
+      </div>}
+    </div></Mdl>}
+  </div>);
 }
 
 // ===== TRAINING TIME, FOR PAY (Step 273, against the API's Step 269) =====
