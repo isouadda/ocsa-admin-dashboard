@@ -6,9 +6,9 @@ Who can do this: admins and supervisors
 2. Type your phone number or email, and your 4 digit PIN.
 3. Click **Sign In** (**Iniciar sesión**).
 4. When the dashboard asks for a code, see the entry on signing in with a code on a new device.
-If it does not work: the dashboard is only for admins and supervisors. Staff use the staff portal.
+If it does not work: a wrong phone number, email or PIN brings a red message at the top of the screen with the reason. Check them and try again. The dashboard is only for admins and supervisors. Staff use the staff portal.
 Picture: sign-in-card
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## Sign out of the dashboard (admin dashboard)
 Who can do this: anyone signed in
@@ -1471,7 +1471,7 @@ Who can do this: admins and supervisors
 If it does not work: a wrong code says how many tries are left. After 5 wrong tries, or once the code is 10 minutes old, the dashboard goes back to the PIN; sign in again for a new code.
 Words people use for this: code, verification, verification code, two step, two-step, new phone, new computer, sign-in code, email code, código.
 Picture: sign-in-code
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## See or forget the devices you are remembered on (admin dashboard)
 Who can do this: admins and supervisors; the super admin also for another admin or supervisor
