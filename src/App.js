@@ -144,7 +144,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -752,6 +752,9 @@ export default function AdminDashboard() {
   useEffect(() => { const h = () => { const next = pageFromHash(); setPage(prev => (prev === next ? prev : next)); setRoute(subFromHash()); }; window.addEventListener("hashchange", h); return () => window.removeEventListener("hashchange", h); }, []);
   // Replacing the hash adds no history entry and fires no hashchange, so the route is set here too.
   const replaceRoute = useCallback((parts) => { const h = "#" + [page, ...parts].join("/"); window.history.replaceState(null, "", h); setRoute(parts); }, [page]);
+  // The Training page (Step 268): #training/<view> is the Training area's #hr/training/<view>, so the
+  // HR Records page reads it as that route. Kept by reference, so the page does not reset its view.
+  const trainingRoute = useMemo(() => ["training"].concat(route), [route]);
   useEffect(() => {
     const stored = readAuth();
     if (!stored) return;
@@ -823,6 +826,9 @@ export default function AdminDashboard() {
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
+      // Step 268, the owner's change of October 6: Training has its own item, right under HR Records,
+      // for the admins and supervisors HR Records opens for; it opens the Training area as #hr/training does.
+      { id: "training", l: tr("Training"), i: ClpI },
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
@@ -848,7 +854,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1082,6 +1088,7 @@ export default function AdminDashboard() {
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />}
+        {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -1661,6 +1668,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // answers, or null before then.
   const gapsLive = useTrainingLive(af, "gaps");
   const [hrItems, setHrItems] = useState(null);
+  // Step 268, the owner's change of October 6: Assign training from the person's list, once the
+  // assignments route answers, for an admin.
+  const [assigning, setAssigning] = useState(false);
+  const assignLive = useTrainingLive(af, "assignments");
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
   // Step 187: the filed reports about this person, the source form items of their HR folder, and
   // the one open in its review window.
@@ -2177,8 +2188,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             {/* Step 257: the person's items, each in its status's words, once the gaps route answers; the
                 records follow, with no status of their own, since the table keeps none. */}
             {hrItems && <div data-profile-training-items="" style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Required training ({0})", hrItems.length)}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Required training ({0})", hrItems.length)}</div>
+                {user && user.role === "admin" && assignLive && profile && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)} style={{ marginLeft: "auto", minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Assign training")}</Btn>}
+              </div>
               <TrainingItemsList t={t} items={hrItems} compact />
+              {assigning && profile && <AssignTrainingWindow af={af} t={t} sites={sites} presetUserIds={[String(profile.id)]} showToast={showToast} onClose={() => setAssigning(false)} onDone={() => loadHrData(profile.id)} />}
             </div>}
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Training Records ({0})", hrTraining.length)}</div>
             {hrTraining.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No training records")}</div>}
@@ -21986,7 +22001,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "" }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "", trainingPage = false }) {
   // Step 257: #hr/training opens the Training area, and #hr/training/<view> one of its tabs.
   const trainingRoute = route[0] === "training";
   const [tab, setTab] = useState(() => (trainingRoute ? "training" : "employees"));
@@ -22246,7 +22261,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
-        {tabs.map(tb => (
+        {!trainingPage && tabs.map(tb => (
           <button key={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
         {tab !== "employees" && !(tab === "training" && trCur !== "records") && (
@@ -22339,7 +22354,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trViews.length > 1 && <div role="tablist" data-training-views="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
-      {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
+      {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
@@ -23069,6 +23084,9 @@ const TRAINING_PROBES = {
   // checker on a published lesson, the void's warning) wait on it; the Drafts tab waits on its list.
   categories: ["/api/training/topics", (d) => !!(d && Array.isArray(d.categories))],
   drafts: ["/api/training/lesson-drafts", (d) => !!(d && Array.isArray(d.drafts))],
+  // The owner's change of October 6: Assign training is offered once GET /api/training/assignments
+  // answers with a list, since its POST cannot be asked without assigning.
+  assignments: ["/api/training/assignments", (d) => !!(d && Array.isArray(d.assignments))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23158,7 +23176,7 @@ const signoffCandidates = (topics, self, current) => (topics || []).filter(x => 
 // under their category headings once the answer carries categories, a Category filter narrows them,
 // and an admin moves a topic up or down inside its category, saved at once through
 // PUT /api/training/topics/order with the category's topics renumbered.
-function TrainingCatalog({ af, t, token = "", isAdmin = false, people = [], showToast, onChanged }) {
+function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, people = [], showToast, onChanged }) {
   const [which, setWhich] = useState("true");
   const [topics, setTopics] = useState(null);
   const [cats, setCats] = useState(null);
@@ -23166,6 +23184,8 @@ function TrainingCatalog({ af, t, token = "", isAdmin = false, people = [], show
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(null);
   const [moving, setMoving] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const assignLive = useTrainingLive(af, "assignments");
   const load = useCallback(async () => {
     setFailed(false);
     try { const d = await af("/api/training/topics?active=" + which); setTopics(d && Array.isArray(d.topics) ? d.topics : []); setCats(d && Array.isArray(d.categories) ? d.categories : null); }
@@ -23221,8 +23241,13 @@ function TrainingCatalog({ af, t, token = "", isAdmin = false, people = [], show
       <div style={{ minWidth: 160 }}><Sel t={t} aria-label={tr("Show")} data-catalog-which="" options={[{ v: "true", l: tr("Active topics") }, { v: "false", l: tr("Retired topics") }, { v: "all", l: tr("All topics") }]} value={which} onChange={e => setWhich(e.target.value)} /></div>
       {grouped && <div style={{ minWidth: 180 }}><Sel t={t} aria-label={tr("Category")} data-catalog-category-filter="" options={[{ v: "", l: tr("All categories") }].concat(categories.map(c => ({ v: c.key, l: c.name })))} value={catFilter} onChange={e => setCatFilter(e.target.value)} /></div>}
       {topics && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} topic|count", shown)}</span>}
-      {isAdmin && <Btn t={t} data-topic-add="" onClick={() => setOpen("new")} style={{ marginLeft: "auto" }}>{tr("Add a topic")}</Btn>}
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {isAdmin && assignLive && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)}>{tr("Assign training")}</Btn>}
+        {isAdmin && <Btn t={t} data-topic-add="" onClick={() => setOpen("new")}>{tr("Add a topic")}</Btn>}
+      </span>
     </div>
+    <div data-catalog-note="" style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Every topic is assigned automatically to the roles under Who needs it. Use Assign training for anyone else.")}</div>
+    {assigning && <AssignTrainingWindow af={af} t={t} sites={sites} showToast={showToast} onClose={() => setAssigning(false)} />}
     {topics === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
       : !grouped ? <DataTable t={t} columns={columns} rows={topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={which === "true" ? tr("No topics yet.") : tr("No topics here.")} />
@@ -23545,6 +23570,8 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, is
   const [topics, setTopics] = useState([]);
   const [records, setRecords] = useState(null);
   const [person, setPerson] = useState(focusPerson);
+  const [assigning, setAssigning] = useState(false);
+  const assignLive = useTrainingLive(af, "assignments");
   // A notice's person (Step 263) opens their list.
   useEffect(() => { if (focusPerson) setPerson(focusPerson); }, [focusPerson]);
   useEffect(() => {
@@ -23589,8 +23616,12 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, is
     </div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
       {data && data.asOf && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{tr("As of {0}", fdLong(data.asOf))}{data.site ? " . " + data.site.name : ""}</span>}
-      <Btn t={t} v="ghost" data-gaps-print="" disabled={!data || data.people.length === 0} onClick={print} style={{ marginLeft: "auto" }}>{tr("Print")}</Btn>
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {isAdmin && assignLive && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)}>{tr("Assign training")}</Btn>}
+        <Btn t={t} v="ghost" data-gaps-print="" disabled={!data || data.people.length === 0} onClick={print}>{tr("Print")}</Btn>
+      </span>
     </div>
+    {assigning && <AssignTrainingWindow af={af} t={t} sites={sites} showToast={showToast} onClose={() => setAssigning(false)} onDone={load} />}
     {data === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> : <>
       <div data-gaps-topics="" style={{ marginBottom: 16 }}>
         <DataTable t={t} columns={topicCols} rows={data.topics} rowKey={x => x.id} onRowClick={x => setF({ ...f, topicId: f.topicId === String(x.id) ? "" : String(x.id) })} empty={tr("No topic asks anything of these people.")} />
@@ -24410,6 +24441,123 @@ function TrainingDrafts({ af, t, showToast }) {
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
       : <DataTable t={t} columns={cols} rows={list} rowKey={d => d.id} onRowClick={d => { if (ready(d)) toggle(String(d.id)); }} empty={tr("No draft is open.")} />}
   </div>);
+}
+
+// ===== ASSIGN TRAINING (Step 268, the owner's change of October 6) =====
+// Every topic reaches the roles under Who needs it on its own; Assign training names topics for
+// anyone else. An admin ticks one or more topics, grouped by category, and one or more people, found
+// by name and narrowed by site and role, with Select all, and Assign sends them once to
+// POST /api/training/assignments { topicIds, userIds }, whose answer says how many were added and how
+// many were already assigned. Opened from Catalog, from Gaps, and from a person's list in their HR
+// Files with that person ticked. The button is offered once GET /api/training/assignments answers.
+const ASSIGN_FIELDS = ["topicIds", "userIds"];
+const countOf = (v) => (Array.isArray(v) ? v.length : Number(v) || 0);
+function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast, onClose, onDone }) {
+  const [people, peopleError] = useActivePeople(af);
+  const [topics, setTopics] = useState(null);
+  const [cats, setCats] = useState(null);
+  const [pickedTopics, setPickedTopics] = useState(() => new Set());
+  const [picked, setPicked] = useState(() => new Set(presetUserIds.map(String)));
+  const [q, setQ] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [role, setRole] = useState("");
+  const [atSite, siteError] = useSitePeople(af, siteId);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) { setTopics(d && Array.isArray(d.topics) ? d.topics : []); setCats(d && Array.isArray(d.categories) ? categoriesOf(d.categories) : null); } }).catch(e => { if (alive) { setTopics([]); setRefusal({ text: e.message, fields: [] }); } });
+    return () => { alive = false; };
+  }, [af]);
+  // The topics by category in the catalog's order, or one list in name order before categories answer.
+  const groups = useMemo(() => {
+    const list = (topics || []).filter(tp => tp.active !== false);
+    if (!cats) return list.length ? [{ key: "", name: "", topics: list.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag())) }] : [];
+    return cats.map(c => ({ key: c.key, name: c.name, topics: list.filter(tp => topicCategoryKey(tp) === c.key).slice().sort(byTopicOrder) })).filter(g => g.topics.length > 0);
+  }, [topics, cats]);
+  const needle = q.trim().toLowerCase();
+  const listed = (people || []).filter(p => (!siteId || (atSite && atSite.has(p.id))) && (!role || p.role === role) && (!needle || p.name.toLowerCase().indexOf(needle) >= 0));
+  const allListedPicked = listed.length > 0 && listed.every(p => picked.has(p.id));
+  const toggleIn = (set, id) => (prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-assign-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const ready = pickedTopics.size > 0 && picked.size > 0 && !busy;
+  const send = async () => {
+    if (!ready) return;
+    setBusy(true); setRefusal(null); setResult(null);
+    try {
+      const d = await af("/api/training/assignments", { method: "POST", body: { topicIds: Array.from(pickedTopics), userIds: Array.from(picked) } });
+      setResult({ added: countOf(d && d.added), already: countOf(d && d.already) });
+      if (onDone) onDone();
+    } catch (e) {
+      const keys = trainingKeysOf(e).filter(k => ASSIGN_FIELDS.indexOf(k) >= 0);
+      setRefusal({ text: e.message || tr("Request failed"), fields: keys });
+    }
+    setBusy(false);
+  };
+  const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
+  const tall = { minHeight: 44, minWidth: 44 };
+  const tickStyle = { width: 20, height: 20, accentColor: GO, flexShrink: 0, cursor: "pointer" };
+  const rowStyle = { display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "4px 12px", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text, cursor: "pointer" };
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}>
+    <div data-assign-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Assign training")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("Pick the topics and the people. Each person is asked for each topic, on top of what their role already asks.")}</div>
+        </div>
+        <button onClick={onClose} aria-label={tr("Close")} disabled={busy} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div data-assign-field="topicIds">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}><div style={lbl}>{tr("Topics")}</div><span role="status" style={{ marginLeft: "auto", fontSize: 12, color: t.textSec }}>{trn("{0} topic picked|count", pickedTopics.size)}</span></div>
+          <div style={{ border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 280, overflowY: "auto" }}>
+            {topics === null ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+              : groups.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("No topics yet.")}</div>
+              : groups.map(g => <div key={g.key || "all"} data-assign-category={g.key}>
+                {g.name && <div style={{ padding: "8px 12px 2px", fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1 }}>{g.name}</div>}
+                {g.topics.map(tp => <label key={tp.id} data-assign-topic={tp.id} style={rowStyle}>
+                  <input type="checkbox" checked={pickedTopics.has(String(tp.id))} onChange={() => setPickedTopics(toggleIn(pickedTopics, String(tp.id)))} style={tickStyle} />
+                  <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{tp.name}</span>
+                  <span style={{ fontSize: 11, color: t.textMut }}>{topicDocLine(tp)}</span>
+                </label>)}
+              </div>)}
+          </div>
+          {bad("topicIds")}
+        </div>
+        <div data-assign-field="userIds">
+          <div style={lbl}>{tr("People")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+            <Sel t={t} aria-label={tr("Site")} data-assign-site="" options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} value={siteId} onChange={e => setSiteId(e.target.value)} style={tall} />
+            <Sel t={t} aria-label={tr("Role")} data-assign-role="" options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} value={role} onChange={e => setRole(e.target.value)} style={tall} />
+            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" data-assign-select-all="" onClick={() => setPicked(prev => { const next = new Set(prev); listed.forEach(p => next.add(p.id)); return next; })} style={tall}>{tr("Select all")}</Btn>}
+            {picked.size > 0 && <Btn t={t} v="ghost" onClick={() => setPicked(new Set())} style={tall}>{tr("Clear selection")}</Btn>}
+            <span role="status" style={{ fontSize: 13, fontWeight: 600, color: t.textSec }}>{trn("{0} person selected|count", picked.size)}</span>
+          </div>
+          <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 280, overflowY: "auto" }}>
+            {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
+              : listed.map(p => <label key={p.id} data-assign-person={p.id} style={rowStyle}>
+                <input type="checkbox" checked={picked.has(p.id)} onChange={() => setPicked(toggleIn(picked, p.id))} style={tickStyle} />
+                <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{p.name}</span>
+                <span style={{ fontSize: 11, color: t.textMut, textAlign: "right" }}>{roleWord(p.role)}</span>
+              </label>)}
+          </div>
+          {bad("userIds")}
+        </div>
+        {(peopleError || siteError) && <div role="alert" style={{ fontSize: 13, color: RD, overflowWrap: "anywhere" }}>{peopleError || siteError}</div>}
+        {refusal && refusal.fields.length === 0 && <div role="alert" data-assign-refusal="" style={{ fontSize: 13, color: RD, overflowWrap: "anywhere" }}>{refusal.text}</div>}
+        {result && <div role="status" data-assign-result={result.added} data-assign-already={result.already} style={{ fontSize: 13, fontWeight: 600, color: result.added ? GR : t.textSec }}>{tr("{0} added, {1} already assigned", result.added, result.already)}</div>}
+      </div>
+      <div style={{ borderTop: "1px solid " + t.border, padding: "12px 20px", display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" disabled={busy} onClick={onClose} style={tall}>{result ? tr("Close") : tr("Cancel")}</Btn>
+        <Btn t={t} data-assign-send="" disabled={!ready} onClick={send} style={tall}>{busy ? tr("Saving...") : tr("Assign")}</Btn>
+      </div>
+    </div>
+  </Mdl>);
 }
 
 // ===== SIGN-OFF AND THE TRAINING RECORD (Step 257, slice 2 of the API's Step 256) =====
