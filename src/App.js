@@ -47,12 +47,13 @@ async function apiDownload(path, token, fallbackName) {
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
 // A file the API makes, fetched through apiDownload and handed to the browser to save under the name
-// the API gives it, or the fallback when that name cannot be read.
-async function saveDownload(path, token, fallbackName) {
+// the API gives it, or the fallback when that name cannot be read. A screen that names the file
+// itself passes name, which is used whatever the API calls it.
+async function saveDownload(path, token, fallbackName, name) {
   const f = await apiDownload(path, token, fallbackName);
   const url = URL.createObjectURL(f.blob);
   const a = document.createElement("a");
-  a.href = url; a.download = f.filename;
+  a.href = url; a.download = name || f.filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
@@ -22211,6 +22212,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // Step 272: the Waiting for signatures tab, once GET /api/signatures answers, which it does for
   // management.
   const signaturesLive = useTrainingLive(af, "signatures");
+  // Step 273: the Time tab, once GET /api/training/time answers this person (admins, and anyone
+  // holding view_reports).
+  const timeLive = useTrainingLive(af, "time");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -22426,7 +22430,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22542,6 +22546,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
+      {tab === "training" && trCur === "time" && <TrainingTime af={af} t={t} token={token} sites={sites} showToast={showToast} />}
       {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} isAdmin={isAdmin} focusAttempt={trFocus && trFocus.attempt} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
@@ -23272,12 +23277,19 @@ const TRAINING_PROBES = {
   // requests answering is how that step says it is there. Who signs in the three windows, the chips'
   // Remind, Cancel and Sign here now, and the Waiting for signatures tab wait on it.
   signatures: ["/api/signatures", (d) => !!(d && Array.isArray(d.requests))],
+  // Step 273, against the API's Step 269: the time report is a read the API keeps a record of, so it
+  // is asked with no dates, which it refuses. Its own 400 training.badDetails says the route is there
+  // and that this person may read it, since the API checks who may read it first (admins, and anyone
+  // holding view_reports). Anything else, an answer included, keeps the tab away.
+  time: ["/api/training/time", () => false, (e) => !!e && e.status === 400 && e.code === "training.badDetails"],
 };
 const trainingProbes = {};
+// A probe passes on the answer its test accepts, or, for a probe that names one, on the refusal it
+// expects.
 const probeTraining = (af, key) => {
   if (!trainingProbes[key]) {
-    const [path, test] = TRAINING_PROBES[key];
-    trainingProbes[key] = af(path).then(test).catch(e => { console.warn("Training:", e.message); trainingProbes[key] = null; return false; });
+    const [path, test, refusal] = TRAINING_PROBES[key];
+    trainingProbes[key] = af(path).then(test).catch(e => { if (refusal && refusal(e)) return true; console.warn("Training:", e.message); trainingProbes[key] = null; return false; });
   }
   return trainingProbes[key];
 };
@@ -23950,6 +23962,84 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
     {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} sites={p && Array.isArray(p.sites) && p.sites.length ? p.sites : sites} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
   </Mdl>);
+}
+
+// ===== TRAINING TIME, FOR PAY (Step 273, against the API's Step 269) =====
+// The time staff spent in phone lessons, which the office pays as training time, for a range of 1 to
+// 62 days and a site: GET /api/training/time?from=&to=&siteId= answers each person with any training
+// in the range (lessons passed, attempts, minutes, sessions signed, checklists signed) and the totals,
+// and format=csv the same as a file. Minutes run from opening a lesson to signing it, each attempt
+// capped at 60. A session's length is not recorded, so the office adds session hours itself.
+const TIME_DAYS_MAX = 62;
+// The last full week before the day given, Monday to Sunday.
+function lastFullWeek(today) {
+  const d = localDate(today);
+  const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7) - 7);
+  return { from: toISO(mon), to: toISO(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)) };
+}
+const daysFromTo = (from, to) => Math.round((localDate(to) - localDate(from)) / 86400000) + 1;
+// Minutes as hours and minutes: 45 m, 2 h 15 m, 31 h 0 m. Pay is counted in hours, so never days.
+const hoursMinutes = (m) => { const n = Math.max(0, Math.round(Number(m) || 0)); return n < 60 ? tr("{0} m|minutes", n) : tr("{0} h {1} m", Math.floor(n / 60), n % 60); };
+function TrainingTime({ af, t, token, sites = [], showToast }) {
+  const week = useMemo(() => lastFullWeek(todayISO()), []);
+  const [f, setF] = useState({ from: week.from, to: week.to, siteId: "" });
+  const [d, setD] = useState(null);
+  const [refusal, setRefusal] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const days = f.from && f.to ? daysFromTo(f.from, f.to) : 0;
+  const rangeOk = !!f.from && !!f.to && days >= 1 && days <= TIME_DAYS_MAX;
+  const q = "from=" + encodeURIComponent(f.from) + "&to=" + encodeURIComponent(f.to) + (f.siteId ? "&siteId=" + encodeURIComponent(f.siteId) : "");
+  // Only the latest read is drawn.
+  const seq = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++seq.current;
+    setRefusal(null);
+    setD(null);
+    if (!rangeOk) return;
+    try { const x = await af("/api/training/time?" + q); if (n === seq.current) setD(x && Array.isArray(x.people) ? x : { people: [], totals: null }); }
+    catch (e) { if (n === seq.current) { setD({ people: [], totals: null }); setRefusal({ text: e.message || tr("This did not load."), keys: trainingKeysOf(e) }); } }
+  }, [af, q, rangeOk]);
+  useEffect(() => { load(); }, [load]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const fileName = "training-time-" + f.from + "-to-" + f.to + ".csv";
+  const download = async () => {
+    if (busy || !rangeOk) return;
+    setBusy(true);
+    try { await saveDownload("/api/training/time?" + q + "&format=csv", token, fileName, fileName); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-time-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const num = (v) => (Number(v) > 0 ? <span style={{ fontWeight: 600 }}>{v}</span> : <span style={{ color: t.textMut }}>0</span>);
+  const totals = d && d.totals ? d.totals : null;
+  const rows = d ? d.people.concat(totals && d.people.length ? [Object.assign({ id: "", total: true }, totals)] : []) : [];
+  const bold = (r, v) => (r.total ? <span data-time-total="" style={{ fontWeight: 700, color: t.text }}>{v}</span> : v);
+  const columns = [
+    { header: tr("Name"), tdStyle: { minWidth: 150 }, render: r => (r.total ? bold(r, tr("Total, {0}", trn("{0} person|count", r.people))) : <span style={{ color: t.text, fontWeight: 600 }}>{r.name}</span>) },
+    { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: r => (r.total ? "" : roleWord(r.role)) },
+    { header: tr("Sites"), tdStyle: { color: t.textSec, minWidth: 140 }, render: r => (r.total ? "" : (r.sites || []).map(x => x.name).join(", ")) },
+    { header: tr("Lessons passed"), align: "right", render: r => bold(r, num(r.lessonsPassed)) },
+    { header: tr("Attempts"), align: "right", render: r => bold(r, num(r.attempts)) },
+    { header: tr("Time in lessons"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: r => bold(r, <span data-time-minutes={r.minutes}>{hoursMinutes(r.minutes)}</span>) },
+    { header: tr("Sessions signed"), align: "right", render: r => bold(r, num(r.sessionsSigned)) },
+    { header: tr("Checklists signed"), align: "right", render: r => bold(r, num(r.checklistsSigned)) },
+  ];
+  return (<div data-training-time="">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" aria-label={tr("From")} data-time-from="" value={f.from} max={f.to || undefined} onChange={set("from")} />{under("from")}</div>
+      <div><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" aria-label={tr("To")} data-time-to="" value={f.to} min={f.from || undefined} onChange={set("to")} />{under("to")}</div>
+      <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-time-site="" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />{under("siteId")}</div>
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      {rangeOk ? <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} days|count", days)}</span>
+        : <span role="alert" data-time-range="" style={{ fontSize: 13, color: RD }}>{tr("Pick 1 to 62 days, with To on or after From.")}</span>}
+      <span style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" data-time-download="" disabled={busy || !rangeOk} onClick={download}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><DlI sz={14} c="currentColor" />{tr("Download CSV")}</span></Btn></span>
+    </div>
+    {refusal && refusal.keys.length === 0 && <div role="alert" data-time-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {!rangeOk ? null : d === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : <DataTable t={t} columns={columns} rows={rows} rowKey={r => (r.total ? "total" : r.id)} empty={tr("Nobody spent time in training in these days.")} />}
+    <div data-time-note="" style={{ fontSize: 12, color: t.textSec, marginTop: 10, lineHeight: 1.5 }}>{tr("Minutes are time in phone lessons, each attempt capped at 60. Session hours are not recorded; add them from the session list.")}</div>
+  </div>);
 }
 
 // ===== CERTIFICATES FROM OUTSIDE COURSES (Step 263, STEP262_CONTRACT.md section 4) =====
