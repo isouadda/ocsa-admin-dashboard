@@ -82,6 +82,12 @@ Then it checks, one line a check:
   Not right request open, which offers Cancel and Sign here now and no Remind; and Who needs it on the
   keys and access topic reads From a key on file with no Remove. With Step 270 armed the shirt line chooses Sign here now first, since Send to their
   phone is the default. At 390 in English the key line runs again.
+- against the stub's answers for the API's Step 276 contract (Step 278), which the smoke check arms with
+  `setStep278` once Help has answered as it always has: at 1280 in English and in Spanish, a how-to
+  answer draws its picture under it from `/guide-shots/<name>.<lang>.jpg` in the screen's language,
+  described by its entry's title, and the picture opens full screen and closes; an answer to anything
+  else draws none; and at 1280 in English a portal picture is read from the portal's address, which the
+  driver answers from `public/guide-shots`, so nothing leaves the machine.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -124,7 +130,35 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-signature-age`, `data-signature-remind`, `data-signature-cancel`, `data-signature-sign-here`,
 `data-sign-here-window`, `data-sign-here-statement`, `data-hr-tab`, `data-signature-requests`,
 `data-signature-kind`, `data-signature-site`, `data-signature-filter-state`, `data-warning-sent-phone`,
-`data-warning-signature`, `data-who-source`, `data-signature-request-window` and `data-signature-request-close`.
+`data-warning-signature`, `data-who-source`, `data-signature-request-window` and
+`data-signature-request-close`, and Step 278's by `data-help-answer`, `data-help-picture`,
+`data-help-picture-open` and `data-help-picture-close`.
+
+## Pictures of the screen
+
+```
+npm run shots
+```
+
+`shots.js` takes the pictures Help draws under an answer (Step 278, STEP276_CONTRACT.md sections 1 and
+3), from this folder's own parts, like the smoke check: it serves the `build/` that `npm run build`
+made, against the stub, signs in, and opens each screen a guide entry describes at 1280 by 900 in the
+light theme, once in English and once in Spanish, and writes `public/guide-shots/<name>.en.jpg` and
+`<name>.es.jpg`. Each is a JPEG of at most 250 KB: the quality is lowered first, and the picture is cut
+shorter only when the lowest quality is still too big. `SHOTS` in the script is the one list: each
+picture's name, the guide entry whose `Picture:` line names it, who is signed in, the address it opens,
+what it waits for and what it presses or types there. The run holds the list to
+`guide/APP-DASHBOARD.md` before it takes anything, and `npm run guide-check` holds the files to the
+guide. `npm run shots -- <name>` takes one picture, an entry's title takes its pictures, `--lang=en` or
+`--lang=es` one language, and `--missing` only the files not there yet. It is not part of the smoke
+check, and it takes about two minutes.
+
+The stub serves the pictures with every step the API has built armed, the way live answers, and with
+`setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
+as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and
+the filed forms each guide entry opens, kept in `pictures-stub.js`, and the one-pixel image every other
+run is served swapped for a drawn signature, a made-up photo of a floor and a QR code of an invented
+address, from `fixtures/`. Every value is invented, so nothing real appears in a picture.
 
 ## What comes out
 
@@ -683,6 +717,9 @@ UTC shows the wrong hour. A session that started at `22:05Z` has to read `6:05 P
 | --- | --- |
 | `run.js` | the one process: build, serve, drive, print the table, exit non-zero on any failure |
 | `smoke.js` | `npm run smoke`, the quick check on every build, against the `build/` already made |
+| `shots.js` | `npm run shots`, the pictures of the screen beside the Help guide, and the one list of them |
+| `pictures-stub.js` | what the stub answers only while pictures are taken (`setStep278`) |
+| `fixtures/` | the signature, photo and QR images a picture shows in place of the one-pixel PNG |
 | `seed.js` | the seeded world, every value invented, every report total worked out by hand |
 | `stubs.js` | every API call answered, and nowhere else |
 | `stream.js` | Help's streaming route, written for the browser a piece at a time |

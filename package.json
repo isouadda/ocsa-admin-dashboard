@@ -20,7 +20,8 @@
     "build": "react-scripts build",
     "audit": "node audit/run.js",
     "guide-check": "node scripts/guide-check.js",
-    "smoke": "node audit/smoke.js"
+    "smoke": "node audit/smoke.js",
+    "shots": "node audit/shots.js"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],

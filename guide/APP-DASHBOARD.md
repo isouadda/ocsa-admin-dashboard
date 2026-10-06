@@ -7,6 +7,7 @@ Who can do this: admins and supervisors
 3. Click **Sign In** (**Iniciar sesión**).
 4. When the dashboard asks for a code, see the entry on signing in with a code on a new device.
 If it does not work: the dashboard is only for admins and supervisors. Staff use the staff portal.
+Picture: sign-in-card
 Last checked: 2026-10-01
 
 ## Sign out of the dashboard (admin dashboard)
@@ -14,6 +15,7 @@ Who can do this: anyone signed in
 1. Click your name at the top right. The menu holds **Settings** (**Configuración**) if you can open it, **Text size** (**Tamaño del texto**), **Language** (**Idioma**), **My alerts** (**Mis alertas**) and **Sign Out** (**Cerrar sesión**).
 2. Click **Sign Out** (**Cerrar sesión**).
 3. On a phone, or any window narrower than 700 pixels, your name is not at the top. Tap **More** (**Más**), the three dots at the top right, then **Sign Out** (**Cerrar sesión**).
+Picture: user-menu-sign-out
 Last checked: 2026-09-27
 
 ## Make the text bigger (admin dashboard)
@@ -24,6 +26,7 @@ Who can do this: anyone, signed in or not
 4. Your choice is kept on this computer until you change it. **Standard** is how the dashboard has always looked.
 5. On a phone, or any window narrower than 700 pixels, tap **More** (**Más**), the three dots at the top right; **Text size** (**Tamaño del texto**) is in that menu.
 Words people use for this: bigger text, larger font, text too small, cannot read it, zoom, make it bigger.
+Picture: user-menu-text-size
 Last checked: 2026-09-27
 
 ## Switch the dashboard to Spanish or English (admin dashboard)
@@ -34,6 +37,7 @@ Who can do this: anyone, signed in or not
 4. Your choice is kept on this computer until you change it. Until you choose, the dashboard follows your computer's language.
 5. On a phone, or any window narrower than 700 pixels, tap **More** (**Más**), the three dots at the top right; **Language** (**Idioma**) is in that menu, with **English** and **Español**.
 Words people use for this: espanol, spanish, change the language, put it in spanish, idioma, why is this page in english, export in english, print in spanish, settings in spanish.
+Picture: user-menu-language
 Last checked: 2026-09-27
 
 ## Find a page (admin dashboard)
@@ -44,6 +48,7 @@ Who can do this: admins and supervisors
 4. Someone given the manage permissions permission also sees **Settings**, with only the **Roles and Permissions** tab.
 5. On a phone, or any window narrower than 700 pixels, the menu on the left is hidden. Tap **Menu** (**Menú**), the three lines at the top left, and it opens as a drawer with **Search pages** (**Buscar páginas**) at the top. Picking a page closes it; so does tapping outside it.
 If it does not work: a supervisor who opens a page that is for admins sees a line saying so. Click **Back to Dashboard** to go back.
+Picture: search-pages
 Last checked: 2026-09-27
 
 ## See your notifications (admin dashboard)
@@ -54,6 +59,7 @@ Who can do this: admins and supervisors
 4. On a phone, or any window narrower than 700 pixels, the bell is inside **More** (**Más**), the three dots at the top right, as **Notifications** (**Avisos**); the unread number shows on the More button.
 5. Notices read in the language the dashboard is shown in. Switch the language and the list is read again in the new one.
 If it does not work: a notice about something only admins can open does not move you. The bell closes and says it is for admins. A notice written before notices could be read in either language shows in the words it was written in.
+Picture: notifications-panel
 Last checked: 2026-10-02
 
 ## Change who gets told about reports and requests (admin dashboard)
@@ -67,6 +73,7 @@ Who can do this: admins
 7. Each form's own list also chooses what its email carries: **Link to the app**, which every form starts on, or **Attach the filled report as a PDF**. With the PDF chosen, every email about that form carries everything the report says, to every person and address on its lists. **Every form** has no choice of its own.
 If it does not work: when nobody is set for a kind, every admin gets a notice in the app.
 Words people use for this: notifications, who gets the email, alerts, stop getting notices, send to an outside email, email the report as a pdf, attach the report, pdf delivery.
+Picture: settings-who-gets-told
 Last checked: 2026-09-21
 
 ## Add a staff member (admin dashboard)
@@ -78,6 +85,7 @@ Who can do this: admins
 5. If the person has an email, **Send activation invite** (**Enviar invitación de activación**) emails them a link to set up their account; **Invite sent.** (**Invitación enviada.**) confirms it.
 The first time the person signs in with the temporary PIN, the staff app asks them to choose their own.
 Words people use for this: new hire, add an employee, onboard someone, set up an account for someone, temporary pin, activation invite.
+Picture: staff-add-window
 Last checked: 2026-09-28
 
 ## Approve a new employee's registration (admin dashboard)
@@ -85,6 +93,7 @@ Who can do this: admins
 1. Click **Staff Management**.
 2. Click the **Pending** tab.
 3. Click **Approve** on the person's row.
+Picture: staff-pending
 Last checked: 2026-09-16
 
 ## Edit a staff member's information (admin dashboard)
@@ -93,6 +102,7 @@ Who can do this: admins
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
 3. Change what is needed and click **Save Changes** (**Guardar los cambios**).
 4. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
+Picture: staff-profile-edit
 Last checked: 2026-10-02
 
 ## Reset a staff member's PIN (admin dashboard)
@@ -103,6 +113,7 @@ Who can do this: admins
 4. Tell the person their new PIN privately. The next time they sign in, the staff app asks them to choose their own PIN.
 Or, if the person has an email, click **Send a PIN reset link** (**Enviar un enlace para restablecer el PIN**) on their profile; they get a link and choose a PIN themselves. **Reset link sent.** (**Enlace enviado.**) confirms it.
 Words people use for this: someone forgot their pin, they are locked out, reset a password, too many tries, send a reset link.
+Picture: staff-reset-pin
 Last checked: 2026-09-28
 
 ## Deactivate or reactivate a staff member (admin dashboard)
@@ -112,6 +123,7 @@ Who can do this: admins
 3. A profile without that card has **Deactivate** (**Desactivar**) or **Reactivate** (**Reactivar**).
 4. Their records stay in the system either way.
 Words people use for this: someone quit, terminate, fire, let go, turn off an account, bring someone back, deactivate, rehire, leave of absence.
+Picture: staff-employment-card
 Last checked: 2026-10-01
 
 ## Assign a staff member to a site (admin dashboard)
@@ -122,6 +134,7 @@ Who can do this: admins
 4. Choose the site, and the role, shift and times if you know them.
 5. Click **Assign** to save.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Picture: staff-assignments
 Last checked: 2026-10-01
 
 ## Add a certification to a staff member (admin dashboard)
@@ -129,6 +142,7 @@ Who can do this: admins
 1. Click **Staff Management** and open the person's profile.
 2. Click the **Certifications** tab.
 3. Click **Add**, fill in the name, issuer and dates, and click **Add Certification**.
+Picture: staff-add-certification
 Last checked: 2026-09-16
 
 ## Respond to a Speak Up case (admin dashboard)
@@ -141,6 +155,7 @@ Who can do this: admins, except anyone the case is about
 6. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
 If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left.
 Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up.
+Picture: cases-case-window
 Last checked: 2026-10-01
 
 ## Add an HR document for an employee (admin dashboard)
@@ -151,6 +166,7 @@ Who can do this: admins and supervisors
 4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one. Warnings and termination letters go under **Disciplinary** (**Disciplinario**).
 5. Click **Add** (**Agregar**).
 Words people use for this: upload a document, add a file to someone's folder, document for someone who left, termination letter, subir un documento.
+Picture: hr-folder-add-document
 Last checked: 2026-10-01
 
 ## Add a training record (admin dashboard)
@@ -161,6 +177,7 @@ Who can do this: admins and supervisors
 4. Type the **Training Name** (**Nombre de la capacitación**), choose the **Training Type** (**Tipo de capacitación**), and fill in the **Completed Date** (**Fecha de finalización**), the **Expiry Date** (**Fecha de vencimiento**) and the **Score** (**Puntaje**).
 5. Click **Add** (**Agregar**).
 Words people use for this: log a training, add a certificate of training, training for someone who left, registrar una capacitación.
+Picture: hr-folder-add-training
 Last checked: 2026-09-30
 
 ## Set up and check off an onboarding checklist (admin dashboard)
@@ -169,6 +186,7 @@ Who can do this: admins and supervisors
 2. Click the **Onboarding** (**Incorporación**) tab and choose the employee at the top right. The list shows active people first, then inactive and terminated people, each with its status after the name.
 3. If they have no checklist, click **Initialize Onboarding** (**Iniciar la incorporación**).
 4. Tick each step as it is done. Click **+ Custom Step** (**+ Paso personalizado**) to add one.
+Picture: hr-onboarding
 Last checked: 2026-09-30
 
 ## Review a reported problem and assign it (admin dashboard)
@@ -180,6 +198,8 @@ Who can do this: admins and supervisors
 5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
 6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
 Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, incidencias.
+Picture: issues-issue-window
+Picture: issues-assign-task
 Last checked: 2026-10-05
 
 ## Create a task for a staff member (admin dashboard)
@@ -189,6 +209,7 @@ Who can do this: admins and supervisors
 3. Choose the site, describe the task, set the zone, and choose who it is assigned to.
 4. Add instructions, a photo or video, and a due date if needed.
 5. Click **Create and Assign**.
+Picture: tasks-create
 Last checked: 2026-09-16
 
 ## Reassign a task (admin dashboard)
@@ -197,6 +218,7 @@ Who can do this: admins and supervisors
 2. Click **Reassign**.
 3. Choose the new person and give the reason.
 4. Click **Reassign** to save.
+Picture: tasks-reassign
 Last checked: 2026-09-16
 
 ## Schedule a shift (admin dashboard)
@@ -207,6 +229,7 @@ Who can do this: admins and supervisors
 4. Add the building, floor, service or notes if needed.
 5. Click **Schedule Shift** at the bottom of the window to save it.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Picture: schedule-shift-window
 Last checked: 2026-10-01
 
 ## Schedule a shift that repeats (admin dashboard)
@@ -219,6 +242,7 @@ Who can do this: admins and supervisors
 6. With **No end date** or **Until**, the app keeps the schedule filled 8 weeks ahead and keeps extending it. The shifts it adds say **Repeats**.
 If it does not work: for a shift that runs past midnight, pick the day it starts. If the person is already scheduled at that time on some dates, those dates are skipped and listed. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Words people use for this: weekly schedule, recurring shift, same shift every week, standing schedule, set up a pattern.
+Picture: schedule-repeat
 Last checked: 2026-10-01
 
 ## See or change a weekly pattern (admin dashboard)
@@ -228,6 +252,7 @@ Who can do this: admins and supervisors
 3. Change the days, the times or the details, choose the date the change starts, and save.
 4. Shifts before that date stay as they are. Shifts someone changed or cancelled by hand are kept.
 If it does not work: if it says nothing changed yet, change at least one field before saving. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Picture: schedule-pattern-window
 Last checked: 2026-10-01
 
 ## End a weekly pattern (admin dashboard)
@@ -235,6 +260,7 @@ Who can do this: admins and supervisors
 1. Click **Schedule**, then **Patterns**, and click the pattern.
 2. Choose the last day it should run, end the pattern, and confirm.
 3. Future shifts it added after that day are removed, except ones someone changed by hand. Past shifts are never touched.
+Picture: schedule-pattern-end
 Last checked: 2026-09-16
 
 ## Change or cancel a scheduled shift (admin dashboard)
@@ -245,6 +271,7 @@ Who can do this: admins and supervisors
 4. To post it for someone else to take, click **Pickup**, give a reason, and click **Confirm Convert**.
 5. A shift marked **Repeats** comes from a weekly pattern. Changing it changes that date only, and its button reads **Cancel this date** (**Cancelar esta fecha**), which cancels that one date.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Picture: schedule-edit-shift
 Last checked: 2026-10-01
 
 ## Approve or deny a request to drop a shift (admin dashboard)
@@ -254,6 +281,7 @@ Who can do this: admins and supervisors
 3. Click **Approve** to open the shift for others to claim, or **Deny** to keep the original assignment.
 4. The person who asked gets a notice either way.
 Words people use for this: someone called out, cover a shift, drop request, deny a call out, who is covering.
+Picture: pickup-requests
 Last checked: 2026-09-17
 
 ## Post an open shift for staff to claim (admin dashboard)
@@ -263,6 +291,7 @@ Who can do this: admins and supervisors
 3. Choose the site, date and times, and the reason and urgency.
 4. Click **Post Shift**.
 Words people use for this: need cover, open a shift, offer extra hours, fill a shift.
+Picture: pickup-post-open-shift
 Last checked: 2026-09-17
 
 ## Approve a shift someone claimed (admin dashboard)
@@ -270,6 +299,7 @@ Who can do this: admins and supervisors
 1. Click **Shift Pickup**.
 2. Find the claimed shift and click **Approve**. It is added to that person's schedule, and they get a notice.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Picture: pickup-claimed
 Last checked: 2026-10-01
 
 ## Approve or deny a supply request (admin dashboard)
@@ -279,6 +309,7 @@ Who can do this: admins and supervisors
 3. Click **Approve** or **Deny** on the request, add a note if you want, and confirm.
 4. The person who asked gets a notice.
 Words people use for this: supply order, someone needs supplies, order request, approve supplies.
+Picture: supplies-request-approve
 Last checked: 2026-09-17
 
 ## Add a supply to the inventory (admin dashboard)
@@ -288,6 +319,7 @@ Who can do this: admins
 3. Fill in the name, category and unit, and the stock and low threshold.
 4. Click **Add Supply** (**Agregar suministro**) to save. A QR code is made for it automatically.
 5. The categories offered are the ones the system allows for a supply. To print the label that opens the supply's safety sheet when scanned, see the entry on printing supply labels.
+Picture: supplies-add-supply
 Last checked: 2026-10-05
 
 ## Schedule an inspection (admin dashboard)
@@ -297,6 +329,7 @@ Who can do this: admins and supervisors
 3. Click **Schedule Inspection**.
 4. Choose the template, the site, the supervisor and the date.
 5. Click **Schedule**.
+Picture: inspections-schedule
 Last checked: 2026-09-16
 
 ## Create an inspection template (admin dashboard)
@@ -309,6 +342,7 @@ Who can do this: admins and supervisors
 6. To change a template's name or kind later, click **Rename** (**Cambiar nombre**) on its card, change it, and click **Save** (**Guardar**). A new kind also changes how the template's past inspections count in any monthly client report made after the change; a report already made keeps its figures. A template no longer used is deactivated with **Deactivate** (**Desactivar**); nothing is deleted.
 If it does not work: when the kind is refused, the reason shows under **Kind** (**Tipo**). Choose one of the two kinds and save again.
 Words people use for this: inspection template, audit template, supervisor inspection, audit inspection, kind of inspection, type of inspection.
+Picture: inspections-new-template
 Last checked: 2026-09-30
 
 ## See who has started a shift today (admin dashboard)
@@ -316,6 +350,7 @@ Who can do this: admins and supervisors
 1. Click **Live Ops**.
 2. Each site lists who started, when, and how many tasks are done.
 3. Change the date to look at another day.
+Picture: live-ops
 Last checked: 2026-09-16
 
 ## Message a staff member (admin dashboard)
@@ -327,6 +362,7 @@ Who can do this: admins and supervisors
 5. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words. The message is sent once, even when the first try reached the chat. Once it shows in the chat, the box empties.
 Words people use for this: message someone, chat, site chat, general chat, project chat, unread messages, find a person to message, message someone new, find by badge, write to a staff member, mensajes.
+Picture: messages-private-chat
 Last checked: 2026-10-01
 
 ## Ask Help a question from the dashboard (admin dashboard)
@@ -335,11 +371,14 @@ Who can do this: admins and supervisors
 2. Type your question, or click **Add a photo** to show it a picture.
 3. Click **Send**. The answer appears as it is written, in plain words, and takes its bold and its numbered steps once it is finished.
 4. Under the answer, a line says what it is based on: **Based on the app guide** for steps in the staff portal or the admin dashboard, **Based on the ADP guide** for the ADP time clock, **Based on general cleaning guidance** for general cleaning answers, and an OCSA document by its name.
-5. If Help is filling in a report with you and it cannot be sent yet, **Still needed before you can submit:** (**Falta esto antes de poder enviarlo:**) lists the questions left to answer, worded the way the form asks them.
-6. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
+5. An answer that says how to do something on the dashboard or the staff portal can show up to two pictures of the screen under it, drawn in the language the dashboard is shown in. A picture of the staff portal shows a phone screen, so you can show someone what they will see. Click a picture to see it full screen, with the name of its guide entry under it; **Close** (**Cerrar**) puts it away.
+6. If Help is filling in a report with you and it cannot be sent yet, **Still needed before you can submit:** (**Falta esto antes de poder enviarlo:**) lists the questions left to answer, worded the way the form asks them.
+7. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
 If it does not work: if **The connection dropped. Your answer is saved.** (**Se perdió la conexión. La respuesta quedó guardada.**) shows under the answer, click **Try again** (**Intentar de nuevo**) to read the saved answer back. If **This question is still being answered. The answer will show here.** (**Esta pregunta todavía se está respondiendo. La respuesta aparecerá aquí.**) shows, the question was already sent and Help is still writing its answer. The answer shows there by itself when it is ready, looked for every few seconds for two minutes; to look at once, or after the two minutes, click **Try again** (**Intentar de nuevo**). If a question reads Not sent, click **Retry** (**Reintentar**). Retry sends the same question again, and Help answers it once.
-Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer, still being answered.
-Last checked: 2026-09-30
+Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer, still being answered, picture of the screen, show me the screen, screenshot.
+Picture: help-answer
+Picture: help-picture-open
+Last checked: 2026-10-06
 
 ## Run a report (admin dashboard)
 Who can do this: admins and supervisors
@@ -348,6 +387,8 @@ Who can do this: admins and supervisors
 3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**).
 4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A report you no longer need is deactivated with **Deactivate** (**Desactivar**); nothing is deleted.
 Words people use for this: hours worked, labor report, payroll numbers, export data, who worked when, csv, spreadsheet.
+Picture: reports-library
+Picture: reports-issue-report
 Last checked: 2026-09-28
 
 ## Add a site or change its details (admin dashboard)
@@ -360,6 +401,8 @@ Who can do this: admins
 6. Click **Save** (**Guardar**). **Contract Details** (**Detalles del contrato**) then shows the contract reference and the service lines, and the monthly client report fills them in from there.
 If it does not work: when a service line or the contract reference is refused, the reason shows under that field and the window stays open. Put it right and click **Save** (**Guardar**) again.
 Words people use for this: edit a site, site details, contract number, contract reference, service lines, services at a site, what we do at a site.
+Picture: sites-add-site
+Picture: sites-edit-details
 Last checked: 2026-09-30
 
 ## Give one person a permission (admin dashboard)
@@ -370,6 +413,7 @@ Who can do this: admins, and anyone given the manage permissions permission
 4. Set each permission to **Default**, **Allow** or **Deny**.
 5. Click **Save changes**.
 Words people use for this: give access, let someone approve, permissions, change what someone can do.
+Picture: settings-permissions-person
 Last checked: 2026-09-20
 
 ## See what each role can do, or print it (admin dashboard)
@@ -379,6 +423,7 @@ Who can do this: admins, and anyone given the manage permissions permission
 3. Click **Role reference**. It lists every permission and whether admins, supervisors and staff have it.
 4. Click **Export PDF** to print it or save it.
 Words people use for this: role chart, who can do what, access list, permissions list, print the roles.
+Picture: settings-role-reference
 Last checked: 2026-09-20
 
 ## Switch between light and dark (admin dashboard)
@@ -388,6 +433,7 @@ Who can do this: anyone signed in
 3. On a phone, or any window narrower than 700 pixels, tap **More** (**Más**), the three dots at the top right; **Light mode** (**Modo claro**) or **Dark mode** (**Modo oscuro**) is in that menu.
 4. In light mode, the colors that mark a status, such as green, orange and red, are darker so they read on white.
 Words people use for this: dark mode, light mode, turn on dark mode, turn off dark mode, the screen is too bright, change the colors, hard to read colors.
+Picture: theme-button
 Last checked: 2026-10-01
 
 ## Move around the dashboard with the keyboard (admin dashboard)
@@ -407,6 +453,7 @@ Who can do this: anyone allowed to approve and deny time off
 6. The person gets a notice in the app carrying the dates, and reads your note in the app.
 Words people use for this: approve time off, deny a day off, decide a leave request, sign off on vacation, time off queue.
 If it does not work: nobody decides their own request. Deciding a request leaves the schedule as it is, so change or cover those shifts yourself. If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet.
+Picture: time-off-request
 Last checked: 2026-09-28
 
 ## See past time off requests (admin dashboard)
@@ -416,6 +463,7 @@ Who can do this: anyone allowed to approve and deny time off
 3. Choose a person beside the buttons to narrow the list, or leave it on **Everyone**.
 4. Click a row to see who decided it, when, and the note they left.
 Words people use for this: who is off next week, time off history, past leave requests, who asked for a day off.
+Picture: time-off-all
 Last checked: 2026-09-17
 
 ## Log training for several people at once (admin dashboard)
@@ -430,6 +478,7 @@ Who can do this: admins and supervisors
 8. **Print attendance sheet** (**Imprimir la hoja de asistencia**) prints the training attendance roster: the session, with **Related Document No.** (**Número de documento relacionado**) filled in with the topic's document and section, every person with a line to sign and a box for **Understood** (**Entendido**), and the trainer's attestation.
 If it does not work: a refusal is shown under the field it names. Before the training catalog is in, the window asks for a typed **Training Name** (**Nombre de la capacitación**) and a **Training Type** (**Tipo de capacitación**) in place of the topic and saves one person after another; anyone under **Not saved** (**Sin guardar**) is sent again with **Try again** (**Intentar de nuevo**).
 Words people use for this: log training, training attendance, sign in sheet, log a session, record who attended, orientation, skills sign-off, training session.
+Picture: training-log-session
 Last checked: 2026-10-05
 
 ## See who has no record of a training (admin dashboard)
@@ -450,6 +499,7 @@ Who can do this: admins and supervisors
 4. To print every session at a site over a range of dates, use **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
 If it does not work: allow pop-ups for the dashboard in the browser, then click **Print attendance sheet** again.
 Words people use for this: attendance sheet, print sign in sheet, training roster, payroll list for training.
+Picture: training-gaps-sessions
 Last checked: 2026-10-05
 
 ## Write what was done and close a customer complaint (admin dashboard)
@@ -462,6 +512,7 @@ Who can do this: any supervisor or admin other than the person who logged the co
 6. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 If it does not work: the person who logged the complaint is refused both the supervisor section and the sign-off; another supervisor or admin does it.
 Words people use for this: close a complaint, customer complaint, complaint register, what was done about the complaint, sign the complaint, resolve a complaint, cerrar una queja, registro de quejas.
+Picture: complaint-what-was-done
 Last checked: 2026-10-02
 
 ## Find a staff member's badge number (admin dashboard)
@@ -471,6 +522,8 @@ Who can do this: admins
 3. Or open the person's profile: under **Contact Information** (**Datos de contacto**), the **Badge number** (**Número de empleado**) line shows it, or **Not set** (**Sin indicar**) if the account has none.
 4. The badge number is what the person types to sign in on the staff portal, and it is on their temporary PIN slip. It comes from ADP or from the invite. When it shows **Not set** (**Sin indicar**), an admin can click **Generate badge number** (**Generar número de empleado**) on the profile.
 Words people use for this: badge number, employee number, what number do they sign in with, lost their slip, credencial, número de empleado.
+Picture: staff-badge-column
+Picture: staff-badge-not-set
 Last checked: 2026-10-01
 
 ## Verify and sign a safety inspection (admin dashboard)
@@ -483,6 +536,7 @@ Who can do this: any supervisor or admin other than the person who did the inspe
 6. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 If it does not work: the person who did the inspection is refused both the section and the sign-off; another supervisor or admin does it.
 Words people use for this: sign a safety inspection, verify findings, review an inspection, close a finding, add a verified finding, firmar la inspección de seguridad, verificar hallazgos.
+Picture: safety-inspection-verify
 Last checked: 2026-09-28
 
 ## Move a corrective action forward and close it (admin dashboard)
@@ -496,6 +550,7 @@ Who can do this: any supervisor or admin other than the person who raised it
 The tables **What was completed** (**Qué se concluyó**) and **Actions confirmed in place** (**Acciones confirmadas en su lugar**) take rows with **Add row** (**Agregar fila**), one per action, and **Remove row** (**Quitar fila**) takes one out; the five parts of the section sit under their own headings, **Approval** (**Aprobación**), **Completion** (**Conclusión**), **Verification** (**Verificación**), **Effectiveness check** (**Comprobación de eficacia**) and **Closure** (**Cierre**).
 If it does not work: the person who raised the action is refused both the section and the sign-off.
 Words people use for this: close a corrective action, approve a corrective action, effectiveness check, verify an action, cerrar la acción correctiva, comprobación de eficacia.
+Picture: corrective-action-desk
 Last checked: 2026-10-05
 
 ## Verify and sign an environmental audit (admin dashboard)
@@ -508,6 +563,7 @@ Who can do this: any supervisor or admin other than the person who performed the
 6. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 If it does not work: the person who performed the audit is refused both the section and the sign-off; another supervisor or admin does it.
 Words people use for this: sign an environmental audit, verify environmental findings, review an environmental audit, firmar la auditoría ambiental, verificar hallazgos ambientales.
+Picture: environmental-audit-verify
 Last checked: 2026-09-28
 
 ## Approve a PPE hazard assessment (admin dashboard)
@@ -519,6 +575,7 @@ Who can do this: admins only, other than the person who filed it. A supervisor c
 5. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 If it does not work: a supervisor sees the section but is refused when saving or signing; an admin does it. The person who filed it is refused too.
 Words people use for this: approve a PPE assessment, hazard assessment approval, next reassessment date, aprobar la evaluación de riesgos, reevaluación.
+Picture: ppe-hazard-approve
 Last checked: 2026-09-27
 
 ## Confirm safety committee minutes (admin dashboard)
@@ -530,6 +587,7 @@ Who can do this: any supervisor or admin other than the person who recorded the 
 5. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 If it does not work: the person who recorded the minutes is refused both the section and the sign-off; another supervisor or admin does it.
 Words people use for this: confirm the minutes, chair signs the minutes, approve committee minutes, confirmar el acta, firmar el acta.
+Picture: committee-minutes-confirm
 Last checked: 2026-09-27
 
 ## Read a filed report (admin dashboard)
@@ -540,6 +598,8 @@ Who can do this: admins, anyone the server lets read a filed report, and the per
 4. A sign-off reads **Signed by** (**Firmado por**) a name, a date and a time, with the drawn signature above it, or **Not signed** (**Sin firmar**).
 5. **Download PDF** (**Descargar el PDF**) keeps a copy, with the photos and signatures in it. **Send again** (**Enviar de nuevo**), then **Send it** (**Enviarlo**), sends it to everyone set for that form once more. The person who filed it cannot send their own again.
 Words people use for this: incident reports, filed forms, what was reported, see the photos, download the report, print the report, save as pdf, resend, the register.
+Picture: filed-forms-list
+Picture: filed-report-window
 Last checked: 2026-09-28
 
 ## Read a filed form (admin dashboard)
@@ -557,6 +617,7 @@ Who can do this: anyone the server lets sign that part of that report
 5. **Sign** (**Firmar**) in the box stays off until something is drawn. Click it; the part then reads **Signed by** (**Firmado por**) your name, the date and the time, with your drawing above it.
 If it does not work: you cannot sign a report you filed yourself, a part cannot be signed twice, and a sign-off is refused without a drawing. The line in the box is the server's own answer.
 Words people use for this: sign the report, sign off, approve the report, my signature, sign with the mouse, draw my signature, signed by.
+Picture: filed-report-sign-box
 Last checked: 2026-09-28
 
 ## Review and sign a daily service log or a monthly PPE check (admin dashboard)
@@ -566,6 +627,8 @@ Who can do this: supervisors and admins, never the person who filed it
 3. Under **Supervisor section** (**Sección del supervisor**), click **Sign** (**Firmar**) beside **Site supervisor, reviewed** on a daily log, or **Field Lead, reviewed** on a PPE check. Draw your signature in the box and click **Sign** (**Firmar**) in it.
 If it does not work: a review opens once the report is filed, and the person who filed it cannot sign it.
 Words people use for this: daily log review, sign the service log, review the log, ppe review, sign the ppe check.
+Picture: daily-log-review
+Picture: ppe-check-review
 Last checked: 2026-09-28
 
 ## Fill in the supervisor section of a filed form (admin dashboard)
@@ -578,6 +641,7 @@ Who can do this: admins and supervisors, on a report somebody else filed
 6. Where a sign-off is yours to make, click **Sign** (**Firmar**), draw your signature in the box, and click **Sign** (**Firmar**) in it.
 A HEIC photo copied off an iPhone is accepted and arrives as a normal picture. If the dashboard says a photo could not be read, choose another one.
 Words people use for this: supervisor section, sign off a form, close a report, complete a filed form, add a photo to a report.
+Picture: filed-report-supervisor-section
 Last checked: 2026-09-28
 
 ## Sync the forms and their submissions from Jotform (admin dashboard)
@@ -587,6 +651,7 @@ Who can do this: admins
 3. One form's submissions come in with **Pull** (**Traer**) on its row under **Forms** (**Formularios**) inside the Jotform tab.
 4. **Recent Sync Log** (**Registro de sincronizaciones recientes**) sits under the buttons.
 Words people use for this: jotform, sync forms, pull submissions, applications from jotform, onboarding paperwork, full refresh.
+Picture: jotform-maintenance
 Last checked: 2026-09-28
 
 ## Find the Jotform tools (admin dashboard)
@@ -596,6 +661,7 @@ Who can do this: admins
 3. **Forms** (**Formularios**): the form library, with **Edit** (**Editar**) and **Pull** (**Traer**) on each form.
 4. **Maintenance** (**Mantenimiento**): **Settings** (**Configuración**), **Sync Diagnostic** (**Diagnóstico de sincronización**) and **Aliases** (**Alias**), and the sync buttons under **API Connection** (**Conexión con la API**).
 Words people use for this: where did jotform go, jotform settings, sync diagnostic, aliases, bulk upload pdfs, inbox.
+Picture: jotform-inbox
 Last checked: 2026-09-28
 
 ## Read the PDF access log (admin dashboard)
@@ -604,6 +670,7 @@ Who can do this: admins
 2. The banner reads **Proof of who opened or was sent each PDF.** (**Prueba de quién abrió o recibió cada PDF.**). It holds both kinds: a Jotform submission's PDF and an app form's PDF.
 3. Narrow it with **Source** (**Origen**): **All** (**Todos**), **Jotform** or **App forms** (**Formularios de la app**); by action: **View** (**Ver**), **Download** (**Descargar**), **Print** (**Imprimir**) or **Email** (**Correo**); by result and by date.
 Words people use for this: who opened the pdf, pdf log, proof of delivery, who downloaded the report, access log.
+Picture: pdf-access-log
 Last checked: 2026-09-28
 
 ## Start and file a form from the dashboard (admin dashboard)
@@ -617,6 +684,8 @@ Who can do this: supervisors and admins, for the forms the server lets them star
 iPhone photos are accepted; a HEIC photo arrives as a normal picture.
 If it does not work: when a site is refused, the reason shows under the list of sites. Click another site, or **No particular site** (**Ningún sitio en particular**). **Continue** (**Continuar**) on an unfinished form opens it without asking for a site.
 Words people use for this: start a form, fill a form on the computer, file a form from the office, new report from the dashboard, which site, form for a site.
+Picture: start-form-site
+Picture: start-form-window
 Last checked: 2026-09-30
 
 ## Continue an unfinished form (admin dashboard)
@@ -625,6 +694,7 @@ Who can do this: the person who started it
 2. To pick it up again, click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), **Unfinished** (**Sin terminar**), and **Continue** (**Continuar**) on the row.
 3. The window opens with every saved answer in place.
 Words people use for this: finish a form later, resume a draft, continue a form, unfinished form, draft.
+Picture: unfinished-forms
 Last checked: 2026-09-28
 
 ## Make a customer link and print its QR code (admin dashboard)
@@ -640,6 +710,7 @@ A customer link lets a customer fill a form from their own phone, with no accoun
 What the customer sees: OCSA's logo, the site's name and the form, a box for their name and their role, the questions, up to three photos and a signature drawn with a finger, then Send and a thank-you. Nothing else of the app is shown. Their filing arrives under **Filed forms** (**Formularios presentados**) marked **Customer** (**Cliente**).
 If it does not work: the reason is shown under the button. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: QR code, customer survey link, customer feedback, print a QR code, post a survey in the building, satisfaction survey, cleanliness checklist, customer links tab, código QR, encuesta del cliente.
+Picture: customer-link-qr
 Last checked: 2026-10-05
 
 ## Turn a customer link off or on (admin dashboard)
@@ -651,6 +722,7 @@ Who can do this: admins who can change settings
 A link stays on until someone turns it off. It does not expire by itself.
 If it does not work: only one link per site and form can be live, so turning one on is refused while another for the same pair is live. Turn the other off first. A request QR is refused the same way while another live request QR of the site has the same area.
 Words people use for this: disable the QR code, stop the survey, turn off a link, reactivate a link, apagar el enlace.
+Picture: customer-links-table
 Last checked: 2026-10-05
 
 ## Read a customer's filing (admin dashboard)
@@ -661,6 +733,7 @@ Who can do this: admins, and supervisors the form lets read filed reports
 4. On a **Client Satisfaction Survey** (**Encuesta de satisfacción del cliente**), **Section averages** (**Promedios por sección**) and **Overall** (**General**) show under the answers, to one decimal. Surveys filed from September 29 rate each question from 1 to 10 and read as, for example, 8.4 of 10; older surveys were rated 1 to 5.
 5. On a **Facility Cleanliness Evaluation Checklist** (**Lista de evaluación de limpieza del edificio**), the counts and the score arrive filled in; the Field Lead confirms or corrects them under **Supervisor section** (**Sección del supervisor**) and signs.
 Words people use for this: customer survey results, what the customer said, customer feedback, survey score, satisfaction average, cleanliness score, respuesta del cliente.
+Picture: customer-filing-survey
 Last checked: 2026-09-29
 
 ## Review and sign a site assessment (admin dashboard)
@@ -671,6 +744,7 @@ Who can do this: supervisors and admins, other than the person who did the asses
 4. Click **Sign** (**Firmar**) beside **Field Lead, reviewed** (**Encargado de campo, revisado**), draw your signature and click **Sign** (**Firmar**) in the box. This closes the assessment.
 If it does not work: the person who did the assessment cannot sign it; someone else signs.
 Words people use for this: review a site assessment, sign the walkthrough, approve the site survey, square footage check, revisar la evaluación del sitio.
+Picture: site-assessment-sign
 Last checked: 2026-09-28
 
 ## Move a change of service request through approval and close it (admin dashboard)
@@ -683,6 +757,7 @@ Who can do this: supervisors and admins other than the filer fill the sections a
 6. A request routed as **Special request** (**Solicitud especial**), **Within scope** (**Dentro del alcance**) or **Complaint** (**Queja**) stops after **Where it goes** (**A dónde va**): sign **Closed** (**Cerrado**) as soon as it is filed.
 If it does not work: the person who filed the request cannot sign either sign-off, and a supervisor cannot sign **Approved** (**Aprobado**).
 Words people use for this: approve a change of service, price a change, close a change request, customer said yes, aprobar el cambio de servicio.
+Picture: change-of-service-desk
 Last checked: 2026-09-28
 
 ## File an orientation in the personnel file (admin dashboard)
@@ -692,6 +767,7 @@ Who can do this: admins only, other than the person who gave the orientation
 3. Click **Sign** (**Firmar**) beside **Filed in the personnel file** (**Archivado en el expediente del personal**), draw your signature and click **Sign** (**Firmar**) in the box. This closes it.
 If it does not work: a supervisor cannot sign it, and the person who gave the orientation cannot sign their own.
 Words people use for this: file the orientation, personnel file, new hire paperwork, orientation record, archivar la orientación.
+Picture: orientation-file
 Last checked: 2026-09-28
 
 ## Follow up a customer contact and close it (admin dashboard)
@@ -701,6 +777,7 @@ Who can do this: supervisors and admins other than the person who logged it
 3. Click **Sign** (**Firmar**) beside **Closed** (**Cerrado**), draw your signature and click **Sign** (**Firmar**) in the box. It is refused while one of the three questions is empty.
 If it does not work: the person who logged the contact cannot sign **Closed** (**Cerrado**); someone else signs.
 Words people use for this: close a customer call, follow up a complaint call, customer contact log, call log follow up, cerrar el registro de llamada.
+Picture: call-intake-close
 Last checked: 2026-09-28
 
 ## Fill in a performance review with the employee (admin dashboard)
@@ -713,6 +790,7 @@ Who can do this: supervisors and admins, at a desk with the employee beside them
 6. Click **Sign** (**Firmar**) beside **Reviewed by** (**Evaluado por**), draw your signature, then **Review** (**Revisar**) and **Send** (**Enviar**).
 If it does not work: the review cannot be sent until every row of **Ratings** (**Calificaciones**) has a rating and **Employee signature** (**Firma del empleado**) and **Reviewed by** (**Evaluado por**) are both signed; **These still need an answer** (**Estas todavía necesitan respuesta**) names what is left.
 Words people use for this: performance review, evaluation, annual review, probation review, ninety day review, 90 day review, evaluación del desempeño, evaluación anual.
+Picture: performance-review-ratings
 Last checked: 2026-09-28
 
 ## File a performance review in the personnel file (admin dashboard)
@@ -722,6 +800,7 @@ Who can do this: admins only, other than the person who gave the review
 3. Under **Supervisor section** (**Sección del supervisor**), click **Sign** (**Firmar**) beside **Filed in the personnel file** (**Archivado en el expediente del personal**), draw your signature and click **Sign** (**Firmar**) in the box. This closes it.
 If it does not work: a supervisor cannot sign it, and the person who gave the review cannot sign their own.
 Words people use for this: file the review, personnel file, performance review record, archivar la evaluación.
+Picture: performance-review-file
 Last checked: 2026-09-28
 
 ## Void a report filed in error (admin dashboard)
@@ -732,6 +811,7 @@ Who can do this: admins
 4. Admins can list void reports with the Void choice beside Submitted and Unfinished on Filed forms.
 If it does not work: only a filed report can be voided, a void report cannot be voided again, and a reason is required; the reason for a refusal shows in the window.
 Words people use for this: void a report, filed by mistake, wrong report, cancel a filed form, anular un reporte.
+Picture: filed-report-void
 Last checked: 2026-09-28
 
 ## Send an announcement to staff phones (admin dashboard)
@@ -742,6 +822,7 @@ Who can do this: admins, and anyone given the announcements permission
 4. The line under it says how many people it reaches and how many have phone alerts on. Click **Send announcement** (**Enviar anuncio**).
 5. It lands in each person's bell and on every phone they turned alerts on. The list under **Sent** (**Enviados**) keeps each one with who sent it, when, and the counts. An announcement cannot be edited or taken back once sent.
 Words people use for this: send a message to everyone, push notification, announcement, alert all staff, tell a site, enviar un anuncio.
+Picture: announcement-new
 Last checked: 2026-09-28
 
 ## Choose what alerts your phone (admin dashboard)
@@ -751,6 +832,7 @@ Who can do this: anyone signed in
 3. Five switches cover **Schedule and time off** (**Horario y tiempo libre**), **Shift pickups and drops** (**Turnos libres y turnos soltados**), **Supply requests** (**Pedidos de suministros**), **Problems reported** (**Problemas reportados**) and **Forms filed** (**Formularios presentados**). Each choice saves at once.
 These decide what buzzes your phone in the staff app; turn alerts on for your phone from the staff app's Settings, Phone alerts. The bell keeps every notice whatever you choose, and announcements from the office always come through.
 Words people use for this: notification settings, stop alerts, mute chat, only tagged, alert settings, mis alertas.
+Picture: my-alerts
 Last checked: 2026-09-28
 
 ## Tag someone in a chat (admin dashboard)
@@ -760,6 +842,7 @@ Who can do this: anyone who can read the chat
 3. Their name goes into the message. Send it; they get an alert that the message is for them, and their name shows highlighted.
 To untag someone, delete their name from the message before sending. A private conversation or a direct message has no tag button, since everyone who reads it already gets an alert for every message.
 Words people use for this: tag someone, mention someone, @ someone, etiquetar.
+Picture: chat-tag-someone
 Last checked: 2026-10-01
 
 ## See what people ask Help (admin dashboard)
@@ -771,6 +854,7 @@ Who can do this: admins, and anyone an admin gives See Help insights
 5. **Everyone who asked** (**Todos los que preguntaron**) lists each person. Click one to see **Their questions** (**Sus preguntas**) and Help's answers; **Opening this is recorded.** (**Abrir esto queda registrado.**)
 If it does not work: **No questions in this range.** (**No hay preguntas en este periodo.**) means nobody asked in those dates. If the page is missing from the side panel, you do not have the permission.
 Words people use for this: help report, what are people asking, help analytics, questions help missed, help insights, estadísticas de la ayuda.
+Picture: help-insights
 Last checked: 2026-10-02
 
 ## Correct the Spanish a person sees (admin dashboard)
@@ -779,6 +863,7 @@ Who can do this: anyone who can edit checklist items or pick lists
 2. **Shown in Spanish as** (**Se muestra en español como**) holds the Spanish the staff app shows today. Change it to the wording you want.
 3. Click Save. **Saved. People see this wording from now on.** (**Guardado. El personal ve este texto desde ahora.**) Your wording stays until someone changes it; the automatic translation never writes over it.
 Words people use for this: fix the spanish, wrong translation, change the spanish wording, corregir el español, traducción.
+Picture: task-spanish-wording
 Last checked: 2026-09-28
 
 ## Make a new form with the builder (admin dashboard)
@@ -792,6 +877,7 @@ Who can do this: admins, and anyone an admin gives Make and change forms. Only a
 7. Leave with Back at any time; the draft waits under **Draft in progress** (**Borrador en curso**). **Discard draft** (**Descartar borrador**) takes it off the list.
 If the form is about one staff member, the builder adds a question that picks the person, and every filed report then shows in that person's HR folder.
 Words people use for this: make a new form, create a form, build a form, form builder, new checklist, crear un formulario.
+Picture: form-builder-draft
 Last checked: 2026-09-28
 
 ## Change an existing form (admin dashboard)
@@ -801,6 +887,7 @@ Who can do this: admins, and anyone an admin gives Make and change forms
 3. An admin publishes it as the next version. Reports already filed keep the version they were filed on, and open and print as they were.
 A form with a draft already in progress reopens that draft. A form marked **From the code** (**Del código**) is changed the same way as one **Made with the builder** (**Hecho con el creador**).
 Words people use for this: change a form, edit a form, add a question to a form, new version of a form, cambiar un formulario.
+Picture: form-builder-list
 Last checked: 2026-09-28
 
 ## Publish or retire a form (admin dashboard)
@@ -810,6 +897,8 @@ Who can do this: admins only
 3. Anyone else who can build sees **Only an admin can publish. Your draft is saved for one to review.** (**Solo un administrador puede publicar. Su borrador queda guardado para que uno lo revise.**)
 4. To stop offering a form, click its row to open its **Version history** (**Historial de versiones**), click **Retire form** (**Retirar formulario**), answer **Why is this form being retired?** (**¿Por qué se retira este formulario?**), and click **Retire form** (**Retirar formulario**) again. Reports already filed still open and print.
 Words people use for this: publish a form, approve a form, make a form live, retire a form, stop using a form, version history, publicar un formulario.
+Picture: form-builder-publish
+Picture: form-builder-retire
 Last checked: 2026-09-28
 
 ## See how clients rated a site (admin dashboard)
@@ -821,6 +910,7 @@ Who can do this: anyone who can see reports
 5. Each site shows its **Overall** (**General**) out of 10, its **Responses** (**Respuestas**), **Each question** (**Cada pregunta**), **Overall by month** (**General por mes**) and **Comments** (**Comentarios**). A month with no response is named in orange. Surveys rated 1 to 5 before September 29 are counted doubled, and the line under the title says so.
 6. Click **Export PDF** (**Exportar PDF**) or **Export CSV** (**Exportar CSV**) to keep a copy.
 Words people use for this: client ratings, customer satisfaction score, how is the client rating us, survey results by site, rating out of 10, calificaciones de los clientes.
+Picture: client-ratings
 Last checked: 2026-09-29
 
 ## Make and send the monthly report to a client (admin dashboard)
@@ -835,6 +925,8 @@ Who can do this: anyone who can see reports prepares it; an admin who did not pr
 8. The list shows who acknowledged it and when. A report not acknowledged 10 days after sending is marked **Overdue** (**Atrasado**).
 If it does not work: the send is refused until both **Prepared by** (**Preparado por**) and **Reviewed by** (**Revisado por**) are signed; the line at the top says which. A figure the records cannot give is left empty for you to fill in. When the contract reference or the service lines are empty, set them on the site with **Edit Details** (**Editar los detalles**) before making the report, or type them in. When no audit inspections are counted, check that the audit's template has **Audit inspection** (**Inspección de auditoría**) as its kind.
 Words people use for this: monthly report, client report, monthly performance report, send the report with the invoice, client acknowledgement, audit gap, supervisor and audit inspections, reporte mensual, informe mensual.
+Picture: monthly-reports-list
+Picture: monthly-report-send
 Last checked: 2026-09-30
 
 ## Set when a site's client gets the satisfaction survey (admin dashboard)
@@ -845,6 +937,7 @@ Who can do this: admins who can change settings
 4. Pick the **Day of the month** (**Día del mes**), from 1 to 28, and click **Save** (**Guardar**). **Last sent** (**Último envío**) and **Next send** (**Próximo envío**) show the dates.
 If it does not work: a schedule that is not Off needs at least one contact, and the line under the field says what to fix.
 Words people use for this: send the survey automatically, survey schedule, client survey contacts, email the survey every month, calendario de la encuesta.
+Picture: site-client-survey
 Last checked: 2026-10-02
 
 ## Bring back a removed supply (admin dashboard)
@@ -854,6 +947,7 @@ Who can do this: people who manage supplies
 3. Click **Bring back** (**Restaurar**) on the supply. It returns to the list.
 If it does not work: a supply already back in the list cannot be brought back again.
 Words people use for this: restore a supply, undo remove, removed by mistake, restaurar un suministro.
+Picture: supplies-removed
 Last checked: 2026-09-29
 
 ## Name a site's shifts and their blocks (admin dashboard)
@@ -863,6 +957,8 @@ Who can do this: people who manage tasks change them; anyone who can see the sit
 3. To change one, click **Rename** (**Cambiar nombre**). A new shift name goes to every block of that shift. Correct the Spanish under **Shown in Spanish as** (**Se muestra en español como**) if it reads wrong.
 4. Use the up and down arrows to change the order within a shift, and **Remove** (**Quitar**) to take a block off the list.
 Words people use for this: shift names, rename a shift, day porter shift, night shift blocks, restroom round, nombres de turnos.
+Picture: shift-names
+Picture: shift-names-rename
 Last checked: 2026-09-29
 
 ## Mark an incident report recordable (admin dashboard)
@@ -874,6 +970,7 @@ Who can do this: people given Keep the injury log who can complete the report's 
 5. Click **Save** (**Guardar**). The first time a case is saved as Yes, it gets the next case number for the year of the event and keeps it. A case set back to No leaves the log, and its number is never used again.
 If it does not work: when the section says **Only someone who keeps the injury log can change these answers.** (**Solo quien lleva el registro de lesiones puede cambiar estas respuestas.**), your account does not have **Keep the injury log** (**Llevar el registro de lesiones**). An admin grants it under **Settings** (**Configuración**), **Roles and Permissions** (**Roles y permisos**). A refused answer is named under its question.
 Words people use for this: recordable case, osha recordable, recordkeeping, put an injury on the log, privacy case, days away, caso registrable.
+Picture: incident-recordable
 Last checked: 2026-09-30
 
 ## Read and export the injury log (admin dashboard)
@@ -886,6 +983,7 @@ Who can do this: people given Keep the injury log, admins by default
 6. Click **Export PDF** (**Exportar PDF**) for the log in the OSHA 300 layout, to print or keep.
 If it does not work: **No recordable cases this year.** (**No hay casos registrables este año.**) means no filed incident report dated that year is marked recordable. A void or unfinished report is never on the log. When **Safety records** (**Registros de seguridad**) is not on **Reports** (**Informes**), your account does not have **Keep the injury log** (**Llevar el registro de lesiones**).
 Words people use for this: injury log, osha 300, osha log, log of work-related injuries and illnesses, recordable cases, ocsa-frm-028, registro de lesiones.
+Picture: injury-log
 Last checked: 2026-09-30
 
 ## Fill in, certify and export the annual summary (admin dashboard)
@@ -898,6 +996,7 @@ Who can do this: people given Keep the injury log fill it in and save it; an adm
 6. Click **Export PDF** (**Exportar PDF**) for the summary in the OSHA 300A layout, and post it from February 1 to April 30.
 If it does not work: Certify is refused until both figures are saved, and the line at the top says so. A figure that is not a whole number in range is named under its field, and so is an executive's name or title the summary cannot take. When the page says **The injury log changed after this summary was certified. It needs certifying again.** (**El registro de lesiones cambió después de que se certificó este resumen. Hay que certificarlo de nuevo.**), a case changed after the signature, so an admin certifies it again.
 Words people use for this: annual summary, osha 300a, injury summary, certify the summary, post the summary, hours worked, average employees, ocsa-frm-029, resumen anual.
+Picture: annual-summary
 Last checked: 2026-09-30
 
 ## Make a quote (admin dashboard)
@@ -913,6 +1012,7 @@ Who can do this: people given Build quotes, admins by default
 9. To change a quote later, click its row on the list, change it and click **Save** (**Guardar**). A quote already sent goes back to **Draft** (**Borrador**) as its next revision and needs sending again.
 If it does not work: a value that cannot be taken is named under its box, the step holding it gets a red dot, and the line at the top says what to fix. **Changes not saved yet** (**Cambios todavía sin guardar**) beside Save means the last change is not saved. When **Quotes** (**Cotizaciones**) is not in the side panel, your account does not have **Build quotes** (**Preparar cotizaciones**). An admin grants it under **Settings** (**Configuración**), **Roles and Permissions** (**Roles y permisos**).
 Words people use for this: quote, bid, estimate, price a job, workload calculator, bid model, t01, new quote, cotización, presupuesto.
+Picture: quote-new
 Last checked: 2026-10-01
 
 ## Read a quote's figures and checks (admin dashboard)
@@ -924,6 +1024,7 @@ Who can do this: people given Build quotes, admins by default
 5. Under the checks, every figure of the estimate is listed by step: the square feet, the labor hours and the staff, the labor, burden and other direct costs, the overhead, the margin, the monthly and annual price, the contract value and the price per square foot.
 If it does not work: a check that is not met is a warning, and it never stops a save or a send. **Price against the local range** (**Precio frente al rango local**) reads the benchmark low and high in **Cost summary** (**Resumen de costos**), which the quote defaults can set for every new quote. When the panel says **These figures are from before the last change.** (**Estas cifras son de antes del último cambio.**), a value cannot be read, and its box says why.
 Words people use for this: quote figures, bid price, checks, warnings, price per square foot, labor hours, headcount, margin, cifras, verificaciones.
+Picture: quote-figures-checks
 Last checked: 2026-09-30
 
 ## Send a quote to a client (admin dashboard)
@@ -935,6 +1036,7 @@ Who can do this: people given Build quotes, admins by default
 5. The window says how many addresses the mail reached. The quote shows on the list as **Sent** (**Enviada**), with the day.
 If it does not work: **Send to the client** (**Enviar al cliente**) waits until every change is saved. An address that cannot be read is edged red. Up to 10 addresses go at a time. When the mail reached nobody, the line at the top says so and the quote stays as it was, so try again. When the window says **The quote changed while it was mailing, so it was not marked sent.** (**La cotización cambió mientras se enviaba, así que no se marcó como enviada.**), someone saved or closed the quote while it mailed; open it and send it again if it still needs to go.
 Words people use for this: send the quote, email the bid, quote pdf, client pdf, internal worksheet, enviar la cotización.
+Picture: quote-send-window
 Last checked: 2026-09-30
 
 ## Mark a quote accepted or declined (admin dashboard)
@@ -945,6 +1047,7 @@ Who can do this: people given Build quotes, admins by default
 4. Answer the question with the same button. The quote reads **Accepted** (**Aceptada**), **Declined** (**Rechazada**) or **Void** (**Anulada**), and reads only from then on.
 If it does not work: the buttons wait until every change is saved. A closed quote cannot change or be sent again, so start another with **New quote** (**Nueva cotización**).
 Words people use for this: quote accepted, bid won, bid lost, client said no, cancel a quote, void a quote, cotización aceptada.
+Picture: quote-mark-accepted
 Last checked: 2026-09-30
 
 ## Set the quote defaults (admin dashboard)
@@ -957,6 +1060,7 @@ Who can do this: admins given Build quotes
 6. Click **Save** (**Guardar**). Every new quote starts from these values and rows. A quote already made keeps its own.
 If it does not work: a value outside its range is named under its box, a row's bad quantity or unit cost under that box, and the step holding it gets a red dot. When the tab is not there, your account is not an admin with **Build quotes** (**Preparar cotizaciones**). The lists show once the server starts quotes with no equipment or supplies of its own.
 Words people use for this: quote defaults, default wage, default margin, burden rates, quote terms, terms and conditions, how long a quote is valid, starting equipment, starting supplies, valores iniciales.
+Picture: settings-quote-defaults
 Last checked: 2026-10-01
 
 ## Start a message to anyone (admin dashboard)
@@ -967,6 +1071,7 @@ Who can do this: admins and supervisors
 4. The chat opens with the message box ready. Type and press Enter.
 If it does not work: a person who is no longer active is not listed. When a line in the window says the chat could not be opened, try again; if it keeps saying so, the person may no longer be active.
 Words people use for this: new message, start a chat, message someone new, write to anyone, message a supervisor, message a staff member who has not written, nuevo mensaje.
+Picture: messages-new-window
 Last checked: 2026-10-01
 
 ## Message another office person directly (admin dashboard)
@@ -977,6 +1082,7 @@ Who can do this: admins and supervisors
 4. Type and press Enter. The top of the chat reads **Direct message** (**Mensaje directo**). A direct chat is listed for the two of you only, and the other person gets an alert.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words; the message is sent once. A direct chat has no tag button, since the other person is alerted to every message.
 Words people use for this: direct message, dm, message another admin, message a supervisor, office chat, chat between admins, mensaje directo.
+Picture: messages-direct-chat
 Last checked: 2026-09-30
 
 ## Record a person's school clearances (admin dashboard)
@@ -987,6 +1093,8 @@ Who can do this: admins and supervisors
 4. For the **Act 168 employment history review** (**Revisión del historial laboral (Act 168)**), click **Record the review** (**Registrar la revisión**), enter **Completed on** (**Hecha el**), answer **Anything disclosed?** (**¿Se divulgó algo?**), and click **Save** (**Guardar**).
 If it does not work: a date in the future is refused, and the line under the date says so. When the certificate is not in the **Document** (**Documento**) list, add it first with **+ Add Document** (**+ Agregar documento**).
 Words people use for this: school clearances, act 34, act 151, fbi fingerprints, child abuse clearance, act 168, renew a clearance, autorizaciones escolares.
+Picture: clearances-person
+Picture: clearances-add-window
 Last checked: 2026-10-01
 
 ## Correct a clearance date entered wrongly (admin dashboard)
@@ -997,6 +1105,7 @@ Who can do this: admins and supervisors
 4. A correction never puts anyone on work by itself. Once the date is right, try the assignment again.
 If it does not work: a reason is required, from 5 to 500 characters, and the line under it says what is wrong. For a new certificate, use **Add or renew** (**Agregar o renovar**) instead.
 Words people use for this: wrong clearance date, fix a clearance, typo in a clearance date, correct an expiry, corregir una fecha.
+Picture: clearances-correct-window
 Last checked: 2026-10-01
 
 ## See everyone's clearances and export them for a school (admin dashboard)
@@ -1009,6 +1118,7 @@ Who can do this: admins and supervisors
 6. **Print the tracking record** (**Imprimir el registro de seguimiento**) prints the site's **School Clearance Tracking Record** (**Registro de seguimiento de autorizaciones escolares**) as of today, the approved form, OCSA-FRM-035.
 If it does not work: **Export for a school** (**Exportar para una escuela**) waits until a site is picked.
 Words people use for this: clearance report, who is expiring, expired clearances, school district list, export clearances, autorizaciones vencidas.
+Picture: clearances-page
 Last checked: 2026-10-02
 
 ## When a person's clearances are missing (admin dashboard)
@@ -1019,6 +1129,7 @@ Who can do this: admins and supervisors
 4. Record the renewed clearance with **Add or renew** (**Agregar o renovar**). When a date was entered wrongly, fix it with **Correct a date** (**Corregir una fecha**). Then go back and try the assignment again.
 5. In the meantime, give the work to someone whose clearances are current.
 Words people use for this: clearances missing, cannot schedule at a school, school site blocked, act 34 missing, fbi expired, faltan autorizaciones.
+Picture: clearances-missing-window
 Last checked: 2026-10-01
 
 ## Record when the annual summary was posted, and download it for OSHA (admin dashboard)
@@ -1029,6 +1140,7 @@ Who can do this: people given Keep the injury log, admins by default; company de
 4. The summary prints the company's **Display name** (**Nombre para mostrar**) or **Legal name** (**Nombre legal**) and its **Address** (**Dirección**) from **Settings** (**Configuración**), **Company** (**Empresa**). The industry description, NAICS code and the executive's name, title and phone are under **OSHA 300A** (**OSHA 300A**) on the same tab. Click **Save Company Settings** (**Guardar la configuración de la empresa**) after a change. A blank field prints as a line to fill in by hand.
 If it does not work: **The posting date did not save. Try again.** (**La fecha de publicación no se guardó. Intente de nuevo.**) means the summary still holds the date it had before; save it again. The **NAICS code** (**Código NAICS**) takes six digits.
 Words people use for this: osha 300a, ita, injury tracking application, electronic filing, posting date, naics code, osha upload, descargar para osha.
+Picture: annual-summary-posting
 Last checked: 2026-10-01
 
 ## File the product and equipment performance evaluation (admin dashboard)
@@ -1040,6 +1152,7 @@ Who can do this: supervisors and admins, for the forms the server lets them star
 5. On **Review** (**Revisar**), click **Send** (**Enviar**) and confirm.
 If it does not work: when the evaluation is not in the list of forms, the server does not offer it yet, or your account cannot start it.
 Words people use for this: product evaluation, equipment trial, chemical trial, pur-008, purchasing evaluation, evaluación de productos.
+Picture: form-product-evaluation-site
 Last checked: 2026-10-01
 
 ## Read a site's workload plan (admin dashboard)
@@ -1051,6 +1164,7 @@ Who can do this: anyone who can open Sites
 5. **Earlier plans** (**Planes anteriores**) lists the plans the site had before, newest first: when each was taken and ended, and why.
 If it does not work: **No workload plan yet.** (**Todavía no hay plan de carga de trabajo.**) means the site has none; see Make a site's workload plan. An orange line, **The quote changed after this plan took it. Use the quote again to update the plan.** (**La cotización cambió después de que este plan la tomó. Vuelva a usar la cotización para actualizar el plan.**), means the plan still holds the quote as it was; see Update or end a site's workload plan. When the tab is not there, the server does not offer workload plans yet.
 Words people use for this: staffing plan, workload plan, hours for a building, how many cleaners, how many people a site needs, labor hours, plan de carga de trabajo.
+Picture: site-plan-read
 Last checked: 2026-10-01
 
 ## Make a site's workload plan (admin dashboard)
@@ -1062,6 +1176,8 @@ Who can do this: people given Build quotes, admins by default
 5. Go back to the site: its Workload plan tab shows the plan.
 If it does not work: the button is off and says **Save first** (**Guarde primero**) while a change is not saved. Only an active site takes a plan, and a declined or void quote cannot be one; the line under the button says why.
 Words people use for this: make a staffing plan, plan a building, workload for a site, hours for a building, how many cleaners, hacer un plan de carga de trabajo.
+Picture: site-plan-none
+Picture: site-plan-new-quote
 Last checked: 2026-10-01
 
 ## Use a saved quote as a site's workload plan (admin dashboard)
@@ -1073,6 +1189,7 @@ Who can do this: people given Build quotes, admins by default
 5. A quote that is a site's plan says **Workload plan for {0}** (**Plan de carga de trabajo de {0}**) with the site's name, and one that was says **Was the workload plan for {0}** (**Fue el plan de carga de trabajo de {0}**).
 If it does not work: a quote for another site, or for none, is refused, and the line under the button says so; set its site to this one, save it, and try again. Draft, sent and accepted quotes can all be used.
 Words people use for this: staffing plan from a quote, use a quote as the plan, which estimate is the plan, set the site's plan, hours for a building, usar la cotización.
+Picture: site-plan-use-saved
 Last checked: 2026-10-01
 
 ## Update or end a site's workload plan (admin dashboard)
@@ -1083,6 +1200,7 @@ Who can do this: people given Build quotes, admins by default
 4. To end a plan, click **End the plan** (**Terminar el plan**), type the **Reason** (**Motivo**), and click **End the plan** (**Terminar el plan**) again. The site has no plan until a quote is used again.
 If it does not work: End the plan stays off until a reason is typed, up to 500 characters. **The plan already has this quote as it was saved. Nothing changed.** (**El plan ya tiene esta cotización tal como se guardó. No cambió nada.**) means the quote has not changed since the plan took it.
 Words people use for this: update the staffing plan, refresh the plan, end the plan, plan out of date, how many cleaners now, actualizar el plan.
+Picture: site-plan-update-end
 Last checked: 2026-10-01
 
 ## Print a site's workload plan (admin dashboard)
@@ -1093,6 +1211,7 @@ Who can do this: anyone who can open Sites
 4. Click **Download PDF** (**Descargar el PDF**) to keep a copy or print it.
 If it does not work: Print the plan shows only while the site has a plan.
 Words people use for this: print the staffing plan, workload plan pdf, hours for a building on paper, plan for the assessor, imprimir el plan.
+Picture: site-plan-print
 Last checked: 2026-10-01
 
 ## See which sites have a workload plan (admin dashboard)
@@ -1102,6 +1221,7 @@ Who can do this: anyone who can open Sites
 3. Click a row to open that site on its Workload plan tab.
 If it does not work: the table is not there until the server offers workload plans.
 Words people use for this: which sites have a plan, staffing plans, hours by site, how many cleaners each site has, planes de carga de trabajo.
+Picture: sites-workload-plans
 Last checked: 2026-10-01
 
 ## Read a completed inspection, its photos and its signature (admin dashboard)
@@ -1115,6 +1235,8 @@ Who can do this: anyone who can open Inspections
 7. Beside the score, **Band** (**Banda**) reads the inspection's band under OCSA-QMS-014 5.2, and **Findings** (**Hallazgos**) lists the tickets the inspection opened; see the entry on reading an inspection's findings and band.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
+Picture: inspection-completed-photos
+Picture: inspection-completed-signature
 Last checked: 2026-10-05
 
 ## Check who is still working with the roster check (admin dashboard)
@@ -1129,6 +1251,7 @@ Who can do this: admins who manage staff
 8. **Export** (**Exportar**) saves the rows shown as a spreadsheet file, in the screen's language.
 9. **Back to Staff** (**Volver al personal**) returns to the staff list.
 Words people use for this: roster, roster check, who still works here, clean up the staff list, confirm staff, headcount, staff audit, revisión del personal.
+Picture: roster-check
 Last checked: 2026-10-01
 
 ## Put someone on leave (admin dashboard)
@@ -1140,6 +1263,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 5. Click **Put on leave** (**Poner en licencia**). They cannot sign in while on leave, and they keep their sites.
 6. The **Employment** (**Empleo**) card reads **On leave** (**En licencia**) with the reason and the expected return, and the staff list shows **On leave** (**En licencia**).
 Words people use for this: leave of absence, medical leave, family leave, time away, deactivate, licencia.
+Picture: staff-put-on-leave-window
 Last checked: 2026-10-01
 
 ## End someone's employment (admin dashboard)
@@ -1152,6 +1276,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 6. Click **End employment** (**Terminar el empleo**). They can no longer sign in, and every site they are assigned to ends with it.
 7. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
 Words people use for this: terminate, fire, let go, quit, resigned, dismiss, last day, deactivate, end employment, collect uniform, return keys, despedir.
+Picture: staff-end-employment-window
 Last checked: 2026-10-05
 
 ## Bring someone back from leave (admin dashboard)
@@ -1162,6 +1287,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 4. Click **Return from leave** (**Regresar de la licencia**). They can sign in again, with the sites they had.
 5. The card's **History ({0})** (**Historial ({0})**) lists the leave and the return.
 Words people use for this: back from leave, return to work, end the leave, reactivate, leave of absence.
+Picture: staff-return-from-leave-window
 Last checked: 2026-10-01
 
 ## Rehire someone (admin dashboard)
@@ -1174,6 +1300,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 6. Assign any other site on the **Assignments** (**Asignaciones**) tab.
 If it does not work: a school site is refused while their clearances are missing, and the reason is shown under that site. Untick it, or put their clearances on file first, then click **Rehire** (**Recontratar**) again. Nothing is changed until the rehire goes through.
 Words people use for this: rehire, hire back, bring someone back, came back to work, give them their sites back, restore sites, recontratar.
+Picture: staff-rehire-window
 Last checked: 2026-10-05
 
 ## Record why someone is inactive or left (admin dashboard)
@@ -1184,6 +1311,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 4. Click **Record the reason** (**Registrar el motivo**). Their status and sites stay as they are.
 If it does not work: an inactive person gets a leave reason here. For someone inactive who in fact left, use **End employment** (**Terminar el empleo**), which ends their sites.
 Words people use for this: why did they leave, reason for leaving, record a reason, deactivated with no reason, inactive, terminate, quit.
+Picture: staff-record-reason-window
 Last checked: 2026-10-01
 
 ## Sign an inspection's review line (admin dashboard)
@@ -1194,6 +1322,7 @@ Who can do this: admins and supervisors other than the person who did the inspec
 4. Click **Sign** (**Firmar**). The line shows **Signed by {0}, {1}** (**Firmado por {0}, {1}**), your name and the time. Each line is signed once.
 If it does not work: the person who did the inspection cannot sign its review lines. Another supervisor or admin signs them.
 Words people use for this: review an inspection, sign off an inspection, field lead reviewed, findings received, executive review, frm-001, frm-002, firmar la revisión.
+Picture: inspection-review-sign
 Last checked: 2026-10-01
 
 ## See the inspections awaiting review (admin dashboard)
@@ -1204,6 +1333,7 @@ Who can do this: anyone who can open Inspections
 4. **Nothing is waiting for review.** (**No hay nada pendiente de revisión.**) means every line that must be signed is signed.
 If it does not work: the tab shows once the server keeps review lines.
 Words people use for this: inspections to review, unsigned inspections, pending review, awaiting signature, pendiente de revisión.
+Picture: inspections-awaiting-review
 Last checked: 2026-10-01
 
 ## Issue a verbal warning (admin dashboard)
@@ -1218,6 +1348,7 @@ Who can do this: admins and supervisors
 8. Under **Issue** (**Emitir**), click **Issue** (**Emitir**). **A verbal warning is a note of the conversation, placed on the record. It takes no signatures.** (**Una advertencia verbal es una nota de la conversación que queda en el registro. No lleva firmas.**)
 9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
 Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
+Picture: warning-verbal-window
 Last checked: 2026-10-01
 
 ## Issue a written or final written warning (admin dashboard)
@@ -1234,6 +1365,7 @@ Who can do this: admins and supervisors for a written warning; admins for a fina
 10. Add **Their account** (**Su versión**) if they want their words on the warning, and click **Issue and send to sign** (**Emitir y enviar a firmar**), or **Issue** (**Emitir**) when they signed here. A warning sent to their phone reads **Waiting for signature** (**A la espera de firma**) until they sign; see the entry on sending something to a person's phone to sign.
 If it does not work: **Who signs** (**Quién firma**) shows once the system answers the signature requests. Until then the person signs in the box, as before.
 Words people use for this: written warning, final warning, final written warning, write up, write-up, suspension, discipline, advertencia por escrito.
+Picture: warning-written-issue
 Last checked: 2026-10-06
 
 ## Issue a termination (admin dashboard)
@@ -1245,6 +1377,7 @@ Who can do this: admins
 5. The **End employment** (**Terminar el empleo**) window opens with the reason let go. Fill in the **Last day** (**Último día**) and **Eligible for rehire?** (**¿Elegible para recontratación?**), and click **End employment** (**Terminar el empleo**).
 6. Send the letter to the person; see the entry on sending a warning.
 Words people use for this: fire, terminate, termination letter, let go, dismiss, final step, discipline, despido.
+Picture: warning-termination-window
 Last checked: 2026-10-01
 
 ## Send a warning to the person (admin dashboard)
@@ -1256,6 +1389,7 @@ Who can do this: admins and supervisors
 5. Click **Send** (**Enviar**). The window reads **Sent by email.** (**Enviada por correo electrónico.**) or records how it was given.
 If it does not work: a person with no email on file gets the warning by hand or by mail. Choose another way and click Send.
 Words people use for this: send a warning, email a warning, print a warning, give the employee a copy, write-up, enviar la advertencia.
+Picture: warning-send-window
 Last checked: 2026-10-01
 
 ## When a person declines to sign a warning (admin dashboard)
@@ -1267,6 +1401,7 @@ Who can do this: admins and supervisors
 5. Click **Issue** (**Emitir**). The warning shows **Declined to sign** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
 6. A person who will not sign a warning sent to their phone declines there. The warning then reads **Declined** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
 Words people use for this: refused to sign, would not sign, declined to sign, witness, write-up, se negó a firmar.
+Picture: warning-declined-to-sign
 Last checked: 2026-10-06
 
 ## Rescind a warning (admin dashboard)
@@ -1276,6 +1411,7 @@ Who can do this: admins
 3. Fill in **Why it is rescinded** (**Por qué se anula**). **The warning stays on the record, marked rescinded.** (**La advertencia queda en el registro, marcada como anulada.**)
 4. Click **Rescind** (**Anular**). The warning is struck through, with the reason under it.
 Words people use for this: take back a warning, cancel a warning, remove a write-up, warning given by mistake, anular.
+Picture: warning-rescind
 Last checked: 2026-10-01
 
 ## See every warning on the Discipline page (admin dashboard)
@@ -1287,6 +1423,7 @@ Who can do this: admins see every warning; supervisors see the warnings they iss
 5. **Export** (**Exportar**) saves the rows shown as a spreadsheet file.
 If it does not work: the page shows once the server keeps warnings.
 Words people use for this: discipline, warnings, write-ups, who has been written up, final warning, discipline report, disciplina.
+Picture: discipline-page
 Last checked: 2026-10-01
 
 ## Open a case (admin dashboard)
@@ -1300,6 +1437,7 @@ Who can do this: anyone who can open Cases
 7. Click **Open a case** (**Abrir un caso**).
 8. To warn the person later, open the case and click **Issue a warning** (**Emitir una advertencia**).
 Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, abrir un caso.
+Picture: case-open-window
 Last checked: 2026-10-01
 
 ## Add an old form's warning to the record (admin dashboard)
@@ -1311,6 +1449,7 @@ Who can do this: admins
 5. Fill in a **Summary** (**Resumen**) and click **Add to the record** (**Agregar al registro**).
 6. The warning joins the history with its **Original form** (**Formulario original**), and leaves the list.
 Words people use for this: old warning form, jotform warning, past warning, add a past write-up, warnings already on file, agregar al registro.
+Picture: warning-add-past-window
 Last checked: 2026-10-01
 
 ## Sign in with a code on a new device (admin dashboard)
@@ -1323,6 +1462,7 @@ Who can do this: admins and supervisors
 6. **Back** (**Volver**) returns to the PIN.
 If it does not work: a wrong code says how many tries are left. After 5 wrong tries, or once the code is 10 minutes old, the dashboard goes back to the PIN; sign in again for a new code.
 Words people use for this: code, verification, verification code, two step, two-step, new phone, new computer, sign-in code, email code, código.
+Picture: sign-in-code
 Last checked: 2026-10-01
 
 ## See or forget the devices you are remembered on (admin dashboard)
@@ -1333,6 +1473,7 @@ Who can do this: admins and supervisors; the super admin also for another admin 
 4. The super admin can do the same for another admin or supervisor: **Staff Management** (**Gestión de personal**), open their profile, and click **Forget this person's devices** (**Olvidar los dispositivos de esta persona**).
 If it does not work: the tab shows once the server keeps trusted devices.
 Words people use for this: trusted devices, remembered devices, lost my phone, forget this computer, stop remembering a device, code, two step, new phone.
+Picture: settings-trusted-devices
 Last checked: 2026-10-01
 
 ## Start a project and choose its members (admin dashboard)
@@ -1346,6 +1487,7 @@ Who can do this: admins and supervisors
 7. **Edit** (**Editar**) changes the project's name, description and color.
 If it does not work: Workspace shows once the server keeps projects. A supervisor sees the projects they are a member of; an admin sees every project.
 Words people use for this: project, start a project, new project, basecamp, add people to a project, project members, team project, proyecto.
+Picture: ws-new-project
 Last checked: 2026-10-01
 
 ## Post on a project's message board (admin dashboard)
@@ -1357,6 +1499,8 @@ Who can do this: the project's members
 5. Click **Post** (**Publicar**). Every other member gets a notice, and those with **Email me copies** (**Enviarme copias por correo**) on get it by email too.
 6. On a post you wrote, **Edit** (**Editar**) changes it. **Archive** (**Archivar**) takes it off the board; the person who wrote it, a project owner or an admin can archive it.
 Words people use for this: message board, post, project update, announcement to the team, pin a post, basecamp message, publicación.
+Picture: ws-message-board
+Picture: ws-new-post
 Last checked: 2026-10-01
 
 ## Comment on a post or a to-do, and tag someone (admin dashboard)
@@ -1367,6 +1511,7 @@ Who can do this: the project's members
 4. Click **Add comment** (**Agregar comentario**).
 5. On your own comment, **Edit** (**Editar**) changes it. **Remove** (**Quitar**) takes it out; the person who wrote it or an admin can remove it.
 Words people use for this: comment, reply on a post, comment on a to-do, tag someone in a project, mention, comentario.
+Picture: ws-post-comment
 Last checked: 2026-10-01
 
 ## Keep a project's to-dos (admin dashboard)
@@ -1379,6 +1524,8 @@ Who can do this: the project's members
 6. A to-do past its due day reads in red.
 If it does not work: a to-do can only be assigned to the project's members.
 Words people use for this: to-do list, task list, checklist, assign a task, due date, mark done, basecamp to-dos, pendientes.
+Picture: ws-todos
+Picture: ws-add-todo
 Last checked: 2026-10-01
 
 ## See what is assigned to you across projects (admin dashboard)
@@ -1387,6 +1534,7 @@ Who can do this: admins and supervisors
 2. A late to-do reads in red with **Overdue since {0}** (**Vencido desde el {0}**).
 3. Click one to open it in its project, and tick its box when it is done.
 Words people use for this: assignments, my assignments, my to-dos, my tasks, what do I have to do, mis asignaciones.
+Picture: ws-my-assignments
 Last checked: 2026-10-01
 
 ## Talk in a project's chat (admin dashboard)
@@ -1395,6 +1543,7 @@ Who can do this: the project's members
 2. The project's chat opens in **Messages** (**Mensajes**), listed there as **Project chat** (**Chat del proyecto**). Its members are the project's members.
 3. Type in **Type a message** (**Escriba un mensaje**) and press Enter. To tag someone, click @ and pick a member.
 Words people use for this: project chat, team chat, chat with the project, basecamp campfire, chat del proyecto.
+Picture: ws-project-chat
 Last checked: 2026-10-01
 
 ## Add, open or remove a project's files (admin dashboard)
@@ -1405,6 +1554,7 @@ Who can do this: the project's members
 4. **Remove** (**Quitar**) takes a file out of the project; the person who added it, a project owner or an admin can remove it.
 If it does not work: a file over 25 MB is stopped before it is sent. A kind of file the server does not take is refused in the server's own words.
 Words people use for this: files, documents, upload a file, share a file, project files, attach a file, archivos.
+Picture: ws-files
 Last checked: 2026-10-02
 
 ## Get email copies of a project's posts (admin dashboard)
@@ -1413,6 +1563,7 @@ Who can do this: the project's members
 2. Tick **Email me copies** (**Enviarme copias por correo**) under the project's name to get each new post, and every comment on a post, by email. Untick it to stop.
 3. The email's link opens the post in its project. The email says to reply in the app. A reply to the email is not read.
 Words people use for this: email copies, email me posts, project emails, stop project emails, copias por correo.
+Picture: ws-project-page
 Last checked: 2026-10-02
 
 ## Archive a project, or bring it back (admin dashboard)
@@ -1421,6 +1572,8 @@ Who can do this: a project's owners, and admins
 2. Say yes. The project moves to **Archived** (**Archivados**), and nothing in it is deleted. It can still be read, and nothing new can be added.
 3. To bring it back, click **Archived** (**Archivados**) on the Workspace page, open the project, and click **Bring back** (**Restaurar**).
 Words people use for this: archive a project, close a project, finished project, old projects, restore a project, archivar.
+Picture: ws-archived-list
+Picture: ws-archived-project
 Last checked: 2026-10-01
 
 ## Search the chat records (admin dashboard)
@@ -1433,6 +1586,7 @@ Who can do this: the super admin, and anyone given the chat records permission. 
 6. **Searches recorded** (**Búsquedas registradas**) under the results lists every search and PDF.
 If it does not work: a date range that runs backward is refused. A search shows at most 2,000 messages; narrow it to see the rest.
 Words people use for this: chat records, search messages, chat history, find a message, chat export, registros del chat.
+Picture: chat-records-search
 Last checked: 2026-10-01
 
 ## Print a site's zone cleaning checklists (admin dashboard)
@@ -1443,6 +1597,8 @@ Who can do this: admins and supervisors
 4. Click **Print** (**Imprimir**). Each checklist prints on the approved form, OCSA-FRM-003, with its version, the site, the dates and the day it was printed. The day's tasks show who did them, when, and their initials; anything not done is listed under **Anything Not Done** (**Lo que no se hizo**); the rest of the form prints as blank lines to fill in by hand.
 If it does not work: allow pop-ups for the dashboard, then click **Print** (**Imprimir**) again. A range longer than 31 days is refused; print it a month at a time.
 Words people use for this: binder, cleaning logs, records, zone checklist, daily checklist, print the checklists, assessor, kept records, registros conservados.
+Picture: kept-records-group
+Picture: kept-zone-checklists
 Last checked: 2026-10-02
 
 ## Print a site's disinfection coverage logs (admin dashboard)
@@ -1453,6 +1609,7 @@ Who can do this: admins and supervisors
 4. The product, its contact time and the response level are filled in by hand.
 If it does not work: nothing to print means the site's checklist has no touchpoint yet; see the entry on marking a checklist item as a touchpoint.
 Words people use for this: disinfection log, touchpoint log, high touch, coverage log, binder, logs, registro de desinfeccion.
+Picture: kept-disinfection-logs
 Last checked: 2026-10-02
 
 ## Print a site's chemical usage log (admin dashboard)
@@ -1462,6 +1619,7 @@ Who can do this: admins and supervisors
 3. Click **Print** (**Imprimir**). One log prints for each month, on the approved form, OCSA-FRM-018: every chemical logged at the site that month, with the day, the product, how much and the initials of who logged it, and each product's total under **Used** (**Usado**).
 4. Dilution, the area, the stock count and the observations are filled in by hand.
 Words people use for this: chemical log, chemical usage, logs, binder, records, product use, registro de quimicos.
+Picture: kept-chemical-log
 Last checked: 2026-10-02
 
 ## Print a site's PPE compliance log (admin dashboard)
@@ -1471,6 +1629,7 @@ Who can do this: admins and supervisors
 3. Click **Print** (**Imprimir**). One log prints for each month, on the approved form, OCSA-FRM-019. **Equipment Issue Record** (**Registro de entrega de equipo**) lists what was issued that month, to whom, its size and quantity, whether it fit, and the person's signature. This month's log also lists the site's PPE stock under **Stock Check** (**Revisión de existencias**), as of today.
 4. The observations and shortages are filled in by hand.
 Words people use for this: ppe log, ppe records, gloves issued, safety glasses issued, binder, logs, registro de epp.
+Picture: kept-ppe-log
 Last checked: 2026-10-02
 
 ## Print a site's school clearance tracking record (admin dashboard)
@@ -1480,6 +1639,7 @@ Who can do this: admins and supervisors
 3. Click **Print** (**Imprimir**). The approved form, OCSA-FRM-035, lists everyone at the site with each clearance's issue and expiry dates, Act 114 being the FBI fingerprint check, the day of the Act 168 review, and a status: **Clear** (**Al día**), **Notice** (**Aviso**) at 120 days or fewer to the earliest expiry, **Follow up** (**Seguimiento**) at 60, **At risk** (**En riesgo**) at 30, and **Expired** (**Vencida**) once any is past its date. A person without all three clearances or the review reads **Missing** (**Falta**).
 4. **Monthly Review** (**Revisión mensual**) prints blank, to be signed by hand.
 Words people use for this: clearance record, clearance tracking, school clearances, expiring clearances, binder, records, registro de autorizaciones.
+Picture: kept-clearance-record
 Last checked: 2026-10-02
 
 ## Print a site's inspections for the assessor (admin dashboard)
@@ -1489,6 +1649,7 @@ Who can do this: admins and supervisors
 3. Click **Print** (**Imprimir**). Each completed inspection prints on its own page, headed by its kind and its form: OCSA-FRM-001 for a supervisor inspection and OCSA-FRM-002 for an audit, with the photos and the signatures.
 4. One inspection's **Export PDF** (**Exportar PDF**) prints the same page.
 Words people use for this: inspection records, inspection reports, audit records, binder, print all inspections, frm-001, frm-002.
+Picture: kept-inspections
 Last checked: 2026-10-02
 
 ## Print a site's training attendance rosters (admin dashboard)
@@ -1497,6 +1658,7 @@ Who can do this: admins and supervisors
 2. Pick the **Site** (**Sitio**) and the dates. A record saved with a site counts for that site; one saved before records carried a site counts for the site its person is assigned to.
 3. Click **Print** (**Imprimir**). One roster prints for each session, a training on one day, on the approved form, OCSA-FRM-033: the session, the trainer, everyone logged with their Employee ID, a line to sign and a box for **Understood** (**Entendido**), and the attestation for the trainer, the Field Lead and the Controller to sign. A session of a topic from the training catalog prints its document and section under **Related Document No.** (**Número de documento relacionado**).
 Words people use for this: attendance sheet, sign in sheet, training roster, training records, binder, records, lista de asistencia.
+Picture: kept-training-rosters
 Last checked: 2026-10-05
 
 ## Issue PPE to someone (admin dashboard)
@@ -1511,6 +1673,7 @@ Who can do this: admins and supervisors
 8. The issue shows under **PPE issued** (**EPP entregado**), and **Signature** (**Firma**) shows the drawing once there is one. Each issue prints on the PPE compliance log; one still waiting prints **Waiting for signature** (**A la espera de firma**) in place of the signature.
 If it does not work: the button waits until there is a site, an item, a quantity of 1 or more, an answer to **Fits well?** (**¿Le queda bien?**) and, under **Sign here now** (**Firmar aquí ahora**), a signature. A box the server refuses is marked in red with the reason under it. **Who signs** (**Quién firma**) shows once the system answers the signature requests.
 Words people use for this: issue ppe, hand out gloves, safety glasses, ppe sign off, ppe records, entregar epp.
+Picture: ppe-issue-window
 Last checked: 2026-10-06
 
 ## Keep the equipment register (admin dashboard)
@@ -1522,6 +1685,8 @@ Who can do this: admins and supervisors
 5. **Retire** (**Dar de baja**) asks first. A retired item stays on the register, and nothing more can be recorded against it.
 6. A notice that an item's service is due opens the item.
 Words people use for this: equipment list, machines, floor machines, asset list, scrubbers, service schedule, equipment register, equipo.
+Picture: equipment-register
+Picture: equipment-item
 Last checked: 2026-10-02
 
 ## Print equipment labels (admin dashboard)
@@ -1531,6 +1696,7 @@ Who can do this: admins and supervisors
 3. Click **Print labels** (**Imprimir etiquetas**). A sheet of labels, labels.pdf, is saved: each label has the item's name, its site and its QR code, which opens the item on the staff portal.
 If it does not work: **Print labels** (**Imprimir etiquetas**) waits until an item is ticked.
 Words people use for this: qr labels, asset tags, equipment stickers, label the machines, imprimir etiquetas.
+Picture: equipment-labels
 Last checked: 2026-10-02
 
 ## Tag out a piece of equipment, and return it to service (admin dashboard)
@@ -1541,6 +1707,8 @@ Who can do this: admins and supervisors
 4. A notice that an item was tagged out opens the item.
 If it does not work: **Tag out** (**Retirar de servicio**) waits until something is written under **What is wrong** (**Qué falla**).
 Words people use for this: out of order, red tag, broken machine, do not use, tag out, retirar de servicio.
+Picture: equipment-tag-out
+Picture: equipment-return-to-service
 Last checked: 2026-10-02
 
 ## See periodic work across every site (admin dashboard)
@@ -1551,6 +1719,7 @@ Who can do this: admins and supervisors
 4. Click a row to open that site's checklist.
 5. A notice that periodic work is overdue opens the checklist of its site.
 Words people use for this: strip and wax schedule, periodic cleaning, deep cleaning, monthly tasks, quarterly tasks, overdue work, trabajo periodico.
+Picture: periodic-work
 Last checked: 2026-10-02
 
 ## Mark a checklist item as a touchpoint (admin dashboard)
@@ -1561,6 +1730,7 @@ Who can do this: anyone who can change a site's tasks
 4. For a surface touched most, tick **Critical** (**Crítico**) under it. A critical touchpoint is treated twice a day at Level 2 and on every round at Level 3. Unticking **Touchpoint** (**Punto de contacto frecuente**) unticks **Critical** (**Crítico**) too.
 5. Click **Save Changes** (**Guardar los cambios**), or **Create** (**Crear**) for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and **Critical** (**Crítico**) beside it when ticked. It prints on the disinfection coverage log, a critical one under Critical Touchpoints.
 Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, critical touchpoint, critical surfaces, punto de contacto frecuente, punto de contacto crítico.
+Picture: touchpoint-task-window
 Last checked: 2026-10-05
 
 ## Make a site's concern link, so a client can report a problem (admin dashboard)
@@ -1572,6 +1742,7 @@ A concern link lets a client report a problem from their phone by scanning a QR 
 What the client sees: a short form for what happened and where, with photos if they like, and a reference number once it is sent.
 If it does not work: when **Customer Complaint Log** (**Registro de quejas de clientes**) is not offered, the system does not take a client's concern from a link yet. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: report a concern, complaint qr code, client complaint link, report a problem, concern poster, informar un problema.
+Picture: concern-link-make
 Last checked: 2026-10-05
 
 ## Make or print a site's customer links from the site (admin dashboard)
@@ -1583,6 +1754,7 @@ Who can do this: admins who can change settings
 5. Once request QRs are offered, the site's request QRs are listed under **Request QRs** (**QR de solicitud**), each with its area, how many of its requests are open, **Rename** (**Cambiar nombre**) and the same buttons, and **Print all for this site** (**Imprimir todos los de este sitio**) prints one sheet for each live one in one window. See the entry on making a request QR.
 If it does not work: if printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: site qr codes, print the site's qr code, site survey link, site links, códigos qr del sitio.
+Picture: site-customer-links-card
 Last checked: 2026-10-05
 
 ## Answer a client's concern on time (admin dashboard)
@@ -1596,6 +1768,8 @@ A concern a client reports from a customer link is acknowledged within one worki
 6. A notice that a client reported a concern opens the report. Another comes on the next working day when it is still not acknowledged, one when one working day is left to answer, and one when it is late.
 If it does not work: the reason is shown under the field it is about. **Mark acknowledged** (**Confirmar la recepción**) is not offered once a concern is acknowledged.
 Words people use for this: client concern, complaint deadline, five working days, late complaint, controller, staff complaint, acknowledge, acknowledgement, call the client back, receipt, one working day, queja de un cliente, acusar recibo.
+Picture: concern-filed-forms
+Picture: concern-mark-acknowledged
 Last checked: 2026-10-05
 
 ## Print the management review evidence pack (admin dashboard)
@@ -1609,6 +1783,7 @@ The evidence pack is what a management review reads before it meets. The improve
 6. Under **Corrective actions** (**Acciones correctivas**), **Inspection findings** (**Hallazgos de inspección**) prints the finding measures of OCSA-FRM-011 version 2 for the period and for the year to date: **Findings opened** (**Hallazgos abiertos**), **First response (h, median)** (**Primera respuesta (h, mediana)**), **Time to fixed (h, median)** (**Tiempo hasta la corrección (h, mediana)**), **Fixed by due** (**Corregidos a tiempo**) and **Open at the end of the period** (**Abiertos al final del período**). Each corrective action's close is read from its row, so the pack no longer opens every report.
 If it does not work: a section that reads **The data for this was not available when the pack was printed.** (**Estos datos no estaban disponibles al imprimir el paquete.**) could not be read; print again later, or fill its lines in by hand. If nothing opens, allow pop-ups for this site and click **Print the evidence pack** (**Imprimir el paquete de evidencias**) again.
 Words people use for this: management review, monthly review, quarterly review, evidence pack, kpis, review pack, revisión por la dirección, paquete de evidencias.
+Picture: management-review-pack
 Last checked: 2026-10-05
 
 ## Enter the year's holidays (admin dashboard)
@@ -1622,6 +1797,8 @@ OCSA observes the eleven federal holidays in its handbook and the two Eids. The 
 A federal holiday reads **Set by the handbook** (**Fijado por el manual**) and is not changed here.
 If it does not work: the reason is shown under the field it is about, such as a date that is already a holiday, or at the top of the window. The tab shows once the system holds the holidays.
 Words people use for this: holiday, holidays, eid, eid al-fitr, eid al-adha, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
+Picture: holidays-year
+Picture: holidays-add-window
 Last checked: 2026-10-05
 
 ## Make a request QR, so anyone in the building can ask for help (admin dashboard)
@@ -1636,6 +1813,8 @@ A request QR lets anyone in a building, with no sign-in, ask OCSA for help: a sp
 7. **Turn off** (**Apagar**) stops a code the way it stops any link. Nothing expires by itself.
 If it does not work: when **Kind** (**Tipo**) is not offered, the system does not take requests yet. The reason for a refusal is shown under the field or the button. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: request qr, ask for help qr, restroom qr code, spill qr, help qr, request link, código qr de solicitud, pedir ayuda.
+Picture: request-qr-make
+Picture: request-qr-window
 Last checked: 2026-10-05
 
 ## Print every request QR of a site at once (admin dashboard)
@@ -1644,6 +1823,7 @@ Who can do this: admins who can change settings
 2. Click **Print all for this site** (**Imprimir todos los de este sitio**). One window opens with one sheet for each request QR that is on, each on its own page, ready to print.
 If it does not work: the button is off while no request QR of the site is on. If nothing opens, allow pop-ups for this site and click it again. The reason for anything else is shown under the button.
 Words people use for this: print all qr codes, every request qr, site request qrs, imprimir todos los qr.
+Picture: site-request-qrs-print-all
 Last checked: 2026-10-05
 
 ## Rename a request QR's area (admin dashboard)
@@ -1653,6 +1833,7 @@ Who can do this: admins who can change settings
 3. The posted code keeps working: only the words change. Print the sheet again if the area printed on it should change.
 If it does not work: the reason is shown under the field, such as another live request QR of the site already having that area.
 Words people use for this: rename the area, change the qr's area, fix the area name, cambiar el área.
+Picture: request-qr-rename
 Last checked: 2026-10-05
 
 ## See the client requests waiting for approval (admin dashboard)
@@ -1664,6 +1845,8 @@ Who can do this: admins and supervisors. A supervisor sees the requests of every
 5. Whoever can read reports also sees the email left, if any, and **Open the contact log entry** (**Abrir la entrada del registro de contacto**), the Call Intake and Communication Log entry the request wrote.
 If it does not work: the tab shows once the system takes requests. A request waiting for approval shows nothing to a cleaner until it is assigned to them.
 Words people use for this: client requests, requests waiting, waiting for approval, request from a qr, restroom request, solicitudes de clientes, en espera de aprobación.
+Picture: client-requests-list
+Picture: client-request-window
 Last checked: 2026-10-05
 
 ## Approve a client request and assign it (admin dashboard)
@@ -1675,6 +1858,7 @@ Every request waits for approval. The first to approve and assign takes it.
 4. The assignee, or an approver, clicks **Start** when on it, **Done** (**Hecha**) when finished, with a note if they like, or **Needs someone else** (**Necesita a otra persona**) with a note saying why, which tells the approvers and the Field Lead.
 If it does not work: when the line reads that someone already approved or declined it, another approver got there first; the window shows the request as they left it. A person who is not assigned to the site cannot be picked.
 Words people use for this: approve a request, assign a request, take a request, who is on shift, first to approve, aprobar la solicitud, asignar.
+Picture: client-request-approve
 Last checked: 2026-10-05
 
 ## Decline a client request (admin dashboard)
@@ -1684,6 +1868,7 @@ Who can do this: admins, and supervisors of the request's site
 3. Click **Decline** (**Rechazar**) again. The request reads **Declined** (**Rechazada**) with the reason and who declined it.
 If it does not work: a reason is required. When the line reads that someone already approved or declined it, another approver got there first.
 Words people use for this: decline a request, refuse a request, not our job, out of scope request, rechazar la solicitud.
+Picture: client-request-decline
 Last checked: 2026-10-05
 
 ## Send a note to the person who asked (admin dashboard)
@@ -1694,6 +1879,7 @@ Who can do this: anyone who can read the request. Sending it to the person who a
 4. The system also emails the person by itself, with no name of ours in it: when the request is received, assigned, done or declined. Each of those shows in the activity as **Emailed** and what it was.
 If it does not work: a note cannot be empty. The tick is offered only to those who can read reports.
 Words people use for this: note to the client, tell the person who asked, update the requester, email the client, nota al cliente.
+Picture: client-request-note
 Last checked: 2026-10-05
 
 ## See what is asked for again and again (admin dashboard)
@@ -1702,6 +1888,7 @@ Who can do this: anyone who can read reports
 2. The panel **Asked three or more times this quarter** (**Pedido tres o más veces este trimestre**) at the top lists each request asked for three or more times at one site in the quarter: the site, the request, the area, the count and the references. Pick a site to narrow it.
 3. The same request three or more times at one site in a quarter raises a change of service with the client.
 Words people use for this: repeated requests, patterns, asked again, change of service, same request, solicitudes repetidas.
+Picture: client-request-patterns
 Last checked: 2026-10-05
 
 ## Print supply labels (admin dashboard)
@@ -1712,6 +1899,8 @@ A supply's label carries its name, its QR code and its code. Scanned, the code o
 3. For every supply a site holds, pick the site under **Print labels for a site** (**Imprimir las etiquetas de un sitio**) at the top of the inventory and click **Print labels for a site** (**Imprimir las etiquetas de un sitio**). One PDF holds a label for each.
 If it does not work: the buttons show once the system makes the labels. The reason for a refusal is shown under the button.
 Words people use for this: supply label, print the qr label, label for a bottle, safety sheet qr, sds label, etiqueta del suministro.
+Picture: supply-inventory-labels
+Picture: supply-label-window
 Last checked: 2026-10-05
 
 ## Verify a finding someone else fixed (admin dashboard)
@@ -1723,6 +1912,8 @@ Every deficient item of a completed inspection opens a ticket with an owner and 
 4. A finding's notice in the bell opens the finding here.
 If it does not work: a finding that is not fixed yet, or one you fixed yourself, is refused with the reason under the button: **Someone other than the person who fixed it checks it.** (**Alguien distinto de quien lo corrigió lo revisa.**). An inspection finding cannot be closed from the status picker; only **Verify** (**Verificar**) closes it.
 Words people use for this: verify a finding, check a fix, close a finding, inspection ticket, second person check, verificar un hallazgo.
+Picture: findings-list
+Picture: finding-verify
 Last checked: 2026-10-05
 
 ## Read an inspection's findings and band (admin dashboard)
@@ -1733,6 +1924,7 @@ Who can do this: anyone who can open Inspections
 4. **Corrective action** (**Acción correctiva**) names the corrective action the inspection's findings are linked to; **Open the corrective action** (**Abrir la acción correctiva**) opens it. An inspection under 80 percent with none reads **A corrective action (OCSA-FRM-010) is required** (**Se requiere una acción correctiva (OCSA-FRM-010)**); click **Start a corrective action** (**Iniciar una acción correctiva**) to start one for the site, which opens the form the way **Forms** (**Formularios**) starts one.
 If it does not work: the band and the findings show once the system answers them for the inspection; an inspection completed before then shows neither. A refusal to start the corrective action is shown under the button.
 Words people use for this: inspection findings, inspection band, failed inspection, below standard, corrective action required, hallazgos de la inspección.
+Picture: inspection-band-findings
 Last checked: 2026-10-05
 
 ## Link findings to a corrective action (admin dashboard)
@@ -1742,6 +1934,7 @@ Who can do this: anyone who can read reports
 3. Click **Link findings** (**Vincular hallazgos**). The open findings at the report's site are listed, every one ticked. Untick any this action does not cover and click **Link** (**Vincular**).
 If it does not work: a finding at another site, or one already linked to a corrective action, is refused in the system's own words under the list. The list shows once the system answers the report with its findings.
 Words people use for this: link a finding, attach findings, corrective action findings, unlink a finding, vincular hallazgos.
+Picture: corrective-link-findings
 Last checked: 2026-10-05
 
 ## Tell the client what was done (admin dashboard)
@@ -1753,6 +1946,7 @@ OCSA-MGT-005 has the client told what happened, what was done and what will prev
 4. Click **Send** (**Enviar**). The email goes in English and then in Spanish, the way the monthly report does. The window then reads who told the client and when, and the form's own answer on whether the customer was told becomes yes.
 If it does not work: the button is offered only once the verification is answered and until the client is told; a refusal is shown under the field it names. Nothing is recorded when the email fails to send.
 Words people use for this: tell the client, notify the customer, what happened what was done, client letter, corrective action email, informar al cliente.
+Picture: corrective-tell-client
 Last checked: 2026-10-05
 
 ## Read and change the training catalog (admin dashboard)
@@ -1766,6 +1960,8 @@ Who can do this: admins and supervisors read it; admins add, edit, retire and re
 7. To change one, click it, then **Edit** (**Editar**), and **Save** (**Guardar**). **Retire** (**Dar de baja**) stops asking anyone for the topic; **Restore** (**Restaurar**) brings it back.
 If it does not work: a refusal is shown under the field it names, such as a key another topic already uses, a checklist topic that has no observation checklist, or a topic that cannot be first due after the one picked, such as one taken at each site or one that does not renew. The catalog shows once the system answers it, and the categories once the system answers them; until then the topics are one list. **First due after** (**Vence por primera vez después de**) shows once the system answers it.
 Words people use for this: training catalog, required trainings, training topics, add a training topic, course link, mandated training, training category, catálogo de capacitación.
+Picture: training-catalog
+Picture: training-topic-add
 Last checked: 2026-10-06
 
 ## Say who needs a training topic (admin dashboard)
@@ -1778,6 +1974,7 @@ Who can do this: admins
 6. A person marked **From a key on file** (**Por una llave registrada**) is on the keys and access topic because a key, a badge or a fob was issued to them. The row has no **Remove** (**Quitar**); it goes by itself when every key, badge and fob of theirs is marked returned.
 If it does not work: a refusal is shown under the role or the person it names.
 Words people use for this: who needs this training, training by role, required for a role, assign training to a role, training requirement, quién necesita la capacitación.
+Picture: training-who-needs-it
 Last checked: 2026-10-06
 
 ## See training gaps by role and site (admin dashboard)
@@ -1791,6 +1988,8 @@ Who can do this: admins and supervisors
 7. The same items show in **Staff Management** (**Gestión de personal**), on a person's **HR Files** (**Archivos de personal**) tab.
 If it does not work: Gaps shows once the system answers it; until then **Who has no record** (**Quién no tiene registro**) stays.
 Words people use for this: training gaps, who needs training, who is missing training, expired training, training due soon, training by site, brechas de capacitación.
+Picture: training-gaps
+Picture: training-gaps-person
 Last checked: 2026-10-06
 
 ## Write and publish a training lesson (admin dashboard)
@@ -1806,6 +2005,8 @@ Who can do this: admins write and publish; admins and supervisors read the versi
 9. Click **Publish** (**Publicar**). The version live until then is retired and staff take the new one. **Discard** (**Descartar**) drops the draft, and **Retire the live lesson** (**Dar de baja la lección vigente**) stops the lesson being offered. To publish several drafts at once, see Publish lesson drafts.
 If it does not work: a refusal is shown at the top or under the field it names. Leaving the draft with changes not saved asks first.
 Words people use for this: write a lesson, online training, training quiz, training questions, publish a lesson, translate a lesson, observation checklist, on the job sign-off, lección en línea.
+Picture: training-lesson-versions
+Picture: training-lesson-editor
 Last checked: 2026-10-06
 
 ## Sign off training after a demonstration (admin dashboard)
@@ -1819,6 +2020,8 @@ OCSA-HR-016 5.5 has a trainer watch the person do a safety task before the train
 6. A notice that someone waits for a sign-off opens this tab on their attempt. An admin can **Void** (**Anular**) an attempt here instead, with the reason. Voiding an observation checklist's attempt returns every module it signed off to waiting for a trainer; the window warns so first and says how many were returned after.
 If it does not work: a refusal is shown under the signature or the tick. The tab shows once the system answers it.
 Words people use for this: sign off training, trainer sign-off, demonstration, watched them do it, safety sign-off, checklist sign-off, firmar capacitación.
+Picture: training-awaiting
+Picture: training-signoff-window
 Last checked: 2026-10-06
 
 ## Print a training record for an assessor (admin dashboard)
@@ -1827,6 +2030,7 @@ Who can do this: admins and supervisors
 2. One page prints the **Training record** (**Registro de capacitación**): the lesson's title and version, the person, the score and the pass mark, the day, the language, the person's signature and, once signed off, the trainer's name, signature and note.
 If it does not work: allow pop-ups for the dashboard in the browser, then click **Print** (**Imprimir**) again.
 Words people use for this: training record, print a training record, assessor, proof of training, training certificate, quiz result, registro de capacitación.
+Picture: training-record-print
 Last checked: 2026-10-05
 
 ## Run a training session people sign on their phones (admin dashboard)
@@ -1841,6 +2045,8 @@ The signed record in the app takes the place of the paper OCSA-FRM-033 sign-in s
 7. Click **Print the roster** (**Imprimir la lista de asistencia**) for the OCSA-FRM-033 roster: the topics and their documents, each person's name, the time they signed and their signature, and the trainer's attestation and signature.
 If it does not work: the tab shows once the system answers it. A session that is closed or cancelled takes no more sign-ins.
 Words people use for this: training session, sign-in sheet, sign in on the phone, QR code, join code, attendance, roster, toolbox talk, sesión de capacitación.
+Picture: training-sessions
+Picture: training-session-page
 Last checked: 2026-10-05
 
 ## Upload a training certificate from an outside course (admin dashboard)
@@ -1852,6 +2058,7 @@ Who can do this: admins and supervisors
 5. Click **Upload** (**Subir**). The training record is saved with the certificate on file, and **Open the certificate** (**Abrir el certificado**) shows beside it in the person's list and in **Records** (**Registros**).
 If it does not work: a file of another kind, or one over 10 MB, is refused under the file. A topic taken at each site cannot be uploaded until its site is picked, and the system refuses one sent without it under **Site** (**Sitio**). The button shows once the system answers it.
 Words people use for this: upload a certificate, outside course, external training, certificate on file, proof of training, subir certificado.
+Picture: training-certificate-upload
 Last checked: 2026-10-06
 
 ## See who signed a document, and say who must sign it (admin dashboard)
@@ -1864,6 +2071,7 @@ Who can do this: admins and supervisors read it; admins change who must sign
 6. Admins: click **Change who must sign** (**Cambiar quién debe firmar**). The list opens with what is in force already ticked. Tick or untick **Everyone** (**Todos**) or the roles, name people with **Name a person...** (**Nombrar a una persona...**) and **Add** (**Agregar**), and click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and each person added is told once. Nothing left ticked is dropped.
 If it does not work: the tab shows once the system answers it. While the system does not send who must sign, the page says **The list in force is not sent with this document yet.** (**La lista vigente todavía no se envía con este documento.**) and the list cannot be changed. A refusal is shown under the row it names.
 Words people use for this: documents to sign, handbook, acknowledgment, who signed, read and sign, signature list, firmar documentos.
+Picture: training-documents
 Last checked: 2026-10-06
 
 ## Issue company property and mark it returned (admin dashboard)
@@ -1877,6 +2085,8 @@ Who can do this: admins and supervisors
 7. **Signature** (**Firma**) shows what the person signed. A key, a badge or a fob also puts the person on the keys and access training on its own; see the entry on saying who needs a training topic.
 If it does not work: a refusal is shown under the field it names. The block shows once the system answers it, **Who signs** (**Quién firma**) once it answers the signature requests, and the keys and access line once it answers the person's training list.
 Words people use for this: uniform, shirt, keys, badge, fob, company property, return a uniform, hand out keys, entregar uniforme.
+Picture: property-list
+Picture: property-issue-window
 Last checked: 2026-10-06
 
 ## Find training on the dashboard (admin dashboard)
@@ -1886,6 +2096,7 @@ Who can do this: admins and supervisors
 3. The same area is still under **HR Records** (**Expedientes de personal**), on its **Training** (**Capacitación**) tab, and a link to it there keeps working.
 If it does not work: an account that cannot open HR Records cannot open Training either.
 Words people use for this: where is training, training menu, training page, find the catalog, training tab, capacitación en el panel.
+Picture: training-area
 Last checked: 2026-10-06
 
 ## Order the training catalog (admin dashboard)
@@ -1896,6 +2107,7 @@ Who can do this: admins
 4. Narrow the list with **All categories** (**Todas las categorías**) to see one category at a time.
 If it does not work: a move that the system refuses is undone and the list is read again. The headings show once the system answers the categories; until then the topics are one list and cannot be moved.
 Words people use for this: order the catalog, move a topic up, training categories, sort trainings, catalog order, ordenar el catálogo.
+Picture: training-catalog-order
 Last checked: 2026-10-06
 
 ## Add a picture to a lesson (admin dashboard)
@@ -1907,6 +2119,7 @@ Who can do this: admins
 5. Use **Move up** (**Subir**) and **Move down** (**Bajar**) to place the block, then **Save draft** (**Guardar borrador**). Staff see the picture full width in the lesson, with the caption under it.
 If it does not work: a file of another kind, or one over 5 MB, is refused under the file. A drawing the lesson cannot hold, or a picture the store no longer has, is listed in the problems and drawn under its block. The Image kind is offered once the system answers the catalog's categories.
 Words people use for this: add a picture, lesson image, upload a photo to a lesson, diagram in a lesson, SVG drawing, alt text, agregar una imagen a la lección.
+Picture: training-lesson-picture
 Last checked: 2026-10-06
 
 ## Publish lesson drafts (admin dashboard)
@@ -1917,6 +2130,7 @@ Who can do this: admins
 4. The page then lists the lessons published, each with its version, and the drafts refused, each with its problems, and reads the list again.
 If it does not work: a draft refused for a problem that showed only at publishing, such as a picture the store no longer has, stays open; fix it in its topic's **Lesson** (**Lección**) tab. The tab shows once the system answers it.
 Words people use for this: publish drafts, publish several lessons, open drafts, drafts list, publish selected, publicar borradores.
+Picture: training-drafts
 Last checked: 2026-10-06
 
 ## Name the Spanish checker (admin dashboard)
@@ -1926,6 +2140,7 @@ Who can do this: admins
 3. To change the name, type the new one and click **Save** (**Guardar**) again.
 If it does not work: a refusal is shown under the field. The field shows on a published lesson of a safety topic once the system answers the catalog's categories.
 Words people use for this: Spanish checker, who checked the Spanish, Spanish not checked, translation checked, safety lesson in Spanish, revisor del español.
+Picture: training-spanish-checker
 Last checked: 2026-10-06
 
 ## Assign training to people (admin dashboard)
@@ -1937,6 +2152,7 @@ Every topic reaches the roles under **Who needs it** (**Quién la necesita**) on
 4. Click **Assign** (**Asignar**). The topics and the people are sent once, and the window says how many were added and how many were already assigned.
 If it does not work: a refusal is shown under the topics or the people. The button shows once the system answers the catalog's categories.
 Words people use for this: assign training, assign a topic to a person, training for one person, extra training, who gets this training, asignar capacitación.
+Picture: training-assign
 Last checked: 2026-10-06
 
 ## Send something to a person's phone to sign (admin dashboard)
@@ -1948,6 +2164,7 @@ Who can do this: admins and supervisors
 5. To take the signature on the spot from the start, choose **Sign here now** (**Firmar aquí ahora**) under **Who signs** (**Quién firma**), and the box is drawn as before.
 If it does not work: **Who signs** (**Quién firma**) and the chips show once the system answers the signature requests. Until then the person signs in the box, as before. A refusal is shown under the field it names.
 Words people use for this: sign on their phone, send to sign, signature request, remind to sign, sign here, not right, waiting for signature, firmar en el teléfono.
+Picture: signature-send-to-phone
 Last checked: 2026-10-06
 
 ## See what is waiting for a signature (admin dashboard)
@@ -1959,6 +2176,8 @@ Who can do this: admins see every request; supervisors see their sites
 5. A notice in the bell that a signature was sent back as not right, declined, or is overdue opens that request here when you click it, and so does its link.
 If it does not work: the tab shows once the system answers the signature requests. A request opened from a notice that is not yours to see says so.
 Words people use for this: waiting for signatures, who has not signed, unsigned, pending signatures, reminders, firmas pendientes.
+Picture: signatures-waiting
+Picture: signatures-request-window
 Last checked: 2026-10-06
 
 ## Read the owner's dashboard (admin dashboard)
@@ -1971,6 +2190,8 @@ Who can do this: admins, and anyone else the system gives the owner's dashboard 
 6. Click **By site** (**Por sitio**) under a measure to see its value at each site, and **Hide the sites** (**Ocultar los sitios**) to close it.
 If it does not work: the item shows once the system gives you the owner's dashboard. Opened another way without it, the page says so in the system's words.
 Words people use for this: owner's dashboard, how is the company doing, key numbers, monthly numbers, quarterly numbers, inspection average, turnover, tablero del propietario.
+Picture: owner-dashboard
+Picture: owner-dashboard-by-site
 Last checked: 2026-10-06
 
 ## Print the owner's dashboard for a review (admin dashboard)
@@ -1980,6 +2201,7 @@ Who can do this: admins, and anyone else the system gives the owner's dashboard 
 3. The top of the page names the period, the period it is compared with, the site and the day it was printed.
 If it does not work: allow pop-ups for the dashboard in the browser, then click **Print** (**Imprimir**) again.
 Words people use for this: print the owner's dashboard, quarterly review, management review numbers, review packet, imprimir el tablero.
+Picture: owner-dashboard-print
 Last checked: 2026-10-06
 
 ## Pay phone training time (admin dashboard)
@@ -1991,6 +2213,7 @@ Who can do this: admins, and anyone allowed to read reports
 5. Click **Download CSV** (**Descargar CSV**) to save the table as a spreadsheet for payroll.
 If it does not work: a range of more than 62 days, or with To before From, is not asked for and the page says so. The tab shows once the system answers it.
 Words people use for this: training time, pay for training, paid training hours, phone lesson time, payroll training, tiempo de capacitación.
+Picture: training-time
 Last checked: 2026-10-06
 
 ## Show the assessor who is trained (admin dashboard)
@@ -2002,4 +2225,6 @@ Who can do this: admins see everyone; supervisors see the people at their own si
 5. Click **Print** (**Imprimir**) for the assessor: a table per category on landscape letter paper, with the day it was printed. **Download CSV** (**Descargar CSV**) saves the grid as a spreadsheet.
 If it does not work: allow pop-ups for the dashboard in the browser to print. A wide grid scrolls sideways inside its card. The tab shows once the system answers it.
 Words people use for this: training matrix, who is trained, assessor, proof of training, training by person, matriz de capacitación.
+Picture: training-matrix
+Picture: training-matrix-cell
 Last checked: 2026-10-06
