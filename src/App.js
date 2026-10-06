@@ -23530,7 +23530,7 @@ const gapItemColor = (it) => (gapNeedsSession(it) ? RD : gapStatusColor(it.statu
 function GapChip({ item, withName = true }) {
   const t = useT();
   const c = gapItemColor(item);
-  return <span data-gap-chip={item.status} title={[item.name, item.siteName].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
+  return <span data-gap-chip={item.status} data-gap-covered={signoffByOf(item) ? signoffByOf(item).topicId || "" : undefined} title={[item.name, item.siteName, signoffByOf(item) ? tr("Covered by {0}", signoffByOf(item).name) : ""].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
     {withName && <span style={{ color: t.text, fontWeight: 500, overflowWrap: "anywhere" }}>{item.name}{item.siteName ? " (" + item.siteName + ")" : ""}</span>}<span data-gap-word={gapNeedsSession(item) ? "inPerson" : item.status} style={{ whiteSpace: "nowrap" }}>{gapItemWord(item)}</span></span>;
 }
 
@@ -23671,6 +23671,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
       {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
+      {signoffByOf(it) && <div data-item-covered={signoffByOf(it).topicId || ""} style={{ marginTop: 4 }}>{coveredBy(it)}</div>}
       {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
         <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
         {a.voidedAt && <Bdg l={tr("Void|status")} c={RD} />}
@@ -23712,7 +23713,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
   const print = (id) => printTrainingAttempt({ af, token, id, sites }).then(okd => { if (!okd && showToast) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
   // Step 263: an admin voids an attempt with a reason; the attempt is read again and the list with it.
   const [voiding, setVoiding] = useState(null);
-  const voided = (id) => { setVoiding(null); if (showToast) showToast(tr("Attempt voided.")); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
+  const voided = (id, d) => { setVoiding(null); if (showToast) showToast(voidedWord(d)); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
   return (<Mdl t={t} tall onClose={onClose}>
     <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -23727,7 +23728,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
         {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} />}
       </div>
     </div>
-    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => voided(voiding.id)} />}
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
     {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} sites={p && Array.isArray(p.sites) && p.sites.length ? p.sites : sites} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
   </Mdl>);
 }
@@ -24419,6 +24420,12 @@ function TrainingDrafts({ af, t, showToast }) {
 // to POST /api/training/attempts/:id/signoff, and the record is written with it.
 const scoreWord = (v) => (v == null || v === "" ? "" : Math.round(Number(v)) + "%");
 const trainingLangWord = (code) => { const l = TRAINING_LANGUAGES.find(x => x.id === langCode(code)); return l ? tr(l.word) : ""; };
+// Step 268 (STEP266_CONTRACT.md section 6): an attempt or a gap item whose topic names a checklist
+// that signs it off carries signoffBy, and reads Covered by that checklist.
+const signoffByOf = (x) => (x && x.signoffBy && typeof x.signoffBy === "object" && x.signoffBy.name ? x.signoffBy : null);
+const coveredBy = (x) => { const s0 = signoffByOf(x); return s0 ? <span data-signoff-covered={s0.topicId || ""} title={tr("A trainer signing that checklist off for this person signs this off with it.")}><Bdg l={tr("Covered by {0}", s0.name)} c={BL} /></span> : null; };
+// How many modules an observation's sign-off or void carried with it, from alsoSigned or returned.
+const carriedCount = (d, key) => (d && Array.isArray(d[key]) ? d[key].length : 0);
 function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = false, focusAttempt = null, showToast }) {
   const [siteId, setSiteId] = useState("");
   const [list, setList] = useState(null);
@@ -24439,7 +24446,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = fal
   const print = (a) => printTrainingAttempt({ af, token, id: a.id, sites }).then(okd => { if (!okd) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
   const cols = [
     { header: tr("Person"), tdStyle: { minWidth: 120 }, render: a => <span style={{ color: t.text, fontWeight: 600 }}>{(a.person && a.person.name) || ""}</span> },
-    { header: tr("Topic"), tdStyle: { color: t.textSec, minWidth: 120 }, render: a => a.topicName || "" },
+    { header: tr("Topic"), tdStyle: { color: t.textSec, minWidth: 120 }, render: a => <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>{a.topicName || ""}{a.kind === "observation" && <Bdg l={tr("Observation checklist")} c={PU} />}{coveredBy(a)}</span> },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: a => siteName(a.siteId) },
     { header: tr("Score"), align: "right", tdStyle: { color: t.textSec }, render: a => scoreWord(a.scorePercent) },
     { header: tr("Signed"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: a => (a.acknowledgedAt ? irWhen(a.acknowledgedAt) : "") },
@@ -24459,7 +24466,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = fal
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
       : <DataTable t={t} columns={cols} rows={shown} rowKey={a => a.id} empty={tr("Nobody is waiting for a sign-off.")} />}
     {signing && <SignOffWindow af={af} t={t} attempt={signing} siteName={siteName(signing.siteId)} onPrint={() => print(signing)} onClose={() => setSigning(null)} onDone={() => { load(); }} showToast={showToast} />}
-    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => { setVoiding(null); showToast(tr("Attempt voided.")); load(); }} />}
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => { setVoiding(null); showToast(voidedWord(d)); load(); }} />}
   </div>);
 }
 
@@ -24470,13 +24477,16 @@ function SignOffWindow({ af, t, attempt, siteName = "", onClose, onDone, onPrint
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState(null);
   const [done, setDone] = useState(false);
+  // Step 268: the modules an observation checklist's sign-off signed off with it (alsoSigned).
+  const [also, setAlso] = useState([]);
   const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "");
   const send = async () => {
     if (!sig) { setRefusal({ text: tr("Sign first."), fields: ["signature"] }); return; }
     if (!watched) { setRefusal({ text: tr("Tick that you watched them do it."), fields: ["demonstrated"] }); return; }
     setBusy(true); setRefusal(null);
     try {
-      await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/signoff", { method: "POST", body: { signature: sig, demonstrated: true, note: note.trim() || null } });
+      const d = await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/signoff", { method: "POST", body: { signature: sig, demonstrated: true, note: note.trim() || null } });
+      setAlso(d && Array.isArray(d.alsoSigned) ? d.alsoSigned : []);
       setDone(true); showToast(tr("Signed off. The training record is saved.")); onDone();
     } catch (e) {
       const keys = trainingKeysOf(e).concat(e && e.code === "training.demonstrationRequired" ? ["demonstrated"] : [], e && e.code === "training.signatureRequired" ? ["signature"] : []);
@@ -24492,8 +24502,10 @@ function SignOffWindow({ af, t, attempt, siteName = "", onClose, onDone, onPrint
         <div style={{ color: t.text, fontWeight: 600 }}>{(attempt.person && attempt.person.name) || ""}</div>
         <div>{[attempt.topicName, siteName].filter(Boolean).join(" . ")}</div>
         <div>{[tr("Score: {0}", scoreWord(attempt.scorePercent)), attempt.acknowledgedAt ? tr("Signed {0}", irWhen(attempt.acknowledgedAt)) : "", trainingLangWord(attempt.locale)].filter(Boolean).join(" . ")}</div>
+        {signoffByOf(attempt) && <div style={{ marginTop: 4 }}>{coveredBy(attempt)}</div>}
+        {attempt.kind === "observation" && !done && <div style={{ fontSize: 12, color: t.textMut, marginTop: 4 }}>{tr("Signing this checklist off also signs off every module of this person that names it.")}</div>}
       </div>
-      {done ? <div data-signoff-done="" style={{ fontSize: 13, color: GR, fontWeight: 600 }}>{tr("Signed off. The training record is saved.")}</div> : <>
+      {done ? <div data-signoff-done="" style={{ fontSize: 13, color: GR, fontWeight: 600 }}>{tr("Signed off. The training record is saved.")}{also.length > 0 && <div data-signoff-also={also.length} style={{ fontSize: 12, color: t.textSec, fontWeight: 400, marginTop: 4 }}>{trn("Also signed: {0} module|count", also.length)}</div>}</div> : <>
         {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
           : <SignatureBox t={t} label={tr("Your signature, as the trainer")} busy={busy} refusal={bad("signature")} onSign={png => setSig(png)} signWord={tr("Sign")} />}
         {sig && bad("signature") && <div role="alert" style={{ fontSize: 12, color: RD }}>{bad("signature")}</div>}
@@ -25255,15 +25267,21 @@ function useOpenProperty(af, userId, known, on) {
 }
 
 // A training attempt voided by an admin, with the reason (1 to 500 characters), at
-// POST /api/training/attempts/:id/void. The record it wrote is removed with it.
+// POST /api/training/attempts/:id/void. The record it wrote is removed with it. Since Step 268
+// (STEP266_CONTRACT.md section 6.3) voiding an observation checklist's attempt also returns every
+// module it signed off to waiting for a trainer: the window warns so before, with the count when the
+// attempt says how many it signed (alsoSigned), and the answer's returned is handed to onDone.
+const voidedWord = (d) => { const n = carriedCount(d, "returned"); return n ? tr("Attempt voided.") + " " + trn("{0} module returned to waiting for a trainer.|count", n) : tr("Attempt voided."); };
 function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState("");
+  const observation = attempt && attempt.kind === "observation";
+  const signed = carriedCount(attempt, "alsoSigned");
   const send = async () => {
     if (busy || !reason.trim()) return;
     setBusy(true); setRefusal("");
-    try { await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/void", { method: "POST", body: { reason: reason.trim() } }); onDone(); }
+    try { const d = await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/void", { method: "POST", body: { reason: reason.trim() } }); onDone(d); }
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy(false);
   };
@@ -25271,6 +25289,7 @@ function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Void this attempt")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{[attempt.topicName, attempt.attemptNo != null ? tr("Try {0}", attempt.attemptNo) : ""].filter(Boolean).join(" . ")}</div>
     <div style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("The training record written from it is removed with it. Why is it being voided?")}</div>
+    {observation && <div role="alert" data-attempt-void-returns={signed || ""} style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{signed ? trn("This returns {0} module to waiting for a trainer.|count", signed) : tr("This returns every module this checklist signed off to waiting for a trainer.")}</div>}
     <TArea t={t} rows={3} maxLength={500} aria-label={tr("Reason")} data-attempt-void-reason="" value={reason} onChange={e => setReason(e.target.value)} />
     <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("{0} of 500", reason.length)}</div>
     {refusal && <div role="alert" data-attempt-void-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal}</div>}
