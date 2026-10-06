@@ -45,7 +45,9 @@
 //     End employment window lists what is still out. At 390 in English the document line runs again.
 //   - Step 265: Who must sign reads the set in force from its own route and its editor starts from it
 //     (in the document line), and a certificate for a topic taken at each site asks for the site and
-//     is sent with it, while a topic taken once asks for none.
+//     is sent with it, while a topic taken once asks for none. The lesson line waits for the published
+//     row it reads and the session line for the QR image to have loaded, the two things those lines
+//     read that arrive from a route of their own after the page is drawn.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -544,8 +546,10 @@ async function step256(d, origin, p, stubs) {
     if ((await d.page.locator('[data-lesson-refusal="checkedEsBy"]').count()) === 0) return "the refusal is not drawn under Spanish checked by";
     await d.page.locator("[data-lesson-checked=es]").fill("Checked in the office");
     await d.page.locator("[data-lesson-publish]").click();
-    await until(d, "[data-topic-lesson]").catch(() => {});
-    const first = (await d.page.locator("[data-topic-lesson] tbody tr").count()) ? (await d.page.locator("[data-topic-lesson] tbody tr").first().innerText()) : "";
+    // Step 265: the versions list is drawn again the moment the editor closes, with the versions it
+    // held, and read anew after; so the row this line reads, version 3 published, is waited for.
+    await until(d, '[data-lesson-version="3"][data-lesson-version-status="published"]').catch(() => {});
+    const first =(await d.page.locator("[data-topic-lesson] tbody tr").count()) ? (await d.page.locator("[data-topic-lesson] tbody tr").first().innerText()) : "";
     await closeTopic();
     return /^\s*3\b/.test(first) && first.toLowerCase().indexOf(d.say("Published|lesson").toLowerCase()) >= 0 ? "" : "version 3 is not listed as published";
   });
@@ -590,7 +594,10 @@ async function step262(d, origin, p, stubs) {
       await go(d, "hr", ["training", "sessions"], "[data-training-sessions] tbody tr");
       await d.page.locator("[data-training-sessions] tbody tr").first().click();
       await until(d, "[data-session-signin]");
-      if ((await d.page.locator("[data-session-qr]").count()) === 0) return "the page draws no QR";
+      // Step 265: the QR comes from its own route after the sign-ins, so the image is waited for and
+      // its bytes with it, rather than counted the moment the sign-ins are there.
+      const qrDrawn = await d.page.waitForFunction(() => { const img = document.querySelector("[data-session-qr]"); return !!(img && img.complete && img.naturalWidth > 0); }, null, { timeout: 8000 }).then(() => true).catch(() => false);
+      if (!qrDrawn) return (await d.page.locator("[data-session-qr]").count()) === 0 ? "the page draws no QR" : "the QR image did not load";
       if ((await d.page.locator("[data-session-code]").innerText()).trim() !== SESSION_CODE) return "the page does not draw the join code";
       const signins = await settledCount(d, "[data-session-signin]");
       if (signins !== 3) return "the page lists " + signins + " sign-ins";

@@ -23783,7 +23783,7 @@ function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard 
   };
   if (draft) return <LessonDraftEditor af={af} t={t} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
   const cols = [
-    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}</span> },
+    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span data-lesson-version={v.version != null ? String(v.version) : "draft"} data-lesson-version-status={v.status || ""} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}</span> },
     { header: tr("Status"), render: v => <Bdg l={lessonStatusWord(v.status)} c={lessonStatusColor(v.status)} /> },
   ].concat((versions || []).some(v => v && v.kind) ? [{ header: tr("Kind|lesson"), tdStyle: { color: t.textSec }, render: v => <span data-lesson-version-kind={v.kind || "quiz"}>{lessonTypeWord(v.kind)}</span> }] : [], [
     { header: tr("Published"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => stampDay(v.publishedAt) },

@@ -70,7 +70,13 @@ than for the network to go quiet for half a second and then a fixed pause, and t
 opened by its button with no such wait: the stub answers in the same process, so a page has drawn what
 it read once that thing is there. The run went from 171 to 93 seconds with every check still in it, in
 every language it ran in, and is 108 with Step 257's sixteen lines and 119 with Step 263's eleven. The pause after a side panel item opens stays at 550 milliseconds, since an
-item has no one thing to wait for.
+item has no one thing to wait for. Two lines read a thing that arrives from a route of its own after
+the page they open is drawn, and on a slower machine read it too soon: the lesson line read the versions
+list the moment the editor closed, before the list was read anew with version 3 published, and the
+session line counted the QR the moment the sign-ins were there, before its image had answered. Since
+Step 265 the lesson line waits for the row it reads, `data-lesson-version="3"` with
+`data-lesson-version-status="published"`, and the session line waits for the QR image to have loaded,
+`complete` with a width, each inside the driver's eight seconds.
 
 A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
 after it still run. Any failure, or a run of three minutes or more, exits non-zero. It finds the side
@@ -87,7 +93,7 @@ and `data-supply-print-label`, and Step 257's by `data-training-catalog`, `data-
 `data-doc-signature`, `data-doc-print`, `data-property-row`, `data-property-kind`,
 `data-property-return` and `data-collect-item`, and Step 265's by `data-doc-who-row`, `data-doc-who-edit`,
 `data-doc-who-form`, `data-doc-who-everyone`, `data-certificate-upload`, `data-certificate-window`,
-`data-certificate-field` and `data-certificate-send`.
+`data-certificate-field`, `data-certificate-send`, `data-lesson-version` and `data-lesson-version-status`.
 
 ## What comes out
 
