@@ -4386,6 +4386,7 @@ export const WORDS = {
   "Open the certificate": { es: "Abrir el certificado" },
   "Certificate saved": { es: "Certificado guardado" },
   "Left empty, the expiry is set by how often the topic is taken.": { es: "Si se deja vac\u00eda, el vencimiento se fija seg\u00fan la frecuencia del tema." },
+  "This topic is taken at each site. Pick the site this certificate counts for.": { es: "Este tema se toma en cada sitio. Elija el sitio para el que cuenta este certificado." },
   "The certificate, a PDF, JPEG or PNG up to 10 MB": { es: "El certificado, un PDF, JPEG o PNG de hasta 10 MB" },
   "Choose a PDF, JPEG or PNG file.": { es: "Elija un archivo PDF, JPEG o PNG." },
   "The file is over 10 MB.": { es: "El archivo pasa de 10 MB." },

@@ -58,17 +58,25 @@ Then it checks, one line a check:
   sign-ins, a wrong one is removed, the session is closed with the trainer's signature and says who was
   saved and who already had a topic, and its roster prints every signature; an observation checklist
   draft is saved with its steps and no questions, Needs a trainer locked on, and the versions list says
-  its kind; a document's signatures list the people by site, the ones not signed first, a signature
-  opens and the print gives a page per site; a shirt is issued with the person's signature and marked
-  returned; and the End employment window lists what is still out. At 390 in English the document line
-  runs again.
+  its kind; a document's signatures list the people by site, the ones not signed first, Who must sign
+  reads the set in force from its own route and its editor starts from it with Everyone ticked
+  (Step 265), a signature opens and the print gives a page per site; a shirt is issued with the
+  person's signature and marked returned; the End employment window lists what is still out; and a
+  certificate for a topic taken at each site asks for the site and is sent with it, while a topic taken
+  once asks for none (Step 265). At 390 in English the document line runs again.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
 opened by its button with no such wait: the stub answers in the same process, so a page has drawn what
 it read once that thing is there. The run went from 171 to 93 seconds with every check still in it, in
 every language it ran in, and is 108 with Step 257's sixteen lines and 119 with Step 263's eleven. The pause after a side panel item opens stays at 550 milliseconds, since an
-item has no one thing to wait for.
+item has no one thing to wait for. Two lines read a thing that arrives from a route of its own after
+the page they open is drawn, and on a slower machine read it too soon: the lesson line read the versions
+list the moment the editor closed, before the list was read anew with version 3 published, and the
+session line counted the QR the moment the sign-ins were there, before its image had answered. Since
+Step 265 the lesson line waits for the row it reads, `data-lesson-version="3"` with
+`data-lesson-version-status="published"`, and the session line waits for the QR image to have loaded,
+`complete` with a width, each inside the driver's eight seconds.
 
 A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
 after it still run. Any failure, or a run of three minutes or more, exits non-zero. It finds the side
@@ -83,7 +91,9 @@ and `data-supply-print-label`, and Step 257's by `data-training-catalog`, `data-
 `data-session-remove`, `data-session-closing`, `data-session-close-saved`, `data-session-roster`,
 `data-lesson-kind`, `data-lesson-version-kind`, `data-doc-site`, `data-doc-state`,
 `data-doc-signature`, `data-doc-print`, `data-property-row`, `data-property-kind`,
-`data-property-return` and `data-collect-item`.
+`data-property-return` and `data-collect-item`, and Step 265's by `data-doc-who-row`, `data-doc-who-edit`,
+`data-doc-who-form`, `data-doc-who-everyone`, `data-certificate-upload`, `data-certificate-window`,
+`data-certificate-field`, `data-certificate-send`, `data-lesson-version` and `data-lesson-version-status`.
 
 ## What comes out
 

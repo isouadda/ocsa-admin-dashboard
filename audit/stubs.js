@@ -3222,25 +3222,27 @@ function createStubs() {
 
   // Documents read and signed (section 6): the handbook for everyone and a hazard program for two roles
   // and one person, with four signatures, one of them on an older version. Each person's row carries
-  // acknowledgmentId and each document its requirements, the two fields the contract leaves out and the
-  // pull request asks for, so a signature opens and Who must sign shows the set in force.
+  // acknowledgmentId, the field the contract leaves out and the pull request asks for, so a signature
+  // opens. Since Step 265 GET .../requirements answers who must sign, { id, role, userId, personName }
+  // a row, role "everyone" for everyone; a document's row and the signatures answer do not carry it.
   const DOCS = () => [
-    { docCode: "OCSA-HR-002", title: "Employee Handbook", version: 3, requirements: [{ role: "everyone" }] },
-    { docCode: "OCSA-HS-004", title: "Hazard Communication Program", version: 2, requirements: [{ role: "custodial_lead" }, { role: "custodial_laborer" }, { userId: "u-staff-10" }] },
+    { docCode: "OCSA-HR-002", title: "Employee Handbook", version: 3, requirements: [{ id: "dr-1", role: "everyone" }] },
+    { docCode: "OCSA-HS-004", title: "Hazard Communication Program", version: 2, requirements: [{ id: "dr-2", role: "custodial_lead" }, { id: "dr-3", role: "custodial_laborer" }, { id: "dr-4", userId: "u-staff-10" }] },
   ];
+  const docReqRows = (doc) => doc.requirements.map((r) => ({ id: r.id, role: r.role || null, userId: r.userId || null, personName: r.userId ? tPersonName(r.userId) : null }));
   const ACKS = () => [
     { id: "ack-1", docCode: "OCSA-HR-002", version: 3, userId: "u-staff-5", locale: "es", signedAt: at(-2, "08:12") },
     { id: "ack-2", docCode: "OCSA-HR-002", version: 2, userId: "u-staff-6", locale: "en", signedAt: at(-90, "07:40") },
     { id: "ack-3", docCode: "OCSA-HR-002", version: 3, userId: "u-sup-1", locale: "en", signedAt: at(-1, "09:03") },
     { id: "ack-4", docCode: "OCSA-HS-004", version: 2, userId: "u-staff-9", locale: "en", signedAt: at(-4, "10:30") },
   ];
-  const docs262 = () => { if (!state.docs262) { state.docs262 = DOCS(); state.acks262 = ACKS(); } return state.docs262; };
+  const docs262 = () => { if (!state.docs262) { state.docs262 = DOCS(); state.acks262 = ACKS(); state.docReqSeq = 4; } return state.docs262; };
   const docPeople = (doc) => state.staff.filter((s0) => (s0.status || "active") === "active" && doc.requirements.some((r) => r.role === "everyone" || r.role === s0.role || r.userId === s0.id));
   const docAckOf = (doc, userId) => state.acks262.filter((a) => a.docCode === doc.docCode && a.userId === userId && !a.voidedAt).sort((a, c) => c.version - a.version)[0] || null;
   const docRow = (doc) => {
     const ppl = docPeople(doc);
     const signed = ppl.filter((p) => { const a = docAckOf(doc, p.id); return a && a.version === doc.version; }).length;
-    return { docCode: doc.docCode, title: doc.title, version: doc.version, required: ppl.length, signed, notSigned: ppl.length - signed, requirements: clone(doc.requirements) };
+    return { docCode: doc.docCode, title: doc.title, version: doc.version, required: ppl.length, signed, notSigned: ppl.length - signed };
   };
   // Company property issued (section 7): one person holds two shirts and a key, and returned a badge.
   const PROPERTY = () => [
@@ -3295,13 +3297,15 @@ function createStubs() {
       const bad = [];
       if (!tPerson(m.fields.userId)) bad.push("userId");
       if (!tp) bad.push("topicId");
+      // Step 265: a topic taken at each site needs the site the certificate counts for.
+      if (tp && tp.perSite && !(m.fields.siteId && state.sites.some((s0) => s0.id === m.fields.siteId))) bad.push("siteId");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fields.completedDate || "")) bad.push("completedDate");
       if (m.fields.expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(m.fields.expiryDate)) bad.push("expiryDate");
       if (bad.length) return r262("training.badDetails", 400, lang, { keys: bad });
       const row = {
         id: "ht-" + trainingNext, user_id: m.fields.userId, training_name: tp.names.en, training_type: tp.safetyCritical ? "safety" : "onboarding", completed_date: m.fields.completedDate,
         expiry_date: m.fields.expiryDate || (T_FREQ[tp.frequency] ? addMonths(m.fields.completedDate, T_FREQ[tp.frequency]) : null), score: null, administered_by: null, notes: null, document_id: null,
-        created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(), site_id: null, topic_id: tp.id, attempt_id: null, trainer_id: null, locale: null, session_id: null, certificate_path: "certificates/ht-" + trainingNext + ".pdf",
+        created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(), site_id: tp.perSite ? m.fields.siteId : null, topic_id: tp.id, attempt_id: null, trainer_id: null, locale: null, session_id: null, certificate_path: "certificates/ht-" + trainingNext + ".pdf",
       };
       trainingNext += 1;
       trainingRows().push(row);
@@ -3389,14 +3393,15 @@ function createStubs() {
           return { id: p.id, name: p.name, role: p.role, sites: site ? [{ id: site.id, name: site.name }] : [], signedVersion: a ? a.version : null, signedAt: a ? a.signedAt : null, locale: a ? a.locale : null, current: !!(a && a.version === doc.version), acknowledgmentId: a ? a.id : null };
         }) });
       }
+      if (docOne[2] === "requirements" && method === "GET") return ok({ requirements: docReqRows(doc) });
       if (docOne[2] === "requirements" && method === "PUT") {
         if (me.role !== "admin") return tRefusal("training.noAccess", 403, lang);
         const rows = Array.isArray(b.requirements) ? b.requirements : null;
         if (!rows || rows.length > 30) return r262("documents.badRequirement", 400, lang, { keys: ["requirements"] });
         const badAt = rows.findIndex((r) => !(r && ((r.role && (r.role === "everyone" || ["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "contractor"].indexOf(r.role) >= 0)) || (r.userId && tPerson(String(r.userId))))));
         if (badAt >= 0) return r262("documents.badRequirement", 400, lang, { keys: ["requirements[" + badAt + "]"] });
-        doc.requirements = rows.map((r) => (r.role ? { role: r.role } : { userId: String(r.userId) }));
-        return ok({ requirements: clone(doc.requirements) });
+        doc.requirements = rows.map((r) => { state.docReqSeq += 1; return Object.assign({ id: "dr-" + state.docReqSeq }, r.role ? { role: r.role } : { userId: String(r.userId) }); });
+        return ok({ requirements: docReqRows(doc) });
       }
     }
     if (path === "/api/training/sessions" && method === "GET") {
