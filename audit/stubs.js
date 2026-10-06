@@ -4180,6 +4180,63 @@ function createStubs() {
     if (path === "/api/training/matrix" && method === "GET") return matrixAnswer(query, lang);
     return base();
   }
+  // A refresher first due a set time after another training (STEP275_CONTRACT.md sections 2 and 3),
+  // answered only once a run arms it with setStep275, over Step 269's: firstDueAfter on every Topic
+  // answer, an annual refresher first due after the spill response topic, firstDueAfterTopicId taken
+  // on POST and PATCH and refused in the API's words for a topic it cannot name, and an item and a
+  // matrix cell marked firstDue for one person coming due. Every value is invented.
+  let step275 = false;
+  const TOPIC_275 = () => ({ id: "tp-7", key: "annual_safety_refresher", names: tName(["Annual safety refresher", "Repaso anual de seguridad", "Rappel annuel de sécurité"]), docCode: "OCSA-TRN-907", docSection: "1", safetyCritical: false, frequency: "yearly", dueRule: "before_unsupervised", perSite: false, evidenceForm: null, recordNames: [], linkUrl: null, active: true,
+    category: "chemicals", sortOrder: 20, signoffTopicId: null, requirements: [], firstDueAfterTopicId: "tp-1" });
+  // The person the refresher is coming due for, from their first spill response record.
+  const FIRST_DUE_PERSON = "u-staff-5";
+  const firstDueOn275 = () => plusDays(T_TODAY, 20);
+  const topics275 = () => { if (!state.t275) { state.t275 = true; if (!topics().some((x) => x.id === "tp-7")) topics().push(TOPIC_275()); state.topicSeq = Math.max(state.topicSeq || 0, 7); } return topics(); };
+  const firstDueOf = (id) => { const tp = topics275().find((x) => x.id === id); const a = tp && tp.firstDueAfterTopicId ? topics275().find((x) => x.id === tp.firstDueAfterTopicId) : null; return a ? { topicId: a.id, nameOf: a } : null; };
+  const withFirstDue = (view, lang) => { if (!view || !view.id) return view; const a = firstDueOf(view.id); view.firstDueAfter = a ? { topicId: a.topicId, name: a.nameOf.names[lang] || a.nameOf.names.en } : null; return view; };
+  const firstDueItem = (lang) => { const tp = topics275().find((x) => x.id === "tp-7"); return { topicId: tp.id, name: tp.names[lang] || tp.names.en, docCode: tp.docCode, docSection: tp.docSection, safetyCritical: false, linkUrl: null, siteId: null, siteName: null, status: "dueSoon", completedDate: null, expiresOn: firstDueOn275(), recordId: null, attemptId: null, lesson: null,
+    topicKey: tp.key, category: tp.category, sortOrder: tp.sortOrder, needsTrainer: false, signoffBy: null, firstDue: true }; };
+  function step275Route(method, path, query, body, said, base) {
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    const b = body || {};
+    topics275();
+    const oneTopic = /^\/api\/training\/topics\/([^/]+)$/.exec(path);
+    if ((path === "/api/training/topics" && method === "POST") || (oneTopic && method === "PATCH")) {
+      const selfId = oneTopic ? decodeURIComponent(oneTopic[1]) : null;
+      const self = selfId ? topics275().find((x) => x.id === selfId) : null;
+      const v = b.firstDueAfterTopicId;
+      if (v !== undefined && v !== null && v !== "") {
+        const anchor = topics275().find((x) => x.id === String(v));
+        const perSite = b.perSite !== undefined ? !!b.perSite : !!(self && self.perSite);
+        const renews = T_FREQ[b.frequency !== undefined ? b.frequency : self ? self.frequency : "once"];
+        if (!anchor || !anchor.active || anchor.id === selfId || anchor.perSite || perSite || !renews) return r269("training.badDetails", 400, lang, { keys: ["firstDueAfterTopicId"] });
+      }
+      const a = base();
+      if (a && (a.status === 200 || a.status === 201) && a.json && a.json.topic) {
+        const tp = topics275().find((x) => x.id === a.json.topic.id);
+        if (tp && v !== undefined) tp.firstDueAfterTopicId = v ? String(v) : null;
+        withFirstDue(a.json.topic, lang);
+      }
+      return a;
+    }
+    const a = base();
+    if (!a || a.status !== 200 || !a.json || typeof a.json !== "object") return a;
+    if (/^\/api\/training\/topics/.test(path)) {
+      if (Array.isArray(a.json.topics)) a.json.topics.forEach((x) => withFirstDue(x, lang));
+      if (a.json.topic) withFirstDue(a.json.topic, lang);
+    }
+    // The refresher coming due for one person, in their list, in Gaps and in the matrix.
+    if (path === "/api/training/gaps/people/" + FIRST_DUE_PERSON && Array.isArray(a.json.items)) a.json.items.push(firstDueItem(lang));
+    if (path === "/api/training/gaps" && Array.isArray(a.json.people)) {
+      const p = a.json.people.find((x) => x.id === FIRST_DUE_PERSON);
+      if (p && (!query.get("topicId") || query.get("topicId") === "tp-7") && (!query.get("status") || query.get("status") === "dueSoon")) { p.items.push(firstDueItem(lang)); p.open += 1; }
+    }
+    if (path === "/api/training/matrix" && Array.isArray(a.json.people)) {
+      const p = a.json.people.find((x) => x.id === FIRST_DUE_PERSON);
+      if (p && a.json.topics.some((x) => x.id === "tp-7")) p.cells["tp-7"] = { status: "dueSoon", completedDate: null, expiresOn: firstDueOn275(), method: null, sites: null, firstDue: true };
+    }
+    return a;
+  }
   // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
   function step247Route(method, path, query, body, lang, base) {
     const es = lang === "es";
@@ -5825,7 +5882,8 @@ function createStubs() {
     const over262 = () => (step262 ? step262Route(method, path, u.searchParams, body, record.language, over256) : over256());
     const over266 = () => (step266 ? step266Route(method, path, u.searchParams, body, record.language, over262) : over262());
     const over270 = () => (step270 ? step270Route(method, path, u.searchParams, body, record.language, over266) : over266());
-    const answer = step269 ? step269Route(method, path, u.searchParams, body, record.language, over270) : over270();
+    const over269 = () => (step269 ? step269Route(method, path, u.searchParams, body, record.language, over270) : over270());
+    const answer = step275 ? step275Route(method, path, u.searchParams, body, record.language, over269) : over269();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -5897,6 +5955,9 @@ function createStubs() {
     // The routes and keys of the API's Step 269, on or off, laid over whichever later step the run arms;
     // on brings Step 256's, whose topics and records the matrix reads.
     setStep269: (v) => { step269 = v !== false; if (step269) step256 = true; },
+    // The routes and keys of the API's Step 275 contract, on or off, laid over Step 269's; on brings Step
+    // 256's, whose topics it adds to.
+    setStep275: (v) => { step275 = v !== false; if (step275) step256 = true; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -5951,6 +6012,7 @@ function createStubs() {
       step266 = false; state.lessonImages = null; state.imageSeq = 0; state.assignments = null;
       step270 = false; state.requests270 = null; state.requestSeq = 0; state.notif270 = false;
       step269 = false;
+      step275 = false; state.t275 = false;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

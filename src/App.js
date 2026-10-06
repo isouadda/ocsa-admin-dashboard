@@ -23367,6 +23367,19 @@ function categoriesOf(answered) {
 }
 const topicCategoryKey = (tp) => ((tp && tp.category) || OTHER_CATEGORY);
 const categoryNameOf = (cats, key) => { const c = (cats || []).find(x => x.key === (key || OTHER_CATEGORY)); return c ? c.name : (key ? String(key) : tr("Other trainings")); };
+// ===== FIRST DUE AFTER (Step 273, against the API's Step 275, STEP275_CONTRACT.md section 3) =====
+// A refresher first due a set time after another training: a topic that names firstDueAfter is first
+// due its renewal months after the person's first record of that topic, and nobody is asked for it
+// before. The catalog and the topic window read it, the editor offers it as firstDueAfterTopicId, and
+// an item or a matrix cell marked firstDue reads its first due day in place of its expiry. Nothing of
+// it shows until a Topic answer carries the key firstDueAfter.
+const hasFirstDueKey = (tp) => !!tp && Object.prototype.hasOwnProperty.call(tp, "firstDueAfter");
+const firstDueLine = (tp) => {
+  const a = tp && tp.firstDueAfter;
+  if (!a || a.topicId == null) return "";
+  return tp.renewMonths != null && Number(tp.renewMonths) > 0 ? trn("First due {0} months after {1}|count", Number(tp.renewMonths), a.name || "") : tr("First due after {0}", a.name || "");
+};
+const firstDueDayWord = (x) => (x && x.firstDue && x.expiresOn ? tr("First due {0}", fdLong(x.expiresOn)) : "");
 // Topics in the order the catalog draws them inside a category: by sortOrder, then by name.
 const byTopicOrder = (a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || String(a.name || "").localeCompare(String(b.name || ""), localeTag());
 // The topics that can sign another off (section 6): an active topic whose live lesson is an
@@ -23424,7 +23437,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
     { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
     { header: tr("Document"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: tp => topicDocLine(tp) },
     { header: tr("How often"), tdStyle: { color: t.textSec }, render: tp => trainingFrequencyWord(tp.frequency) },
-    { header: tr("When due"), tdStyle: { color: t.textSec }, render: tp => trainingDueWord(tp.dueRule) },
+    { header: tr("When due"), tdStyle: { color: t.textSec }, render: tp => (firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule)) },
     { header: tr("Per site"), tdStyle: { color: t.textSec }, render: tp => (tp.perSite ? tr("Yes") : "") },
     { header: tr("Safety critical"), render: tp => (tp.safetyCritical ? <Bdg l={tr("Safety critical")} c={RD} /> : null) },
     { header: tr("Course link"), render: tp => (courseLinkOf(tp.linkUrl) ? <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a> : null) },
@@ -23467,7 +23480,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
 }
 
 // The fields a topic's form edits, by the key a refusal names them with.
-const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId"];
+const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId", "firstDueAfterTopicId"];
 const topicFieldOf = (k) => (k === "names" ? "names.en" : TOPIC_FIELDS.indexOf(k) >= 0 ? k : "");
 const topicFormOf = (tp) => ({
   key: (tp && tp.key) || "", en: (tp && tp.names && tp.names.en) || "", es: (tp && tp.names && tp.names.es) || "", fr: (tp && tp.names && tp.names.fr) || "",
@@ -23477,6 +23490,8 @@ const topicFormOf = (tp) => ({
   // Step 268: the category, the order inside it (100 to start, as the API defaults it) and the
   // checklist topic that signs this one off.
   category: (tp && tp.category) || "", sortOrder: tp && tp.sortOrder != null ? String(tp.sortOrder) : "100", signoffTopicId: tp && tp.signoffTopicId != null ? String(tp.signoffTopicId) : "",
+  // Step 273: the topic this one is first due after, or none.
+  firstDueAfterTopicId: tp && tp.firstDueAfter && tp.firstDueAfter.topicId != null ? String(tp.firstDueAfter.topicId) : "",
 });
 
 // One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
@@ -23544,7 +23559,7 @@ function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, 
     {row(tr("Name in French"), n.fr || <span style={{ color: t.textMut }}>{tr("Not written yet")}</span>)}
     {row(tr("Document"), topicDocLine(tp))}
     {row(tr("How often"), trainingFrequencyWord(tp.frequency))}
-    {row(tr("When due"), trainingDueWord(tp.dueRule))}
+    {row(tr("When due"), firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule))}
     {row(tr("Per site"), tp.perSite ? tr("Yes") : tr("No"))}
     {row(tr("Safety critical"), tp.safetyCritical ? tr("Yes") : tr("No"))}
     {courseLinkOf(tp.linkUrl) && row(tr("Course link"), <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 600 }}>{courseLinkOf(tp.linkUrl)}</a>)}
@@ -23572,6 +23587,17 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
   const [f, setF] = useState(() => topicFormOf(topic));
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState(null);
+  // Step 273: First due after, once a Topic answer carries firstDueAfter: this topic's, or for a new
+  // one any of the catalog's. Its choice is every active topic but this one, read on its own, since
+  // the catalog may be showing the retired ones.
+  const firstDueOn = topic ? hasFirstDueKey(topic) : (topics || []).some(hasFirstDueKey);
+  const [actives, setActives] = useState(null);
+  useEffect(() => {
+    if (!firstDueOn) return undefined;
+    let alive = true;
+    af("/api/training/topics?active=true").then(d => { if (alive) setActives(d && Array.isArray(d.topics) ? d.topics : null); }).catch(e => console.warn("Topics:", e.message));
+    return () => { alive = false; };
+  }, [af, firstDueOn]);
   const set = (k) => (e) => setF({ ...f, [k]: e && e.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e });
   const bad = (k) => refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "";
   const save = async () => {
@@ -23584,6 +23610,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
       frequency: f.frequency, dueRule: f.dueRule, perSite: !!f.perSite, safetyCritical: !!f.safetyCritical, linkUrl: f.linkUrl.trim() || null,
       evidenceForm: f.evidenceForm.trim() || null, recordNames: f.recordNames.split("\n").map(x => x.trim()).filter(Boolean),
       ...(categories ? { category: f.category || null, sortOrder: order, signoffTopicId: f.signoffTopicId || null } : {}),
+      ...(firstDueOn ? { firstDueAfterTopicId: f.firstDueAfterTopicId || null } : {}),
     };
     try {
       const d = topic
@@ -23598,6 +23625,8 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
     setBusy(false);
   };
   const checklists = categories ? signoffCandidates(topics, topic && topic.id, f.signoffTopicId) : [];
+  const anchors = (actives || topics || []).filter(x => x && x.active !== false && String(x.id) !== String((topic && topic.id) || ""));
+  const anchorNow = f.firstDueAfterTopicId && !anchors.some(x => String(x.id) === f.firstDueAfterTopicId) ? [{ id: f.firstDueAfterTopicId, name: (topic && topic.firstDueAfter && topic.firstDueAfter.name) || f.firstDueAfterTopicId }] : [];
   const field = (k, label, input, hint) => <div data-topic-field={k} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{label}</div>{input}
     {hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{hint}</div>}
@@ -23623,6 +23652,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
       {field("sortOrder", tr("Order|topic"), <Inp t={t} type="number" min={0} max={SORT_ORDER_MAX} step={1} aria-label={tr("Order|topic")} value={f.sortOrder} onChange={set("sortOrder")} />, tr("A whole number from 0 to 9999. Lower comes first inside the category."))}
     </div>}
     {categories && field("signoffTopicId", tr("Signed off by checklist"), <Sel t={t} aria-label={tr("Signed off by checklist")} value={f.signoffTopicId} onChange={set("signoffTopicId")} options={[{ v: "", l: tr("None|checklist") }].concat(checklists.map(x => ({ v: String(x.id), l: x.name })))} />, checklists.length ? tr("When a trainer signs that checklist off for a person, this topic is signed off with it.") : tr("No topic has an observation checklist live yet."))}
+    {firstDueOn && field("firstDueAfterTopicId", tr("First due after"), <Sel t={t} aria-label={tr("First due after")} value={f.firstDueAfterTopicId} onChange={set("firstDueAfterTopicId")} options={[{ v: "", l: tr("None|first due") }].concat(anchorNow.concat(anchors).map(x => ({ v: String(x.id), l: x.name })))} />, tr("With a topic chosen, this one is first due its renewal months after the person first completes that topic, and nobody is asked for it before."))}
     {tick("perSite", tr("Per site"), tr("One record for each site the person works at."))}
     {tick("safetyCritical", tr("Safety critical"), tr("A lesson on this topic needs a trainer to watch a demonstration."))}
     {field("linkUrl", tr("Course link"), <Inp t={t} type="url" value={f.linkUrl} onChange={set("linkUrl")} placeholder="https://" />, tr("An https address for a course taken outside the app. It opens in a new tab."))}
@@ -23755,13 +23785,14 @@ const GAP_STATUSES = [
 const gapStatusWord = (s) => { const x = GAP_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };
 const gapStatusColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : s === "awaitingTrainer" ? PU : BL);
 const gapNeedsSession = (it) => !!(it && it.lesson && it.lesson.attemptsLeft != null && Number(it.lesson.attemptsLeft) === 0 && it.status !== "current" && it.status !== "awaitingTrainer");
-const gapItemWord = (it) => (gapNeedsSession(it) ? tr("Needs an in-person session") : gapStatusWord(it.status));
+// Since Step 273 an item marked firstDue reads its first due day in place of its status.
+const gapItemWord = (it) => (gapNeedsSession(it) ? tr("Needs an in-person session") : firstDueDayWord(it) || gapStatusWord(it.status));
 const gapItemColor = (it) => (gapNeedsSession(it) ? RD : gapStatusColor(it.status));
 // An item as a chip: its topic, the site of a per-site topic, and its status.
 function GapChip({ item, withName = true }) {
   const t = useT();
   const c = gapItemColor(item);
-  return <span data-gap-chip={item.status} data-gap-covered={signoffByOf(item) ? signoffByOf(item).topicId || "" : undefined} title={[item.name, item.siteName, signoffByOf(item) ? tr("Covered by {0}", signoffByOf(item).name) : ""].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
+  return <span data-gap-chip={item.status} data-gap-first-due={item.firstDue ? "" : undefined} data-gap-covered={signoffByOf(item) ? signoffByOf(item).topicId || "" : undefined} title={[item.name, item.siteName, signoffByOf(item) ? tr("Covered by {0}", signoffByOf(item).name) : ""].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
     {withName && <span style={{ color: t.text, fontWeight: 500, overflowWrap: "anywhere" }}>{item.name}{item.siteName ? " (" + item.siteName + ")" : ""}</span>}<span data-gap-word={gapNeedsSession(item) ? "inPerson" : item.status} style={{ whiteSpace: "nowrap" }}>{gapItemWord(item)}</span></span>;
 }
 
@@ -23873,7 +23904,7 @@ function trainingGapPages(data, f, topics, sites) {
   return order.filter(k => !f.siteId || k === String(f.siteId) || k === "").map(k => {
     const g = bySite.get(k);
     const rows = [];
-    g.people.forEach(p => (p.items || []).filter(it => !it.siteId || String(it.siteId) === k).forEach(it => rows.push([p.name, roleWord(p.role), it.name, gapItemWord(it), it.completedDate ? keptDay(it.completedDate) : "", it.expiresOn ? keptDay(it.expiresOn) : ""])));
+    g.people.forEach(p => (p.items || []).filter(it => !it.siteId || String(it.siteId) === k).forEach(it => rows.push([p.name, roleWord(p.role), it.name, gapItemWord(it), it.completedDate ? keptDay(it.completedDate) : "", it.expiresOn && !it.firstDue ? keptDay(it.expiresOn) : ""])));
     return { code: "", title: "Training gaps", site: g.name, asOf: data.asOf || todayISO(), parts: [
       filters ? { fields: [["Showing", filters]] } : null,
       { cols: ["Person", "Role", "Topic", "Status", "Completed", "Expires"], rows },
@@ -23904,7 +23935,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
       <div style={{ fontSize: compact ? 12 : 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{it.name}{it.siteName ? " (" + it.siteName + ")" : ""}</div>
-      <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
+      <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn && !it.firstDue ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
       {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
@@ -23987,7 +24018,7 @@ const matrixStatusWord = (s) => { const x = MATRIX_STATUSES.find(o => o.v === s)
 const matrixColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : BL);
 // The day a cell shows: when it expires for one coming due or past it, else when it was done.
 const matrixDay = (c) => (!c || c.status === "missing" ? null : c.status === "dueSoon" || c.status === "expired" || c.status === "refresherDue" ? (c.expiresOn || c.completedDate) : c.completedDate);
-const matrixCellLine = (c) => [matrixStatusWord(c.status), matrixDay(c) ? fdLong(matrixDay(c)) : ""].filter(Boolean).join(" ");
+const matrixCellLine = (c) => firstDueDayWord(c) || [matrixStatusWord(c.status), matrixDay(c) ? fdLong(matrixDay(c)) : ""].filter(Boolean).join(" ");
 const MATRIX_METHODS = { lesson: "Lesson on the phone", session: "Training session", certificate: "Certificate from a course", checklist: "Checklist watched by a trainer", record: "Record entered by the office", form: "Filed form" };
 const matrixMethodWord = (m) => (MATRIX_METHODS[m] ? tr(MATRIX_METHODS[m]) : m ? String(m) : tr("No record yet"));
 // The topics in the answer's order, grouped by category as they run.
@@ -24073,7 +24104,7 @@ function TrainingMatrix({ af, t, token, sites = [], isAdmin = false, showToast }
             {groups.map(g => g.topics.map((tp, i) => { const c = p.cells && p.cells[tp.id]; const ink = c ? matrixColor(c.status) : null; return <td key={tp.id} style={{ padding: 3, borderBottom: "1px solid " + t.border, borderLeft: i === 0 ? "1px solid " + t.border : "none" }}>
               {c ? <button type="button" data-matrix-cell={c.status} data-matrix-cell-person={p.id} data-matrix-cell-topic={tp.id} data-matrix-per-site={Array.isArray(c.sites) && c.sites.length ? "" : undefined} onClick={() => setOpen({ p, tp, c })} aria-label={p.name + ", " + tp.name + ": " + matrixCellLine(c)}
                 style={{ width: "100%", minHeight: 44, padding: "4px 8px", borderRadius: 6, border: "none", background: ink + "1f", color: goldToText(t, ink), textAlign: "left", fontSize: 11, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", lineHeight: 1.3 }}>
-                <div>{matrixStatusWord(c.status)}</div>{matrixDay(c) ? <div style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{fdLong(matrixDay(c))}</div> : null}
+                {firstDueDayWord(c) ? <div data-matrix-first-due="">{firstDueDayWord(c)}</div> : <><div>{matrixStatusWord(c.status)}</div>{matrixDay(c) ? <div style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{fdLong(matrixDay(c))}</div> : null}</>}
               </button> : null}
             </td>; }))}
           </tr>)}</tbody>
@@ -24087,8 +24118,8 @@ function TrainingMatrix({ af, t, token, sites = [], isAdmin = false, showToast }
         </div>
         <button onClick={() => setOpen(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
       </div>
-      <div style={{ marginBottom: 10 }}><Bdg l={matrixStatusWord(open.c.status)} c={matrixColor(open.c.status)} /></div>
-      {[[tr("How it was done"), <span data-matrix-method={open.c.method || ""}>{matrixMethodWord(open.c.method)}</span>], [tr("Completed|training"), open.c.completedDate ? fdLong(open.c.completedDate) : ""], [tr("Expires|training"), open.c.expiresOn ? fdLong(open.c.expiresOn) : ""]].filter(([, v]) => v).map(([l, v]) => <div key={l} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, flexWrap: "wrap" }}><div style={{ flex: "0 0 140px", color: t.textMut }}>{l}</div><div style={{ flex: "1 1 160px", color: t.text }}>{v}</div></div>)}
+      <div style={{ marginBottom: 10 }}><Bdg l={firstDueDayWord(open.c) || matrixStatusWord(open.c.status)} c={matrixColor(open.c.status)} /></div>
+      {[[tr("How it was done"), <span data-matrix-method={open.c.method || ""}>{matrixMethodWord(open.c.method)}</span>], [tr("Completed|training"), open.c.completedDate ? fdLong(open.c.completedDate) : ""], [tr("Expires|training"), open.c.expiresOn && !open.c.firstDue ? fdLong(open.c.expiresOn) : ""]].filter(([, v]) => v).map(([l, v]) => <div key={l} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, flexWrap: "wrap" }}><div style={{ flex: "0 0 140px", color: t.textMut }}>{l}</div><div style={{ flex: "1 1 160px", color: t.text }}>{v}</div></div>)}
       {Array.isArray(open.c.sites) && open.c.sites.length > 0 && <div data-matrix-sites="" style={{ marginTop: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 6 }}>{tr("At each site")}</div>
         {open.c.sites.map(x => <div key={x.siteId} data-matrix-site={x.siteId} data-matrix-site-status={x.status} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
@@ -25936,6 +25967,12 @@ function PersonProperty({ af, token, t, userId, sites = [], name = "", showToast
 // key, a badge or a fob, the day, a note, and the person's drawing on this screen. A refusal is drawn
 // under the box its keys name, and one without keys at the top.
 const PROPERTY_FIELDS = ["kind", "description", "size", "quantity", "siteId", "issuedOn", "note", "signature"];
+// Step 273 (OCSA-HR-013 Section 3, keys and access before any key, badge, fob or code is issued): the
+// topic whose current record a key, a badge or a fob looks for, by its key.
+const KEYS_TOPIC_KEY = "site_security_access";
+// Whether a person's training list holds the keys and access topic as current: true, false, or null
+// until the list answers (or when it fails). A first due item coming due is one not held yet.
+const holdsKeysTopic = (d, failed) => (!d || failed ? null : (d.items || []).some(it => it && it.topicKey === KEYS_TOPIC_KEY && (it.status === "current" || (it.status === "dueSoon" && !it.firstDue))));
 function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, onSaved }) {
   const [f, setF] = useState({ kind: "", description: "", size: "", quantity: "1", siteId: "", issuedOn: todayISO(), note: "" });
   const [sig, setSig] = useState("");
@@ -25949,6 +25986,12 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
   const qty = Number(f.quantity);
   const sited = PROPERTY_SITED.indexOf(f.kind) >= 0;
   const sized = PROPERTY_SIZED.indexOf(f.kind) >= 0;
+  // Step 273: the person's own training list (GET /api/training/gaps/people/:userId), read once a key,
+  // a badge or a fob is picked. A person who does not hold Keys and access as current gets a line under
+  // the kind; it never stops the save, since the office is recording keys people already hold and the
+  // record puts them on the training.
+  const [keysList, keysFailed] = useTrainingItems(af, userId, sited);
+  const keysLine = sited && holdsKeysTopic(keysList, keysFailed) === false;
   const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && (phone || !!sig);
   const bad = (k) => refusal.keys.indexOf(k) >= 0;
   const under = (k) => (bad(k) ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
@@ -25980,7 +26023,8 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
     <div style={{ marginBottom: 12 }}><Lbl>{tr("What was issued")}</Lbl>
       <div role="group" aria-label={tr("What was issued")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {Object.keys(PROPERTY_KINDS).map(k => <button key={k} type="button" data-property-kind={k} aria-pressed={f.kind === k} onClick={() => set("kind", k)} style={choice(f.kind === k)}>{propertyKindWord(k)}</button>)}
-      </div>{under("kind")}</div>
+      </div>{under("kind")}
+      {keysLine && <div data-keys-heads-up="" role="note" style={{ fontSize: 12, color: OR, marginTop: 8, lineHeight: 1.5 }}>{tr("Keys and access is not done yet. OCSA-HR-013 Section 3 asks for it before any key, badge, fob or code is issued. If they already hold this one, record it; the training is assigned from the record.")}</div>}</div>
     {f.kind && <div style={{ marginBottom: 12 }}><Lbl>{f.kind === "other" ? tr("Description") : tr("Description (optional)")}</Lbl>
       <Inp t={t} aria-label={f.kind === "other" ? tr("Description") : tr("Description (optional)")} data-property-field="description" value={f.description} onChange={e => set("description", e.target.value)} maxLength={200} placeholder={f.kind === "key" ? tr("Which door or closet") : ""} style={box("description")} />{under("description")}</div>}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>

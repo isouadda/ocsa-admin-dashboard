@@ -65,6 +65,13 @@
 //     landscape and saves its CSV. At 390 in English and in Spanish the dashboard, time and matrix
 //     lines run again (the Spanish pass with Step 270's key sent to a phone), and at 1280 in English a supervisor is not offered the dashboard, is shown the API's refusal at
 //     its address, and reads the matrix for their own sites alone.
+//   - against the stub's answers for the API's Step 275 contract (Step 273), at 1280 in English and in
+//     Spanish: the catalog reads a refresher first due 12 months after the topic it follows, the editor
+//     offers First due after with it chosen, draws the API's refusal under the field and saves it, and
+//     with the answer carrying no firstDueAfter neither shows; a person coming due reads First due and
+//     the day in the matrix and in Gaps; and a key for a person without Keys and access draws the line
+//     under the kind, which a uniform shirt does not. At 390 in English and in Spanish the matrix and
+//     key lines run again.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -120,6 +127,12 @@ const NEEDS_MEASURE = "voluntary";
 const SITES_MEASURE = "inspectionAverage";
 const TWO_SITE_PERSON = "u-staff-6";
 const SUPERVISOR_SITES = seed.SITES.filter((s0) => s0.supervisor_id === seed.PEOPLE.supervisor.id).map((s0) => s0.id);
+// Step 275's stub (STEP275_CONTRACT.md): the refresher, the topic it follows, a topic taken at each site
+// it cannot follow, and the person it is coming due for.
+const REFRESHER = { id: "tp-7", en: "Annual safety refresher", es: "Repaso anual de seguridad" };
+const FOLLOWS = "tp-1";
+const PER_SITE_TOPIC = "tp-2";
+const FIRST_DUE_PERSON = "u-staff-5";
 const LAST_WEEK = (() => {
   const d = new Date(seed.TODAY + "T12:00:00Z");
   const mon = new Date(d.getTime() - (((d.getUTCDay() + 6) % 7) + 7) * 86400000);
@@ -127,12 +140,12 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all" },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all" },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all" },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all" },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
-  { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone" },
+  { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
 ];
 
 const started = Date.now();
@@ -1122,6 +1135,82 @@ async function step269(d, origin, p, stubs) {
   });
 }
 
+// Step 273's First due after and keys heads-up, each a line, against the stub armed with setStep275
+// (audit/stubs.js) over Step 269's. Every line waits for what it reads.
+async function step275(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const lastCall = (test) => stubs.calls.filter(test).pop() || null;
+  const lead = (key) => d.say(key).split("{0}")[0].trim();
+  const closeTopic = async () => { await d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click(); await d.page.locator("[data-topic-window]").waitFor({ state: "detached" }); };
+  const openTopicForm = async (name) => {
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: name }).first().click();
+    await d.page.locator("[data-topic-edit]").click();
+    await until(d, "[data-topic-form]");
+  };
+  if (p.step275 === "all") await check("the catalog reads First due after, the editor offers it and draws the API's refusal, and none shows without the key", async () => {
+    await go(d, "training", ["catalog"], '[data-topic-first-due="' + FOLLOWS + '"]');
+    const line = await d.page.locator('[data-topic-first-due="' + FOLLOWS + '"]').first().innerText();
+    if (line.indexOf("12") < 0 || line.indexOf(LESSON_TOPIC[p.lang]) < 0) return "the catalog reads " + JSON.stringify(line);
+    await openTopicForm(REFRESHER[p.lang]);
+    const field = d.page.locator('[data-topic-field="firstDueAfterTopicId"] select');
+    if ((await field.inputValue()) !== FOLLOWS) return "First due after does not start on the topic it follows";
+    await field.selectOption(PER_SITE_TOPIC);
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, '[data-topic-refusal="firstDueAfterTopicId"]');
+    const refused = lastCall((c) => c.path === "/api/training/topics/" + REFRESHER.id && c.method === "PATCH");
+    if (!refused || refused.status !== 400 || refused.body.firstDueAfterTopicId !== PER_SITE_TOPIC) return "the per-site topic was not sent and refused";
+    if ((await d.page.locator('[data-topic-refusal="firstDueAfterTopicId"]').innerText()).trim() !== refused.json.error) return "the refusal is not drawn in the API's words";
+    await field.selectOption(FOLLOWS);
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, "[data-topic-details] [data-topic-first-due]");
+    const kept = lastCall((c) => c.path === "/api/training/topics/" + REFRESHER.id && c.method === "PATCH");
+    if (kept.status !== 200 || kept.body.firstDueAfterTopicId !== FOLLOWS) return "the save did not send the topic it follows";
+    await closeTopic();
+    stubs.setStep275(false);
+    try {
+      await go(d, "training", ["catalog"], "[data-training-catalog] table tbody tr");
+      if ((await d.page.locator("[data-topic-first-due]").count()) !== 0) return "a first due line shows with no firstDueAfter in the answer";
+      await openTopicForm(LESSON_TOPIC[p.lang]);
+      const offered = await d.page.locator('[data-topic-field="firstDueAfterTopicId"]').count();
+      await d.page.locator("[data-topic-form] button").filter({ hasText: d.say("Cancel") }).click();
+      await closeTopic();
+      return offered ? "the editor offers First due after with no firstDueAfter in the answer" : "";
+    } finally { stubs.setStep275(true); }
+  });
+  await check("a person coming due reads First due and the day in the matrix and in Gaps", async () => {
+    const cell = '[data-matrix-cell-person="' + FIRST_DUE_PERSON + '"][data-matrix-cell-topic="' + REFRESHER.id + '"] [data-matrix-first-due]';
+    await go(d, "training", ["matrix"], cell);
+    const text = await d.page.locator(cell).innerText();
+    if (text.indexOf(lead("First due {0}")) !== 0 || text.trim() === lead("First due {0}")) return "the cell reads " + JSON.stringify(text);
+    if (p.step275 !== "all") return "";
+    await go(d, "training", ["gaps"], '[data-gaps-person="' + FIRST_DUE_PERSON + '"] [data-gap-first-due]');
+    const chip = await d.page.locator('[data-gaps-person="' + FIRST_DUE_PERSON + '"] [data-gap-first-due] [data-gap-word]').innerText();
+    return chip.indexOf(lead("First due {0}")) === 0 ? "" : "the Gaps line reads " + JSON.stringify(chip);
+  });
+  await check("a key for a person without Keys and access draws the line under the kind, and a uniform shirt does not", async () => {
+    await go(d, "hr", [FIRST_DUE_PERSON], "[data-property-issue]");
+    await d.page.locator("[data-property-issue]").click();
+    await d.page.locator('[data-property-kind="key"]').click();
+    await until(d, "[data-keys-heads-up]");
+    const line = (await d.page.locator("[data-keys-heads-up]").innerText()).trim();
+    if (line !== d.say("Keys and access is not done yet. OCSA-HR-013 Section 3 asks for it before any key, badge, fob or code is issued. If they already hold this one, record it; the training is assigned from the record.")) return "the line reads " + JSON.stringify(line);
+    const read = lastCall((c) => c.path === "/api/training/gaps/people/" + FIRST_DUE_PERSON);
+    if (!read || read.status !== 200) return "the person's training was not read";
+    await d.page.locator('[data-property-kind="uniform_shirt"]').click();
+    await d.page.locator("[data-keys-heads-up]").waitFor({ state: "detached" });
+    const save = await d.page.locator("[data-property-save]").count();
+    await d.page.locator("[data-property-window] button").filter({ hasText: d.say("Cancel") }).click();
+    await d.page.locator("[data-property-window]").waitFor({ state: "detached" });
+    return save ? "" : "the window lost its save";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -1137,6 +1226,8 @@ async function runPass(browser, origin, p) {
   if (p.step270) stubs.setStep270(true);
   // Step 269's answers are laid over whichever of those the pass arms.
   if (p.step269) stubs.setStep269(true);
+  // Step 275's answers are laid over Step 269's.
+  if (p.step275) stubs.setStep275(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -1221,6 +1312,7 @@ async function runPass(browser, origin, p) {
     if (p.step266) await step266(d, origin, p, stubs);
     if (p.step270) await step270(d, origin, p, stubs);
     if (p.step269) await step269(d, origin, p, stubs);
+    if (p.step275) await step275(d, origin, p, stubs);
 
     // Help, asked one question.
     {
