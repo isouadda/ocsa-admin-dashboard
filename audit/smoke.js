@@ -6,6 +6,10 @@
 // what a broken build breaks first:
 //   - at 1280 in English and in Spanish, and at 390 in English, an admin signs in (the Spanish pass
 //     with the stub answering secondStep, so the code screen is on the way in);
+//   - at 1280 in English and in Spanish, first, a wrong PIN on the sign-in card reads the words the
+//     API sent with its 401, never Session expired, the card stays and nothing fires
+//     ocsa-session-expired; the Spanish pass then types a wrong code on the code screen, which reads
+//     the API's words and the tries left under the box the same way;
 //   - every side panel item opens with no page error, no crash and no sideways scroll;
 //   - Reports opens one card of each group, a filed form opens, and Customer links opens;
 //   - Help opens and answers the stub;
@@ -148,8 +152,8 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
@@ -170,7 +174,9 @@ function say(ok, pass, what, why) {
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // The stub answers sign-in with secondStep and holds the real answer until the code is sent, the
-// way POST /api/auth/second-step answers what sign-in answers (STEP225_CONTRACT.md).
+// way POST /api/auth/second-step answers what sign-in answers (STEP225_CONTRACT.md). SMOKE_CODE is
+// the code signIn types.
+const SMOKE_CODE = "123456";
 function armSecondStep(stubs) {
   const orig = stubs.handle;
   let held = null;
@@ -182,9 +188,94 @@ function armSecondStep(stubs) {
       held = a;
       return { status: 200, json: { secondStep: true, challengeId: "smoke-challenge", emailHint: "a***@example.invalid" } };
     }
-    if (path === "/api/auth/second-step" && req.method === "POST") return held || { status: 401, json: { error: "No sign-in to finish" } };
+    if (path === "/api/auth/second-step" && req.method === "POST") {
+      if (!held) return { status: 401, json: { error: "No sign-in to finish" } };
+      // Any code but the one signIn types is a wrong one, a 401 in the screen's language with the
+      // tries left, the way the API answers it.
+      if (!req.body || req.body.code !== SMOKE_CODE) {
+        const es = ((req.headers && req.headers["accept-language"]) || "") === "es";
+        return { status: 401, json: { error: es ? "El c\u00f3digo no es correcto." : "That code is not right.", code: "auth.codeWrong", attemptsLeft: 4 } };
+      }
+      return held;
+    }
     return orig(req);
   };
+}
+
+// The two sign-in calls whose 401 is the person's answer turned down rather than a session that has
+// ended, and what the stub answered each, kept as it was sent so a check reads the screen against the
+// API's own words.
+const SIGN_IN_PATHS = ["/api/auth/login", "/api/auth/second-step"];
+function keepSignIn(stubs) {
+  const orig = stubs.handle;
+  const kept = {};
+  stubs.handle = (req) => {
+    const a = orig(req);
+    const path = new URL(req.url).pathname;
+    if (req.method === "POST" && SIGN_IN_PATHS.indexOf(path) >= 0) kept[path] = a;
+    return a;
+  };
+  return kept;
+}
+
+// A wrong PIN on the sign-in card reads the words the API sent with its 401, never Session expired, in
+// the screen's language; the card stays and nothing fires ocsa-session-expired. With the code screen
+// armed, a wrong code then reads the API's words and the tries left under the box the same way, and
+// Back returns to the PIN for signIn.
+async function wrongSignIn(d, p, kept) {
+  const who = seed.PEOPLE[p.who];
+  const expired = [d.say("Session expired"), "Session expired"];
+  const fired = () => d.page.evaluate(() => window.__smokeExpired || 0);
+  const sent = (path) => { const a = kept[path]; return a && a.status === 401 && a.json && a.json.error ? a.json.error : null; };
+  await d.page.locator("input").nth(1).waitFor({ timeout: 20000 });
+  await d.page.evaluate(() => { window.__smokeExpired = 0; window.addEventListener("ocsa-session-expired", () => { window.__smokeExpired += 1; }); });
+  const signInButton = () => d.page.getByRole("button", { name: d.say("Sign In") }).or(d.page.getByRole("button", { name: "Sign In" })).first();
+  {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try {
+      const inputs = d.page.locator("input");
+      await inputs.nth(0).fill(who.login.phone);
+      await inputs.nth(1).fill(who.login.pin === "9999" ? "9998" : "9999");
+      await signInButton().click();
+      let shown = null;
+      for (let i = 0; i < 50 && !shown; i++) { await wait(100); shown = await d.toast(); }
+      const words = sent("/api/auth/login");
+      why = !words ? "the stub did not answer 401"
+        : !shown ? "nothing was drawn"
+        : expired.some((w) => shown.indexOf(w) >= 0) ? "reads " + shown
+        : shown !== words ? "reads " + shown + ", the API sent " + words
+        : (await fired()) ? "fired ocsa-session-expired"
+        : !(await d.signedOut()) ? "left the sign-in card"
+        : await trouble(d, mark);
+    } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, "a wrong PIN reads the API's words", why);
+  }
+  if (!p.secondStep) return;
+  {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try {
+      const inputs = d.page.locator("input");
+      await inputs.nth(0).fill(who.login.phone);
+      await inputs.nth(1).fill(who.login.pin);
+      await signInButton().click();
+      await until(d, "[data-second-code]");
+      await d.page.fill("[data-second-code]", "000000");
+      await until(d, "[data-second-say]");
+      const shown = ((await d.page.locator("[data-second-say]").first().innerText()) || "").trim();
+      const words = sent("/api/auth/second-step");
+      why = !words ? "the stub did not answer 401"
+        : expired.some((w) => shown.indexOf(w) >= 0) ? "reads " + shown
+        : shown.split("\n")[0].trim() !== words ? "reads " + shown.split("\n")[0] + ", the API sent " + words
+        : (await d.page.locator("[data-second-left]").count()) === 0 ? "no tries left under the box"
+        : (await fired()) ? "fired ocsa-session-expired"
+        : await trouble(d, mark);
+      await d.page.click("[data-second-back]");
+      await d.page.locator("input").nth(1).waitFor();
+    } catch (e) { why = why || e.message.split("\n")[0]; }
+    say(!why, p.name, "a wrong code reads the API's words", why);
+  }
 }
 
 // What went wrong on the page since mark: a page error, the root error boundary, or a page wider
@@ -210,7 +301,7 @@ async function signIn(d, who) {
     if (!(await d.signedOut())) return { sawCode };
     if (!sawCode && (await d.page.locator("[data-second-code]").count()) > 0) {
       sawCode = true;
-      await d.page.fill("[data-second-code]", "123456");
+      await d.page.fill("[data-second-code]", SMOKE_CODE);
     }
     await wait(250);
   }
@@ -1289,11 +1380,13 @@ async function runPass(browser, origin, p) {
   // Step 275's answers are laid over Step 269's.
   if (p.step275) stubs.setStep275(true);
   if (p.secondStep) armSecondStep(stubs);
+  const kept = keepSignIn(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
   d.page.setDefaultTimeout(8000);
   try {
     await d.page.goto(origin + "/#overview", { waitUntil: "domcontentloaded" });
+    if (p.wrongSignIn) await wrongSignIn(d, p, kept);
     try {
       const r = await signIn(d, p.who);
       say(!p.secondStep || r.sawCode, p.name, p.secondStep ? "signs in through the code screen" : "signs in", p.secondStep && !r.sawCode ? "no code screen" : "");

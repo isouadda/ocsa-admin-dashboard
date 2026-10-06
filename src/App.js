@@ -68,12 +68,16 @@ async function apiMultipart(path, token, formData) {
 }
 // A 409 schedule.clearanceMissing (Step 211) is announced as well as thrown, whichever screen sent the
 // call, and the shell draws it with the person's name and a way to their clearances by the userId the
-// refusal carries.
+// refusal carries. A 401 ends the session, except from the two sign-in calls in SIGN_IN_PATHS.
+// POST /api/auth/login answers 401 for a wrong phone or PIN, and POST /api/auth/second-step for a
+// wrong or expired code. Each of those is thrown like any other refusal, with the words the API sent,
+// its status and its code, and fires nothing.
+const SIGN_IN_PATHS = ["/api/auth/login", "/api/auth/second-step"];
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
+  if (r.status === 401 && SIGN_IN_PATHS.indexOf(path) < 0) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
   if (!r.ok) {
     const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
     if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, userId: e.userId == null ? null : e.userId, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }

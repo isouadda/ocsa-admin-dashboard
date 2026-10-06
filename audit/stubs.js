@@ -4323,10 +4323,12 @@ function createStubs() {
     const idAfter = (prefix) => path.slice(prefix.length).split("/")[0];
 
     // --- auth -------------------------------------------------------------
+    // A wrong phone or PIN is a 401 in the language the sign-in card is drawn in, which a call made
+    // signed out says with Accept-Language alone.
     if (path === "/api/auth/login") {
       const who = Object.keys(seed.PEOPLE).find((k) => seed.PEOPLE[k].login.phone === (body && body.phone));
       if (!who || seed.PEOPLE[who].login.pin !== (body && body.pin)) {
-        return { status: 401, json: { error: "Phone number or PIN is incorrect" } };
+        return { status: 401, json: { error: lang === "es" ? "El n\u00famero de tel\u00e9fono o el PIN no es correcto" : "Phone number or PIN is incorrect" } };
       }
       signedInAs = who;
       const u = Object.assign({}, seed.PEOPLE[who]);

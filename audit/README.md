@@ -29,6 +29,10 @@ Then it checks, one line a check:
 
 - at 1280 in English and in Spanish and at 390 in English, an admin signs in, the Spanish pass through
   the code screen of the second sign-in step, which the smoke check arms the stub to ask for;
+- at 1280 in English and in Spanish, before that, a wrong PIN on the sign-in card reads the words the
+  stub sent with its 401, in the screen's language, never Session expired; the card stays and nothing
+  fires `ocsa-session-expired`. The Spanish pass then types a wrong code on the code screen, which
+  reads the stub's words and the tries left under the box the same way, and goes Back to the PIN;
 - every side panel item opens with no page error, no crash and no sideways scroll;
 - Reports opens one card of each group, a filed form opens, Customer links opens, and Help answers;
 - at 1280 in English a supervisor sees only the admin items the seed gives them, and every item they
@@ -132,7 +136,8 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-signature-kind`, `data-signature-site`, `data-signature-filter-state`, `data-warning-sent-phone`,
 `data-warning-signature`, `data-who-source`, `data-signature-request-window` and
 `data-signature-request-close`, and Step 278's by `data-help-answer`, `data-help-picture`,
-`data-help-picture-open` and `data-help-picture-close`.
+`data-help-picture-open` and `data-help-picture-close`, and the wrong sign-in line's by
+`data-second-code`, `data-second-say`, `data-second-left` and `data-second-back`.
 
 ## Pictures of the screen
 
