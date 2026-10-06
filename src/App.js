@@ -1373,6 +1373,8 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     return () => { alive = false; };
   }, [af, mode, data, userId]);
   const known = data || read;
+  // Step 263: what the person still holds of the company's, listed to collect before the last day.
+  const openProp = useOpenProperty(af, userId, known, mode === "end");
   const pastSites = mode === "rehire" && known && Array.isArray(known.pastSites) ? known.pastSites.filter(p => p && p.assignmentId != null) : null;
   const [ticks, setTicks] = useState(null);
   const ticked = ticks || (pastSites ? pastSites.filter(p => p.endedWithEmployment === true).map(p => String(p.assignmentId)) : []);
@@ -1445,6 +1447,14 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     {mode === "end" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
       <div><Lbl>{tr("Last day")}</Lbl><Inp t={t} type="date" aria-label={tr("Last day")} value={f.lastDay} onChange={e => set("lastDay", e.target.value)} style={box("lastDay")} />{under("lastDay")}</div>
       <div><Lbl>{tr("Eligible for rehire?")}</Lbl><Sel t={t} aria-label={tr("Eligible for rehire?")} value={f.rehireEligible} onChange={e => set("rehireEligible", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "yes", l: tr("Yes") }, { v: "no", l: tr("No") }]} style={box("rehireEligible")} />{under("rehireEligible")}</div>
+    </div>}
+    {mode === "end" && openProp && <div data-collect-property={openProp.length} style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Collect before the last day")}</Lbl>
+      {openProp.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No company property is still out.")}</div>
+        : <div style={{ border: "1px solid " + t.border, borderRadius: R.sm }}>{openProp.map((x, i) => <div key={x.id} data-collect-item={x.id} style={{ padding: "8px 10px", borderTop: i ? "1px solid " + t.border : "none" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{propertyLine(x)}</div>
+          <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{[x.issuedOn ? tr("Issued {0}", keptDay(x.issuedOn)) : "", x.site && x.site.name].filter(Boolean).join(", ")}</div>
+        </div>)}</div>}
     </div>}
     {mode === "leave" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
       <Lbl>{tr("Expected return")}</Lbl><Inp t={t} type="date" min={today} aria-label={tr("Expected return")} value={f.expectedReturn} onChange={e => set("expectedReturn", e.target.value)} style={box("expectedReturn")} />
@@ -6788,6 +6798,11 @@ const notifTarget = (link) => {
   // Issue Tracker on that ticket.
   const fin = /^\/issues\/([^/]+)\/?$/.exec(u.pathname || "");
   if (fin && fin[1] !== "requests") return { kind: "page", page: "issues", hash: "issues/" + fin[1] };
+  // The training notices (Step 263, against the API's Step 256): /training/attempts/<id> opens that
+  // attempt in HR Records' Training area, Awaiting sign-off while it waits for a trainer and else the
+  // person's list in Gaps; /training/people/<userId> opens that person's list in Gaps.
+  const trn0 = /^\/training\/(attempts|people)\/([^/]+)\/?$/.exec(u.pathname || "");
+  if (trn0) return { kind: "page", page: "hr", hash: "hr/training/" + trn0[1] + "/" + trn0[2] };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -6883,6 +6898,10 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if (n.subjectType === "client_request" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/requests/" + n.subjectId); onClose(); return; }
     // Step 254: a finding's notice opens the Issue Tracker on that ticket.
     if (n.subjectType === "inspection_finding" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
+    // Step 263: a sign-off or reteach notice names its attempt and opens it; an expiring record's opens
+    // the person its link names, else Gaps.
+    if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
+    if (n.subjectType === "training_expiring") { if (!canOpenPage("hr")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "hr/training/people/" + m[1] : "hr/training/gaps"); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -21555,6 +21574,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
+      <PersonProperty af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -21978,15 +21998,39 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const [focusClearances, setFocusClearances] = useState(() => route[1] === "clearances");
   // The Training area's tabs (Step 257): the records as they always were, and beside them each view
   // the API's Step 256 brings, once its route answers.
-  const [trView, setTrView] = useState(() => (trainingRoute && route[1] ? String(route[1]) : "records"));
+  // Step 263: #hr/training/people/<userId> and #hr/training/attempts/<id>, where a training notice
+  // points, open Gaps until the attempt is read.
+  const trViewOf = (v) => (v === "people" || v === "attempts" ? "gaps" : v ? String(v) : "records");
+  const [trView, setTrView] = useState(() => (trainingRoute ? trViewOf(route[1]) : "records"));
   useEffect(() => {
     if (!route[0]) return;
-    if (route[0] === "training") { setTab("training"); setFolderUserId(null); setTrView(route[1] ? String(route[1]) : "records"); return; }
+    if (route[0] === "training") { setTab("training"); setFolderUserId(null); setTrView(trViewOf(route[1])); return; }
     setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
   }, [route]);
   const topicsLive = useTrainingLive(af, "topics");
   const gapsLive = useTrainingLive(af, "gaps");
   const awaitingLive = useTrainingLive(af, "awaiting");
+  const sessionsLive = useTrainingLive(af, "sessions");
+  const documentsLive = useTrainingLive(af, "documents");
+  // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
+  // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
+  const [trFocus, setTrFocus] = useState(null);
+  useEffect(() => {
+    if (route[0] !== "training" || !route[2]) { setTrFocus(null); return undefined; }
+    const id = String(route[2]);
+    if (route[1] === "people") { setTrFocus({ person: { id, name: "" } }); return undefined; }
+    if (route[1] !== "attempts") return undefined;
+    let alive = true;
+    af("/api/training/attempts/" + encodeURIComponent(id)).then(d => {
+      const a = d && d.attempt;
+      if (!alive || !a) return;
+      const p = (d && d.person) || {};
+      const pid = String(p.id || a.userId || "");
+      if (a.awaitingTrainer && pid !== String(selfId)) { setTrView("awaiting"); setTrFocus({ attempt: Object.assign({ person: { id: pid, name: p.name || "" } }, a) }); }
+      else if (pid) { setTrView("gaps"); setTrFocus({ person: { id: pid, name: p.name || "" } }); }
+    }).catch(e => { if (alive) showToast(e.message, "error"); });
+    return () => { alive = false; };
+  }, [route, af, selfId, showToast]);
   const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
@@ -22183,7 +22227,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22294,8 +22338,10 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
-      {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
-      {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} showToast={showToast} />}
+      {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
+      {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
+      {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
+      {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} isAdmin={isAdmin} focusAttempt={trFocus && trFocus.attempt} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
@@ -22322,7 +22368,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
             { header: tr("Score"), tdStyle: { color: t.textSec }, render: r => r.score || "" },
             { header: tr("Administered By"), tdStyle: { color: t.textSec }, render: r => r.administered_by || "" },
-            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
+            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}>{recordHasCertificate(r) && <button data-open-certificate={r.id} onClick={() => openTrainingCertificate(token, r.id).catch(e => showToast(e.message, "error"))} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Open the certificate")}</button>}<button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
@@ -23012,6 +23058,9 @@ const TRAINING_PROBES = {
   topics: ["/api/training/topics", (d) => !!(d && Array.isArray(d.topics))],
   gaps: ["/api/training/gaps", (d) => !!(d && Array.isArray(d.topics) && Array.isArray(d.people))],
   awaiting: ["/api/training/awaiting", (d) => !!(d && Array.isArray(d.attempts))],
+  // Step 263, against the API's Step 262 (STEP262_CONTRACT.md).
+  sessions: ["/api/training/sessions", (d) => !!(d && Array.isArray(d.sessions))],
+  documents: ["/api/documents", (d) => !!(d && Array.isArray(d.documents))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23383,13 +23432,15 @@ function GapChip({ item, withName = true }) {
 // site, role, topic and status; each topic's counts; the people with the most open first, each item a
 // chip in the status's words; a person opens their own list. With a topic picked, the days it was
 // given are listed with their rosters. Print gives a page per site.
-function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, showToast }) {
+function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, isAdmin = false, focusPerson = null, showToast }) {
   const [f, setF] = useState({ siteId: "", role: "", topicId: "", status: "" });
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
   const [topics, setTopics] = useState([]);
   const [records, setRecords] = useState(null);
-  const [person, setPerson] = useState(null);
+  const [person, setPerson] = useState(focusPerson);
+  // A notice's person (Step 263) opens their list.
+  useEffect(() => { if (focusPerson) setPerson(focusPerson); }, [focusPerson]);
   useEffect(() => {
     let alive = true;
     af("/api/training/topics").then(d => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics : []); }).catch(() => {});
@@ -23461,7 +23512,7 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, sh
           </div>)}
         </div>}
     </>}
-    {person && <PersonTrainingWindow af={af} t={t} token={token} sites={sites} userId={person.id} name={person.name} showToast={showToast} onClose={() => setPerson(null)} />}
+    {person && <PersonTrainingWindow af={af} t={t} token={token} sites={sites} userId={person.id} name={person.name} isAdmin={isAdmin} showToast={showToast} onClose={() => setPerson(null)} />}
   </div>);
 }
 
@@ -23503,34 +23554,46 @@ function useTrainingItems(af, userId, on = true) {
 // Since the lessons, an item with a lesson says how many tries are used, and the person's list shows
 // each attempt behind an item with its Print: attemptsOf gives the attempts read for an item, onPrint
 // prints one.
-function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null }) {
+// Since Step 263 an item whose record carries a certificate opens it: certificateOf gives the record's
+// id, onCertificate opens it.
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
       <div style={{ fontSize: compact ? 12 : 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{it.name}{it.siteName ? " (" + it.siteName + ")" : ""}</div>
       <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
+      {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
       {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
         <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
+        {a.voidedAt && <Bdg l={tr("Void|status")} c={RD} />}
         {onPrint && <Btn t={t} v="ghost" data-attempt-print={a.id} onClick={() => onPrint(a.id)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Print")}</Btn>}
+        {onVoid && !a.voidedAt && <Btn t={t} v="ghost" data-attempt-void={a.id} onClick={() => onVoid(a)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12, color: RD }}>{tr("Void|attempt")}</Btn>}
       </div>; })}
     </div>
     <GapChip item={it} withName={false} />
   </div>)}</div>;
 }
-function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", showToast, onClose }) {
+function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isAdmin = false, showToast, onClose }) {
   const [d, failed, reload] = useTrainingItems(af, userId);
   const p = (d && d.person) || null;
   // The person's records, for the attempt a record written by a lesson names, and each attempt behind
   // an item, read once.
   const [records, setRecords] = useState([]);
   const [attempts, setAttempts] = useState({});
+  const [again, setAgain] = useState(0);
   useEffect(() => {
     let alive = true;
     af("/api/hr/training?user_id=" + encodeURIComponent(userId)).then(r => { if (alive) setRecords(Array.isArray(r) ? r : []); }).catch(() => {});
     return () => { alive = false; };
-  }, [af, userId]);
+  }, [af, userId, again]);
+  // Step 263: Upload a certificate once the API's Step 262 answers, and a record that carries one opens
+  // it (GET /api/hr/training/:recordId/certificate).
+  const step262 = useTrainingLive(af, "sessions");
+  const [uploading, setUploading] = useState(false);
+  const certificateOf = (it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return rec && recordHasCertificate(rec) ? String(rec.id) : ""; };
+  const openCertificate = (recordId) => openTrainingCertificate(token, recordId).catch(e => { if (showToast) showToast(e.message, "error"); });
   const idsFor = useCallback((it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return [it.attemptId, rec && rec.attempt_id].filter(Boolean).map(String).filter((x, i, all) => all.indexOf(x) === i); }, [records]);
   const wanted = ((d && d.items) || []).reduce((all, it) => all.concat(idsFor(it)), []).filter((x, i, all) => all.indexOf(x) === i);
   const wantedKey = wanted.join(",");
@@ -23541,6 +23604,9 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", sho
   }, [af, wantedKey]);
   const attemptsOf = (it) => idsFor(it).map(id => attempts[id]).filter(Boolean);
   const print = (id) => printTrainingAttempt({ af, token, id, sites }).then(okd => { if (!okd && showToast) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
+  // Step 263: an admin voids an attempt with a reason; the attempt is read again and the list with it.
+  const [voiding, setVoiding] = useState(null);
+  const voided = (id) => { setVoiding(null); if (showToast) showToast(tr("Attempt voided.")); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
   return (<Mdl t={t} tall onClose={onClose}>
     <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -23551,7 +23617,88 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", sho
         <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} />}
+        {step262 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}><Btn t={t} v="ghost" data-certificate-upload="" onClick={() => setUploading(true)}>{tr("Upload a certificate")}</Btn></div>}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} />}
+      </div>
+    </div>
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => voided(voiding.id)} />}
+    {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
+  </Mdl>);
+}
+
+// ===== CERTIFICATES FROM OUTSIDE COURSES (Step 263, STEP262_CONTRACT.md section 4) =====
+// A record carries a certificate when the API's Step 262 says so: certificate_path on a training_records
+// row, or certificate on a My training row.
+const recordHasCertificate = (r) => !!(r && (r.certificate_path || r.certificatePath || r.certificate === true));
+const CERTIFICATE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
+// A record's certificate, read with the token and opened in a new tab.
+async function openTrainingCertificate(token, recordId) {
+  const f = await apiDownload("/api/hr/training/" + encodeURIComponent(recordId) + "/certificate", token, "certificate.pdf");
+  const url = URL.createObjectURL(f.blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+// Upload a certificate from an outside course for one person: the topic, the day it was completed, the
+// expiry (left empty, the API sets it by the topic's frequency) and the file, a PDF, JPEG or PNG up to
+// 10 MB, sent as multipart to POST /api/hr/training/certificates. A refusal is drawn under the field it
+// names, the file's own under the file.
+function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], onClose, onSaved }) {
+  const [topics, setTopics] = useState(null);
+  const [f, setF] = useState({ topicId: "", completedDate: todayISO(), expiryDate: "" });
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag())) : []); }).catch(() => { if (alive) setTopics([]); });
+    return () => { alive = false; };
+  }, [af]);
+  // The person's own topics first, the ones a course link points at before the rest.
+  const mine = new Set(items.map(it => String(it.topicId)));
+  const ordered = (topics || []).slice().sort((a, b) => (mine.has(String(b.id)) - mine.has(String(a.id))) || (!!b.linkUrl - !!a.linkUrl));
+  const fileWhy = (x) => (!x ? "" : CERTIFICATE_TYPES.indexOf(x.type) < 0 ? tr("Choose a PDF, JPEG or PNG file.") : x.size > CERTIFICATE_MAX_BYTES ? tr("The file is over 10 MB.") : "");
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-certificate-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const ready = f.topicId && f.completedDate && file && !fileWhy(file);
+  const send = async () => {
+    if (!ready || busy) return;
+    setBusy(true); setRefusal(null);
+    const fd0 = new FormData();
+    fd0.append("file", file);
+    fd0.append("userId", String(userId));
+    fd0.append("topicId", f.topicId);
+    fd0.append("completedDate", f.completedDate);
+    if (f.expiryDate) fd0.append("expiryDate", f.expiryDate);
+    try { const d = await apiMultipart("/api/hr/training/certificates", token, fd0); onSaved(d && d.record); }
+    catch (e) {
+      const keys = trainingKeysOf(e).map(k => (k === "file" || k === "topicId" || k === "completedDate" || k === "expiryDate" ? k : ""));
+      const fields = keys.filter(Boolean).concat(e && (e.code === "training.badFile" || e.code === "training.fileTooLarge") ? ["file"] : []);
+      setRefusal({ text: e.message || tr("Request failed"), fields });
+    }
+    setBusy(false);
+  };
+  const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+    <div data-certificate-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload a certificate")}</div>
+        {name && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div>}
+      </div>
+      <div data-certificate-field="topicId"><div style={lbl}>{tr("Topic")}</div>
+        <Sel t={t} aria-label={tr("Topic")} value={f.topicId} onChange={e => setF({ ...f, topicId: e.target.value })} options={[{ v: "", l: topics === null ? tr("Loading...") : tr("Pick a topic...") }].concat(ordered.map(tp => ({ v: String(tp.id), l: tp.name })))} />{bad("topicId")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        <div data-certificate-field="completedDate"><div style={lbl}>{tr("Completed Date")}</div><Inp t={t} type="date" aria-label={tr("Completed Date")} value={f.completedDate} onChange={e => setF({ ...f, completedDate: e.target.value })} />{bad("completedDate")}</div>
+        <div data-certificate-field="expiryDate"><div style={lbl}>{tr("Expiry Date (optional)")}</div><Inp t={t} type="date" aria-label={tr("Expiry Date (optional)")} value={f.expiryDate} onChange={e => setF({ ...f, expiryDate: e.target.value })} />{bad("expiryDate")}</div>
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: -6 }}>{tr("Left empty, the expiry is set by how often the topic is taken.")}</div>
+      <div data-certificate-field="file"><div style={lbl}>{tr("The certificate, a PDF, JPEG or PNG up to 10 MB")}</div>
+        <input type="file" aria-label={tr("The certificate, a PDF, JPEG or PNG up to 10 MB")} accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e => setFile((e.target.files && e.target.files[0]) || null)} style={{ fontSize: 13, color: t.text, minHeight: 44 }} />
+        {fileWhy(file) && <div role="alert" data-certificate-refusal="file-local" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{fileWhy(file)}</div>}
+        {bad("file")}</div>
+      {refusal && refusal.fields.length === 0 && <div role="alert" data-certificate-refusal="" style={{ fontSize: 13, color: RD }}>{refusal.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" disabled={busy} onClick={onClose}>{tr("Cancel")}</Btn>
+        <Btn t={t} data-certificate-send="" disabled={busy || !ready} onClick={send}>{busy ? tr("Saving...") : tr("Upload")}</Btn>
       </div>
     </div>
   </Mdl>);
@@ -23586,9 +23733,15 @@ const lessonContentOf = (c) => {
     title: l3(x.title),
     blocks: (Array.isArray(x.blocks) ? x.blocks : []).map((b, i) => ({ key: b.key || "b" + (i + 1), kind: b.kind || "text", text: l3(b.text), items: (Array.isArray(b.items) ? b.items : []).map(l3), source: b.source && b.source.docCode ? { docCode: b.source.docCode, sectionRef: b.source.sectionRef } : null })),
     questions: (Array.isArray(x.questions) ? x.questions : []).map((q, i) => ({ key: q.key || "q" + (i + 1), text: l3(q.text), options: (Array.isArray(q.options) ? q.options : []).map(o => ({ value: String(o.value), text: l3(o.text) })), correct: q.correct == null ? null : String(q.correct) })),
+    // An observation checklist's steps (Step 263, STEP262_CONTRACT.md section 3).
+    steps: (Array.isArray(x.steps) ? x.steps : []).map((st, i) => ({ key: st.key || "s" + (i + 1), text: l3(st.text) })),
     acknowledgement: l3(x.acknowledgement),
   };
 };
+// A lesson's kind, since the API's Step 262: a quiz the person reads and answers, or an observation
+// checklist a trainer ticks step by step while watching the person on the job.
+const LESSON_TYPES = [{ v: "quiz", l: "Quiz" }, { v: "observation", l: "Observation checklist" }];
+const lessonTypeWord = (k) => { const x = LESSON_TYPES.find(o => o.v === (k || "quiz")); return x ? tr(x.l) : String(k || ""); };
 
 function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard }) {
   const [draft, setDraft] = useState(null);
@@ -23623,11 +23776,12 @@ function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard 
   const cols = [
     { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}</span> },
     { header: tr("Status"), render: v => <Bdg l={lessonStatusWord(v.status)} c={lessonStatusColor(v.status)} /> },
+  ].concat((versions || []).some(v => v && v.kind) ? [{ header: tr("Kind|lesson"), tdStyle: { color: t.textSec }, render: v => <span data-lesson-version-kind={v.kind || "quiz"}>{lessonTypeWord(v.kind)}</span> }] : [], [
     { header: tr("Published"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => stampDay(v.publishedAt) },
     { header: tr("By"), tdStyle: { color: t.textSec }, render: v => (v.publishedBy && v.publishedBy.name) || "" },
     { header: tr("Change note"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: v => v.changeNote || "" },
     { header: tr("Attempts"), align: "right", tdStyle: { color: t.textSec }, render: v => String(Number(v.attempts) || 0) },
-  ];
+  ]);
   return (<div data-topic-lesson="">
     {!live && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("No lesson is live for this topic.")}</div>}
     <DataTable t={t} columns={cols} rows={versions || []} rowKey={v => v.id} onRowClick={isAdmin ? (v => { if (v.status === "draft") openDraft(v.id); }) : undefined} empty={tr("No lesson written yet.")} />
@@ -23664,7 +23818,9 @@ function LessonText({ t, path, value, onChange, probs, multiline = false, label 
 // The draft editor. Saving is explicit (Save draft); Translate, Publish and Discard save what changed
 // first; leaving the window or the draft with changes not saved asks first, and so does closing the tab.
 function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
-  const take = (d) => ({ content: lessonContentOf(d.content), passPercent: d.passPercent != null ? d.passPercent : 80, maxAttempts: d.maxAttempts != null ? d.maxAttempts : 3, needsTrainer: !!d.needsTrainer || !!tp.safetyCritical, checkedEsBy: d.checkedEsBy || "", checkedFrBy: d.checkedFrBy || "", changeNote: d.changeNote || "" });
+  const take = (d) => ({ kind: d.kind || "quiz", content: lessonContentOf(d.content), passPercent: d.passPercent != null ? d.passPercent : 80, maxAttempts: d.maxAttempts != null ? d.maxAttempts : 3, needsTrainer: !!d.needsTrainer || !!tp.safetyCritical || d.kind === "observation", checkedEsBy: d.checkedEsBy || "", checkedFrBy: d.checkedFrBy || "", changeNote: d.changeNote || "" });
+  // The Kind choice is drawn once the draft's read carries kind (the API's Step 262).
+  const kindLive = !!(initial.draft && Object.prototype.hasOwnProperty.call(initial.draft, "kind"));
   const [draft, setDraft] = useState(initial.draft);
   const [f, setF] = useState(() => take(initial.draft));
   const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
@@ -23685,10 +23841,14 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     return () => { window.removeEventListener("beforeunload", warn); if (guard) guard.current = null; };
   }, [guard]);
   const c = f.content;
+  const obs = kindLive && f.kind === "observation";
+  // Needs a trainer is locked on for a safety-critical topic and for an observation checklist.
+  const locked = !!tp.safetyCritical || obs;
   const edit = (next) => { setF(next); setDirty(true); };
   const setC = (fn) => edit({ ...f, content: fn(f.content) });
   const setBlock = (i, b) => setC(x => ({ ...x, blocks: x.blocks.map((y, j) => (j === i ? b : y)) }));
   const setQ = (i, q) => setC(x => ({ ...x, questions: x.questions.map((y, j) => (j === i ? q : y)) }));
+  const setStep = (i, st) => setC(x => ({ ...x, steps: x.steps.map((y, j) => (j === i ? st : y)) }));
   const move = (list, i, by) => { const a = list.slice(); const j = i + by; if (j < 0 || j >= a.length) return a; const tmp = a[i]; a[i] = a[j]; a[j] = tmp; return a; };
   const byPath = useMemo(() => { const m = {}; problems.forEach(pr => { const k = lessonPathOf(pr.path); (m[k] = m[k] || []).push(pr); }); return m; }, [problems]);
   const probs = (path) => (byPath[path] || []).map((pr, i) => <div key={i} role="alert" data-lesson-field-problem={path} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{lessonProblemText(pr)}</div>);
@@ -23699,7 +23859,11 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     content.blocks.forEach(b => { if (b.source && b.source.docCode) { const k = b.source.docCode + "|" + b.source.sectionRef; if (!seen.has(k)) seen.set(k, { docCode: b.source.docCode, sectionRef: b.source.sectionRef, docVersion: versionsRef.current[k] || null }); } });
     return Array.from(seen.values());
   };
-  const body = () => ({ content: c, passPercent: Number(f.passPercent), maxAttempts: Number(f.maxAttempts), needsTrainer: !!f.needsTrainer || !!tp.safetyCritical, sources: sourcesOf(c), checkedEsBy: f.checkedEsBy.trim() || null, checkedFrBy: f.checkedFrBy.trim() || null, changeNote: f.changeNote.trim() || null });
+  // The content sent is the kind's own: a quiz's blocks and questions, or a checklist's steps.
+  const body = () => Object.assign(kindLive ? { kind: f.kind } : {}, {
+    content: obs ? { title: c.title, steps: c.steps, acknowledgement: c.acknowledgement } : { title: c.title, blocks: c.blocks, questions: c.questions, acknowledgement: c.acknowledgement },
+    passPercent: Number(f.passPercent), maxAttempts: Number(f.maxAttempts), needsTrainer: !!f.needsTrainer || locked, sources: obs ? [] : sourcesOf(c),
+    checkedEsBy: f.checkedEsBy.trim() || null, checkedFrBy: f.checkedFrBy.trim() || null, changeNote: f.changeNote.trim() || null });
   const fail = (e) => {
     const fields = trainingKeysOf(e).concat(e && e.code === "training.translationUnchecked" ? ["checkedEsBy"] : []);
     if (e && e.body && Array.isArray(e.body.problems)) setProblems(e.body.problems);
@@ -23744,9 +23908,36 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
       {dirty && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Save the draft to check it again.")}</div>}
     </div>}
 
+    {kindLive && <div data-lesson-path="kind">
+      {head(tr("Kind|lesson"))}
+      <div role="group" aria-label={tr("Kind|lesson")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {LESSON_TYPES.map(k => <button key={k.v} type="button" data-lesson-kind={k.v} aria-pressed={f.kind === k.v} onClick={() => { if (f.kind !== k.v) edit({ ...f, kind: k.v, needsTrainer: k.v === "observation" ? true : f.needsTrainer }); }} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (f.kind === k.v ? GO : t.border), background: f.kind === k.v ? t.goldBg : "transparent", color: f.kind === k.v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr(k.l)}</button>)}
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{obs ? tr("A trainer watches the person do each step on the job and ticks it. It has no questions.") : tr("The person reads the lesson and answers 5 to 10 questions.")}</div>
+      {probs("kind")}
+    </div>}
+
     {head(tr("Title"))}
     <LessonText t={t} path="title" value={c.title} onChange={v => setC(x => ({ ...x, title: v }))} probs={probs} />
 
+    {obs && <>
+      {head(tr("Steps"), <span data-lesson-step-count={c.steps.length} style={{ fontSize: 12, color: c.steps.length < 1 || c.steps.length > 30 ? RD : t.textMut }}>{tr("{0} of 1 to 30", c.steps.length)}</span>)}
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("Each step is one thing the trainer watches the person do.")}</div>
+      <div data-lesson-path="steps">{probs("steps")}
+        {c.steps.map((st, i) => <div key={st.key} data-lesson-step={i} style={card}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Step {0}", i + 1)}</span>
+            <button style={small} disabled={i === 0} onClick={() => setC(x => ({ ...x, steps: move(x.steps, i, -1) }))}>{tr("Move up")}</button>
+            <button style={small} disabled={i === c.steps.length - 1} onClick={() => setC(x => ({ ...x, steps: move(x.steps, i, 1) }))}>{tr("Move down")}</button>
+            <button style={{ ...small, color: RD, marginLeft: "auto" }} onClick={() => setC(x => ({ ...x, steps: x.steps.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+          </div>
+          <LessonText t={t} path={"steps." + i + ".text"} value={st.text} onChange={v => setStep(i, { ...st, text: v })} probs={probs} />
+        </div>)}
+        {c.steps.length < 30 && <Btn t={t} v="ghost" data-lesson-add-step="" onClick={() => setC(x => ({ ...x, steps: x.steps.concat([{ key: lessonKey("s", x.steps), text: L3E() }]) }))}>{tr("Add a step")}</Btn>}
+      </div>
+    </>}
+
+    {!obs && <>
     {head(tr("Blocks"))}
     <div data-lesson-path="blocks">{probs("blocks")}
       {c.blocks.map((b, i) => <div key={b.key} data-lesson-block={i} style={card}>
@@ -23799,22 +23990,23 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
       </div>)}
       {nq < 10 && <Btn t={t} v="ghost" data-lesson-add-question="" onClick={() => setC(x => ({ ...x, questions: x.questions.concat([{ key: lessonKey("q", x.questions), text: L3E(), options: [{ value: "a", text: L3E() }, { value: "b", text: L3E() }], correct: null }]) }))}>{tr("Add a question")}</Btn>}
     </div>
+    </>}
 
     {head(tr("Acknowledgement"))}
-    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("The line the person signs under once they pass.")}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{obs ? tr("The line the person signs once the trainer has watched every step.") : tr("The line the person signs under once they pass.")}</div>
     <LessonText t={t} path="acknowledgement" value={c.acknowledgement} onChange={v => setC(x => ({ ...x, acknowledgement: v }))} probs={probs} />
 
     {head(tr("Taking it"))}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+    {!obs && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
       <div data-lesson-path="passPercent"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Pass mark (percent)")}</div>
         <Inp t={t} type="number" min={50} max={100} aria-label={tr("Pass mark (percent)")} value={f.passPercent} onChange={e => edit({ ...f, passPercent: e.target.value })} />{bad("passPercent")}{probs("passPercent")}</div>
       <div data-lesson-path="maxAttempts"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Tries")}</div>
         <Inp t={t} type="number" min={1} max={10} aria-label={tr("Tries")} value={f.maxAttempts} onChange={e => edit({ ...f, maxAttempts: e.target.value })} />{bad("maxAttempts")}{probs("maxAttempts")}</div>
-    </div>
+    </div>}
     <div data-lesson-path="needsTrainer" style={{ marginTop: 8 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 13, color: t.text, cursor: tp.safetyCritical ? "default" : "pointer" }}>
-        <input type="checkbox" data-lesson-needs-trainer="" checked={!!f.needsTrainer || !!tp.safetyCritical} disabled={!!tp.safetyCritical} onChange={e => edit({ ...f, needsTrainer: e.target.checked })} style={{ width: 20, height: 20, accentColor: GO }} />{tr("Needs a trainer")}</label>
-      <div style={{ fontSize: 11, color: t.textMut }}>{tp.safetyCritical ? tr("Safety topics need a trainer to watch a demonstration (OCSA-HR-016 5.5).") : tr("A trainer signs off after watching the person do it.")}</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 13, color: t.text, cursor: locked ? "default" : "pointer" }}>
+        <input type="checkbox" data-lesson-needs-trainer="" checked={!!f.needsTrainer || locked} disabled={locked} onChange={e => edit({ ...f, needsTrainer: e.target.checked })} style={{ width: 20, height: 20, accentColor: GO }} />{tr("Needs a trainer")}</label>
+      <div style={{ fontSize: 11, color: t.textMut }}>{obs ? tr("An observation checklist always needs a trainer, who watches the person do each step.") : tp.safetyCritical ? tr("Safety topics need a trainer to watch a demonstration (OCSA-HR-016 5.5).") : tr("A trainer signs off after watching the person do it.")}</div>
       {probs("needsTrainer")}
     </div>
 
@@ -23886,11 +24078,14 @@ function LessonLibrary({ af, t, docCode = "", onPick, onClose }) {
 // to POST /api/training/attempts/:id/signoff, and the record is written with it.
 const scoreWord = (v) => (v == null || v === "" ? "" : Math.round(Number(v)) + "%");
 const trainingLangWord = (code) => { const l = TRAINING_LANGUAGES.find(x => x.id === langCode(code)); return l ? tr(l.word) : ""; };
-function TrainingAwaiting({ af, t, token, sites = [], selfId = "", showToast }) {
+function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = false, focusAttempt = null, showToast }) {
   const [siteId, setSiteId] = useState("");
   const [list, setList] = useState(null);
   const [failed, setFailed] = useState(false);
-  const [signing, setSigning] = useState(null);
+  const [signing, setSigning] = useState(focusAttempt);
+  const [voiding, setVoiding] = useState(null);
+  // A sign-off notice's attempt (Step 263) opens its sign-off.
+  useEffect(() => { if (focusAttempt) setSigning(focusAttempt); }, [focusAttempt]);
   const load = useCallback(async () => {
     setFailed(false);
     try { const d = await af("/api/training/awaiting" + (siteId ? "?siteId=" + encodeURIComponent(siteId) : "")); setList(d && Array.isArray(d.attempts) ? d.attempts : []); }
@@ -23910,6 +24105,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", showToast }) 
     { header: "", align: "right", tdStyle: { whiteSpace: "nowrap" }, render: a => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
       <Btn t={t} data-signoff-open={a.id} onClick={e => { e.stopPropagation(); setSigning(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Sign off")}</Btn>
       <Btn t={t} v="ghost" data-attempt-print={a.id} onClick={e => { e.stopPropagation(); print(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Print")}</Btn>
+      {isAdmin && <Btn t={t} v="ghost" data-attempt-void={a.id} onClick={e => { e.stopPropagation(); setVoiding(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12, color: RD }}>{tr("Void|attempt")}</Btn>}
     </div> },
   ];
   return (<div data-training-awaiting="">
@@ -23922,6 +24118,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", showToast }) 
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
       : <DataTable t={t} columns={cols} rows={shown} rowKey={a => a.id} empty={tr("Nobody is waiting for a sign-off.")} />}
     {signing && <SignOffWindow af={af} t={t} attempt={signing} siteName={siteName(signing.siteId)} onPrint={() => print(signing)} onClose={() => setSigning(null)} onDone={() => { load(); }} showToast={showToast} />}
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => { setVoiding(null); showToast(tr("Attempt voided.")); load(); }} />}
   </div>);
 }
 
@@ -24020,4 +24217,718 @@ async function printTrainingAttempt({ af, token, id, sites = [] }) {
     try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
     return true;
   }
+}
+
+// ===== SESSIONS SIGNED ON PHONES (Step 263, against the API's Step 262) =====
+// STEP262_CONTRACT.md section 2: the app's signed record replaces the paper OCSA-FRM-033 sign-in. The
+// Training area's Sessions tab is drawn once GET /api/training/sessions answers. A trainer starts a
+// session for 1 to 10 topics; its page shows the QR and the join code large enough to read across a
+// room, and the sign-ins as they arrive, read again every 5 seconds while it is open; a wrong one is
+// removed; the trainer closes it with their signature, and the window then says who was saved and who
+// already had a topic that day; Cancel writes nothing. The roster prints with every signature.
+const SESSION_STATUS = { open: "Open|session", closed: "Closed|session", cancelled: "Cancelled|session" };
+const sessionStatusWord = (s) => (SESSION_STATUS[s] ? tr(SESSION_STATUS[s]) : String(s || ""));
+const SESSION_START_FIELDS = ["title", "day", "siteId", "locale", "topicIds", "note"];
+// The topics of a session as one line, and their documents and sections as another.
+const sessionTopicsLine = (sn) => ((sn && sn.topics) || []).map(x => x.name).filter(Boolean).join(", ");
+const sessionDocsLine = (sn) => ((sn && sn.topics) || []).map(topicDocLine).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(", ");
+const sessionPeopleCount = (sn) => ((sn && sn.signins) || []).length;
+
+function TrainingSessions({ af, t, token, sites = [], staff = [], typeWords = {}, showToast }) {
+  const [f, setF] = useState({ status: "", siteId: "", from: "", to: "" });
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [openId, setOpenId] = useState("");
+  const load = useCallback(async () => {
+    setFailed(false);
+    const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
+    try { const d = await af("/api/training/sessions" + (q ? "?" + q : "")); setList(d && Array.isArray(d.sessions) ? d.sessions : []); }
+    catch (e) { setList([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, f, showToast]);
+  useEffect(() => { setList(null); load(); }, [load]);
+  if (openId) return <TrainingSessionPage af={af} t={t} token={token} id={openId} staff={staff} typeWords={typeWords} showToast={showToast} onBack={() => { setOpenId(""); load(); }} />;
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const cols = [
+    { header: tr("Title"), tdStyle: { minWidth: 140 }, render: sn => <span style={{ color: t.text, fontWeight: 600 }}>{sn.title || sessionTopicsLine(sn)}</span> },
+    { header: tr("Day"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: sn => (sn.day ? fdLong(sn.day) : "") },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: sn => (sn.site && sn.site.name) || "" },
+    { header: tr("Trainer"), tdStyle: { color: t.textSec }, render: sn => (sn.trainer && sn.trainer.name) || "" },
+    { header: tr("Topics"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: sn => sessionTopicsLine(sn) },
+    { header: tr("Status"), render: sn => <Bdg l={sessionStatusWord(sn.status)} c={sn.status === "open" ? GR : sn.status === "closed" ? BL : t.textMut} /> },
+  ];
+  return (<div data-training-sessions="">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <Sel t={t} aria-label={tr("Status")} data-sessions-filter="status" value={f.status} onChange={set("status")} options={[{ v: "", l: tr("All statuses") }].concat(Object.keys(SESSION_STATUS).map(k => ({ v: k, l: sessionStatusWord(k) })))} />
+      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={set("from")} />
+      <Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={set("to")} />
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      {list && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} session|count", list.length)}</span>}
+      <Btn t={t} data-session-start="" onClick={() => setStarting(true)} style={{ marginLeft: "auto" }}>{tr("Start a session")}</Btn>
+    </div>
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={list} rowKey={sn => sn.id} onRowClick={sn => setOpenId(String(sn.id))} empty={tr("No sessions here.")} />}
+    {starting && <StartSessionWindow af={af} t={t} sites={sites} onClose={() => setStarting(false)} onStarted={(sn) => { setStarting(false); setOpenId(String(sn.id)); }} />}
+  </div>);
+}
+
+// Start a session: its title, day, site, language and 1 to 10 topics from the catalog, and a note.
+// The caller is the trainer. A refusal is drawn under the field its keys name.
+function StartSessionWindow({ af, t, sites = [], onClose, onStarted }) {
+  const [topics, setTopics] = useState(null);
+  const [f, setF] = useState({ title: "", day: todayISO(), siteId: "", locale: "", note: "" });
+  const [picked, setPicked] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag())) : []); }).catch(() => { if (alive) setTopics([]); });
+    return () => { alive = false; };
+  }, [af]);
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-session-start-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const toggle = (id) => setPicked(p => (p.indexOf(id) >= 0 ? p.filter(x => x !== id) : p.length >= 10 ? p : p.concat([id])));
+  const ready = f.title.trim() && f.day && f.locale && picked.length >= 1 && picked.length <= 10;
+  const send = async () => {
+    if (!ready || busy) return;
+    setBusy(true); setRefusal(null);
+    try {
+      const d = await af("/api/training/sessions", { method: "POST", body: { title: f.title.trim(), day: f.day, siteId: f.siteId || null, locale: f.locale, topicIds: picked, note: f.note.trim() || null } });
+      if (d && d.session) onStarted(d.session);
+    } catch (e) {
+      const keys = trainingKeysOf(e).filter(k => SESSION_START_FIELDS.indexOf(k) >= 0);
+      setRefusal({ text: e.message || tr("Request failed"), fields: keys });
+    }
+    setBusy(false);
+  };
+  const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
+  const choice = (on) => ({ minWidth: 44, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+    <div data-session-start-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Start a session")}</div>
+      <div data-session-start-field="title"><div style={lbl}>{tr("Title")}</div><Inp t={t} aria-label={tr("Title")} value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder={tr("e.g. Monthly safety talk")} />{bad("title")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        <div data-session-start-field="day"><div style={lbl}>{tr("Day")}</div><Inp t={t} type="date" aria-label={tr("Day")} value={f.day} onChange={e => setF({ ...f, day: e.target.value })} />{bad("day")}</div>
+        <div data-session-start-field="siteId"><div style={lbl}>{tr("Site")}</div><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF({ ...f, siteId: e.target.value })} options={[{ v: "", l: tr("No site") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />{bad("siteId")}</div>
+      </div>
+      <div data-session-start-field="locale"><div style={lbl}>{tr("Language it is given in")}</div>
+        <div role="group" aria-label={tr("Language it is given in")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {TRAINING_LANGUAGES.map(l => <button key={l.id} type="button" aria-pressed={f.locale === l.id} onClick={() => setF({ ...f, locale: l.id })} style={choice(f.locale === l.id)}>{tr(l.word)}</button>)}
+        </div>{bad("locale")}</div>
+      <div data-session-start-field="topicIds"><div style={lbl}>{tr("Topics, 1 to 10")}</div>
+        <div style={{ border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 260, overflowY: "auto" }}>
+          {topics === null ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+            : topics.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("No topics yet.")}</div>
+            : topics.map(tp => <label key={tp.id} data-session-start-topic={tp.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "4px 12px", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text, cursor: "pointer" }}>
+              <input type="checkbox" checked={picked.indexOf(String(tp.id)) >= 0} onChange={() => toggle(String(tp.id))} style={{ width: 20, height: 20, accentColor: GO, flexShrink: 0 }} />
+              <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{tp.name}</span>
+              <span style={{ fontSize: 11, color: t.textMut }}>{topicDocLine(tp)}</span>
+            </label>)}
+        </div>
+        <div role="status" style={{ fontSize: 12, color: picked.length > 10 ? RD : t.textMut, marginTop: 4 }}>{trn("{0} topic picked|count", picked.length)}</div>
+        {bad("topicIds")}</div>
+      <div data-session-start-field="note"><div style={lbl}>{tr("Notes (optional)")}</div><TArea t={t} rows={2} aria-label={tr("Notes (optional)")} value={f.note} onChange={e => setF({ ...f, note: e.target.value })} />{bad("note")}</div>
+      {refusal && refusal.fields.length === 0 && <div role="alert" data-session-start-refusal="" style={{ fontSize: 13, color: RD }}>{refusal.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" disabled={busy} onClick={onClose}>{tr("Cancel")}</Btn>
+        <Btn t={t} data-session-start-send="" disabled={busy || !ready} onClick={send}>{busy ? tr("Saving...") : tr("Start the session")}</Btn>
+      </div>
+    </div>
+  </Mdl>);
+}
+
+// One session's page: GET /api/training/sessions/:id, read again every 5 seconds while it is open.
+function TrainingSessionPage({ af, t, token, id, staff = [], typeWords = {}, showToast, onBack }) {
+  const [sn, setSn] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [qr, setQr] = useState("");
+  const [closing, setClosing] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [result, setResult] = useState(null);
+  const load = useCallback(async () => {
+    try { const d = await af("/api/training/sessions/" + encodeURIComponent(id)); if (d && d.session) { setSn(d.session); setFailed(""); } }
+    catch (e) { setFailed(e.message || tr("This did not load.")); }
+  }, [af, id]);
+  useEffect(() => { load(); }, [load]);
+  const open = !!(sn && sn.status === "open");
+  // The sign-ins as they arrive: the session read again every 5 seconds while it is open.
+  useEffect(() => {
+    if (!open) return undefined;
+    const timer = setInterval(() => { if (!document.hidden) load(); }, 5000);
+    return () => clearInterval(timer);
+  }, [open, load]);
+  // The QR of joinUrl, read with the token while the session is open.
+  useEffect(() => {
+    if (!open || !token) return undefined;
+    let alive = true;
+    let made = "";
+    apiDownload("/api/training/sessions/" + encodeURIComponent(id) + "/qr.png", token).then(f0 => { made = URL.createObjectURL(f0.blob); if (alive) setQr(made); else URL.revokeObjectURL(made); }).catch(e => console.warn("Session QR:", e.message));
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [open, id, token]);
+  const remove = async (si) => {
+    if (!window.confirm(tr("Remove this sign-in? The person can sign in again."))) return;
+    setBusy("remove"); setRefusal("");
+    try { const d = await af("/api/training/sessions/" + encodeURIComponent(id) + "/signins/" + encodeURIComponent(si.id), { method: "DELETE" }); if (d && d.session) setSn(d.session); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const close = async (png) => {
+    setBusy("close"); setRefusal("");
+    try {
+      const d = await af("/api/training/sessions/" + encodeURIComponent(id) + "/close", { method: "POST", body: { signature: png } });
+      if (d && d.session) setSn(d.session);
+      setResult({ saved: (d && d.saved) || [], already: (d && d.already) || [] });
+      setClosing(false);
+      showToast(tr("Session closed. The training records are saved."));
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const cancel = async () => {
+    if (!window.confirm(tr("Cancel this session? Nothing is saved for anyone who signed in."))) return;
+    setBusy("cancel"); setRefusal("");
+    try { const d = await af("/api/training/sessions/" + encodeURIComponent(id) + "/cancel", { method: "POST" }); if (d && d.session) setSn(d.session); showToast(tr("Session cancelled")); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const print = () => printSessionRoster({ af, token, session: sn, staff }).then(okd => { if (!okd) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
+  if (!sn) return <div data-session-page="">
+    <button onClick={onBack} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", padding: 0 }}>{tr("Back to the sessions")}</button>
+    {failed ? <LoadFailed t={t} text={failed} onRetry={load} /> : <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+  </div>;
+  const people = (sn.signins || []);
+  const nameOf = (uid) => { const s0 = people.find(x => x.person && String(x.person.id) === String(uid)); return (s0 && s0.person && s0.person.name) || ((staff.find(p => String(p.id) === String(uid)) || {}).name) || ""; };
+  const topicOf = (tid) => ((sn.topics || []).find(x => String(x.id) === String(tid)) || {}).name || "";
+  const lang = TRAINING_LANGUAGES.find(l => l.id === langCode(sn.locale));
+  return (<div data-session-page={sn.status}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <button onClick={onBack} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", padding: 0 }}>{tr("Back to the sessions")}</button>
+      <span style={{ marginLeft: "auto" }}><Bdg l={sessionStatusWord(sn.status)} c={sn.status === "open" ? GR : sn.status === "closed" ? BL : t.textMut} /></span>
+    </div>
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{sn.title}</div>
+      <div style={{ fontSize: 13, color: t.textSec, marginTop: 4, lineHeight: 1.6 }}>{[sn.day ? fdLong(sn.day) : "", sn.site && sn.site.name, lang ? tr(lang.word) : "", sn.trainer && sn.trainer.name ? tr("Trainer: {0}", sn.trainer.name) : ""].filter(Boolean).join(" . ")}</div>
+      <div style={{ marginTop: 8 }}>{(sn.topics || []).map(tp => <div key={tp.id} style={{ fontSize: 13, color: t.text }}>{tp.name}<span style={{ color: t.textMut, marginLeft: 6, fontSize: 12 }}>{topicDocLine(tp)}</span></div>)}</div>
+      {sn.note && <div style={{ fontSize: 12, color: t.textSec, marginTop: 6, whiteSpace: "pre-line" }}>{sn.note}</div>}
+    </Crd>
+    {open && <Crd t={t} style={{ marginBottom: 14, textAlign: "center" }}>
+      <div data-session-join="" style={{ display: "flex", gap: 20, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+        <div style={{ width: 260, maxWidth: "100%", aspectRatio: "1 / 1", background: "#FFFFFF", borderRadius: R.md, border: "1px solid " + t.border, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {qr ? <img src={qr} alt={tr("QR code to sign in")} data-session-qr="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 12, color: "#666" }}>{tr("Loading...")}</span>}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: t.textSec }}>{tr("Scan the code, or type this code in the staff app")}</div>
+          <div data-session-code="" style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: "clamp(40px, 9vw, 72px)", fontWeight: 700, letterSpacing: 6, color: t.text, lineHeight: 1.2, overflowWrap: "anywhere" }}>{sn.joinCode}</div>
+          {sn.joinUrl && <div style={{ fontSize: 12, color: t.textMut, overflowWrap: "anywhere" }}>{sn.joinUrl}</div>}
+        </div>
+      </div>
+    </Crd>}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+      <div role="status" data-session-count={people.length} style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{trn("{0} signed in|count", people.length)}</div>
+      {open && <span style={{ fontSize: 12, color: t.textMut }}>{tr("The list is read again every 5 seconds.")}</span>}
+    </div>
+    <div role="list" data-session-signins="" style={{ border: "1px solid " + t.border, borderRadius: R.lg, overflow: "hidden", background: t.card, marginBottom: 14 }}>
+      {people.length === 0 ? <div style={{ padding: 14, fontSize: 13, color: t.textMut }}>{tr("Nobody has signed in yet.")}</div>
+        : people.map(si => <div key={si.id} role="listitem" data-session-signin={si.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 14px", borderBottom: "1px solid " + t.border }}>
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(si.person && si.person.name) || ""}</span>
+            <span style={{ display: "block", fontSize: 12, color: t.textSec }}>{si.signedAt ? irWhen(si.signedAt) : ""}</span>
+          </span>
+          {open && <button data-session-remove={si.id} disabled={!!busy} onClick={() => remove(si)} style={{ minHeight: 44, minWidth: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Remove")}</button>}
+        </div>)}
+    </div>
+    {result && <Crd t={t} style={{ marginBottom: 14 }}>
+      <div data-session-close-saved={result.saved.length} style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 4 }}>{trn("{0} training record saved|count", result.saved.length)}</div>
+      {result.saved.map((x, i) => <div key={"s" + i} style={{ fontSize: 13, color: t.textSec }}>{nameOf(x.userId)}{topicOf(x.topicId) ? ", " + topicOf(x.topicId) : ""}</div>)}
+      {result.already.length > 0 && <div data-session-close-already={result.already.length} style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{tr("Already had it that day")}</div>
+        {result.already.map((x, i) => <div key={"a" + i} style={{ fontSize: 13, color: t.textSec }}>{nameOf(x.userId)}{topicOf(x.topicId) ? ", " + topicOf(x.topicId) : ""}</div>)}
+      </div>}
+    </Crd>}
+    {refusal && <div role="alert" data-session-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    {closing && open && <div data-session-closing="" style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 6 }}>{tr("Closing saves a training record for each person and topic. Sign as the trainer.")}</div>
+      <SignatureBox t={t} label={tr("Your signature, as the trainer")} busy={busy === "close"} onSign={close} signWord={tr("Close the session")} busyWord={tr("Saving...")} onCancel={() => setClosing(false)} />
+    </div>}
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {open && !closing && <Btn t={t} data-session-close="" disabled={!!busy} onClick={() => setClosing(true)}>{tr("Close the session")}</Btn>}
+      {open && <Btn t={t} v="ghost" data-session-cancel="" disabled={!!busy} onClick={cancel} style={{ color: RD }}>{tr("Cancel the session")}</Btn>}
+      {sn.status !== "cancelled" && <Btn t={t} v="ghost" data-session-roster="" disabled={!!busy} onClick={print}>{tr("Print the roster")}</Btn>}
+    </div>
+  </div>);
+}
+
+// The OCSA-FRM-033 roster of a session signed on phones: its title and topics, their documents and
+// sections, the day, the site, the language, the trainer, each attendee's name, the time they signed
+// and their signature, and the trainer's attestation and signature, each signature read with the
+// token. The window is opened in the click, so a pop-up blocker lets it through; false when the
+// browser would not open it.
+async function printSessionRoster({ af, token, session, staff = [] }) {
+  const w = keptWindow();
+  if (!w) return false;
+  try {
+    const d = await af("/api/training/sessions/" + encodeURIComponent(session.id));
+    const sn = (d && d.session) || session;
+    const base = "/api/training/sessions/" + encodeURIComponent(sn.id) + "/signature";
+    const people = (sn.signins || []).slice().sort((a, b) => String(a.signedAt || "").localeCompare(String(b.signedAt || "")));
+    const [trainerSig, ...sigs] = await Promise.all([sn.closedAt ? keptImage(base + "?who=trainer", token) : Promise.resolve("")].concat(people.map(si => keptImage(base + "?who=signin&signinId=" + encodeURIComponent(si.id), token))));
+    const lang = TRAINING_LANGUAGES.find(l => l.id === langCode(sn.locale));
+    const sigHtml = (img, line) => '<div style="margin:4px 0 10px">' + (img ? '<img src="' + keptEsc(img) + '" alt="" style="height:48px;max-width:280px;object-fit:contain;display:block;border-bottom:1px solid #999" />' : '<div class="ln"></div>') + (line ? '<div class="note" style="margin:2px 0">' + keptEsc(line) + "</div>" : "") + "</div>";
+    const trainerName = (sn.trainer && sn.trainer.name) || "";
+    const page = { code: "OCSA-FRM-033", site: (sn.site && sn.site.name) || "", range: sn.day ? { start: sn.day, end: sn.day } : null, parts: [
+      { h: "Session Details", fields: [["Training Title or Topic", [sn.title, sessionTopicsLine(sn)].filter(Boolean).join(": ")], ["Training Type", ""], ["Related Document No.", sessionDocsLine(sn)], ["Date", trainingDayWords(sn.day, true)], ["Start Time / End Time", ""], ["Site or Location", (sn.site && sn.site.name) || ""], ["Delivery Method", tr("In person, each attendee signed in on the app")], ["Language(s) Delivered In", lang ? tr(lang.word) : ""], ["Translation Method", ""], ["Understanding Verified By", tr("Each attendee ticked I understood this training")], ["Materials or Equipment Used", ""]] },
+      { h: "Trainer", fields: [["Trainer Name", trainerName], ["Trainer Role", ""], ["Qualification Held", ""]] },
+      { html: '<div class="note"><b>' + keptEsc(tr("Trainer Signature")) + "</b></div>" + sigHtml(trainerSig, sn.closedAt ? tr("Signed {0}", irWhen(sn.closedAt)) : tr("Not signed")) },
+      { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", "Employee ID", "Signed at", "Signature", "Understood"], rows: people.map((si, i) => ["", (si.person && si.person.name) || "", rosterEmployeeId(staff, si.person && si.person.id), si.signedAt ? irWhen(si.signedAt) : "", sigs[i] ? { img: sigs[i] } : "", tr("Yes")]) },
+      { fields: [["Total attendees this session", String(people.length)]] },
+      { h: "Trainer Attestation", note: ROSTER_ATTESTATION },
+      { html: sigHtml(trainerSig, [trainerName, sn.closedAt ? tr("Signed {0}", irWhen(sn.closedAt)) : ""].filter(Boolean).join(", ")) },
+    ] };
+    keptWrite(w, tr("Attendance sheet"), [page]);
+    return true;
+  } catch (e) {
+    try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
+    return true;
+  }
+}
+
+// ===== DOCUMENTS TO SIGN (Step 263, STEP262_CONTRACT.md section 6) =====
+// The Training area's Documents to sign tab, drawn once GET /api/documents answers: each document with
+// how many people must sign it, how many signed its current version and how many have not. A document's
+// page lists the people by site, the ones who have not signed the current version first, with the
+// version they signed, when and in what language; Print gives a page per site for an assessor; a
+// signature opens when the answer names its acknowledgment. Admins set Who must sign: Everyone, roles
+// and named people, saved as one set of up to 30 rows (PUT .../requirements).
+const DOC_EVERYONE = "everyone";
+// A requirement as the answer carries it, { role }, { role: "everyone" }, { everyone: true } or
+// { userId }, as one shape, or null for a row it cannot read.
+const docReqOf = (r) => (!r ? null : r.everyone === true || r.role === DOC_EVERYONE ? { everyone: true } : r.role ? { role: String(r.role) } : r.userId != null ? { userId: String(r.userId), name: r.personName || r.name || (r.person && r.person.name) || "" } : null);
+// The acknowledgment a person's row names, when the answer names one.
+const docAckIdOf = (p) => String((p && (p.acknowledgmentId || p.acknowledgementId || (p.acknowledgment && p.acknowledgment.id))) || "");
+// A person's state against the current version: signed it, signed an older one, or never signed.
+const docStateOf = (p) => (p && p.current ? "signed" : p && p.signedVersion != null && p.signedVersion !== "" ? "older" : "none");
+const DOC_STATE = { signed: { w: "Signed|document", c: GR }, older: { w: "Signed an older version", c: OR }, none: { w: "Not signed", c: RD } };
+const docStateWord = (p) => tr(DOC_STATE[docStateOf(p)].w);
+// The sites a person's row names, each as { id, name }, for grouping and printing.
+const docSitesOf = (p) => (Array.isArray(p && p.sites) ? p.sites : []).map(s0 => (s0 && typeof s0 === "object" ? { id: String(s0.id != null ? s0.id : s0.name || ""), name: s0.name || "" } : { id: String(s0), name: String(s0) })).filter(s0 => s0.id || s0.name);
+// The people grouped by site, each site in name order and a person in every site they work at; inside
+// a site the ones who have not signed the current version come first, then by name.
+function docGroupsOf(people = [], siteId = "") {
+  const groups = [];
+  const into = (key, name, p) => { let g = groups.find(x => x.key === key); if (!g) { g = { key, name, people: [] }; groups.push(g); } g.people.push(p); };
+  people.forEach(p => {
+    const ss = docSitesOf(p).filter(s0 => !siteId || s0.id === String(siteId));
+    if (ss.length === 0) { if (!siteId) into("", "", p); return; }
+    ss.forEach(s0 => into(s0.id, s0.name, p));
+  });
+  const rank = (p) => (p.current ? 1 : 0);
+  groups.forEach(g => g.people.sort((a, b) => rank(a) - rank(b) || String(a.name || "").localeCompare(String(b.name || ""), localeTag())));
+  return groups.sort((a, b) => (!a.key) - (!b.key) || String(a.name).localeCompare(String(b.name), localeTag()));
+}
+
+function TrainingDocuments({ af, t, token, sites = [], people = [], isAdmin = false, showToast }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [openCode, setOpenCode] = useState("");
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/documents"); setList(d && Array.isArray(d.documents) ? d.documents : []); }
+    catch (e) { setList([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, showToast]);
+  useEffect(() => { load(); }, [load]);
+  const open = (list || []).find(d0 => d0.docCode === openCode);
+  if (openCode && open) return <DocumentSignaturesPage af={af} t={t} token={token} doc={open} sites={sites} people={people} isAdmin={isAdmin} showToast={showToast} onBack={() => { setOpenCode(""); load(); }} />;
+  const num = (v) => (v == null ? "" : String(v));
+  const cols = [
+    { header: tr("Document"), tdStyle: { minWidth: 160 }, render: d0 => <div><div style={{ color: t.text, fontWeight: 600 }}>{d0.title || d0.docCode}</div><div style={{ fontSize: 11, color: t.textMut }}>{d0.docCode}</div></div> },
+    { header: tr("Version"), tdStyle: { color: t.textSec }, render: d0 => num(d0.version) },
+    { header: tr("Must sign"), align: "right", tdStyle: { color: t.text }, render: d0 => <span data-doc-count="required">{num(d0.required)}</span> },
+    { header: tr("Signed|document"), align: "right", tdStyle: { color: GR }, render: d0 => <span data-doc-count="signed">{num(d0.signed)}</span> },
+    { header: tr("Not signed"), align: "right", render: d0 => <span data-doc-count="notSigned" style={{ color: Number(d0.notSigned) > 0 ? RD : t.textSec, fontWeight: Number(d0.notSigned) > 0 ? 600 : 400 }}>{num(d0.notSigned)}</span> },
+  ];
+  return (<div data-training-documents="">
+    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("Each document people must read and sign, and how many have signed its current version.")}</div>
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={list} rowKey={d0 => d0.docCode} onRowClick={d0 => setOpenCode(d0.docCode)} empty={tr("No documents to sign yet.")} />}
+  </div>);
+}
+
+// One document: Who must sign, then the people by site with their signatures. The site and role filters
+// are sent to the API.
+function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], isAdmin = false, showToast, onBack }) {
+  const [f, setF] = useState({ siteId: "", role: "" });
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [reqs, setReqs] = useState(Array.isArray(doc.requirements) ? doc.requirements : null);
+  const path = "/api/documents/" + encodeURIComponent(doc.docCode);
+  const load = useCallback(async () => {
+    setFailed(false);
+    const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
+    try {
+      const x = await af(path + "/signatures" + (q ? "?" + q : ""));
+      setD({ version: x && x.version != null ? x.version : doc.version, people: x && Array.isArray(x.people) ? x.people : [] });
+      if (x && Array.isArray(x.requirements)) setReqs(x.requirements);
+    } catch (e) { setD({ version: doc.version, people: [] }); setFailed(true); showToast(e.message, "error"); }
+  }, [af, path, f, doc.version, showToast]);
+  useEffect(() => { setD(null); load(); }, [load]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const groups = d ? docGroupsOf(d.people, f.siteId) : [];
+  const notSigned = d ? d.people.filter(p => !p.current).length : 0;
+  const openSig = (id) => openSignatureImage(token, "/api/documents/acknowledgments/" + encodeURIComponent(id) + "/signature").catch(e => showToast(e.message, "error"));
+  const print = () => printDocumentSignatures({ af, token, doc, version: d ? d.version : doc.version, groups }).then(okd => { if (!okd) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
+  const row = (p) => {
+    const st = docStateOf(p);
+    const ack = docAckIdOf(p);
+    return (<div key={p.id} data-doc-person={p.id} data-doc-state={st} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: "1px solid " + t.border, flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.name}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{[roleWord(p.role), p.signedVersion != null && p.signedVersion !== "" ? tr("Version {0}", p.signedVersion) : "", p.signedAt ? irWhen(p.signedAt) : "", p.locale ? trainingLangWord(p.locale) : ""].filter(Boolean).join(" . ")}</div>
+      </div>
+      <Bdg l={docStateWord(p)} c={DOC_STATE[st].c} />
+      {ack && <button data-doc-signature={ack} onClick={() => openSig(ack)} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the signature")}</button>}
+    </div>);
+  };
+  return (<div data-document-page={doc.docCode}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <Btn t={t} v="ghost" onClick={onBack}>{tr("Back")}</Btn>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{doc.title || doc.docCode}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{[doc.docCode, d && d.version != null ? tr("Version {0}", d.version) : ""].filter(Boolean).join(" . ")}</div>
+      </div>
+      <Btn t={t} v="ghost" data-doc-print="" disabled={!d || d.people.length === 0} onClick={print}>{tr("Print for the assessor")}</Btn>
+    </div>
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <SecT t={t}>{tr("Who must sign")}</SecT>
+      <DocumentWhoMustSign af={af} t={t} doc={doc} reqs={reqs} isAdmin={isAdmin} people={people} onSaved={(rows) => { setReqs(rows); load(); }} />
+    </Crd>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <Sel t={t} aria-label={tr("Site")} data-doc-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Sel t={t} aria-label={tr("Role")} data-doc-filter="role" value={f.role} onChange={set("role")} options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} />
+    </div>
+    {d && !failed && <div role="status" data-doc-summary="" style={{ fontSize: 13, color: t.textSec, marginBottom: 10 }}>{trn("{0} must sign|count", d.people.length)}{" . "}{trn("{0} not signed|count", notSigned)}</div>}
+    {d === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : d.people.length === 0 ? <Crd t={t}><div style={{ padding: 10, color: t.textMut, fontSize: 13 }}>{tr("Nobody must sign this document here.")}</div></Crd>
+      : groups.map(g => <Crd key={g.key || "none"} t={t} style={{ marginBottom: 12 }}>
+        <div data-doc-site={g.key} style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{g.name || tr("No site")}</div>
+        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 4 }}>{trn("{0} not signed|count", g.people.filter(p => !p.current).length)}</div>
+        {g.people.map(row)}
+      </Crd>)}
+  </div>);
+}
+
+// Who must sign a document: Everyone, roles and named people. Admins change the whole set at once; a
+// refusal naming requirements[i] is drawn under the row it came from. The set in force is read from the
+// document's row or the signatures answer when the API sends it.
+function DocumentWhoMustSign({ af, t, doc, reqs = null, isAdmin = false, people = [], onSaved }) {
+  const fromRows = useCallback((rows) => {
+    const s = { everyone: false, roles: {}, named: [] };
+    (rows || []).map(docReqOf).filter(Boolean).forEach(r => {
+      if (r.everyone) s.everyone = true;
+      else if (r.role) s.roles[r.role] = true;
+      else if (r.userId && !s.named.some(n => n.id === r.userId)) s.named.push({ id: r.userId, name: r.name || ((people.find(p => String(p.id) === r.userId) || {}).name) || "" });
+    });
+    return s;
+  }, [people]);
+  const [edit, setEdit] = useState(null);
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const shown = edit || fromRows(reqs);
+  const rowsOf = (s) => [].concat(s.everyone ? [{ src: "everyone", role: DOC_EVERYONE }] : [], TRAINING_ROLES.filter(r => s.roles[r]).map(role => ({ src: "role:" + role, role })), s.named.map(p => ({ src: "person:" + p.id, userId: p.id })));
+  const bad = (src) => (refusal && refusal.src === src ? <div role="alert" data-doc-who-refusal="" style={{ fontSize: 12, color: RD, marginTop: 2 }}>{refusal.text}</div> : null);
+  const save = async () => {
+    const rows = rowsOf(edit);
+    setBusy(true); setRefusal(null);
+    try {
+      const x = await af("/api/documents/" + encodeURIComponent(doc.docCode) + "/requirements", { method: "PUT", body: { requirements: rows.map(r => (r.role ? { role: r.role } : { userId: r.userId })) } });
+      setEdit(null);
+      onSaved(x && Array.isArray(x.requirements) ? x.requirements : rows.map(r => (r.role ? { role: r.role } : { userId: r.userId })));
+    } catch (e) {
+      const m = trainingKeysOf(e).map(k => /^requirements\[(\d+)\]/.exec(k)).find(Boolean);
+      setRefusal({ text: e.message || tr("Request failed"), src: m && rows[Number(m[1])] ? rows[Number(m[1])].src : "" });
+    }
+    setBusy(false);
+  };
+  const tickStyle = { width: 20, height: 20, accentColor: GO, flexShrink: 0 };
+  const line = { padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text };
+  if (!edit) {
+    const roles = TRAINING_ROLES.filter(r => shown.roles[r]);
+    return (<div data-doc-who="">
+      {reqs === null ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("The list in force is not sent with this document yet.")}</div>
+        : !shown.everyone && roles.length === 0 && shown.named.length === 0 ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("Nobody must sign it yet.")}</div>
+        : <div>
+          {shown.everyone && <div data-doc-who-row="everyone" style={{ ...line, fontWeight: 600 }}>{tr("Everyone")}</div>}
+          {roles.map(r => <div key={r} data-doc-who-row={"role:" + r} style={line}>{roleWord(r)}</div>)}
+          {shown.named.map(p => <div key={p.id} data-doc-who-row={"person:" + p.id} style={line}>{p.name}</div>)}
+        </div>}
+      {isAdmin && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-doc-who-edit="" onClick={() => { setEdit(fromRows(reqs)); setRefusal(null); }}>{tr("Change who must sign")}</Btn></div>}
+    </div>);
+  }
+  const count = rowsOf(edit).length;
+  const others = people.filter(p => !edit.named.some(n => n.id === String(p.id)));
+  const addPerson = () => { const p = people.find(x => String(x.id) === pick); if (!p) return; setEdit(s => ({ ...s, named: s.named.concat([{ id: String(p.id), name: p.name }]) })); setPick(""); };
+  return (<div data-doc-who-form="">
+    <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, fontWeight: 600, color: t.text, cursor: "pointer" }}>
+      <input type="checkbox" data-doc-who-everyone="" checked={edit.everyone} onChange={() => setEdit(s => ({ ...s, everyone: !s.everyone }))} style={tickStyle} />{tr("Everyone")}</label>
+    {bad("everyone")}
+    <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, margin: "10px 0 4px" }}>{tr("Roles")}</div>
+    {TRAINING_ROLES.map(role => <div key={role}>
+      <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: t.text, cursor: "pointer" }}>
+        <input type="checkbox" data-doc-who-role={role} checked={!!edit.roles[role]} onChange={() => setEdit(s => { const roles = { ...s.roles }; if (roles[role]) delete roles[role]; else roles[role] = true; return { ...s, roles }; })} style={tickStyle} />{roleWord(role)}</label>
+      {bad("role:" + role)}
+    </div>)}
+    <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, margin: "10px 0 4px" }}>{tr("Named people")}</div>
+    {edit.named.map(p => <div key={p.id} data-doc-who-person={p.id} style={{ borderBottom: "1px solid " + t.border }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: t.text }}>
+        <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
+        <button onClick={() => setEdit(s => ({ ...s, named: s.named.filter(n => n.id !== p.id) }))} style={{ minHeight: 44, minWidth: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Remove")}</button>
+      </div>
+      {bad("person:" + p.id)}
+    </div>)}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
+      <Btn t={t} v="ghost" disabled={!pick} onClick={addPerson}>{tr("Add|person")}</Btn>
+    </div>
+    <div role="status" style={{ fontSize: 12, color: count > 30 ? RD : t.textMut, marginTop: 10 }}>{tr("{0} of 30 rows", count)}</div>
+    <div style={{ fontSize: 12, color: t.textMut, marginTop: 4 }}>{tr("Saving replaces who must sign with what is ticked here. Someone added is told once.")}</div>
+    {refusal && !refusal.src && <div role="alert" data-doc-who-refusal="" style={{ fontSize: 13, color: RD, marginTop: 8 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 12 }}>
+      <Btn t={t} v="ghost" disabled={busy} onClick={() => { setEdit(null); setRefusal(null); }}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-doc-who-save="" disabled={busy || count > 30} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div>);
+}
+
+// A PNG the API keeps, read with the token and opened in a new tab.
+async function openSignatureImage(token, path) {
+  const f = await apiDownload(path, token, "signature.png");
+  const url = URL.createObjectURL(f.blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// The assessor's print: a page per site with the document, its current version, and each person who
+// must sign it, the ones not signed first, with the version they signed, when, in what language, and
+// the signature where the answer names it.
+async function printDocumentSignatures({ af, token, doc, version, groups = [] }) {
+  const w = keptWindow();
+  if (!w) return false;
+  try {
+    const company = await sheetCompanyFor(af);
+    const ids = [];
+    groups.forEach(g => g.people.forEach(p => { const a = docAckIdOf(p); if (a && ids.indexOf(a) < 0) ids.push(a); }));
+    const imgs = await Promise.all(ids.map(a => keptImage("/api/documents/acknowledgments/" + encodeURIComponent(a) + "/signature", token)));
+    const imgOf = (p) => { const i = ids.indexOf(docAckIdOf(p)); return i >= 0 ? imgs[i] : ""; };
+    const head = (h) => "<th>" + keptEsc(h) + "</th>";
+    const cell = (v) => "<td>" + keptEsc(v) + "</td>";
+    const title = tr("Document signatures");
+    const pages = groups.map(g => {
+      const rows = g.people.map((p, i) => '<tr><td class="n">' + (i + 1) + "</td>" + cell(p.name || "") + cell(roleWord(p.role)) + cell(docStateWord(p)) + cell(p.signedVersion != null ? String(p.signedVersion) : "") + cell(p.signedAt ? irWhen(p.signedAt) : "") + cell(p.locale ? trainingLangWord(p.locale) : "")
+        + "<td>" + (imgOf(p) ? '<img src="' + keptEsc(imgOf(p)) + '" alt="" style="height:26px;max-width:120px;object-fit:contain;display:block" />' : "") + "</td></tr>").join("");
+      return '<div class="kept"><div class="hd"><div><div class="co">' + keptEsc(company) + '</div><div class="ti">' + keptEsc(title) + '</div><div class="code">' + keptEsc([doc.docCode, doc.title, version != null ? tr("Version {0}", version) : ""].filter(Boolean).join(" . ")) + "</div></div>"
+        + '<div class="meta">' + keptEsc(tr("Site")) + ": " + keptEsc(g.name || tr("No site")) + "<br>" + keptEsc(tr("Printed on {0}", keptDay(todayISO()))) + "</div></div>"
+        + '<table class="f"><tbody><tr><th>' + keptEsc(tr("Must sign")) + "</th><td>" + g.people.length + "</td></tr><tr><th>" + keptEsc(tr("Signed the current version")) + "</th><td>" + g.people.filter(p => p.current).length + "</td></tr><tr><th>" + keptEsc(tr("Not signed")) + "</th><td>" + g.people.filter(p => !p.current).length + "</td></tr></tbody></table>"
+        + '<table class="g"><thead><tr>' + head("#") + head(tr("Name")) + head(tr("Role")) + head(tr("Status")) + head(tr("Version signed")) + head(tr("Signed at")) + head(tr("Language")) + head(tr("Signature")) + "</tr></thead><tbody>" + rows + "</tbody></table>"
+        + '<div class="ft">' + keptEsc([company, title, doc.docCode].filter(Boolean).join(" . ")) + "</div></div>";
+    });
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(title) + "</title>" + KEPT_STYLE + "</head><body>" + pages.join("") + "</body></html>");
+    w.document.close();
+    setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
+    return true;
+  } catch (e) {
+    try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
+    return true;
+  }
+}
+
+// ===== COMPANY PROPERTY (Step 263, STEP262_CONTRACT.md section 7) =====
+// What the company issued a person, on their HR folder once GET /api/hr/property answers: a uniform
+// shirt or other uniform with its size, a key, a badge or a fob with its site, or something else
+// described, each with how many, the day, who issued it and the person's signature, taken on this
+// screen. Mark returned records the day it came back. The End employment window lists what is still
+// out under Collect before the last day.
+const PROPERTY_KINDS = { uniform_shirt: "Uniform shirt", uniform_other: "Other uniform", key: "Key|property", badge: "Badge|property", fob: "Fob", other: "Other|property" };
+const PROPERTY_SITED = ["key", "badge", "fob"];
+const PROPERTY_SIZED = ["uniform_shirt", "uniform_other"];
+const propertyKindWord = (k) => (PROPERTY_KINDS[k] ? tr(PROPERTY_KINDS[k]) : String(k || ""));
+// An issue as one line: the kind and its description, the size, and how many.
+const propertyLine = (x) => [x.kind === "other" ? (x.description || propertyKindWord("other")) : [propertyKindWord(x.kind), x.description].filter(Boolean).join(", "), x.size || ""].filter(Boolean).join(", ") + (Number(x.quantity) > 1 ? " x " + x.quantity : "");
+const propertyIssues = (d) => (d && Array.isArray(d.issues) ? d.issues : null);
+function PersonProperty({ af, token, t, userId, sites = [], name = "", showToast }) {
+  const [issues, setIssues] = useState(null);
+  const [win, setWin] = useState(false);
+  const [returning, setReturning] = useState(null);
+  const [shown, setShown] = useState({});
+  const load = useCallback(() => {
+    af("/api/hr/property?userId=" + encodeURIComponent(userId)).then(d => setIssues(propertyIssues(d))).catch(e => { setIssues(null); console.warn("Property:", e.message); });
+  }, [af, userId]);
+  useEffect(() => { load(); }, [load]);
+  if (issues === null) return null;
+  // Still out first, then by the day issued, newest first.
+  const list = issues.slice().sort((a, b) => (!!a.returnedOn - !!b.returnedOn) || String(b.issuedOn || "").localeCompare(String(a.issuedOn || "")));
+  const out = list.filter(x => !x.returnedOn).length;
+  return (<Crd t={t} style={{ marginBottom: 16 }}>
+    <div data-person-property="">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Company property")}</div>
+        <Btn t={t} data-property-issue="" onClick={() => setWin(true)} style={{ minHeight: 44 }}>{tr("Issue property")}</Btn>
+      </div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Uniforms, keys, badges and fobs this person was given, each signed for when it was handed over.")}{list.length > 0 ? " " + trn("{0} still out.|count", out) : ""}</div>
+      {list.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing issued yet.")}</div> : list.map(x => (
+        <div key={x.id} data-property-row={x.id} data-property-out={x.returnedOn ? "no" : "yes"} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{propertyLine(x)}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[x.issuedOn ? tr("Issued {0}", keptDay(x.issuedOn)) : "", x.issuedBy && x.issuedBy.name ? tr("by {0}", x.issuedBy.name) : "", x.site && x.site.name].filter(Boolean).join(", ")}</div>
+              {x.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflowWrap: "anywhere" }}>{x.note}</div> : null}
+              {x.returnedOn ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[tr("Returned {0}", keptDay(x.returnedOn)), x.returnedTo && x.returnedTo.name ? tr("to {0}", x.returnedTo.name) : "", x.returnNote || ""].filter(Boolean).join(", ")}</div> : null}
+            </div>
+            <Bdg l={x.returnedOn ? tr("Returned|property") : tr("Still out")} c={x.returnedOn ? GR : OR} />
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>
+              {!x.returnedOn && <Btn t={t} v="ghost" data-property-return={x.id} onClick={() => setReturning(x)} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Mark returned")}</Btn>}
+            </div>
+          </div>
+          {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/hr/property/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
+        </div>))}
+    </div>
+    {win && <IssuePropertyWindow af={af} t={t} userId={userId} sites={sites} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("Property issue saved.")); load(); }} />}
+    {returning && <ReturnPropertyWindow af={af} t={t} issue={returning} onClose={() => setReturning(null)} onSaved={() => { setReturning(null); if (showToast) showToast(tr("Marked returned.")); load(); }} onStale={() => { setReturning(null); load(); }} />}
+  </Crd>);
+}
+// The kind, a description (needed for Other), the size for a uniform, how many (1 to 20), the site for a
+// key, a badge or a fob, the day, a note, and the person's drawing on this screen. A refusal is drawn
+// under the box its keys name, and one without keys at the top.
+const PROPERTY_FIELDS = ["kind", "description", "size", "quantity", "siteId", "issuedOn", "note", "signature"];
+function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, onSaved }) {
+  const [f, setF] = useState({ kind: "", description: "", size: "", quantity: "1", siteId: "", issuedOn: todayISO(), note: "" });
+  const [sig, setSig] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const qty = Number(f.quantity);
+  const sited = PROPERTY_SITED.indexOf(f.kind) >= 0;
+  const sized = PROPERTY_SIZED.indexOf(f.kind) >= 0;
+  const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && !!sig;
+  const bad = (k) => refusal.keys.indexOf(k) >= 0;
+  const under = (k) => (bad(k) ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (bad(k) ? { borderColor: RD } : {});
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    try {
+      await af("/api/hr/property", { method: "POST", body: { userId: String(userId), kind: f.kind, description: f.description.trim() || null, size: sized ? f.size.trim() || null : null, quantity: qty, siteId: sited ? f.siteId || null : null, issuedOn: f.issuedOn, note: f.note.trim() || null, signature: sig } });
+      onSaved();
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setRefusal({ text: e.message || tr("Request failed"), keys });
+      if (keys.indexOf("signature") >= 0) setSig("");
+    }
+    setBusy(false);
+  };
+  const choice = (on) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  const known = refusal.keys.filter(k => PROPERTY_FIELDS.indexOf(k) >= 0);
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-window="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue property")}</div>
+        {name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && known.length === 0 && <div role="alert" data-property-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("What was issued")}</Lbl>
+      <div role="group" aria-label={tr("What was issued")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {Object.keys(PROPERTY_KINDS).map(k => <button key={k} type="button" data-property-kind={k} aria-pressed={f.kind === k} onClick={() => set("kind", k)} style={choice(f.kind === k)}>{propertyKindWord(k)}</button>)}
+      </div>{under("kind")}</div>
+    {f.kind && <div style={{ marginBottom: 12 }}><Lbl>{f.kind === "other" ? tr("Description") : tr("Description (optional)")}</Lbl>
+      <Inp t={t} aria-label={f.kind === "other" ? tr("Description") : tr("Description (optional)")} data-property-field="description" value={f.description} onChange={e => set("description", e.target.value)} maxLength={200} placeholder={f.kind === "key" ? tr("Which door or closet") : ""} style={box("description")} />{under("description")}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
+      {sized && <div><Lbl>{tr("Size")}</Lbl><Inp t={t} aria-label={tr("Size")} data-property-field="size" value={f.size} onChange={e => set("size", e.target.value)} maxLength={40} style={box("size")} />{under("size")}</div>}
+      <div><Lbl>{tr("Quantity")}</Lbl><Inp t={t} type="number" min="1" max="20" step="1" aria-label={tr("Quantity")} data-property-field="quantity" value={f.quantity} onChange={e => set("quantity", e.target.value)} style={box("quantity")} />{under("quantity")}</div>
+      <div><Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" aria-label={tr("Date")} data-property-field="issuedOn" value={f.issuedOn} onChange={e => set("issuedOn", e.target.value)} style={box("issuedOn")} />{under("issuedOn")}</div>
+    </div>
+    {sited && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
+      <Sel t={t} aria-label={tr("Site")} data-property-field="siteId" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
+    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+      : <SignatureBox t={t} label={name ? tr("{0} signs for what they received", name) : tr("The person signs for what they received")} busy={busy} refusal={bad("signature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-property-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// The day it came back and a note. Returned already (property.alreadyReturned) closes the window and
+// reads the list again.
+function ReturnPropertyWindow({ af, t, issue, onClose, onSaved, onStale }) {
+  const [f, setF] = useState({ returnedOn: todayISO(), note: "" });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const save = async () => {
+    if (busy || !f.returnedOn) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    try { await af("/api/hr/property/" + encodeURIComponent(issue.id) + "/return", { method: "POST", body: { returnedOn: f.returnedOn, note: f.note.trim() || null } }); onSaved(); }
+    catch (e) {
+      if (e && (e.code === "property.alreadyReturned" || e.code === "property.notFound")) { onStale(); return; }
+      setRefusal({ text: e.message || tr("Request failed"), keys: e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [] });
+    }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-return-window="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Mark returned")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12, overflowWrap: "anywhere" }}>{propertyLine(issue)}</div>
+    {refusal.text && refusal.keys.filter(k => k === "returnedOn" || k === "note").length === 0 && <div role="alert" data-property-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12, maxWidth: 220 }}><Lbl>{tr("Returned on")}</Lbl><Inp t={t} type="date" aria-label={tr("Returned on")} value={f.returnedOn} onChange={e => setF(p => ({ ...p, returnedOn: e.target.value }))} />{under("returnedOn")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => setF(p => ({ ...p, note: e.target.value }))} placeholder={tr("Optional.")} maxLength={2000} />{under("note")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-property-return-save="" onClick={save} disabled={busy || !f.returnedOn} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Mark returned")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// What a person still holds, for the End employment window: the employment answer's openProperty when
+// the API sends it there, else GET /api/hr/property?userId=&open=true; null until either answers.
+function useOpenProperty(af, userId, known, on) {
+  const [read, setRead] = useState(null);
+  const given = known && Array.isArray(known.openProperty) ? known.openProperty : null;
+  useEffect(() => {
+    if (!on || given) return undefined;
+    let alive = true;
+    af("/api/hr/property?userId=" + encodeURIComponent(userId) + "&open=true").then(d => { if (alive) setRead(propertyIssues(d)); }).catch(() => { if (alive) setRead(null); });
+    return () => { alive = false; };
+  }, [af, userId, on, given]);
+  return given || read;
+}
+
+// A training attempt voided by an admin, with the reason (1 to 500 characters), at
+// POST /api/training/attempts/:id/void. The record it wrote is removed with it.
+function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const send = async () => {
+    if (busy || !reason.trim()) return;
+    setBusy(true); setRefusal("");
+    try { await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/void", { method: "POST", body: { reason: reason.trim() } }); onDone(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-attempt-void-window={attempt.id}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Void this attempt")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{[attempt.topicName, attempt.attemptNo != null ? tr("Try {0}", attempt.attemptNo) : ""].filter(Boolean).join(" . ")}</div>
+    <div style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("The training record written from it is removed with it. Why is it being voided?")}</div>
+    <TArea t={t} rows={3} maxLength={500} aria-label={tr("Reason")} data-attempt-void-reason="" value={reason} onChange={e => setReason(e.target.value)} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("{0} of 500", reason.length)}</div>
+    {refusal && <div role="alert" data-attempt-void-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-attempt-void-send="" onClick={send} disabled={busy || !reason.trim()} style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Void|attempt")}</Btn>
+    </div>
+  </div></Mdl>);
 }
