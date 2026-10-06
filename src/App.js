@@ -1320,7 +1320,9 @@ function SecondStepForm({ t, second, onDone, onBack }) {
 
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
-const DataTable = ({ columns, rows, rowKey, onRowClick, empty = tr("No records found."), footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
+// A table wider than its card scrolls inside the card. Its headers wrap between words when the room
+// runs short, so a long Spanish header does not hold its column wider than what it heads (Step 284).
+const DataTable = ({ columns, rows, rowKey, onRowClick, empty = tr("No records found."), footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "normal", verticalAlign: "bottom", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
 
 const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Showing {0} to {1} of {2}", from, to, total)}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>{tr("Prev")}</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>{tr("Page {0} / {1}", cur, totalPages)}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>{tr("Next")}</button></div></div>; };
 
@@ -2573,11 +2575,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
         { header: tr("Phone"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "-" },
-        { header: tr("Status"), render: s => (onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />) },
-        // Step 284: each person's sign-in once the API's answer carries it, with Unlock where locked.
-        ...(items.some(signInOf) ? [{ header: tr("Sign-in"), tdStyle: { minWidth: 130 }, render: s => (signInOf(s) ? <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><SignInState t={t} si={signInOf(s)} />{signInOf(s).lockedUntil && canChange(s) ? <button onClick={e => { e.stopPropagation(); unlock(s.id); }} disabled={!!unlocking} data-staff-unlock={s.id} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Unlock")}</button> : null}</div> : null) }] : []),
-        { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleOf(s.role) },
-        { header: tr("Employment"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
+        // Step 284: each person's sign-in under their status once the API's answer carries it, with Unlock
+        // where locked; in the Status column, so the list stays inside its card at 1280.
+        { header: tr("Status"), tdStyle: { minWidth: 110 }, render: s => { const si = signInOf(s); const badge = onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />; return si ? <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><span>{badge}</span><SignInState t={t} si={si} />{si.lockedUntil && canChange(s) ? <button onClick={e => { e.stopPropagation(); unlock(s.id); }} disabled={!!unlocking} data-staff-unlock={s.id} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Unlock")}</button> : null}</div> : badge; } },
+        { header: tr("Role"), tdStyle: { color: t.textSec }, render: s => roleOf(s.role) },
+        { header: tr("Employment"), tdStyle: { color: t.textSec }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
         { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
@@ -3280,8 +3282,10 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>
       </Crd>
 
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
-        {tabs.map(tab => <button key={tab.k} onClick={() => setSiteTab(tab.k)} style={{ padding: "7px 14px", borderRadius: 8, border: siteTab === tab.k ? "1px solid " + GO : "1px solid transparent", background: siteTab === tab.k ? t.goldBg : "transparent", color: siteTab === tab.k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tab.l}</button>)}
+      {/* Each tab keeps its words whole and the strip wraps onto a second row, so a long Spanish tab
+          never runs over its neighbor or past the window (Step 284). */}
+      <div data-site-tabs="" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
+        {tabs.map(tab => <button key={tab.k} onClick={() => setSiteTab(tab.k)} data-site-tab={tab.k} style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 8, border: siteTab === tab.k ? "1px solid " + GO : "1px solid transparent", background: siteTab === tab.k ? t.goldBg : "transparent", color: siteTab === tab.k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tab.l}</button>)}
       </div>
 
       {/* GENERAL INFO TAB */}
@@ -3780,7 +3784,8 @@ function requestClock(state, at, doneWord) {
   if (state === "onTime") return { text: irWhen(at), color: null, state };
   return { text: at ? irWhen(at) : tr("No target"), color: null, state: state || "none" };
 }
-const ClockCell = ({ t, cell, name }) => <span data-request-clock={name} data-due-state={cell.state} style={{ color: cell.color || t.textSec, fontWeight: cell.color ? 600 : 400, whiteSpace: "nowrap" }}>{cell.text}</span>;
+// A clock's words wrap between words, so Client requests stays inside its card at 1280 (Step 284).
+const ClockCell = ({ t, cell, name }) => <span data-request-clock={name} data-due-state={cell.state} style={{ display: "inline-block", minWidth: 96, color: cell.color || t.textSec, fontWeight: cell.color ? 600 : 400 }}>{cell.text}</span>;
 const requestRespond = (r) => requestClock(r.respondState, r.respondBy, tr("Responded|request"));
 const requestDue = (r) => requestClock(r.dueState, r.dueAt, tr("Done|request"));
 const requestWhere = (r) => [r.categoryTitle || r.category, r.area].filter(Boolean).join(", ");
@@ -4049,7 +4054,7 @@ function ClientRequestsTab({ af, t, sites = [], canViewReports = false, route = 
   const columns = [
     { header: tr("Respond"), render: r => <ClockCell t={t} cell={requestRespond(r)} name="respond" /> },
     { header: tr("Due"), render: r => <ClockCell t={t} cell={requestDue(r)} name="due" /> },
-    { header: tr("Request"), tdStyle: { minWidth: 220 }, render: r => <span style={{ fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{requestWhere(r)}</span> },
+    { header: tr("Request"), tdStyle: { minWidth: 170 }, render: r => <span style={{ fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{requestWhere(r)}</span> },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || "--" },
     { header: tr("Status"), render: r => <Bdg l={requestStatusWord(r.status)} c={requestStatusColor(r.status, t)} /> },
     { header: tr("Reports|requests"), align: "right", tdStyle: { color: t.textSec }, render: r => (Number(r.reportsCount) > 1 ? Number(r.reportsCount) : "") },
@@ -4203,6 +4208,17 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
     openedRouteRef.current = routeId;
     openIssue(row || { id: routeId, status: "" });
   }, [routeId, issues, findingsOn]);
+  // On a fresh load the list can answer before the findings probe does, and a ticket opened from its
+  // address then has no view to offer Verify from. It is read whole once the probe answers (Step 284).
+  const selRef = useRef(null); selRef.current = sel;
+  useEffect(() => {
+    if (!findingsOn) return undefined;
+    const cur = selRef.current;
+    if (!cur || cur.id == null) return undefined;
+    let alive = true;
+    af("/api/issues/" + encodeURIComponent(cur.id)).then(d => { if (alive && d && d.issue && selRef.current && String(selRef.current.id) === String(cur.id)) { setView(d.issue); setStatusDraft(d.issue.status || ""); } }).catch(e => console.warn("Issue:", e.message));
+    return () => { alive = false; };
+  }, [findingsOn]);
   const doVerify = async () => {
     if (verifyRef.current || !sel) return;
     verifyRef.current = true; setVerify(v => ({ ...v, busy: true, refusal: "" }));
@@ -4724,14 +4740,16 @@ const wsProjectOf = (p) => {
     role: m.role === "owner" ? "owner" : "member", emailCopies: wsAt(m, "emailCopies", "email_copies") == null ? null : wsAt(m, "emailCopies", "email_copies") !== false,
   })).filter(m => m.id);
   const own = wsAt(p, "emailCopies", "email_copies") != null ? wsAt(p, "emailCopies", "email_copies") : (p.me && typeof p.me === "object" ? wsAt(p.me, "emailCopies", "email_copies") : null);
+  // The API's latest is { post, todo, file }, each the newest one or null (helpers/workspace.js; Step 284).
   const latest = p.latest && typeof p.latest === "object" ? p.latest : {};
   const arr = (...vs) => { for (const v of vs) { if (Array.isArray(v)) return v; } return []; };
+  const one = (v) => (v && typeof v === "object" ? [v] : null);
   return {
     id: String(p.id), name: String(p.name || ""), description: String(p.description || ""), color: wsColor(p.color),
     archived: p.status === "archived" || !!wsAt(p, "archivedAt", "archived_at"),
     members,
     counts: p.counts && typeof p.counts === "object" ? p.counts : {},
-    latest: { posts: arr(latest.posts, p.latestPosts), todos: arr(latest.todos, p.latestTodos), files: arr(latest.files, p.latestFiles), messages: arr(latest.messages, latest.chat, p.latestMessages) },
+    latest: { posts: one(latest.post) || arr(latest.posts, p.latestPosts), todos: one(latest.todo) || arr(latest.todos, p.latestTodos), files: one(latest.file) || arr(latest.files, p.latestFiles), messages: arr(latest.messages, latest.chat, p.latestMessages) },
     // Step 234 v2's project answer carries no latest items, so the cards read them from the tools.
     hasLatest: !!(p.latest || p.latestPosts || p.latestTodos || p.latestFiles),
     myCopies: own == null ? null : own !== false,
@@ -5639,7 +5657,7 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
     <Crd t={t} style={{ padding: activity && activity.length ? "4px 16px" : 16 }}>
       {activity === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Activity did not load.")}</div>
         : activity.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing has happened here yet.")}</div>
-        : <div data-project-activity="">{activity.map((a, i) => { const who = wsPerson(wsAt(a, "actor", "user", "actorName", "actor_name"), p.members); return (
+        : <div data-project-activity="">{activity.map((a, i) => { const named = wsAt(a, "actorName", "actor_name"); const who = named ? { id: String(wsAt(a, "actorId", "actor_id") || ""), name: String(named) } : wsPerson(wsAt(a, "actor", "user"), p.members); return (
           <div key={a.id || i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
             <Ini name={(who && who.name) || "?"} sz={28} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -5686,10 +5704,10 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
 // /api/users/me/permissions to name the capability, which no role holds by default. A search by people,
 // a channel, a date range and words reads GET /api/chat/records, every matching message from every
 // kind of channel, oldest first, up to 2,000; Download PDF reads /api/chat/records/pdf with the same
-// filters. Every search and every PDF is recorded, and the screen says so above the search. The
-// contract names no route for that log: the records answer's log is read when it carries one, and
-// otherwise GET /api/activity's chat_records_read and chat_records_pdf rows, which the API lets an
-// admin read.
+// filters. Every search and every PDF is recorded, and the screen says so above the search. The API
+// answers { records, count, more, limit } (helpers/chatRecords.js), and the record of searches is GET
+// /api/chat/records/log, { log: [{ actorName, action, filters, count, createdAt }] }, newest first
+// (Step 284; the activity log it was read from before is an admin's alone).
 const recWhen = (v) => { if (!v) return ""; const d = new Date(v); return isNaN(d.getTime()) ? "" : d.toLocaleString(localeTag(), { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
 const recQuery = (f) => {
   const sp = new URLSearchParams();
@@ -5715,13 +5733,10 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
   useEffect(() => { af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.id != null))).catch(e => console.warn("Channels:", e.message)); }, [af]);
   const people = useMemo(() => (Array.isArray(allStaff) ? allStaff : []).filter(p => p && p.id != null).map(p => ({ id: String(p.id), name: ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || String(p.name || "") })).filter(p => p.name).sort((a, b) => a.name.localeCompare(b.name)), [allStaff]);
   const nameOf = (id) => ((people.find(p => p.id === String(id)) || {}).name) || String(id);
-  const loadLog = useCallback(async (fromAnswer) => {
-    if (Array.isArray(fromAnswer)) { setLog(fromAnswer); setLogFailed(false); return; }
+  const loadLog = useCallback(async () => {
     try {
-      const [a, b] = await Promise.all([af("/api/activity?action_type=chat_records_read&limit=50"), af("/api/activity?action_type=chat_records_pdf&limit=50")]);
-      const rows = [].concat(a && Array.isArray(a.results) ? a.results : [], b && Array.isArray(b.results) ? b.results : []);
-      rows.sort((x, y) => String(wsAt(y, "created_at", "createdAt", "at") || "").localeCompare(String(wsAt(x, "created_at", "createdAt", "at") || "")));
-      setLog(rows.slice(0, 50)); setLogFailed(false);
+      const d = await af("/api/chat/records/log?limit=50");
+      setLog(d && Array.isArray(d.log) ? d.log : []); setLogFailed(false);
     } catch (e) { setLog(null); setLogFailed(true); console.warn("Chat records log:", e.message); }
   }, [af]);
   useEffect(() => { loadLog(); }, [loadLog]);
@@ -5731,9 +5746,9 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
     const qs = recQuery(f);
     try {
       const d = await af("/api/chat/records" + qs);
-      setResult({ messages: wsList(d, "messages") || [], more: !!(d && (d.more || d.truncated)), total: d && d.total != null ? Number(d.total) : null });
+      setResult({ messages: d && Array.isArray(d.records) ? d.records : [], more: !!(d && d.more), total: d && d.count != null ? Number(d.count) : null });
       setRan(qs);
-      loadLog(d && Array.isArray(d.log) ? d.log : undefined);
+      loadLog();
     } catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
@@ -5781,7 +5796,7 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
       </div>
     </Crd>
     {result && <div data-records-result="" style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{trn("{0} messages|count", result.total != null ? result.total : result.messages.length)}</div>
+      <div data-records-count={result.total != null ? result.total : result.messages.length} style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{trn("{0} messages|count", result.total != null ? result.total : result.messages.length)}</div>
       {result.more && <div style={{ fontSize: 12, color: OR, marginBottom: 8 }}>{tr("Only the first 2,000 are shown. Narrow the search to see the rest.")}</div>}
       <DataTable t={t} columns={cols} rows={result.messages} rowKey={m => String(m.id)} empty={tr("No messages match.")} />
     </div>}
@@ -5790,11 +5805,11 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
       {logFailed ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("The record of searches did not load.")}</div>
         : log === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
         : log.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No searches yet.")}</div>
-        : <div data-records-log="">{log.map((r, i) => { const det = r.details || r.metadata || r.meta || {}; const pdfRow = /pdf/.test(String(wsAt(r, "action_type", "actionType", "action") || "")); const cnt = det.count != null ? Number(det.count) : null; return (
+        : <div data-records-log="">{log.map((r, i) => { const pdfRow = /pdf/.test(String(r.action || "")); const cnt = r.count != null ? Number(r.count) : null; return (
           <div key={r.id || i} style={{ padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
-            <div style={{ fontSize: 13, color: t.text }}><span style={{ fontWeight: 600 }}>{String(wsAt(r, "actor_name", "actorName") || wsNameOf(r.actor) || "")}</span> {pdfRow ? tr("downloaded a PDF") : tr("searched")}{cnt != null ? ", " + trn("{0} messages|count", cnt) : ""}</div>
-            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{filtersLine(det.filters || det)}</div>
-            <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{recWhen(wsAt(r, "created_at", "createdAt", "at"))}</div>
+            <div style={{ fontSize: 13, color: t.text }}><span style={{ fontWeight: 600 }}>{String(r.actorName || "")}</span> {pdfRow ? tr("downloaded a PDF") : tr("searched")}{cnt != null ? ", " + trn("{0} messages|count", cnt) : ""}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{filtersLine(r.filters)}</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{recWhen(r.createdAt)}</div>
           </div>); })}</div>}
     </Crd>
   </div>);
@@ -9570,7 +9585,7 @@ function EquipmentRegister({ af, token, t, sites = [], showToast }) {
   const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
   const cols = [
     { header: "", tdStyle: { width: 44 }, render: x => (x.status === "retired" ? null : <label onClick={e => e.stopPropagation()} style={{ ...chkWrap, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><input type="checkbox" aria-label={tr("Tick {0} for labels", x.name || "")} checked={ticked.has(String(x.id))} onChange={() => tick(String(x.id))} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></label>) },
-    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ fontWeight: 600, color: t.text }}>{x.name}</span>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).length ? <div style={{ fontSize: 11, color: t.textMut }}>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div> : null}</span>) },
+    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => { const under = [equipmentCategoryWord(x.category), [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean); return (<span><span style={{ fontWeight: 600, color: t.text }}>{x.name}</span>{under.length ? <div data-equipment-category={x.category || ""} style={{ fontSize: 11, color: t.textMut }}>{under.join(", ")}</div> : null}</span>); } },
     { header: tr("Site"), tdStyle: { color: t.textSec, minWidth: 120 }, render: x => x.siteName || siteName(x.siteId) || "--" },
     { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: x => <EquipmentChip status={x.status} /> },
     { header: tr("Next service"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.nextServiceOn ? <span style={{ color: equipmentDue(x, today) ? RD : t.textSec, fontWeight: equipmentDue(x, today) ? 600 : 400 }}>{keptDay(x.nextServiceOn)}</span> : <span style={{ color: t.textMut }}>--</span>) },
@@ -9604,6 +9619,11 @@ function EquipmentRegister({ af, token, t, sites = [], showToast }) {
 // Add an item, or change one. A refusal is drawn under the box its keys name, and one without keys at
 // the top.
 const EQUIPMENT_FIELDS = ["siteId", "name", "category", "make", "model", "serial", "purchasedOn", "serviceEveryDays", "lastServiceOn", "notes"];
+// An item's type is one of the API's category codes (helpers/equipment.js), which the API sends with no
+// words of its own; anything else it refuses (Step 284). A new item with none is filed as other.
+const EQUIPMENT_CATEGORIES = ["vacuum", "carpet_extractor", "autoscrubber", "floor_machine", "blower_grounds", "pressure_washer", "other"];
+const EQUIPMENT_CATEGORY_WORDS = { vacuum: "Vacuum", carpet_extractor: "Carpet extractor", autoscrubber: "Auto scrubber", floor_machine: "Floor machine", blower_grounds: "Blower or grounds equipment", pressure_washer: "Pressure washer", other: "Other|equipment" };
+const equipmentCategoryWord = (c) => (c && EQUIPMENT_CATEGORY_WORDS[c] ? tr(EQUIPMENT_CATEGORY_WORDS[c]) : c ? String(c) : "");
 function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
   const [f, setF] = useState(() => {
     const x = item || {};
@@ -9621,7 +9641,7 @@ function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
   const save = async () => {
     if (busy || !ready) return;
     setBusy(true); setRefusal({ text: "", keys: [] });
-    const body = { name: f.name.trim(), category: f.category.trim() || null, make: f.make.trim() || null, model: f.model.trim() || null, serial: f.serial.trim() || null, purchasedOn: f.purchasedOn || null, serviceEveryDays: every ? Number(every) : null, notes: f.notes.trim() || null };
+    const body = { name: f.name.trim(), category: f.category || null, make: f.make.trim() || null, model: f.model.trim() || null, serial: f.serial.trim() || null, purchasedOn: f.purchasedOn || null, serviceEveryDays: every ? Number(every) : null, notes: f.notes.trim() || null };
     if (!item) { body.siteId = f.siteId; body.lastServiceOn = f.lastServiceOn || null; }
     try {
       const d = await af("/api/equipment" + (item ? "/" + encodeURIComponent(item.id) : ""), { method: item ? "PATCH" : "POST", body });
@@ -9644,7 +9664,7 @@ function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
     <div style={{ marginBottom: 12 }}>{field("name", tr("Name"), { maxLength: 120, placeholder: tr("e.g. {0}", tr("Floor scrubber 2")) })}</div>
     {!item && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={grid}>
-      {field("category", tr("Type"), { maxLength: 80, placeholder: tr("e.g. {0}", tr("Auto scrubber")) })}
+      <div><Lbl>{tr("Type")}</Lbl><Sel t={t} aria-label={tr("Type")} data-equipment-type="" value={f.category} onChange={e => set("category", e.target.value)} options={(f.category && EQUIPMENT_CATEGORIES.indexOf(f.category) < 0 ? [{ v: f.category, l: f.category }] : []).concat([{ v: "", l: tr("Select...") }], EQUIPMENT_CATEGORIES.map(c => ({ v: c, l: equipmentCategoryWord(c) })))} style={box("category")} />{under("category")}</div>
       {field("make", tr("Make"), { maxLength: 80 })}
       {field("model", tr("Model"), { maxLength: 80 })}
       {field("serial", tr("Serial number"), { maxLength: 80 })}
@@ -9700,7 +9720,7 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
         {x.status !== "retired" && <Btn t={t} v="ghost" onClick={() => setEditing(true)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
-        {fact(tr("Type"), x.category)}
+        {fact(tr("Type"), equipmentCategoryWord(x.category))}
         {fact(tr("Make"), x.make)}
         {fact(tr("Model"), x.model)}
         {fact(tr("Serial number"), x.serial)}
@@ -14184,6 +14204,8 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
   estRef.current = est;
   const calcSeq = useRef(0);
   // The plans taken from this quote, from GET /api/quotes/:id, or null while the answer carries none.
+  // The API answers { quote, plans }, plans beside the quote (routes/quotes.js; Step 284).
+  const plansOf = (d) => (d && Array.isArray(d.plans) ? d.plans : d && d.quote && Array.isArray(d.quote.plans) ? d.quote.plans : null);
   const [plans, setPlans] = useState(null);
   const [planNote, setPlanNote] = useState("");
   const [planBusy, setPlanBusy] = useState(false);
@@ -14191,7 +14213,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
   const [planSame, setPlanSame] = useState(false);
   const planBusyRef = useRef(false);
   const readPlans = useCallback((quoteId) => {
-    af("/api/quotes/" + encodeURIComponent(quoteId)).then(d => { if (d && d.quote && Array.isArray(d.quote.plans)) setPlans(d.quote.plans); }).catch(e => console.warn("Quote plans:", e.message));
+    af("/api/quotes/" + encodeURIComponent(quoteId)).then(d => { const got = plansOf(d); if (got) setPlans(got); }).catch(e => console.warn("Quote plans:", e.message));
   }, [af]);
   // A new quote opened from a site's Workload plan tab starts with that site picked; the client, the
   // site name and the address fill from it on save, as they do for any site picked.
@@ -14219,7 +14241,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
         const q = d && d.quote;
         if (!q) throw new Error(tr("This did not load."));
         setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs));
-        setPlans(Array.isArray(q.plans) ? q.plans : null);
+        setPlans(plansOf(d));
         setCalc({ inputs: q.inputs, results: q.results || {}, taskHours: q.taskHours || {}, checks: q.checks || [], taskDetail: null });
         // The saved quote carries no task detail, so the figures are worked once for the quantities
         // and the counts the Workload step shows.
@@ -14281,7 +14303,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
       if (showToast) showToast(tr("Quote saved."));
       if (isNew) { setQid(q.id); if (onCreated) onCreated(q.id); }
       // A save makes a current plan taken from the quote stale, and the plans are read again.
-      if (Array.isArray(q.plans)) setPlans(q.plans); else readPlans(q.id);
+      if (plansOf(r)) setPlans(plansOf(r)); else readPlans(q.id);
     } catch (e) {
       const keys = quoteKeysOf(e);
       setRefusal({ text: e.message || tr("Request failed"), keys, code: e.code });
@@ -14697,7 +14719,7 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
           <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{tr("Quote defaults")}</div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The starting values every new quote takes. A box left empty takes the model's own value, shown greyed. A quote already made keeps its own values.")}</div>
           {listsOn && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The equipment, supplies and other direct costs lists start every new quote with the rows set here, or with none.")}</div>}
-          {held && held.updatedAt && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{who ? tr("Last saved by {0} on {1}.", who, irWhen(held.updatedAt)) : tr("Last saved on {0}.", irWhen(held.updatedAt))}</div>}
+          {held && held.updatedAt && <div data-quote-defaults-saved="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{oneStop(who ? tr("Last saved by {0} on {1}.", who, irWhen(held.updatedAt)) : tr("Last saved on {0}.", irWhen(held.updatedAt)))}</div>}
         </div>
         <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
       </div>
@@ -16133,6 +16155,9 @@ const irSentLine = (d) => tr("Sent again: {0} and {1}, {2}.",
   (d && d.attached) ? tr("with the PDF attached") : tr("with a link to the app"));
 const irWhen = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
+// A sentence that ends on a time or a short month ends in one period: a Spanish time ends in p.m.
+// and a Spanish short month in a period of its own, so the sentence's period would make two (Step 284).
+const oneStop = (x) => String(x).replace(/\.{2,}$/, ".");
 
 // ===== PHOTOS ON A FORM (Step 165) =====
 // A photos question carries the photos the API holds for it, [{ id, name, bytes, uploadedAt }], and
@@ -23756,7 +23781,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
     { header: tr("Per site"), tdStyle: { color: t.textSec }, render: tp => (tp.perSite ? tr("Yes") : "") },
     { header: tr("Safety critical"), render: tp => (tp.safetyCritical ? <Bdg l={tr("Safety critical")} c={RD} /> : null) },
     { header: tr("Course link"), render: tp => (courseLinkOf(tp.linkUrl) ? <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a> : null) },
-    { header: tr("Who it is for"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 160 }, render: tp => topicWhoLine(tp) || <span style={{ color: t.textMut }}>{tr("Nobody yet")}</span> },
+    { header: tr("Who it is for"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: tp => topicWhoLine(tp) || <span style={{ color: t.textMut }}>{tr("Nobody yet")}</span> },
   ];
   const arrow = { minHeight: 44, minWidth: 44, padding: "0 10px", background: "none", border: "1px solid " + t.border, borderRadius: R.sm, color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
   const orderColumn = (g) => ({ header: tr("Order|topic"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: tp => {
@@ -24325,8 +24350,9 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
 // cell. Download CSV saves format=csv; Print gives the grid on landscape letter paper with the day.
 // Management reads it; a supervisor is held to their own sites, which the Site choice lists from the
 // assignments GET /api/auth/me answers.
+// The same words Gaps reads for the same codes (Step 284).
 const MATRIX_STATUSES = [
-  { v: "current", l: "Done|training" }, { v: "dueSoon", l: "Expires soon" }, { v: "refresherDue", l: "Refresher due" },
+  { v: "current", l: "Current|training" }, { v: "dueSoon", l: "Due soon|training" }, { v: "refresherDue", l: "Refresher due" },
   { v: "missing", l: "Missing|training" }, { v: "expired", l: "Expired|training" }, { v: "inProgress", l: "In progress|training" }, { v: "awaitingTrainer", l: "Waiting for trainer" },
 ];
 const matrixStatusWord = (s) => { const x = MATRIX_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };

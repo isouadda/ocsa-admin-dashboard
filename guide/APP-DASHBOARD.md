@@ -555,11 +555,11 @@ Who can do this: any supervisor or admin other than the person who raised it
 4. **Sign** (**Firmar**) beside **Closed** (**Cerrada**) appears only when every required question is answered; pressed early, the answer names what is still empty. It signs once.
 5. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 6. **Linked findings** (**Hallazgos vinculados**) lists the inspection findings this action covers, and **Tell the client** (**Informar al cliente**) sends the client what was done once the verification is answered; see the entries on linking findings to a corrective action and on telling the client what was done.
-The tables **What was completed** (**Qué se concluyó**) and **Actions confirmed in place** (**Acciones confirmadas en su lugar**) take rows with **Add row** (**Agregar fila**), one per action, and **Remove row** (**Quitar fila**) takes one out; the five parts of the section sit under their own headings, **Approval** (**Aprobación**), **Completion** (**Conclusión**), **Verification** (**Verificación**), **Effectiveness check** (**Comprobación de eficacia**) and **Closure** (**Cierre**).
+The table **What was completed** (**Qué se concluyó**) takes rows with **Add row** (**Agregar fila**), one per action, and **Remove row** (**Quitar fila**) takes one out. **Actions confirmed in place** (**Acciones confirmadas en su lugar**) is a choice of one: **Yes** (**Sí**), **Partly** (**En parte**) or **No** (**No**). The five parts of the section sit under their own headings, **Approval** (**Aprobación**), **Completion** (**Conclusión**), **Verification** (**Verificación**), **Effectiveness check** (**Comprobación de eficacia**) and **Closure** (**Cierre**).
 If it does not work: the person who raised the action is refused both the section and the sign-off.
 Words people use for this: close a corrective action, approve a corrective action, effectiveness check, verify an action, cerrar la acción correctiva, comprobación de eficacia.
 Picture: corrective-action-desk
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## Verify and sign an environmental audit (admin dashboard)
 Who can do this: any supervisor or admin other than the person who performed the audit
@@ -655,12 +655,12 @@ Last checked: 2026-09-28
 ## Sync the forms and their submissions from Jotform (admin dashboard)
 Who can do this: admins
 1. Click **Forms** (**Formularios**), then the **Jotform** tab, then **Maintenance** (**Mantenimiento**).
-2. Under **API Connection** (**Conexión con la API**): **Sync Form Catalog** (**Sincronizar el catálogo de formularios**) pulls the list of forms, **Sync All Submissions** (**Sincronizar todos los envíos**) pulls new and updated submissions, and **Full Refresh** (**Actualización completa**) pulls every submission again after a warning.
+2. In the **Sync Actions** (**Acciones de sincronización**) card, under **API Connection** (**Conexión con la API**): **Sync Form Catalog** (**Sincronizar el catálogo de formularios**) pulls the list of forms, **Sync All Submissions** (**Sincronizar todos los envíos**) pulls new and updated submissions, and **Full Refresh** (**Actualización completa**) pulls every submission again after a warning.
 3. One form's submissions come in with **Pull** (**Traer**) on its row under **Forms** (**Formularios**) inside the Jotform tab.
 4. **Recent Sync Log** (**Registro de sincronizaciones recientes**) sits under the buttons.
 Words people use for this: jotform, sync forms, pull submissions, applications from jotform, onboarding paperwork, full refresh.
 Picture: jotform-maintenance
-Last checked: 2026-09-28
+Last checked: 2026-10-06
 
 ## Find the Jotform tools (admin dashboard)
 Who can do this: admins
@@ -824,14 +824,14 @@ Last checked: 2026-09-28
 
 ## Send an announcement to staff phones (admin dashboard)
 Who can do this: admins, and anyone given the announcements permission
-1. Click **Announcements** (**Anuncios**) in the side panel, then **New announcement** (**Nuevo anuncio**).
+1. Click **Announcements** (**Anuncios**) in the side panel. The **New announcement** (**Nuevo anuncio**) card is at the top of the page.
 2. Write the **Title** (**Título**), up to 60 characters, and the **Message** (**Mensaje**), up to 500. Write it once, in English or Spanish; each person gets it in their own language.
 3. Under **Send to** (**Enviar a**), choose **Everyone** (**Todos**), **One site's people** (**El personal de un sitio**) with a site, **A role** (**Un rol**) with a role, or **Chosen people** (**Personas elegidas**).
 4. The line under it says how many people it reaches and how many have phone alerts on. Click **Send announcement** (**Enviar anuncio**).
 5. It lands in each person's bell and on every phone they turned alerts on. The list under **Sent** (**Enviados**) keeps each one with who sent it, when, and the counts. An announcement cannot be edited or taken back once sent.
 Words people use for this: send a message to everyone, push notification, announcement, alert all staff, tell a site, enviar un anuncio.
 Picture: announcement-new
-Last checked: 2026-09-28
+Last checked: 2026-10-06
 
 ## Choose what alerts your phone (admin dashboard)
 Who can do this: anyone signed in
@@ -1348,7 +1348,7 @@ Last checked: 2026-10-01
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**), then the person on the **Employees** (**Personal**) tab.
 2. On the **Disciplinary** (**Disciplinario**) card, click **Issue a warning** (**Emitir una advertencia**). From a case about the person, open it on **Cases** (**Casos**) and click **Issue a warning** (**Emitir una advertencia**) there.
-3. Choose **Verbal warning** (**Advertencia verbal**) under **Step** (**Paso**). The step shown first follows the person's record, and any step can be chosen.
+3. Choose **Verbal warning** (**Amonestación verbal**) under **Step** (**Paso**). The step shown first follows the person's record, and any step can be chosen.
 4. Choose the **Category** (**Categoría**), and fill in the **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**). **Leave out any medical detail.** (**No incluya ningún detalle médico.**)
 5. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**) A Yes needs the date in **Discussed with the Controller on** (**Consultado con el Contralor el**).
 6. Choose the **Language of the warning** (**Idioma de la advertencia**), the language the person reads.
@@ -1357,12 +1357,12 @@ Who can do this: admins and supervisors
 9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
 Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
 Picture: warning-verbal-window
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## Issue a written or final written warning (admin dashboard)
 Who can do this: admins and supervisors for a written warning; admins for a final written warning
 1. Click **HR Records** (**Expedientes de personal**), open the person, and click **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
-2. Choose **Written warning** (**Advertencia por escrito**) or **Final written warning** (**Advertencia final por escrito**) under **Step** (**Paso**).
+2. Choose **Written warning** (**Amonestación por escrito**) or **Final written warning** (**Amonestación final por escrito**) under **Step** (**Paso**).
 3. Choose the **Category** (**Categoría**), and fill in the **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**). **Leave out any medical detail.** (**No incluya ningún detalle médico.**)
 4. Fill in **Policy** (**Política**) if a handbook section applies, **What must change** (**Qué debe cambiar**) and **By when** (**Para cuándo**).
 5. For a final written warning with a suspension, fill in **Suspension from** (**Suspensión desde**) and **Suspension to** (**Suspensión hasta**).
@@ -1379,14 +1379,14 @@ Last checked: 2026-10-06
 ## Issue a termination (admin dashboard)
 Who can do this: admins
 1. Click **HR Records** (**Expedientes de personal**), open the person, and click **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
-2. Choose **Termination** (**Despido**) under **Step** (**Paso**), and fill in the **Category** (**Categoría**), **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**).
+2. Choose **Termination** (**Terminación del empleo**) under **Step** (**Paso**), and fill in the **Category** (**Categoría**), **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**).
 3. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**), choose the **Language of the warning** (**Idioma de la advertencia**), and click **Save as draft** (**Guardar como borrador**).
 4. Under **Issue** (**Emitir**), draw your signature in **The issuer signs** (**Firma quien la emite**), click **Sign** (**Firmar**), then click **Issue** (**Emitir**).
 5. The **End employment** (**Terminar el empleo**) window opens with the reason let go. Fill in the **Last day** (**Último día**) and **Eligible for rehire?** (**¿Elegible para recontratación?**), and click **End employment** (**Terminar el empleo**).
 6. Send the letter to the person; see the entry on sending a warning.
 Words people use for this: fire, terminate, termination letter, let go, dismiss, final step, discipline, despido.
 Picture: warning-termination-window
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## Send a warning to the person (admin dashboard)
 Who can do this: admins and supervisors

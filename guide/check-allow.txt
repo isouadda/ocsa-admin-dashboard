@@ -30,6 +30,7 @@
 # Form wording, from the entry Move a corrective action forward and close it.
 **What was completed** (**Qu\u00e9 se concluy\u00f3**)
 **Actions confirmed in place** (**Acciones confirmadas en su lugar**)
+**Partly** (**En parte**)
 **Approval** (**Aprobaci\u00f3n**)
 **Completion** (**Conclusi\u00f3n**)
 **Effectiveness check** (**Comprobaci\u00f3n de eficacia**)
@@ -103,3 +104,10 @@
 
 # A composition: the button Publish selected ({0}) with the count filled in (Step 268).
 **Publish selected** (**Publicar seleccionados**)
+
+# The warning steps as GET /api/discipline/steps answers them in the screen's language, which the
+# Step choice draws (helpers/discipline.js), so the dashboard's CSV has no row for them.
+**Verbal warning** (**Amonestaci\u00f3n verbal**)
+**Written warning** (**Amonestaci\u00f3n por escrito**)
+**Final written warning** (**Amonestaci\u00f3n final por escrito**)
+**Termination** (**Terminaci\u00f3n del empleo**)
