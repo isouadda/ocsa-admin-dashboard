@@ -2782,7 +2782,7 @@ function createStubs() {
     id: tp.id, key: tp.key, name: tp.names[lang] || tp.names.en, names: Object.assign({ en: "", es: "", fr: "" }, tp.names), docCode: tp.docCode, docSection: tp.docSection,
     safetyCritical: tp.safetyCritical, frequency: tp.frequency, renewMonths: T_FREQ[tp.frequency] || null, dueRule: tp.dueRule, perSite: tp.perSite, evidenceForm: tp.evidenceForm,
     recordNames: tp.recordNames.slice(), linkUrl: tp.linkUrl,
-    requirements: tActiveReqs(tp).map((r) => ({ id: r.id, role: r.role || null, userId: r.userId || null, personName: r.userId ? tPersonName(r.userId) : null, serviceLine: r.serviceLine || null })),
+    requirements: tActiveReqs(tp).map((r) => Object.assign({ id: r.id, role: r.role || null, userId: r.userId || null, personName: r.userId ? tPersonName(r.userId) : null, serviceLine: r.serviceLine || null }, step270 ? { source: r.source || "manual" } : {})),
     lesson: step266 ? lessonSummary(tp) : null, active: tp.active,
   }, step266 ? topic266(tp, lang) : {});
   // A topic's fields as POST and PATCH take them, checked; the keys named on a refusal, or none.
@@ -3817,6 +3817,156 @@ function createStubs() {
         added += 1;
       }));
       return created({ added, already });
+    }
+    return base();
+  }
+
+  // Signing on their phone (STEP270_CONTRACT.md sections 2 and 3), answered only once a run arms it with
+  // setStep270, over Step 266's answers: signOnPhone on a property issue in place of the drawing, the
+  // request it opens and the signature the issue then carries; the office's list of requests, one
+  // read, Remind, Cancel and Sign here now; and the person requirement the keys on file put on the keys
+  // and access topic, which this step adds to the catalog. A warning and a PPE issue are not answered
+  // by this stub, so their requests are seeded in the list alone. Every value is invented.
+  let step270 = false;
+  const S270_WORDS = {
+    "signatures.notFound": ["That signature request was not found", "No se encontr\u00f3 esa solicitud de firma"],
+    "signatures.notOpen": ["This request is no longer waiting for a signature", "Esta solicitud ya no espera una firma"],
+    "signatures.reminderLimit": ["This request has been reminded as many times as allowed", "Esta solicitud ya se record\u00f3 el m\u00e1ximo de veces"],
+    "signatures.signatureRequired": ["Sign in the box first", "Primero firme en el recuadro"],
+    "signatures.badDetails": ["Some details are missing or not valid", "Faltan algunos datos o no son v\u00e1lidos"],
+  };
+  const r270 = (code, status, lang, extra) => ({ status, json: Object.assign({ code, error: S270_WORDS[code] ? S270_WORDS[code][lang === "es" ? 1 : 0] : code }, extra || {}) });
+  const PROPERTY_WORDS = { uniform_shirt: ["Uniform shirt", "Camisa de uniforme"], uniform_other: ["Other uniform", "Otro uniforme"], key: ["Key", "Llave"], badge: ["Badge", "Credencial"], fob: ["Fob", "Llavero electr\u00f3nico"] };
+  // The keys and access topic (section 3), with the requirement the badge below put on its holder.
+  const TOPIC_270 = () => ({ id: "tp-6", key: "site_security_access", names: tName(["Keys and access", "Llaves y acceso", "Cl\u00e9s et acc\u00e8s"]), docCode: "OCSA-TRN-906", docSection: "1", safetyCritical: false, frequency: "once", dueRule: "first_day", perSite: false, evidenceForm: null, recordNames: [], linkUrl: null, active: true,
+    category: "site_security", sortOrder: 10, signoffTopicId: null,
+    requirements: [{ id: "rq-13", userId: "u-staff-5", source: "property" }] });
+  // A badge another person was sent to sign for and sent back as not right.
+  const PROPERTY_270 = () => ({ id: "pi-4", userId: "u-staff-7", kind: "badge", description: null, size: null, quantity: 1, siteId: "s-1", issuedOn: seed.shift(-4), issuedById: seed.PEOPLE.supervisor.id, note: null, returnedOn: null, returnedToId: null, returnNote: null });
+  const REQUESTS_270 = () => [
+    { id: "sr-1", kind: "property_issue", subjectId: "pi-4", userId: "u-staff-7", state: "disputed", requestedAt: at(-4, "15:10"), requestedById: seed.PEOPLE.supervisor.id, signedAt: null, signedWhere: null, disputeNote: "This badge opens the other building, not mine.", reminders: 1, item: null, warning: null },
+    { id: "sr-2", kind: "ppe_issue", subjectId: "pp-9", userId: "u-staff-6", state: "waiting", requestedAt: at(-2, "09:30"), requestedById: seed.PEOPLE.supervisor.id, signedAt: null, signedWhere: null, disputeNote: null, reminders: 0, item: { label: "Nitrile gloves", quantity: 2, size: "M", siteId: "s-1", date: seed.shift(-2) }, warning: null },
+    { id: "sr-3", kind: "warning", subjectId: "da-9", userId: "u-staff-8", state: "waiting", requestedAt: at(-1, "16:00"), requestedById: seed.PEOPLE.admin.id, signedAt: null, signedWhere: null, disputeNote: null, reminders: 0, item: { label: "Written warning", quantity: 1, size: null, siteId: null, date: seed.shift(-1) }, warning: { level: "written", date: seed.shift(-1), summary: "Late to the shift three times in one week.", pdfUrl: null } },
+  ];
+  const requests270 = () => {
+    if (!state.requests270) {
+      state.requests270 = REQUESTS_270(); state.requestSeq = 3;
+      property().push(PROPERTY_270()); state.propertySeq = Math.max(state.propertySeq, 4);
+      topics().push(TOPIC_270()); state.topicSeq = Math.max(state.topicSeq, 6); state.reqSeq = Math.max(state.reqSeq, 13);
+    }
+    return state.requests270;
+  };
+  const siteOf270 = (id) => { const site = id ? state.sites.find((s0) => s0.id === id) : null; return site ? { id: site.id, name: site.name } : null; };
+  const itemOf270 = (r, lang) => {
+    if (r.kind === "property_issue") {
+      const x = property().find((y) => y.id === r.subjectId);
+      if (!x) return { label: "", quantity: 1, size: null, site: null, date: null };
+      return { label: x.kind === "other" ? x.description : PROPERTY_WORDS[x.kind][lang === "es" ? 1 : 0], quantity: x.quantity, size: x.size, site: siteOf270(x.siteId), date: x.issuedOn };
+    }
+    const it = r.item || {};
+    return { label: it.label, quantity: it.quantity, size: it.size, site: siteOf270(it.siteId), date: it.date };
+  };
+  const signRequestView = (r, lang) => {
+    const it = itemOf270(r, lang);
+    const es = lang === "es";
+    const title = r.kind === "warning" ? (es ? "Firme por una advertencia por escrito" : "Sign for a written warning")
+      : r.kind === "ppe_issue" ? (es ? "Firme por el EPP que recibi\u00f3" : "Sign for the PPE you received")
+      : (es ? "Firme por su " + it.label : "Sign for your " + it.label);
+    const statement = r.kind === "warning" ? (es ? "Al firmar confirmo que recib\u00ed esta advertencia. No significa que est\u00e9 de acuerdo." : "Signing confirms I received this warning. It does not mean I agree.")
+      : r.kind === "ppe_issue" ? (es ? "Recib\u00ed " + it.quantity + " " + it.label + " el " + it.date + ", y s\u00e9 c\u00f3mo usarlo y cuidarlo." : "I received " + it.quantity + " " + it.label + " on " + it.date + ", and I know how to wear it and care for it.")
+      : (es ? "Recib\u00ed " + it.quantity + " " + it.label + " el " + it.date + ". Lo cuidar\u00e9 y lo devolver\u00e9 cuando deje la empresa o cuando se me pida." : "I received " + it.quantity + " " + it.label + " on " + it.date + ". I will take care of it and return it when I leave the company or when asked.");
+    return { id: r.id, kind: r.kind, subjectId: r.subjectId, person: { id: r.userId, name: tPersonName(r.userId) }, title, statement, item: it, state: r.state, requestedAt: r.requestedAt, requestedBy: { name: tPersonName(r.requestedById) },
+      signedAt: r.signedAt, signedWhere: r.signedWhere, disputeNote: r.disputeNote, reminders: r.reminders, warning: r.warning };
+  };
+  // What a record carries about its request: the contract's five keys, and the note of a disputed one,
+  // which the chip reads from the record.
+  const signatureOf270 = (kind, subjectId) => {
+    const r = requests270().filter((x) => x.kind === kind && x.subjectId === subjectId).pop();
+    return r ? { state: r.state, requestId: r.id, requestedAt: r.requestedAt, signedAt: r.signedAt, signedWhere: r.signedWhere, disputeNote: r.disputeNote } : null;
+  };
+
+  // The routes above, ahead of Step 266's; base is the answer the stub gave before Step 270.
+  function step270Route(method, path, query, body, said, base) {
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    const b = body || {};
+    const me = person();
+    const mgmt = me.role === "admin" || me.role === "supervisor";
+    requests270();
+    // The bell holds the office's notice of the badge sent back as not right, linked to the request
+    // the way the API links it (helpers/signatureNotices.js), on a dashboard address that is not
+    // this one.
+    if (/^\/api\/notifications/.test(path) && !state.notif270) {
+      state.notif270 = true;
+      if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+      state.notifications.unshift({ id: "n-270-1", title: "A signature was sent back as not right", body: "Badge: This badge opens the other building, not mine.", subjectType: "signature_disputed", subjectId: "sr-1", link: "https://dashboard.example.invalid/signatures/sr-1", createdAt: seed.shift(0) + "T23:30:00Z", readAt: null });
+    }
+    if (path === "/api/hr/property" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.issues)) a.json.issues.forEach((x) => { const sg = signatureOf270("property_issue", x.id); if (sg) x.signature = sg; });
+      return a;
+    }
+    if (path === "/api/hr/property" && method === "POST" && b.signOnPhone === true) {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const kinds = ["uniform_shirt", "uniform_other", "key", "badge", "fob", "other"];
+      const bad = [];
+      if (!tPerson(String(b.userId || ""))) bad.push("userId");
+      if (kinds.indexOf(b.kind) < 0) bad.push("kind");
+      if (b.kind === "other" && !String(b.description || "").trim()) bad.push("description");
+      if (!Number.isInteger(b.quantity) || b.quantity < 1 || b.quantity > 20) bad.push("quantity");
+      if (b.siteId && !state.sites.some((s0) => s0.id === b.siteId)) bad.push("siteId");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.issuedOn || ""))) bad.push("issuedOn");
+      if (b.signature) bad.push("signature");
+      if (bad.length) return r262("property.badDetails", 400, lang, { keys: bad });
+      state.propertySeq += 1;
+      const x = { id: "pi-" + state.propertySeq, userId: String(b.userId), kind: b.kind, description: b.description || null, size: b.size || null, quantity: b.quantity, siteId: b.siteId || null, issuedOn: b.issuedOn, issuedById: me.id, note: b.note || null, returnedOn: null, returnedToId: null, returnNote: null };
+      property().push(x);
+      state.requestSeq += 1;
+      const r = { id: "sr-" + state.requestSeq, kind: "property_issue", subjectId: x.id, userId: x.userId, state: "waiting", requestedAt: seed.NOW_ISO, requestedById: me.id, signedAt: null, signedWhere: null, disputeNote: null, reminders: 0, item: null, warning: null };
+      requests270().push(r);
+      return created({ issue: Object.assign(propertyView(x), { signature: signatureOf270("property_issue", x.id) }), request: signRequestView(r, lang) });
+    }
+    if (path === "/api/signatures" && method === "GET") {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      // state is one of the five, open (waiting and disputed, the default) or all; the disputed first,
+      // then the oldest, as the API answers.
+      const st = query.get("state") || "open";
+      const kind = query.get("kind") || "";
+      const siteId = query.get("siteId") || "";
+      if (["waiting", "disputed", "signed", "declined", "cancelled", "open", "all"].indexOf(st) < 0) return r270("signatures.badDetails", 400, lang, { keys: ["state"] });
+      const inState = (r) => (st === "all" ? true : st === "open" ? r.state === "waiting" || r.state === "disputed" : r.state === st);
+      const rows = requests270().filter((r) => inState(r) && (!kind || r.kind === kind) && (!siteId || (itemOf270(r, lang).site || {}).id === siteId));
+      const first = (r) => (r.state === "disputed" ? 0 : 1);
+      return ok({ requests: rows.slice().sort((a, c) => first(a) - first(c) || a.requestedAt.localeCompare(c.requestedAt)).map((r) => signRequestView(r, lang)) });
+    }
+    // Who needs it saved: the rows the keys on file put there stay, whatever the set sent (section 3).
+    const rq = /^\/api\/training\/topics\/([^/]+)\/requirements$/.exec(path);
+    if (rq && method === "PUT") {
+      const a = base();
+      const tp = topics().find((x) => x.id === decodeURIComponent(rq[1]));
+      if (a && a.status === 200 && a.json && tp) { tp.requirements.forEach((r) => { if (r.source === "property") delete r.removedAt; }); a.json.topic = topicView(tp, lang); }
+      return a;
+    }
+    const sr = /^\/api\/signatures\/([^/]+)(?:\/(remind|cancel|sign-here))?$/.exec(path);
+    if (sr) {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const r = requests270().find((x) => x.id === decodeURIComponent(sr[1]));
+      if (!r) return r270("signatures.notFound", 404, lang);
+      if (!sr[2] && method === "GET") return ok({ request: signRequestView(r, lang) });
+      if (sr[2] && method === "POST") {
+        if (r.state !== "waiting" && r.state !== "disputed") return r270("signatures.notOpen", 409, lang);
+        if (sr[2] === "remind") {
+          // Remind is for a waiting request, at most twenty times in all.
+          if (r.state !== "waiting") return r270("signatures.notOpen", 409, lang);
+          if (r.reminders >= 20) return r270("signatures.reminderLimit", 409, lang);
+          r.reminders += 1;
+        } else if (sr[2] === "cancel") r.state = "cancelled";
+        else {
+          if (b.locale !== undefined && b.locale !== null && ["en", "es"].indexOf(b.locale) < 0) return r270("signatures.badDetails", 400, lang, { keys: ["locale"] });
+          if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return r270("signatures.signatureRequired", 400, lang, { keys: ["signature"] });
+          r.state = "signed"; r.signedAt = seed.NOW_ISO; r.signedWhere = "office";
+        }
+        return ok({ request: signRequestView(r, lang) });
+      }
     }
     return base();
   }
@@ -5463,7 +5613,8 @@ function createStubs() {
     const over253 = () => (step253 ? step253Route(method, path, u.searchParams, body, record.language, over250) : over250());
     const over256 = () => (step256 ? step256Route(method, path, u.searchParams, body, record.language, over253) : over253());
     const over262 = () => (step262 ? step262Route(method, path, u.searchParams, body, record.language, over256) : over256());
-    const answer = step266 ? step266Route(method, path, u.searchParams, body, record.language, over262) : over262();
+    const over266 = () => (step266 ? step266Route(method, path, u.searchParams, body, record.language, over262) : over262());
+    const answer = step270 ? step270Route(method, path, u.searchParams, body, record.language, over266) : over266();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -5530,6 +5681,8 @@ function createStubs() {
     setStep262: (v) => { step262 = v !== false; if (step262) step256 = true; },
     // The routes and keys of the API's Step 266, on or off; on brings Step 262's and 256's with it.
     setStep266: (v) => { step266 = v !== false; if (step266) { step262 = true; step256 = true; } },
+    // The routes and keys of the API's Step 270, on or off; on brings Step 266's and the rest with it.
+    setStep270: (v) => { step270 = v !== false; if (step270) { step266 = true; step262 = true; step256 = true; } },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -5582,6 +5735,7 @@ function createStubs() {
       step262 = false; state.sessions = null; state.docs262 = null; state.acks262 = null; state.cert262 = false; state.property = null; state.notif262 = false;
       // Step 266 off, and its store and assignments as they started.
       step266 = false; state.lessonImages = null; state.imageSeq = 0; state.assignments = null;
+      step270 = false; state.requests270 = null; state.requestSeq = 0; state.notif270 = false;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

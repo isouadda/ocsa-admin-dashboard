@@ -97,10 +97,14 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 // Step 265: a topic taken once, and one taken at each site, for the certificate line.
 const CERTIFICATE_TOPICS = { once: "tp-1", perSite: "tp-2" };
 const PROPERTY_PERSON = "u-staff-5";
+// Step 272's stub (Step 270): the note on the badge sent back as not right, and the keys and access
+// topic the keys on file put a person on.
+const DISPUTE_NOTE = "This badge opens the other building, not mine.";
+const KEYS_TOPIC = { en: "Keys and access", es: "Llaves y acceso" };
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all" },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all" },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all" },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all" },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor" },
 ];
 
@@ -735,6 +739,8 @@ async function step262(d, origin, p, stubs) {
     await d.page.locator("[data-property-issue]").click();
     await d.page.locator('[data-property-kind="uniform_shirt"]').click();
     await d.page.locator('[data-property-field="size"]').fill("M");
+    // Step 272: Who signs starts on Send to their phone; the box is under Sign here now.
+    if (p.step270) { await until(d, "[data-who-signs-field]"); await d.page.locator('[data-who-signs="here"]').click(); }
     await d.drawSignature();
     await d.page.locator("[data-property-window] [data-signature-box] button").first().click();
     await d.page.locator("[data-property-save]").click();
@@ -888,6 +894,89 @@ async function step266(d, origin, p, stubs) {
   });
 }
 
+// Step 272's screens, each a line, against the stub armed with setStep270 (audit/stubs.js): a key sent
+// to the person's phone with no drawing, its row waiting for the signature, Remind; the Waiting for
+// signatures tab with its Not right row and note first and Sign here now signing in the office; and
+// From a key on file in Who needs it with no Remove. The phone pass runs the first line alone.
+async function step270(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const lastCall = async (test) => { let call = null; for (let i = 0; i < 30 && !call; i++) { call = stubs.calls.filter(test).pop() || null; if (!call) await wait(100); } return call; };
+  await check("a key is sent to the person's phone with no drawing, its row waits for the signature, and Remind posts", async () => {
+    await go(d, "hr", [PROPERTY_PERSON], "[data-person-property] [data-property-row]");
+    await d.page.locator("[data-property-issue]").click();
+    await until(d, "[data-who-signs-field]");
+    if ((await d.page.locator('[data-who-signs="phone"][aria-pressed="true"]').count()) !== 1) return "Send to their phone is not the default";
+    if ((await d.page.locator("[data-property-window] [data-signature-box]").count()) !== 0) return "the box is drawn under Send to their phone";
+    await d.page.locator('[data-property-kind="key"]').click();
+    await d.page.locator('[data-property-field="siteId"]').selectOption("s-2");
+    await d.page.locator("[data-property-save]").click();
+    await d.page.locator("[data-property-window]").waitFor({ state: "detached" });
+    const call = stubs.calls.filter((c) => c.path === "/api/hr/property" && c.method === "POST").pop();
+    if (!call || call.status !== 201 || call.body.signOnPhone !== true || call.body.signature !== undefined || call.body.kind !== "key") return "the key was not sent with signOnPhone and no drawing";
+    const id = stubs.state.property[stubs.state.property.length - 1].id;
+    const chip = '[data-property-row="' + id + '"] [data-signature-state="waiting"]';
+    await d.page.locator(chip).waitFor({ timeout: 3000 }).catch(() => {});
+    if ((await d.page.locator(chip).count()) !== 1) return "the key's row does not read Waiting for signature";
+    await d.page.locator('[data-property-row="' + id + '"] [data-signature-remind]').click();
+    const remind = await lastCall((c) => /^\/api\/signatures\/[^/]+\/remind$/.test(c.path) && c.method === "POST");
+    return remind && remind.status === 200 ? "" : "Remind did not post";
+  });
+  if (p.step270 !== "all") return;
+  await check("Waiting for signatures lists the Not right request first with its note, and Sign here now signs in the office", async () => {
+    await go(d, "hr", null, '[data-hr-tab="signatures"]');
+    await d.page.locator('[data-hr-tab="signatures"]').click();
+    await until(d, "[data-signature-requests] table tbody tr");
+    const rows = await settledCount(d, "[data-signature-requests] table tbody tr");
+    if (rows < 4) return "the list draws " + rows + " rows";
+    const first = d.page.locator("[data-signature-requests] table tbody tr").first();
+    if ((await first.locator('[data-signature-state="disputed"]').count()) !== 1) return "the first row is not the Not right one";
+    if (((await first.locator("[data-signature-note]").innerText()) || "").indexOf(DISPUTE_NOTE) < 0) return "the Not right row does not carry its note";
+    if ((await first.locator("[data-signature-age]").count()) !== 1) return "the row carries no age";
+    // The key sent a moment ago is the newest waiting row, so the last.
+    await d.page.locator("[data-signature-requests] [data-signature-sign-here]").last().click();
+    await until(d, "[data-sign-here-window] [data-sign-here-statement]");
+    await d.drawSignature();
+    await d.page.locator("[data-sign-here-window] [data-signature-box] button").first().click();
+    await d.page.locator("[data-sign-here-window]").waitFor({ state: "detached" });
+    const call = await lastCall((c) => /^\/api\/signatures\/[^/]+\/sign-here$/.test(c.path) && c.method === "POST");
+    if (!call || call.status !== 200 || !/^data:image\/png/.test(String(call.body.signature || ""))) return "Sign here now did not post the drawing";
+    for (let i = 0; i < 30 && (await d.page.locator("[data-signature-requests] table tbody tr").count()) !== rows - 1; i++) await wait(100);
+    return (await d.page.locator("[data-signature-requests] table tbody tr").count()) === rows - 1 ? "" : "the signed request is still listed under Open";
+  });
+  await check("the address #hr/signatures/<id> opens Waiting for signatures with the Not right request open, which offers no Remind", async () => {
+    await go(d, "hr", ["signatures", "sr-1"], '[data-signature-request-window="sr-1"]');
+    const win = d.page.locator('[data-signature-request-window="sr-1"]');
+    await win.locator("[data-signature-state]").waitFor();
+    if ((await win.locator('[data-signature-state="disputed"]').count()) !== 1) return "the window does not read Not right";
+    if (((await win.locator("[data-signature-note]").innerText()) || "").indexOf(DISPUTE_NOTE) < 0) return "the window does not carry the note";
+    if ((await win.locator("[data-signature-remind]").count()) !== 0) return "Remind is offered on a Not right request";
+    if ((await win.locator("[data-signature-cancel]").count()) !== 1 || (await win.locator("[data-signature-sign-here]").count()) !== 1) return "Cancel and Sign here now are not offered";
+    await win.locator("[data-signature-request-close]").click();
+    await d.page.locator('[data-signature-request-window="sr-1"]').waitFor({ state: "detached" });
+    if ((await d.page.evaluate(() => window.location.hash)) !== "#hr/signatures") return "the address did not fall back to #hr/signatures";
+    return (await d.page.locator("[data-signature-requests] table tbody tr").count()) > 0 ? "" : "the list is not under the window";
+  });
+  await check("Who needs it reads From a key on file and offers no Remove on it", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: KEYS_TOPIC[p.lang] }).first().click();
+    await until(d, "[data-topic-details]");
+    await d.page.locator('[data-topic-tab="who"]').click();
+    await until(d, "[data-topic-who]");
+    if ((await d.page.locator('[data-who-source="property"]').count()) !== 1) return "no row reads From a key on file";
+    await d.page.locator("[data-who-edit]").click();
+    await until(d, "[data-topic-who-form]");
+    const removes = await d.page.locator('[data-who-source="property"] button').count();
+    await d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click();
+    return removes === 0 ? "" : "the key's row offers Remove";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -899,6 +988,8 @@ async function runPass(browser, origin, p) {
   if (p.step262) stubs.setStep262(true);
   // Step 266's answers are laid over Step 262's.
   if (p.step266) stubs.setStep266(true);
+  // Step 270's answers are laid over Step 266's.
+  if (p.step270) stubs.setStep270(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -981,6 +1072,7 @@ async function runPass(browser, origin, p) {
     if (p.step256) await step256(d, origin, p, stubs);
     if (p.step262) await step262(d, origin, p, stubs);
     if (p.step266) await step266(d, origin, p, stubs);
+    if (p.step270) await step270(d, origin, p, stubs);
 
     // Help, asked one question.
     {

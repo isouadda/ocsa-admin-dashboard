@@ -6818,6 +6818,10 @@ const notifTarget = (link) => {
   // person's list in Gaps; /training/people/<userId> opens that person's list in Gaps.
   const trn0 = /^\/training\/(attempts|people)\/([^/]+)\/?$/.exec(u.pathname || "");
   if (trn0) return { kind: "page", page: "hr", hash: "hr/training/" + trn0[1] + "/" + trn0[2] };
+  // The office's signature notices (Step 272, against the API's Step 270): /signatures/<requestId>
+  // opens Waiting for signatures in HR Records with that request open.
+  const sg0 = /^\/signatures\/([^/]+)\/?$/.exec(u.pathname || "");
+  if (sg0) return { kind: "page", page: "hr", hash: "hr/signatures/" + sg0[1] };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -6917,6 +6921,9 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     // the person its link names, else Gaps.
     if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     if (n.subjectType === "training_expiring") { if (!canOpenPage("hr")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "hr/training/people/" + m[1] : "hr/training/gaps"); onClose(); return; }
+    // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
+    // it in Waiting for signatures.
+    if ((n.subjectType === "signature_disputed" || n.subjectType === "signature_declined" || n.subjectType === "signature_overdue") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/signatures/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -8773,7 +8780,7 @@ function keptPpePages(data, site, range) {
     const stock = today.slice(0, 7) === ym ? (data.stock || []) : [];
     return { code: "OCSA-FRM-019", site, range, parts: [
       { h: "Site and Period", fields: [["Site", site], ["Month and Year", keptMonth(ym)], ["Completed By", ""], ["Crew Size This Period", ""], ["Hazard Assessment Reference", ""]] },
-      { h: "Equipment Issue Record", cols: ["#", "Date", "Employee", "Item Issued", "Size", "Qty", "Fit OK", "Signature"], rows: month.map(x => ["", keptDay(keptIssueDay(x)), ppeWhoOf(x, data.people), ppeItemOf(x), x.size || "", x.quantity != null ? String(x.quantity) : "", keptYesNo(x.fitOk), (data.signed || {})[String(x.id)] ? { img: data.signed[String(x.id)] } : ""]), least: 16 },
+      { h: "Equipment Issue Record", cols: ["#", "Date", "Employee", "Item Issued", "Size", "Qty", "Fit OK", "Signature"], rows: month.map(x => ["", keptDay(keptIssueDay(x)), ppeWhoOf(x, data.people), ppeItemOf(x), x.size || "", x.quantity != null ? String(x.quantity) : "", keptYesNo(x.fitOk), (data.signed || {})[String(x.id)] ? { img: data.signed[String(x.id)] } : signatureOpen(signatureOf(x)) ? tr("Waiting for signature") : ""]), least: 16 },
       { h: "Stock Check", cols: ["#", "Item and Size", "On Hand", "Minimum", "Reorder Placed", "Date", "Notes"], rows: stock.map(s => ["", s.name || "", s.site_stock != null ? String(s.site_stock) : "", s.site_threshold != null ? String(s.site_threshold) : "", "", keptDay(today), ""]), least: 12 },
       { cols: ["Item", "Sizes That Must Be Held"], labels: ["Disposable nitrile gloves", "Reusable forearm length gloves", "Puncture resistant gloves", "Safety glasses meeting ANSI Z87.1", "Chemical splash goggles", "Aprons, gowns and coveralls", "Hearing protection"] },
       { h: "Compliance Observation", cols: ["#", "Date", "Task Observed", "Employees Observed", "Wearing Required Equipment", "Notes"], rows: [], least: 6 },
@@ -9092,12 +9099,14 @@ function PpeIssues({ af, token, t, userId = "", siteId = "", sites = [], people 
               {x.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflowWrap: "anywhere" }}>{x.note}</div> : null}
             </div>
             {x.fitOk === true || x.fitOk === false ? <Bdg l={x.fitOk ? tr("Fits well") : tr("Does not fit")} c={x.fitOk ? GR : OR} /> : null}
-            <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>
+            {signatureOf(x) && <SignatureChip t={t} sig={signatureOf(x)} />}
+            {(!signatureOf(x) || signatureOf(x).state === "signed") && <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>}
+            <SignatureActions af={af} t={t} sig={signatureOf(x)} personName={userId ? name : (x.userName || ppeWhoOf(x, people))} onChanged={load} showToast={showToast} />
           </div>
           {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/ppe-issues/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
         </div>))}
     </div>
-    {win && <IssuePpeWindow af={af} t={t} userId={userId} siteId={siteId} sites={sites} people={people} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("PPE issue saved.")); load(); }} />}
+    {win && <IssuePpeWindow af={af} t={t} userId={userId} siteId={siteId} sites={sites} people={people} name={name} onClose={() => setWin(false)} onSaved={(phone) => { setWin(false); if (showToast) showToast(phone ? sentToPhoneLine(name) : tr("PPE issue saved.")); load(); }} />}
   </Crd>);
 }
 // The item comes from the site's PPE stock or is typed, with its size, how many, whether it fits, a
@@ -9110,6 +9119,10 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
   const [sig, setSig] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  // Step 272: Who signs, once the API's Step 270 answers; Send to their phone is the default.
+  const phoneLive = useTrainingLive(af, "signatures");
+  const [signer, setSigner] = useState(SIGN_PHONE);
+  const phone = phoneLive && signer === SIGN_PHONE;
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   useEffect(() => {
     setStock([]);
@@ -9121,7 +9134,7 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
   const who = name || ppePersonName((people || []).find(p => String(p.id) === String(f.userId)));
   const typed = f.supplyId === PPE_TYPED;
   const qty = Number(f.quantity);
-  const ready = !!f.userId && !!f.siteId && (typed ? !!f.item.trim() : !!f.supplyId) && Number.isInteger(qty) && qty >= 1 && (f.fitOk === true || f.fitOk === false) && !!sig;
+  const ready = !!f.userId && !!f.siteId && (typed ? !!f.item.trim() : !!f.supplyId) && Number.isInteger(qty) && qty >= 1 && (f.fitOk === true || f.fitOk === false) && (phone || !!sig);
   const bad = (k) => refusal.keys.indexOf(k) >= 0;
   const under = (k) => (bad(k) ? <div data-ppe-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const box = (k) => (bad(k) ? { borderColor: RD } : {});
@@ -9129,8 +9142,8 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
     if (busy || !ready) return;
     setBusy(true); setRefusal({ text: "", keys: [] });
     try {
-      await af("/api/ppe-issues", { method: "POST", body: Object.assign({ userId: f.userId, siteId: f.siteId, size: f.size.trim(), quantity: qty, fitOk: f.fitOk, note: f.note.trim(), employeeSignature: sig }, typed ? { item: f.item.trim() } : { supplyId: f.supplyId }) });
-      onSaved();
+      await af("/api/ppe-issues", { method: "POST", body: Object.assign({ userId: f.userId, siteId: f.siteId, size: f.size.trim(), quantity: qty, fitOk: f.fitOk, note: f.note.trim() }, phone ? { signOnPhone: true } : { employeeSignature: sig }, typed ? { item: f.item.trim() } : { supplyId: f.supplyId }) });
+      onSaved(phone);
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       const sigRefused = e && e.code === "ppe.signatureRequired";
@@ -9168,11 +9181,13 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
         <button type="button" aria-pressed={f.fitOk === false} onClick={() => set("fitOk", false)} style={choice(f.fitOk === false)}>{tr("No")}</button>
       </div>{under("fitOk")}</div>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
-    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+    {phoneLive && <WhoSigns t={t} value={signer} onChange={setSigner} disabled={busy} name={who} />}
+    {phone ? null : sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
       : <SignatureBox t={t} label={who ? tr("{0} signs for what they received", who) : tr("The person signs for what they received")} busy={busy} refusal={bad("employeeSignature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    {phone && bad("employeeSignature") && <div role="alert" data-ppe-refusal="employeeSignature" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+      <Btn t={t} data-ppe-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : phone ? tr("Send to sign") : tr("Save")}</Btn>
     </div>
   </div></Mdl>);
 }
@@ -21133,6 +21148,11 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   });
   const [f, setF] = useState(() => draftOf(row));
   const [issue, setIssue] = useState({ issuerSignature: "", employeeSignature: "", declined: false, witnessName: "", employeeAccount: "" });
+  // Step 272: Who signs for the person's signature, once the API's Step 270 answers; Send to their
+  // phone is the default, and the issuer still signs here.
+  const phoneLive = useTrainingLive(af, "signatures");
+  const [who, setWho] = useState(SIGN_PHONE);
+  const [phoneLine, setPhoneLine] = useState("");
   const [refusal, setRefusal] = useState({ text: "", field: "" });
   const [busy, setBusy] = useState("");
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -21151,6 +21171,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const type = issued ? (w.type || w.action_type) : f.type;
   const verbal = type === "verbal_warning";
   const personSigns = type === "written_warning" || type === "final_warning";
+  const phone = personSigns && phoneLive && who === SIGN_PHONE;
   const FIELDS = ["type", "category", "incidentDate", "description", "policyRef", "expectations", "expectedBy", "suspensionStart", "suspensionEnd", "followsProtectedActivity", "controllerDiscussedOn", "language", "employeeSignature", "issuerSignature", "witnessName", "employeeAccount", "reason", "to", "method"];
   const refuse = (e, fallback) => {
     const code = String((e && e.code) || "");
@@ -21174,17 +21195,18 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     if (onChanged) onChanged();
   });
   const draftReady = !!(f.type && f.category && f.incidentDate && f.description.trim() && (f.follows === "no" || (f.follows === "yes" && f.controllerDiscussedOn)));
-  const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || !!issue.employeeSignature || issue.declined)));
+  const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || phone || !!issue.employeeSignature || issue.declined)));
   const doIssue = () => run("issue", async () => {
-    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/issue", { method: "POST", body: {
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/issue", { method: "POST", body: Object.assign({
       issuerSignature: verbal ? null : (issue.issuerSignature || null),
-      employeeSignature: personSigns && !issue.declined ? (issue.employeeSignature || null) : null,
-      declinedToSign: personSigns && issue.declined, witnessName: personSigns && issue.declined ? (issue.witnessName.trim() || null) : null,
+      employeeSignature: personSigns && !phone && !issue.declined ? (issue.employeeSignature || null) : null,
+      declinedToSign: personSigns && !phone && issue.declined, witnessName: personSigns && !phone && issue.declined ? (issue.witnessName.trim() || null) : null,
       employeeAccount: issue.employeeAccount.trim() || null,
-    } });
+    }, phone ? { signOnPhone: true } : {}) });
     const got = warningOf(d);
     setW(Object.assign({}, w || {}, got && typeof got === "object" ? got : {}, { status: (got && got.status) || "open", issuedAt: (got && (got.issuedAt || got.issued_at)) || new Date().toISOString() }));
-    if (showToast) showToast(tr("Warning issued."));
+    if (phone) setPhoneLine(sentToPhoneLine(personName));
+    if (showToast) showToast(phone ? sentToPhoneLine(personName) : tr("Warning issued."));
     if (onChanged) onChanged();
     if (type === "termination" || (d && d.employmentEndUrl)) setEndOpen(true);
   });
@@ -21259,17 +21281,24 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
           {signed("issuerSignature")}
           {personSigns && <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 12, color: t.textSec, marginBottom: 6, lineHeight: 1.5 }}>{tr("Signing confirms they received this warning. It does not mean they agree.")}</div>
-            {!issue.declined && <SignatureBox t={t} label={tr("{0} signs", personName || tr("The person"))} busy={busy === "issue"} refusal={refusal.field === "employeeSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, employeeSignature: png }))} signWord={tr("Sign")} />}
-            {!issue.declined && signed("employeeSignature")}
-            <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, marginTop: 6 }}><span style={chkWrap}><input type="checkbox" checked={issue.declined} onChange={e => setIssue(p => ({ ...p, declined: e.target.checked, employeeSignature: "" }))} style={{ width: 22, height: 22 }} /></span>{tr("Declined to sign")}</label>
-            {issue.declined && <div style={{ maxWidth: 320 }}><Lbl>{tr("Witness")}</Lbl><Inp t={t} aria-label={tr("Witness")} value={issue.witnessName} onChange={e => setIssue(p => ({ ...p, witnessName: e.target.value }))} placeholder={tr("Optional.")} style={box("witnessName")} />{under("witnessName")}</div>}
+            {phoneLive && <WhoSigns t={t} value={who} onChange={setWho} disabled={busy === "issue"} name={personName} />}
+            {!phone && !issue.declined && <SignatureBox t={t} label={tr("{0} signs", personName || tr("The person"))} busy={busy === "issue"} refusal={refusal.field === "employeeSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, employeeSignature: png }))} signWord={tr("Sign")} />}
+            {!phone && !issue.declined && signed("employeeSignature")}
+            {!phone && <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, marginTop: 6 }}><span style={chkWrap}><input type="checkbox" checked={issue.declined} onChange={e => setIssue(p => ({ ...p, declined: e.target.checked, employeeSignature: "" }))} style={{ width: 22, height: 22 }} /></span>{tr("Declined to sign")}</label>}
+            {!phone && issue.declined && <div style={{ maxWidth: 320 }}><Lbl>{tr("Witness")}</Lbl><Inp t={t} aria-label={tr("Witness")} value={issue.witnessName} onChange={e => setIssue(p => ({ ...p, witnessName: e.target.value }))} placeholder={tr("Optional.")} style={box("witnessName")} />{under("witnessName")}</div>}
+            {phone && under("employeeSignature")}
           </div>}
         </div>}
         <div style={{ marginTop: 12 }}><Lbl>{tr("Their account")}</Lbl><TArea t={t} rows={3} aria-label={tr("Their account")} value={issue.employeeAccount} onChange={e => setIssue(p => ({ ...p, employeeAccount: e.target.value }))} placeholder={tr("Optional. What the person says, recorded on the warning.")} style={box("employeeAccount")} />{under("employeeAccount")}</div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : tr("Issue|warning")}</Btn></div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} data-warning-issue-send="" onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : phone ? tr("Issue and send to sign") : tr("Issue|warning")}</Btn></div>
       </div>}
     </div>}
     {!isDraft && <div>
+      {phoneLine && <div data-warning-sent-phone="" style={{ fontSize: 12, color: GR, fontWeight: 600, marginBottom: 8 }}>{phoneLine}</div>}
+      {signatureOf(w) && <div data-warning-signature="" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <SignatureChip t={t} sig={signatureOf(w)} />
+        <SignatureActions af={af} t={t} sig={signatureOf(w)} personName={personName} onChanged={() => { if (onChanged) onChanged(); }} showToast={showToast} />
+      </div>}
       <div data-warning-summary="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
         {(w.category ? warningCategoryWord(w.category, steps.categories) : "")}{(w.incidentDate || w.incident_date) ? (w.category ? ", " : "") + fdLong(w.incidentDate || w.incident_date) : ""}
         {(w.description || w.summary) ? <div style={{ color: t.text, whiteSpace: "pre-wrap", marginTop: 4 }}>{w.description || w.summary}</div> : null}
@@ -21397,9 +21426,11 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
             <Bdg l={warningStatusWord(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
           </div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, textDecoration: gone ? "line-through" : "none" }}>{line(w)}</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Signed") : ""].filter(Boolean).join(". ")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[delivered(w), signatureOf(w) ? "" : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Signed") : ""].filter(Boolean).join(". ")}</div>
+          {signatureOf(w) && <div style={{ marginTop: 4 }}><SignatureChip t={t} sig={signatureOf(w)} /></div>}
           {gone && (w.rescindReason || w.rescind_reason) ? <div style={{ fontSize: 11, color: RD, marginTop: 2 }}>{tr("Rescinded: {0}", w.rescindReason || w.rescind_reason)}</div> : null}
         </button>
+        {signatureOpen(signatureOf(w)) && <div style={{ marginTop: 6 }}><SignatureActions af={af} t={t} sig={signatureOf(w)} personName={name} onChanged={() => setAgain(n => n + 1)} showToast={showToast} /></div>}
         {pdfId && onOpenPdf ? <Btn t={t} v="ghost" onClick={() => onOpenPdf(pdfId)} data-original-form={pdfId} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12, marginTop: 6 }}>{tr("Original form")}</Btn> : null}
         </div>);
       })}
@@ -21752,7 +21783,7 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: w => <Bdg l={warningStatusWord(w.status)} c={warningRescinded(w) ? RD : w.status === "draft" ? OR : GR} /> },
     { header: tr("Issued by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.issuedBy && w.issuedBy.name) || "--" },
     { header: tr("Delivered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => delivered(w) },
-    { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
+    { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (signatureOf(w) ? <SignatureChip t={t} sig={signatureOf(w)} /> : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
   ];
   const exportCsv = () => {
     const hdr = [tr("Person"), tr("Step"), tr("Category"), tr("Date of the incident"), tr("Status"), tr("Issued by"), tr("Delivered"), tr("Signed")];
@@ -22004,10 +22035,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
 function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "", trainingPage = false }) {
   // Step 257: #hr/training opens the Training area, and #hr/training/<view> one of its tabs.
   const trainingRoute = route[0] === "training";
-  const [tab, setTab] = useState(() => (trainingRoute ? "training" : "employees"));
+  // Step 272: #hr/signatures opens Waiting for signatures, and #hr/signatures/<requestId> one request.
+  const signaturesRoute = route[0] === "signatures";
+  const [tab, setTab] = useState(() => (trainingRoute ? "training" : signaturesRoute ? "signatures" : "employees"));
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
-  const [folderUserId, setFolderUserId] = useState(() => (route[0] && !trainingRoute ? String(route[0]) : null));
+  const [folderUserId, setFolderUserId] = useState(() => (route[0] && !trainingRoute && !signaturesRoute ? String(route[0]) : null));
   // #hr/<id> opens that person's record, and #hr/<id>/clearances brings their Clearances into view
   // (Step 211), so a refusal or the Clearances page can send someone straight there.
   const [focusClearances, setFocusClearances] = useState(() => route[1] === "clearances");
@@ -22020,6 +22053,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   useEffect(() => {
     if (!route[0]) return;
     if (route[0] === "training") { setTab("training"); setFolderUserId(null); setTrView(trViewOf(route[1])); return; }
+    if (route[0] === "signatures") { setTab("signatures"); setFolderUserId(null); return; }
     setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
   }, [route]);
   const topicsLive = useTrainingLive(af, "topics");
@@ -22029,6 +22063,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const documentsLive = useTrainingLive(af, "documents");
   // Step 268: the Drafts tab, once GET /api/training/lesson-drafts answers, which it does for admins.
   const draftsLive = useTrainingLive(af, "drafts");
+  // Step 272: the Waiting for signatures tab, once GET /api/signatures answers, which it does for
+  // management.
+  const signaturesLive = useTrainingLive(af, "signatures");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -22240,7 +22277,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     { id: "onboarding", l: tr("Onboarding") },
     { id: "compliance", l: tr("Compliance") },
     { id: "other", l: tr("Other|items") },
-  ];
+  ].concat(signaturesLive ? [{ id: "signatures", l: tr("Waiting for signatures") }] : []);
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
@@ -22262,9 +22299,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     <div style={{ animation: "fadeIn 0.3s ease" }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
         {!trainingPage && tabs.map(tb => (
-          <button key={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
+          <button key={tb.id} data-hr-tab={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
-        {tab !== "employees" && !(tab === "training" && trCur !== "records") && (
+        {tab !== "employees" && tab !== "signatures" && !(tab === "training" && trCur !== "records") && (
           <div style={{ marginLeft: "auto", minWidth: 200 }}>
             <Sel options={staffOpts} value={selUser} onChange={e => setSelUser(e.target.value)} t={t} />
           </div>
@@ -22356,6 +22393,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
+      {tab === "signatures" && signaturesLive && <SignatureRequests af={af} t={t} sites={sites} showToast={showToast} focusId={signaturesRoute && route[1] ? String(route[1]) : ""} onFocusDone={() => { if (onRoute && signaturesRoute && route[1]) onRoute(["signatures"]); }} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -23085,6 +23123,10 @@ const TRAINING_PROBES = {
   // same API step with no read beside it) wait on it; the Drafts tab waits on its list.
   categories: ["/api/training/topics", (d) => !!(d && Array.isArray(d.categories))],
   drafts: ["/api/training/lesson-drafts", (d) => !!(d && Array.isArray(d.drafts))],
+  // Step 272, against the API's Step 270 (STEP270_CONTRACT.md): the office's list of signature
+  // requests answering is how that step says it is there. Who signs in the three windows, the chips'
+  // Remind, Cancel and Sign here now, and the Waiting for signatures tab wait on it.
+  signatures: ["/api/signatures", (d) => !!(d && Array.isArray(d.requests))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23440,7 +23482,7 @@ function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
     const named = [];
     (x.requirements || []).forEach(r => {
       if (r.role) { if (!roles[r.role]) roles[r.role] = []; if (r.serviceLine) roles[r.role].push(r.serviceLine); }
-      else if (r.userId) named.push({ id: String(r.userId), name: r.personName || ((people.find(p => String(p.id) === String(r.userId)) || {}).name) || "" });
+      else if (r.userId) named.push({ id: String(r.userId), name: r.personName || ((people.find(p => String(p.id) === String(r.userId)) || {}).name) || "", source: r.source === "property" ? "property" : "manual" });
     });
     return { roles, named };
   }, [people]);
@@ -23453,7 +23495,9 @@ function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
   const rowsOf = (s) => {
     const rows = [];
     TRAINING_ROLES.filter(r => s.roles[r]).forEach(role => { const lines = s.roles[role]; if (lines.length === 0) rows.push({ src: "role:" + role, role, serviceLine: null }); else lines.forEach(l => rows.push({ src: "role:" + role, role, serviceLine: l })); });
-    s.named.forEach(p => rows.push({ src: "person:" + p.id, userId: p.id, serviceLine: null }));
+    // Step 272 (STEP270_CONTRACT.md section 3): a row the keys on file put there is the API's to keep
+    // and to remove, so a save leaves it out and the route keeps it as it is.
+    s.named.filter(p => p.source !== "property").forEach(p => rows.push({ src: "person:" + p.id, userId: p.id, serviceLine: null }));
     return rows;
   };
   const bad = (src) => (refusal && refusal.src === src ? refusal.text : "");
@@ -23484,7 +23528,7 @@ function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
       </div>)}
     {head(tr("Named people"))}
     {shown.named.length === 0 ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Nobody named.")}</div>
-      : shown.named.map(p => <div key={p.id} data-who-person={p.id} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text }}>{p.name}</div>)}
+      : shown.named.map(p => <div key={p.id} data-who-person={p.id} data-who-source={p.source} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text }}>{p.name}{p.source === "property" && <Bdg l={tr("From a key on file")} c={BL} />}</div>)}
     {isAdmin && <div style={{ marginTop: 14 }}><Btn t={t} data-who-edit="" onClick={() => { setEdit(fromTopic(tp)); setRefusal(null); }}>{tr("Edit who needs it")}</Btn></div>}
   </div>);
   const others = people.filter(p => !edit.named.some(n => n.id === String(p.id)));
@@ -23501,10 +23545,11 @@ function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
       {bad("role:" + role) && <div role="alert" data-who-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad("role:" + role)}</div>}
     </div>)}
     {head(tr("Named people"))}
-    {edit.named.map(p => <div key={p.id} data-who-person={p.id} style={{ borderBottom: "1px solid " + t.border, padding: "4px 0" }}>
+    {edit.named.map(p => <div key={p.id} data-who-person={p.id} data-who-source={p.source} style={{ borderBottom: "1px solid " + t.border, padding: "4px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: t.text }}>
         <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
-        <button onClick={() => setEdit(s => ({ ...s, named: s.named.filter(n => n.id !== p.id) }))} style={{ minHeight: 44, minWidth: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Remove")}</button>
+        {p.source === "property" ? <span title={tr("It is removed by itself when every key, badge and fob of theirs is marked returned.")}><Bdg l={tr("From a key on file")} c={BL} /></span>
+        : <button onClick={() => setEdit(s => ({ ...s, named: s.named.filter(n => n.id !== p.id) }))} style={{ minHeight: 44, minWidth: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Remove")}</button>}
       </div>
       {bad("person:" + p.id) && <div role="alert" data-who-refusal="" style={{ fontSize: 12, color: RD }}>{bad("person:" + p.id)}</div>}
     </div>)}
@@ -25252,6 +25297,212 @@ async function printDocumentSignatures({ af, token, doc, version, groups = [] })
   }
 }
 
+// ===== SIGNING ON THEIR PHONE (Step 272, STEP270_CONTRACT.md) =====
+// The office has no signature pad. Issue property, Issue PPE and a written warning's employee signature
+// ask Who signs: Send to their phone, the default, posts signOnPhone: true in place of the person's
+// drawing, the record is written waiting for the signature and the person is told on their phone; Sign
+// here now keeps the box as it was. The choice is drawn once GET /api/signatures answers, which is how
+// the API's Step 270 says it is there; before that the box alone, as before.
+const SIGN_PHONE = "phone";
+const SIGN_HERE = "here";
+function WhoSigns({ t, value, onChange, disabled = false, name = "" }) {
+  const choice = (on) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: disabled ? "default" : "pointer" });
+  return <div data-who-signs-field="" style={{ marginBottom: 12 }}>
+    <Lbl>{tr("Who signs")}</Lbl>
+    <div role="group" aria-label={tr("Who signs")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <button type="button" data-who-signs={SIGN_PHONE} aria-pressed={value === SIGN_PHONE} disabled={disabled} onClick={() => onChange(SIGN_PHONE)} style={choice(value === SIGN_PHONE)}>{tr("Send to their phone")}</button>
+      <button type="button" data-who-signs={SIGN_HERE} aria-pressed={value === SIGN_HERE} disabled={disabled} onClick={() => onChange(SIGN_HERE)} style={choice(value === SIGN_HERE)}>{tr("Sign here now")}</button>
+    </div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{value === SIGN_PHONE ? (name ? tr("{0} is told on their phone and signs there. The record waits for the signature until then.", name) : tr("The person is told on their phone and signs there. The record waits for the signature until then.")) : tr("The person signs in the box on this screen.")}</div>
+  </div>;
+}
+// The line said once a record is sent to the person's phone to sign.
+function sentToPhoneLine(name) { return name ? tr("Sent to {0}'s phone to sign.", name) : tr("Sent to their phone to sign."); }
+
+// A record sent to a phone carries signature: { state, requestId, requestedAt, signedAt, signedWhere },
+// and the office's list carries the Request itself (section 2). The chip reads the state: Waiting for
+// signature, Signed on their phone or in the office, Not right with the person's note, Declined (a
+// warning, with its note), Cancelled. Remind sends the notice again on a waiting one, as the API
+// allows it (409 signatures.notOpen on a not right one, 409 signatures.reminderLimit after twenty);
+// on a waiting or not right one, Cancel closes the request (signed on paper, or entered by mistake)
+// and Sign here now takes the signature on this screen, with the screen's language, through the
+// request's own routes.
+const SIGN_STATES = { waiting: "Waiting for signature", disputed: "Not right", signed: "Signed|signature", declined: "Declined|signature", cancelled: "Cancelled|signature" };
+const SIGN_KINDS = [{ v: "property_issue", l: "Property|signature" }, { v: "ppe_issue", l: "PPE" }, { v: "warning", l: "Warning|signature" }];
+const signKindWord = (k) => { const x = SIGN_KINDS.find(o => o.v === k); return x ? tr(x.l) : String(k || ""); };
+function signatureOf(x) { return x && x.signature && typeof x.signature === "object" && x.signature.state ? x.signature : null; }
+function signatureOpen(sig) { return !!sig && (sig.state === "waiting" || sig.state === "disputed"); }
+const signatureRequestId = (sig) => String((sig && (sig.requestId || sig.id)) || "");
+// How many whole days since a request was sent, on the screen's clock.
+const daysSince = (at) => { const ms = Date.now() - Date.parse(at || ""); return Number.isFinite(ms) ? Math.max(0, Math.floor(ms / 86400000)) : 0; };
+function SignatureChip({ t, sig }) {
+  if (!sig) return null;
+  const c = sig.state === "signed" ? GR : sig.state === "waiting" ? OR : sig.state === "cancelled" ? t.textMut : RD;
+  const where = sig.state === "signed" ? (sig.signedWhere === "phone" ? tr("on their phone") : sig.signedWhere === "office" ? tr("in the office") : "") : "";
+  const note = sig.state === "disputed" || sig.state === "declined" ? String(sig.disputeNote || sig.note || "") : "";
+  return <span data-signature-state={sig.state} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+    <Bdg l={tr(SIGN_STATES[sig.state] || sig.state)} c={c} />
+    {where && <span style={{ fontSize: 11, color: t.textMut }}>{where}</span>}
+    {note && <span data-signature-note="" style={{ fontSize: 12, color: t.textSec, overflowWrap: "anywhere" }}>{note}</span>}
+  </span>;
+}
+function SignatureActions({ af, t, sig, personName = "", onChanged, showToast }) {
+  const [busy, setBusy] = useState("");
+  const [signing, setSigning] = useState(false);
+  if (!signatureOpen(sig)) return null;
+  const id = signatureRequestId(sig);
+  const small = { minHeight: 44, padding: "8px 12px", fontSize: 12 };
+  const post = async (what) => {
+    setBusy(what);
+    try { await af("/api/signatures/" + encodeURIComponent(id) + "/" + what, { method: "POST" }); if (showToast) showToast(what === "remind" ? tr("Reminder sent.") : tr("Request cancelled.")); if (onChanged) onChanged(); }
+    catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  return <span data-signature-actions={id} style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+    {sig.state === "waiting" && <Btn t={t} v="ghost" data-signature-remind={id} disabled={!!busy} onClick={() => post("remind")} style={small}>{busy === "remind" ? tr("Sending...") : tr("Remind")}</Btn>}
+    <Btn t={t} v="ghost" data-signature-cancel={id} disabled={!!busy} onClick={() => { if (window.confirm(tr("Cancel this request? Do this when it was signed on paper or entered by mistake."))) post("cancel"); }} style={{ ...small, color: RD }}>{tr("Cancel")}</Btn>
+    <Btn t={t} data-signature-sign-here={id} disabled={!!busy} onClick={() => setSigning(true)} style={small}>{tr("Sign here now")}</Btn>
+    {signing && <SignHereWindow af={af} t={t} requestId={id} personName={personName} onClose={() => setSigning(false)} onDone={() => { setSigning(false); if (showToast) showToast(tr("Signed in the office. It is on the record.")); if (onChanged) onChanged(); }} />}
+  </span>;
+}
+// Sign here now: the request read (GET /api/signatures/:id) for what it is and the line the person
+// signs, the box, and POST /api/signatures/:id/sign-here with the drawing.
+function SignHereWindow({ af, t, requestId, personName = "", onClose, onDone }) {
+  const [req, setReq] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  useEffect(() => {
+    let alive = true;
+    af("/api/signatures/" + encodeURIComponent(requestId)).then(d => { if (alive) setReq(d && d.request ? d.request : {}); }).catch(e => { if (alive) { setReq({}); setFailed(e.message || tr("This did not load.")); } });
+    return () => { alive = false; };
+  }, [af, requestId]);
+  const sign = async (png) => {
+    setBusy(true); setRefusal("");
+    try { await af("/api/signatures/" + encodeURIComponent(requestId) + "/sign-here", { method: "POST", body: { signature: png, locale: getLang() } }); onDone(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const item = (req && req.item) || {};
+  const who = (req && req.person && req.person.name) || personName;
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-sign-here-window={requestId}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Sign here now")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{who}{req && req.title ? ", " + req.title : ""}</div>
+    {req === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <div role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{failed}</div> : <div style={{ marginBottom: 12 }}>
+      {item.label && <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{[item.label, item.size].filter(Boolean).join(", ")}{Number(item.quantity) > 1 ? " x " + item.quantity : ""}</div>}
+      <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[item.site && item.site.name, item.date ? keptDay(item.date) : ""].filter(Boolean).join(", ")}</div>
+      {req.statement && <div data-sign-here-statement="" style={{ fontSize: 13, color: t.text, marginTop: 8, lineHeight: 1.5 }}>{req.statement}</div>}
+      {req.state === "disputed" && req.disputeNote && <div style={{ fontSize: 12, color: RD, marginTop: 6 }}>{tr("Not right")}: {req.disputeNote}</div>}
+    </div>}
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8 }}>{tr("The person signs in the box, on whatever screen is in front of them.")}</div>
+    <SignatureBox t={t} label={who ? tr("{0} signs", who) : tr("The person signs")} busy={busy} refusal={refusal} onSign={sign} signWord={tr("Sign")} busyWord={tr("Saving...")} onCancel={onClose} />
+  </div></Mdl>);
+}
+
+// Waiting for signatures (section 4), a tab on HR Records once GET /api/signatures answers: every open
+// request with the person, what it is, the site, when it was sent and how many days ago, its state and
+// the three actions, Not right first and then the oldest. Kind, site and state narrow it through the
+// route's own filters; Open, the default, is waiting and not right together, read with no state and
+// kept here.
+const SIGN_LIST_STATES = [{ v: "open", l: "Open|requests" }, { v: "waiting", l: "Waiting for signature" }, { v: "disputed", l: "Not right" }, { v: "signed", l: "Signed|signature" }, { v: "declined", l: "Declined|signature" }, { v: "cancelled", l: "Cancelled|signature" }, { v: "all", l: "All|requests" }];
+function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocusDone }) {
+  const [list, setList] = useState(null);
+  // The request open in its window: a row clicked, or the one the address or a notice names.
+  const [open, setOpen] = useState(focusId);
+  useEffect(() => { if (focusId) setOpen(focusId); }, [focusId]);
+  const closeOpen = () => { setOpen(""); if (onFocusDone) onFocusDone(); };
+  const [failed, setFailed] = useState(false);
+  const [kind, setKind] = useState("");
+  const [site, setSite] = useState("");
+  const [state, setState] = useState("open");
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setFailed(false);
+    const q = [];
+    if (kind) q.push("kind=" + encodeURIComponent(kind));
+    if (site) q.push("siteId=" + encodeURIComponent(site));
+    q.push("state=" + encodeURIComponent(state));
+    af("/api/signatures" + (q.length ? "?" + q.join("&") : ""))
+      .then(d => { if (alive) setList(d && Array.isArray(d.requests) ? d.requests : []); })
+      .catch(e => { if (alive) { setList([]); setFailed(true); showToast(e.message, "error"); } });
+    return () => { alive = false; };
+  }, [af, kind, site, state, again, showToast]);
+  const rank = (r) => (r.state === "disputed" ? 0 : r.state === "waiting" ? 1 : 2);
+  const sentAt = (r) => Date.parse(r.requestedAt || "") || 0;
+  const rows = (list || []).filter(r => state !== "open" || signatureOpen(r))
+    .map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || sentAt(a.r) - sentAt(b.r) || a.i - b.i).map(x => x.r);
+  // The chip and the actions read the request as a record's signature.
+  const sigOf = (r) => ({ state: r.state, requestId: r.id, requestedAt: r.requestedAt, signedAt: r.signedAt, signedWhere: r.signedWhere, disputeNote: r.disputeNote });
+  const nameOf = (r) => (r.person && r.person.name) || "";
+  const itemLine = (r) => { const it = r.item || {}; return [it.label, it.size].filter(Boolean).join(", ") + (Number(it.quantity) > 1 ? " x " + it.quantity : ""); };
+  const cols = [
+    { header: tr("Person"), tdStyle: { minWidth: 140 }, render: r => <div style={{ color: t.text, fontWeight: 600 }}>{nameOf(r)}</div> },
+    { header: tr("Kind"), tdStyle: { minWidth: 150 }, render: r => <div><div style={{ color: t.text }}>{signKindWord(r.kind)}</div><div style={{ fontSize: 11, color: t.textMut, overflowWrap: "anywhere" }}>{itemLine(r) || r.title || ""}</div></div> },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => (r.item && r.item.site && r.item.site.name) || "" },
+    { header: tr("Requested"), render: r => <div><div style={{ color: t.textSec, whiteSpace: "nowrap" }}>{r.requestedAt ? keptDay(r.requestedAt) : ""}</div>
+      <div data-signature-age={daysSince(r.requestedAt)} style={{ fontSize: 11, color: t.textMut, whiteSpace: "nowrap" }}>{trn("{0} days|count", daysSince(r.requestedAt))}{Number(r.reminders) > 0 ? ", " + trn("{0} reminder|count", Number(r.reminders)) : ""}</div></div> },
+    { header: tr("State"), tdStyle: { minWidth: 160 }, render: r => <SignatureChip t={t} sig={sigOf(r)} /> },
+    { header: "", render: r => <span onClick={e => e.stopPropagation()}><SignatureActions af={af} t={t} sig={sigOf(r)} personName={nameOf(r)} onChanged={() => setAgain(n => n + 1)} showToast={showToast} /></span> },
+  ];
+  const box = { flex: "1 1 160px", minWidth: 0 };
+  return (<div data-signature-requests="">
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <SecT t={t}>{tr("Waiting for signatures")}</SecT>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Every record sent to a phone to sign, Not right first and then the oldest. Remind sends the notice again, Cancel closes one signed on paper or entered by mistake, and Sign here now takes the signature on this screen.")}</div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={box}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} data-signature-kind="" value={kind} onChange={e => setKind(e.target.value)} options={[{ v: "", l: tr("All kinds") }].concat(SIGN_KINDS.map(k => ({ v: k.v, l: tr(k.l) })))} /></div>
+        <div style={box}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-signature-site="" value={site} onChange={e => setSite(e.target.value)} options={[{ v: "", l: tr("All|sites") }].concat((sites || []).map(x => ({ v: String(x.id), l: x.name })))} /></div>
+        <div style={box}><Lbl>{tr("State")}</Lbl><Sel t={t} aria-label={tr("State")} data-signature-filter-state="" value={state} onChange={e => setState(e.target.value)} options={SIGN_LIST_STATES.map(x => ({ v: x.v, l: tr(x.l) }))} /></div>
+      </div>
+    </Crd>
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} /></Crd>
+      : <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(String(r.id))} empty={state === "open" ? tr("Nothing is waiting for a signature.") : tr("No request matches.")} />}
+    {open && <SignatureRequestWindow af={af} t={t} requestId={open} onClose={closeOpen} onChanged={() => setAgain(n => n + 1)} showToast={showToast} />}
+  </div>);
+}
+// One request, opened from its row, from the address #hr/signatures/<id>, or from the bell's notices
+// signature_disputed, signature_declined and signature_overdue, which link /signatures/<id>: read from
+// GET /api/signatures/:id, what it is, who it went to and when, its state with the person's note, the
+// reminders sent, the warning's summary, and the actions its state allows.
+function SignatureRequestWindow({ af, t, requestId, onClose, onChanged, showToast }) {
+  const [req, setReq] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    af("/api/signatures/" + encodeURIComponent(requestId))
+      .then(d => { if (alive) { setReq(d && d.request ? d.request : {}); setFailed(d && d.request ? "" : tr("This did not load.")); } })
+      .catch(e => { if (alive) { setReq({}); setFailed(e.message || tr("This did not load.")); } });
+    return () => { alive = false; };
+  }, [af, requestId, again]);
+  const r = req || {};
+  const it = r.item || {};
+  const who = (r.person && r.person.name) || "";
+  const sig = r.state ? { state: r.state, requestId: r.id, requestedAt: r.requestedAt, signedAt: r.signedAt, signedWhere: r.signedWhere, disputeNote: r.disputeNote } : null;
+  const line = (l, v) => (v ? <div style={{ display: "flex", gap: 10, fontSize: 13, padding: "6px 0", borderBottom: "1px solid " + t.border }}><span style={{ color: t.textMut, minWidth: 100, flexShrink: 0 }}>{l}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{v}</span></div> : null);
+  const where = r.signedWhere === "phone" ? tr("on their phone") : r.signedWhere === "office" ? tr("in the office") : "";
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-signature-request-window={requestId}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{r.title || tr("Signature request")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{who}</div>
+    {req === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <div role="alert" style={{ fontSize: 12, color: RD }}>{failed}</div> : <div>
+      {sig && <div style={{ marginBottom: 10 }}><SignatureChip t={t} sig={sig} /></div>}
+      {line(tr("Kind"), signKindWord(r.kind))}
+      {line(tr("Item"), [it.label, it.size].filter(Boolean).join(", ") + (Number(it.quantity) > 1 ? " x " + it.quantity : ""))}
+      {line(tr("Site"), it.site && it.site.name)}
+      {line(tr("Date"), it.date ? keptDay(it.date) : "")}
+      {line(tr("Requested"), r.requestedAt ? [keptDay(r.requestedAt), r.requestedBy && r.requestedBy.name].filter(Boolean).join(", ") : "")}
+      {line(tr("Reminders"), Number(r.reminders) > 0 ? String(r.reminders) : "")}
+      {line(tr("Signed|signature"), r.signedAt ? [keptDay(r.signedAt), where].filter(Boolean).join(", ") : "")}
+      {r.warning && r.warning.summary ? <div style={{ fontSize: 13, color: t.text, marginTop: 10, lineHeight: 1.5, overflowWrap: "anywhere" }}>{r.warning.summary}</div> : null}
+      {r.statement ? <div data-signature-request-statement="" style={{ fontSize: 12, color: t.textSec, marginTop: 10, lineHeight: 1.5 }}>{r.statement}</div> : null}
+      {sig && signatureOpen(sig) && <div style={{ marginTop: 14 }}><SignatureActions af={af} t={t} sig={sig} personName={who} onChanged={() => { setAgain(n => n + 1); if (onChanged) onChanged(); }} showToast={showToast} /></div>}
+    </div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><Btn t={t} v="ghost" data-signature-request-close="" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn></div>
+  </div></Mdl>);
+}
+
 // ===== COMPANY PROPERTY (Step 263, STEP262_CONTRACT.md section 7) =====
 // What the company issued a person, on their HR folder once GET /api/hr/property answers: a uniform
 // shirt or other uniform with its size, a key, a badge or a fob with its site, or something else
@@ -25295,15 +25546,17 @@ function PersonProperty({ af, token, t, userId, sites = [], name = "", showToast
               {x.returnedOn ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[tr("Returned {0}", keptDay(x.returnedOn)), x.returnedTo && x.returnedTo.name ? tr("to {0}", x.returnedTo.name) : "", x.returnNote || ""].filter(Boolean).join(", ")}</div> : null}
             </div>
             <Bdg l={x.returnedOn ? tr("Returned|property") : tr("Still out")} c={x.returnedOn ? GR : OR} />
+            {signatureOf(x) && <SignatureChip t={t} sig={signatureOf(x)} />}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>
+              {(!signatureOf(x) || signatureOf(x).state === "signed") && <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>}
+              <SignatureActions af={af} t={t} sig={signatureOf(x)} personName={name} onChanged={load} showToast={showToast} />
               {!x.returnedOn && <Btn t={t} v="ghost" data-property-return={x.id} onClick={() => setReturning(x)} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Mark returned")}</Btn>}
             </div>
           </div>
           {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/hr/property/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
         </div>))}
     </div>
-    {win && <IssuePropertyWindow af={af} t={t} userId={userId} sites={sites} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("Property issue saved.")); load(); }} />}
+    {win && <IssuePropertyWindow af={af} t={t} userId={userId} sites={sites} name={name} onClose={() => setWin(false)} onSaved={(phone) => { setWin(false); if (showToast) showToast(phone ? sentToPhoneLine(name) : tr("Property issue saved.")); load(); }} />}
     {returning && <ReturnPropertyWindow af={af} t={t} issue={returning} onClose={() => setReturning(null)} onSaved={() => { setReturning(null); if (showToast) showToast(tr("Marked returned.")); load(); }} onStale={() => { setReturning(null); load(); }} />}
   </Crd>);
 }
@@ -25316,11 +25569,15 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
   const [sig, setSig] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  // Step 272: Who signs, once the API's Step 270 answers; Send to their phone is the default.
+  const phoneLive = useTrainingLive(af, "signatures");
+  const [who, setWho] = useState(SIGN_PHONE);
+  const phone = phoneLive && who === SIGN_PHONE;
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const qty = Number(f.quantity);
   const sited = PROPERTY_SITED.indexOf(f.kind) >= 0;
   const sized = PROPERTY_SIZED.indexOf(f.kind) >= 0;
-  const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && !!sig;
+  const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && (phone || !!sig);
   const bad = (k) => refusal.keys.indexOf(k) >= 0;
   const under = (k) => (bad(k) ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const box = (k) => (bad(k) ? { borderColor: RD } : {});
@@ -25328,8 +25585,8 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
     if (busy || !ready) return;
     setBusy(true); setRefusal({ text: "", keys: [] });
     try {
-      await af("/api/hr/property", { method: "POST", body: { userId: String(userId), kind: f.kind, description: f.description.trim() || null, size: sized ? f.size.trim() || null : null, quantity: qty, siteId: sited ? f.siteId || null : null, issuedOn: f.issuedOn, note: f.note.trim() || null, signature: sig } });
-      onSaved();
+      await af("/api/hr/property", { method: "POST", body: Object.assign({ userId: String(userId), kind: f.kind, description: f.description.trim() || null, size: sized ? f.size.trim() || null : null, quantity: qty, siteId: sited ? f.siteId || null : null, issuedOn: f.issuedOn, note: f.note.trim() || null }, phone ? { signOnPhone: true } : { signature: sig }) });
+      onSaved(phone);
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       setRefusal({ text: e.message || tr("Request failed"), keys });
@@ -25362,11 +25619,13 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
     {sited && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
       <Sel t={t} aria-label={tr("Site")} data-property-field="siteId" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
-    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+    {phoneLive && <WhoSigns t={t} value={who} onChange={setWho} disabled={busy} name={name} />}
+    {phone ? null : sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
       : <SignatureBox t={t} label={name ? tr("{0} signs for what they received", name) : tr("The person signs for what they received")} busy={busy} refusal={bad("signature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    {phone && bad("signature") && <div role="alert" data-property-refusal="signature" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-      <Btn t={t} data-property-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+      <Btn t={t} data-property-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : phone ? tr("Send to sign") : tr("Save")}</Btn>
     </div>
   </div></Mdl>);
 }
