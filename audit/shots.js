@@ -506,13 +506,19 @@ const SHOTS = [
   { name: "pickup-claimed", entry: "Approve a shift someone claimed",
     open: "marketplace", ready: SHELL,
     act: async (c) => { await wait(600); await press(c, "Claimed|shift"); await until(c, "table tbody tr"); } },
+  // Step 282: the three-item request the stub lists first, its first item at 3 of 5 and a note for a
+  // denial typed on the second, and the list with Download for ordering (CSV) over it.
   { name: "supplies-request-approve", entry: "Approve or deny a supply request",
     open: "supplies", ready: SHELL,
     act: async (c) => {
-      await wait(400); await press(c, "Requests"); await wait(300);
-      await press(c, "Approve"); await until(c, MODAL);
-      await inModal(c).locator("input").first().fill(c.lang === "es" ? "Se env\u00edan el jueves." : "Shipping Thursday.");
+      await wait(400); await click(c, '[data-supplies-tab="requests"]'); await until(c, '[data-request-open="sr-4"]');
+      await click(c, '[data-request-open="sr-4"]'); await until(c, '[data-request-window="sr-4"]');
+      await c.page.locator('[data-request-line="sr-4-1"] [data-request-line-qty]').fill("3");
+      await c.page.locator('[data-request-line="sr-4-2"] [data-request-line-note]').fill(c.lang === "es" ? "Use el jab\u00f3n que ya est\u00e1 en el sitio." : "Use the soap already at the site.");
     } },
+  { name: "supplies-request-list", entry: "Approve or deny a supply request",
+    open: "supplies", ready: SHELL,
+    act: async (c) => { await wait(400); await click(c, '[data-supplies-tab="requests"]'); await until(c, "[data-ordering-download]"); await until(c, '[data-request-open="sr-4"]'); } },
   { name: "supplies-add-supply", entry: "Add a supply to the inventory",
     open: "supplies", ready: SHELL,
     act: async (c) => {
@@ -1460,7 +1466,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280"].forEach((k) => stubs[k](true));
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the
   // code is what finishes it (STEP225_CONTRACT.md).
   if (as === "code") {

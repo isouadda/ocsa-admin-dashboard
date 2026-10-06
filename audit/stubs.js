@@ -4248,6 +4248,96 @@ function createStubs() {
     }
     return a;
   }
+  // Supply requests with many items (STEP280_CONTRACT.md section 1), answered only once a run arms it
+  // with setStep280: items on every request answer, the seeded requests as one line each and a
+  // three-line refill waiting at the first site, POST /api/supplies/requests/:id/decide on some lines
+  // or all, the whole-request decision deciding every undecided line, and the approved lines of the
+  // requests not yet fulfilled as GET /api/supplies/requests/approved.csv. The refusal codes are the
+  // stub's own; the contract names only the bad-details code's keys for a new request. Every value is
+  // invented.
+  let step280 = false;
+  const REQUEST_280 = "sr-4";
+  const line280 = (rq, i, x) => ({ id: rq + "-" + (i + 1), supplyId: x.supplyId || null, name: x.name, unit: x.unit || null, quantity: x.quantity, note: x.note || null,
+    decision: x.decision || null, approvedQuantity: x.decision === "approved" ? (x.approvedQuantity || x.quantity) : null, decisionNote: x.decisionNote || null,
+    decidedAt: x.decision ? x.decidedAt : null, decidedBy: x.decision ? { name: x.decidedBy } : null });
+  const requests280 = () => {
+    if (!state.supplyRequests) state.supplyRequests = clone(SUPPLY_REQUESTS);
+    if (state.r280) return state.supplyRequests;
+    state.r280 = true;
+    const siteOf = [S[0].id, S[1].id, S[2].id];
+    state.supplyRequests.forEach((rq, i) => {
+      rq.site_id = siteOf[i % 3];
+      rq.items = [line280(rq.id, 0, { supplyId: rq.supply_id, name: rq.supply_name, unit: rq.unit, quantity: rq.request_type === "damage_report" ? 1 : rq.quantity, note: rq.description || null,
+        decision: rq.status === "fulfilled" ? "approved" : null, decidedAt: rq.status === "fulfilled" ? seed.shift(-10) + "T14:00:00Z" : null, decidedBy: "Marcus Ferreira" })];
+    });
+    state.supplyRequests.unshift({ id: REQUEST_280, supply_name: "Can liner 40x46", supply_id: "sp-3", item_name: null, quantity: 5, unit: "case", status: "pending", requested_by_name: "Yuki Tanabe",
+      site_name: S[0].name, site_id: S[0].id, notes: "", requested_at: seed.shift(0) + "T22:15:00Z", admin_notes: null, request_type: "refill", urgency: "normal",
+      created_at: seed.shift(0) + "T22:15:00Z", description: "Restock for the weekend.",
+      items: [
+        line280(REQUEST_280, 0, { supplyId: "sp-3", name: "Can liner 40x46", unit: "case", quantity: 5, note: "Two for the dock, three for the lobby." }),
+        line280(REQUEST_280, 1, { supplyId: "sp-4", name: "Hand soap refill", unit: "each", quantity: 4 }),
+        line280(REQUEST_280, 2, { supplyId: "sp-2", name: "Microfiber cloth pack", unit: "case", quantity: 2 }),
+      ] });
+    return state.supplyRequests;
+  };
+  // Once every line is decided the request is approved when any line is, and denied when none is.
+  const settle280 = (rq) => {
+    if (!rq.items.every((x) => x.decision)) return;
+    rq.status = rq.items.some((x) => x.decision === "approved") ? "approved" : "denied";
+    rq.handled_at = seed.NOW_ISO;
+  };
+  function step280Route(method, path, query, body, lang, base) {
+    const es = lang === "es";
+    const b = body || {};
+    const rows = requests280();
+    const bad = (key) => ({ status: 400, json: { error: es ? "Revise los artículos del pedido." : "Check the request's items.", code: "supplies.badDetails", keys: [key] } });
+    const decide = /^\/api\/supplies\/requests\/([^/]+)\/decide$/.exec(path);
+    if (decide && method === "POST") {
+      const rq = rows.find((x) => String(x.id) === decodeURIComponent(decide[1]));
+      if (!rq) return { status: 404, json: { error: es ? "No se encontró ese pedido." : "That request was not found.", code: "supplies.notFound" } };
+      if (rq.status === "fulfilled") return { status: 409, json: { error: es ? "Este pedido ya se entregó, así que sus artículos no cambian." : "This request is already fulfilled, so its items cannot change.", code: "supplies.wrongState" } };
+      const list = b.items;
+      if (!Array.isArray(list) || !list.length || list.length > 30) return bad("items");
+      const plan = [];
+      for (let n = 0; n < list.length; n += 1) {
+        const x = list[n] || {};
+        const line = rq.items.find((it) => it.id === x.id);
+        if (!line) return bad("items." + n + ".id");
+        if (x.decision !== "approved" && x.decision !== "denied") return bad("items." + n + ".decision");
+        const qty = x.decision === "approved" ? (x.approvedQuantity == null ? line.quantity : x.approvedQuantity) : null;
+        if (x.decision === "approved" && !(Number.isInteger(qty) && qty >= 1 && qty <= line.quantity)) return bad("items." + n + ".approvedQuantity");
+        if (x.note != null && (typeof x.note !== "string" || x.note.length > 500)) return bad("items." + n + ".note");
+        plan.push({ line, decision: x.decision, qty, note: x.note ? String(x.note).trim() || null : null });
+      }
+      const me = person();
+      const by = { name: [me.firstName || me.first_name, me.lastName || me.last_name].filter(Boolean).join(" ") };
+      plan.forEach((x) => Object.assign(x.line, { decision: x.decision, approvedQuantity: x.qty, decisionNote: x.note, decidedAt: seed.NOW_ISO, decidedBy: by }));
+      settle280(rq);
+      return ok({ request: rq });
+    }
+    if (path === "/api/supplies/requests/approved.csv" && method === "GET") {
+      const from = query.get("from") || "";
+      const to = query.get("to") || "";
+      const siteId = query.get("siteId") || "";
+      const day = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+      if (!day(from) || !day(to) || from > to) return { status: 400, json: { error: es ? "Elija Desde y Hasta, con Hasta el mismo día o después." : "Choose a From and a To, with To on or after From.", code: "supplies.badDetails", keys: [!day(from) ? "from" : "to"] } };
+      const out = [["Request date", "Site", "Requested by", "Item", "Unit", "Quantity approved", "Note", "Preferred vendor"]];
+      rows.filter((rq) => rq.status !== "fulfilled" && String(rq.created_at).slice(0, 10) >= from && String(rq.created_at).slice(0, 10) <= to && (!siteId || String(rq.site_id) === siteId))
+        .forEach((rq) => rq.items.filter((x) => x.decision === "approved").forEach((x) => out.push([String(rq.created_at).slice(0, 10), rq.site_name || "", rq.requested_by_name || "", x.name, x.unit || "", String(x.approvedQuantity), x.note || "", ""])));
+      const q = (v) => (/[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v);
+      return { status: 200, json: null, bytes: Buffer.from("﻿" + out.map((r) => r.map(q).join(",")).join("\r\n") + "\r\n", "utf8"), contentType: "text/csv; charset=utf-8", headers: { "Content-Disposition": 'attachment; filename="approved-supplies-' + from + "-" + to + '.csv"' } };
+    }
+    // The whole-request decision keeps working: approving approves every undecided line at its full
+    // quantity, and denying denies every undecided line.
+    const one = /^\/api\/supplies\/requests\/([^/]+)$/.exec(path);
+    if (one && (method === "PATCH" || method === "PUT") && (b.status === "approved" || b.status === "denied")) {
+      const rq = rows.find((x) => String(x.id) === decodeURIComponent(one[1]));
+      const me = person();
+      const by = { name: [me.firstName || me.first_name, me.lastName || me.last_name].filter(Boolean).join(" ") };
+      if (rq && rq.status !== "fulfilled") rq.items.forEach((x) => { if (!x.decision) Object.assign(x, { decision: b.status, approvedQuantity: b.status === "approved" ? x.quantity : null, decidedAt: seed.NOW_ISO, decidedBy: by }); });
+    }
+    return base();
+  }
   // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
   function step247Route(method, path, query, body, lang, base) {
     const es = lang === "es";
@@ -5936,7 +6026,8 @@ function createStubs() {
     const over270 = () => (step270 ? step270Route(method, path, u.searchParams, body, record.language, over266) : over266());
     const over269 = () => (step269 ? step269Route(method, path, u.searchParams, body, record.language, over270) : over270());
     const over275 = () => (step275 ? step275Route(method, path, u.searchParams, body, record.language, over269) : over269());
-    const answer = step278 ? step278Route(method, path, u.searchParams, body, record.language, over275) : over275();
+    const over280 = () => (step280 ? step280Route(method, path, u.searchParams, body, record.language, over275) : over275());
+    const answer = step278 ? step278Route(method, path, u.searchParams, body, record.language, over280) : over280();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6013,6 +6104,9 @@ function createStubs() {
     setStep275: (v) => { step275 = v !== false; if (step275) step256 = true; },
     // What the pictures of the screen need (Step 278), on or off, laid over whichever steps the run arms.
     setStep278: (v) => { step278 = v !== false; },
+    // The routes and keys of the API's Step 280, supply requests with many items, on or off, laid over
+    // whichever steps the run arms.
+    setStep280: (v) => { step280 = v !== false; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -6069,6 +6163,7 @@ function createStubs() {
       step269 = false;
       step275 = false; state.t275 = false;
       step278 = false;
+      step280 = false; state.r280 = false;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

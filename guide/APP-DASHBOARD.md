@@ -304,13 +304,21 @@ Last checked: 2026-10-01
 
 ## Approve or deny a supply request (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Inventory**.
-2. Click the **Requests** tab.
-3. Click **Approve** or **Deny** on the request, add a note if you want, and confirm.
-4. The person who asked gets a notice.
-Words people use for this: supply order, someone needs supplies, order request, approve supplies.
+1. Click **Inventory** (**Inventario**) in the side panel.
+2. Click the **Requests** (**Solicitudes**) tab. Each request names its first item and how many items it holds.
+3. Click **Open** (**Abrir**) on the request. The window lists every item with its quantity and any note from the person who asked.
+4. To approve an item, lower **Quantity to approve** (**Cantidad a aprobar**) if you are sending fewer, down to 1, and click **Approve** (**Aprobar**). The item then reads **Approved {0} of {1}** (**Aprobado: {0} de {1}**).
+5. To deny an item, type a **Note (optional)** (**Nota (opcional)**) if the person should know why, and click **Deny** (**Denegar**).
+6. **Approve all** (**Aprobar todo**) and **Deny all** (**Denegar todo**) decide every item not decided yet, at the quantities and with the notes in their boxes.
+7. Until the request is fulfilled, **Change** (**Cambiar**) on a decided item opens its boxes again.
+8. Once every item is decided, the request reads approved when any item was approved and denied when none was. The person who asked gets a notice saying how many items were approved and how many denied.
+9. To order what was approved, choose **From** (**Desde**), **To** (**Hasta**) and a **Site** (**Sitio**) or **All sites** (**Todos los sitios**) above the list, and click **Download for ordering (CSV)** (**Descargar para hacer el pedido (CSV)**). The file lists each approved item of the requests not yet fulfilled, with the quantity approved.
+10. A request that shows **Approve** (**Aprobar**) and **Deny** (**Denegar**) on the request itself, and no **Open** (**Abrir**), is decided whole: click one, add a note if you want, and confirm.
+If it does not work: when a decision or the download is refused, the reason shows in red in the window or under the download button.
+Words people use for this: supply order, someone needs supplies, order request, approve supplies, many items, several items, quantity, approve part of a request, approve fewer, order list, purchase list, csv for ordering.
 Picture: supplies-request-approve
-Last checked: 2026-09-17
+Picture: supplies-request-list
+Last checked: 2026-10-06
 
 ## Add a supply to the inventory (admin dashboard)
 Who can do this: admins

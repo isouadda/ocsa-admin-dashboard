@@ -4664,6 +4664,20 @@ export const WORDS = {
   "None|first due": { es: "Ninguno" },
   "With a topic chosen, this one is first due its renewal months after the person first completes that topic, and nobody is asked for it before.": { es: "Con un tema elegido, este vence por primera vez sus meses de renovaci\u00f3n despu\u00e9s de que la persona completa ese tema por primera vez, y no se le pide a nadie antes." },
   "Keys and access is not done yet. OCSA-HR-013 Section 3 asks for it before any key, badge, fob or code is issued. If they already hold this one, record it; the training is assigned from the record.": { es: "Llaves y acceso todav\u00eda no est\u00e1 hecha. La secci\u00f3n 3 de OCSA-HR-013 la pide antes de entregar cualquier llave, credencial, llavero electr\u00f3nico o c\u00f3digo. Si la persona ya tiene esta, reg\u00edstrela; la capacitaci\u00f3n se asigna desde el registro." },
+  "{0} items|supply request": {
+    en: { one: "{0} item", other: "{0} items" },
+    es: { one: "{0} art\u00edculo", other: "{0} art\u00edculos" },
+  },
+  "Approved {0} of {1}": { es: "Aprobado: {0} de {1}" },
+  "Denied|item": { es: "Denegado" },
+  "Quantity to approve": { es: "Cantidad a aprobar" },
+  "A whole number from 1 to {0}": { es: "Un n\u00famero entero del 1 al {0}" },
+  "Note (optional)": { es: "Nota (opcional)" },
+  "Approve all": { es: "Aprobar todo" },
+  "Deny all": { es: "Denegar todo" },
+  "Download for ordering (CSV)": { es: "Descargar para hacer el pedido (CSV)" },
+  "The approved items of the requests not yet fulfilled, for the dates and the site chosen.": { es: "Los art\u00edculos aprobados de las solicitudes a\u00fan no entregadas, para las fechas y el sitio elegidos." },
+  "Choose a To date on or after the From date.": { es: "Elija una fecha Hasta igual o posterior a la fecha Desde." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
