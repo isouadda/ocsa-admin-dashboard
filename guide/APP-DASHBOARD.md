@@ -1959,3 +1959,46 @@ Who can do this: admins see every request; supervisors see their sites
 If it does not work: the tab shows once the system answers the signature requests. A request opened from a notice that is not yours to see says so.
 Words people use for this: waiting for signatures, who has not signed, unsigned, pending signatures, reminders, firmas pendientes.
 Last checked: 2026-10-06
+
+## Read the owner's dashboard (admin dashboard)
+Who can do this: admins, and anyone else the system gives the owner's dashboard to. Supervisors do not see it.
+1. Click **Owner's dashboard** (**Tablero del propietario**) on the side panel, under **Dashboard** (**Panel**).
+2. Pick the **Period** (**Periodo**), one of the last 12 months or the last 8 quarters, the current one first, and the **Site** (**Sitio**), or leave **All sites** (**Todos los sitios**).
+3. The line over the sections names the period, the site, the period it is compared with and the day the numbers are as of.
+4. Each section is a card: service quality, customers, corrective actions, health and safety, training, people, labor and resources. Each measure shows its value, the previous period's value and an arrow: green when it moved the better way, red when it moved the other way, gray when it held or when neither way is better. The document and section the measure comes from sit under it.
+5. A measure the system cannot work out yet reads **Needs:** (**Necesita:**) and what it needs, such as a workload plan or the ADP key. It never reads as a zero.
+6. Click **By site** (**Por sitio**) under a measure to see its value at each site, and **Hide the sites** (**Ocultar los sitios**) to close it.
+If it does not work: the item shows once the system gives you the owner's dashboard. Opened another way without it, the page says so in the system's words.
+Words people use for this: owner's dashboard, how is the company doing, key numbers, monthly numbers, quarterly numbers, inspection average, turnover, tablero del propietario.
+Last checked: 2026-10-06
+
+## Print the owner's dashboard for a review (admin dashboard)
+Who can do this: admins, and anyone else the system gives the owner's dashboard to
+1. Open **Owner's dashboard** (**Tablero del propietario**) and pick the **Period** (**Periodo**), a quarter for the quarterly review, and the **Site** (**Sitio**).
+2. Click **Print** (**Imprimir**). Every section prints on letter paper as a table: each measure with this period, the previous period, the change and the document it comes from, its sites under it, and what a measure with no value needs.
+3. The top of the page names the period, the period it is compared with, the site and the day it was printed.
+If it does not work: allow pop-ups for the dashboard in the browser, then click **Print** (**Imprimir**) again.
+Words people use for this: print the owner's dashboard, quarterly review, management review numbers, review packet, imprimir el tablero.
+Last checked: 2026-10-06
+
+## Pay phone training time (admin dashboard)
+Who can do this: admins, and anyone allowed to read reports
+1. Click **Training** (**Capacitación**) on the side panel, then **Time** (**Tiempo**).
+2. **From** (**Desde**) and **To** (**Hasta**) start on the last full week, Monday to Sunday. Change them for another range of up to 62 days, and narrow it by **Site** (**Sitio**).
+3. The table lists each person with training in those days: lessons passed, attempts, time in lessons in hours and minutes, sessions signed and checklists signed, with the totals in the last row.
+4. Time in lessons runs from opening a lesson on the phone to signing it, each attempt counting at most 60 minutes. Session hours are not recorded; add them from the session list.
+5. Click **Download CSV** (**Descargar CSV**) to save the table as a spreadsheet for payroll.
+If it does not work: a range of more than 62 days, or with To before From, is not asked for and the page says so. The tab shows once the system answers it.
+Words people use for this: training time, pay for training, paid training hours, phone lesson time, payroll training, tiempo de capacitación.
+Last checked: 2026-10-06
+
+## Show the assessor who is trained (admin dashboard)
+Who can do this: admins see everyone; supervisors see the people at their own sites
+1. Click **Training** (**Capacitación**) on the side panel, then **Matrix** (**Matriz**).
+2. Narrow it with **All sites** (**Todos los sitios**), **All roles** (**Todos los roles**) and **All categories** (**Todas las categorías**). A supervisor's site list reads **All my sites** (**Todos mis sitios**) and holds only their own sites.
+3. People run down the side and the topics across the top, under their categories. Each cell reads its status and day: **Done** (**Hecha**) in green, **Expires soon** (**Vence pronto**) and **Refresher due** (**Repaso pendiente**) in amber, **Missing** (**Falta**) and **Expired** (**Vencida**) in red, **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**) in blue. A blank cell is a topic the person does not need. The legend over the grid says the same.
+4. Tap a cell to see **How it was done** (**Cómo se hizo**), its days, and for a topic taken **At each site** (**En cada sitio**), each site's status.
+5. Click **Print** (**Imprimir**) for the assessor: a table per category on landscape letter paper, with the day it was printed. **Download CSV** (**Descargar CSV**) saves the grid as a spreadsheet.
+If it does not work: allow pop-ups for the dashboard in the browser to print. A wide grid scrolls sideways inside its card. The tab shows once the system answers it.
+Words people use for this: training matrix, who is trained, assessor, proof of training, training by person, matriz de capacitación.
+Last checked: 2026-10-06

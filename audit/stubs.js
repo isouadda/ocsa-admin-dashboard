@@ -3970,6 +3970,216 @@ function createStubs() {
     }
     return base();
   }
+  // The owner's dashboard, training time for pay and the training matrix (STEP269_AS_BUILT.md, read
+  // against the API's routes/owner.js, helpers/ownerDashboard.js, helpers/trainingTime.js and
+  // helpers/trainingMatrix.js), answered only once a run arms it with setStep269, over whichever later
+  // step's answers the run arms: view_owner_dashboard on the admin's own capabilities and not the supervisor's; the
+  // dashboard's eight sections with a measure that needs something and measures with a value at each
+  // site; the time report and its CSV; and the matrix with a per-site cell, a supervisor held to their
+  // own sites. Every value is invented.
+  let step269 = false;
+  const S269_WORDS = {
+    "owner.noAccess": ["You do not have access to the owner's dashboard", "No tiene acceso al tablero del propietario"],
+    "owner.badPeriod": ["The period must be a month (YYYY-MM) or a quarter (YYYY-Qn)", "El periodo debe ser un mes (YYYY-MM) o un trimestre (YYYY-Qn)"],
+    "owner.siteNotFound": ["Site not found", "No se encontró el sitio"],
+    "training.badDetails": ["Some details are missing or not valid", "Faltan algunos datos o no son válidos"],
+    "training.noAccess": ["You do not have access to this training", "No tiene acceso a esta capacitación"],
+  };
+  const r269 = (code, status, lang, extra) => ({ status, json: Object.assign({ code, error: S269_WORDS[code] ? S269_WORDS[code][lang === "es" ? 1 : 0] : code }, extra || {}) });
+  const NEEDS_269 = {
+    adp: ["Actual hours and pay from ADP, after the ADP key", "Horas y pagos reales de ADP, cuando haya clave de ADP"],
+    plan: ["A current workload plan on at least one active site", "Un plan de carga de trabajo vigente en al menos un sitio activo"],
+    reason: ["No separation in the period carries a recorded reason", "Ninguna separación del periodo tiene un motivo registrado"],
+  };
+  // [key, unit, better, en, es, value, previous, bySite values for s-1, s-2, s-3 or null, needs]
+  const OWNER_269 = [
+    ["quality", "Service quality", "Calidad del servicio", [
+      ["inspectionAverage", "percent", "up", "Average inspection score", "Puntaje promedio de inspección", 91.4, 88.2, [93.5, 90.1, 88.7]],
+      ["inspectionsCompleted", "count", "up", "Inspections completed", "Inspecciones completadas", 14, 12, [6, 5, 3]],
+      ["sitesBelow80", "count", "down", "Sites averaging under 80", "Sitios con promedio menor a 80", 0, 1, null],
+      ["findingsOpened", "count", "down", "Findings opened", "Hallazgos abiertos", 9, 6, [4, 2, 3]],
+      ["findingsFixedOnTime", "percent", "up", "Findings fixed by their due date", "Hallazgos corregidos a tiempo", 77.8, 83.3, [75, 100, 66.7]],
+      ["medianHoursToFix", "hours", "down", "Median hours to fix a finding", "Horas medianas para corregir un hallazgo", 18.5, 22, [16, 12.5, 30]],
+    ]],
+    ["customers", "Customers", "Clientes", [
+      ["complaintsReceived", "count", "down", "Complaints received", "Quejas recibidas", 2, 2, [1, 0, 1]],
+      ["clientRequests", "count", null, "Client requests", "Solicitudes de clientes", 11, 8, [5, 4, 2]],
+      ["medianMinutesToFirstResponse", "minutes", "down", "Median minutes to first response", "Minutos medianos hasta la primera respuesta", 42, 55, [38, 41, 64]],
+    ]],
+    ["correctiveActions", "Corrective actions", "Acciones correctivas", [
+      ["opened", "count", null, "Corrective actions opened", "Acciones correctivas abiertas", 3, 1, [1, 1, 1]],
+      ["closed", "count", "up", "Corrective actions closed", "Acciones correctivas cerradas", 2, 2, [1, 1, 0]],
+      ["overdue", "count", "down", "Corrective actions overdue", "Acciones correctivas vencidas", 1, 0, [0, 0, 1]],
+    ]],
+    ["safety", "Health and safety", "Salud y seguridad", [
+      ["injuryReports", "count", "down", "Injury reports", "Reportes de lesiones", 0, 1, [0, 0, 0]],
+      ["nearMisses", "count", null, "Near misses", "Casi accidentes", 2, 3, [1, 0, 1]],
+    ]],
+    ["training", "Training", "Capacitación", [
+      ["requiredItems", "count", null, "Required trainings", "Capacitaciones requeridas", 126, 118, null],
+      ["currentPercent", "percent", "up", "Trainings current", "Capacitaciones al día", 84.1, 79.7, null],
+      ["missing", "count", "down", "Trainings missing", "Capacitaciones faltantes", 12, 15, null],
+    ]],
+    ["people", "People", "Personal", [
+      ["activeHeadcount", "count", null, "Active headcount", "Plantilla activa", 10, 10, [4, 3, 3]],
+      ["separations", "count", "down", "Separations", "Separaciones", 1, 0, [0, 1, 0]],
+      ["voluntary", "count", "down", "Voluntary separations", "Separaciones voluntarias", null, null, null, "reason"],
+    ]],
+    ["labor", "Labor", "Mano de obra", [
+      ["squareFeet", "squareFeet", null, "Square feet under contract", "Pies cuadrados bajo contrato", 297500, 297500, [84000, 61500, 152000]],
+      ["calculatedHours", "hours", null, "Calculated hours", "Horas calculadas", null, null, null, "plan"],
+      ["actualHours", "hours", null, "Actual hours", "Horas reales", null, null, null, "adp"],
+      ["laborCostPerSquareFoot", "dollars", "down", "Labor cost per square foot", "Costo de mano de obra por pie cuadrado", null, null, null, "adp"],
+    ]],
+    ["resources", "Resources", "Recursos", [
+      ["suppliesRunningLow", "count", "down", "Supplies running low", "Suministros por agotarse", 3, 5, [1, 1, 1]],
+      ["equipmentTaggedOut", "count", "down", "Equipment tagged out", "Equipo etiquetado fuera de servicio", 1, 2, [0, 0, 1]],
+    ]],
+  ];
+  const SOURCES_269 = { quality: ["OCSA-QMS-014", "5.2"], customers: ["OCSA-QMS-011", "4.5"], correctiveActions: ["OCSA-QMS-017", "5"], safety: ["OCSA-HS-014", "5"], training: ["OCSA-HR-006", "3"], people: ["OCSA-HR-004", "2"], labor: ["OCSA-SVC-001", "8"], resources: ["OCSA-QMS-018", "4.1"] };
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const periodOf269 = (key) => {
+    let m = /^(\d{4})-(\d{2})$/.exec(String(key || ""));
+    const last = (y, mo) => new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) {
+      const y = Number(m[1]), mo = Number(m[2]);
+      return { key: y + "-" + pad2(mo), start: y + "-" + pad2(mo) + "-01", end: y + "-" + pad2(mo) + "-" + pad2(last(y, mo)), previousKey: mo === 1 ? (y - 1) + "-12" : y + "-" + pad2(mo - 1), kind: "month" };
+    }
+    m = /^(\d{4})-Q([1-4])$/i.exec(String(key || ""));
+    if (m) {
+      const y = Number(m[1]), q = Number(m[2]), first = (q - 1) * 3 + 1;
+      return { key: y + "-Q" + q, start: y + "-" + pad2(first) + "-01", end: y + "-" + pad2(first + 2) + "-" + pad2(last(y, first + 2)), previousKey: q === 1 ? (y - 1) + "-Q4" : y + "-Q" + (q - 1), kind: "quarter" };
+    }
+    return null;
+  };
+  const trend269 = (v, p) => (v == null || p == null ? null : v > p ? "up" : v < p ? "down" : "same");
+  const ownerAnswer = (query, lang) => {
+    const es = lang === "es";
+    const period = periodOf269(query.get("period") || T_TODAY.slice(0, 7));
+    if (!period) return r269("owner.badPeriod", 400, lang, { keys: ["period"] });
+    const siteId = query.get("siteId") || "";
+    const site = siteId ? state.sites.find((s0) => s0.id === siteId) : null;
+    if (siteId && !site) return r269("owner.siteNotFound", 404, lang);
+    const at = site ? ["s-1", "s-2", "s-3"].indexOf(site.id) : -1;
+    return ok({
+      period, asOf: T_TODAY, site: site ? { id: site.id, name: site.name } : null,
+      sections: OWNER_269.map(([key, en, esTitle, list]) => ({ key, title: es ? esTitle : en, measures: list.map((m) => {
+        const [mk, unit, better, mEn, mEs, value0, prev0, sites, needs] = m;
+        const value = at >= 0 && sites ? sites[at] : value0;
+        const previous = at >= 0 && sites ? null : prev0;
+        return { key: mk, label: es ? mEs : mEn, value, unit, previous, trend: trend269(value, previous), better,
+          bySite: !site && sites ? state.sites.slice(0, 3).map((s0, i) => ({ siteId: s0.id, siteName: s0.name, value: sites[i] })) : null,
+          source: { docCode: SOURCES_269[key][0], section: SOURCES_269[key][1] }, needs: value == null ? NEEDS_269[needs || "plan"][es ? 1 : 0] : null };
+      }) })),
+    });
+  };
+  // Training time: four people with time in the range, each from the seed's staff and sites.
+  const TIME_269 = [
+    ["u-staff-5", 3, 4, 71, 1, 1], ["u-staff-6", 2, 2, 38, 1, 0], ["u-staff-7", 1, 1, 12, 0, 0], ["u-staff-9", 0, 3, 150, 0, 1],
+  ];
+  const timeAnswer = (query, lang) => {
+    const me = person();
+    const caps = effectiveMap(me, state.overrides[me.id]);
+    if (me.role !== "admin" && !caps.view_reports) return r269("training.noAccess", 403, lang);
+    const from = String(query.get("from") || ""), to = String(query.get("to") || "");
+    const day = /^\d{4}-\d{2}-\d{2}$/;
+    const keys = [];
+    if (!day.test(from)) keys.push("from");
+    if (!day.test(to)) keys.push("to");
+    if (!keys.length) { const days = Math.round((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86400000) + 1; if (days < 1 || days > 62) keys.push("to"); }
+    const siteId = query.get("siteId") || "";
+    if (siteId && !state.sites.some((s0) => s0.id === siteId)) keys.push("siteId");
+    const format = query.get("format") || "json";
+    if (format !== "json" && format !== "csv") keys.push("format");
+    if (keys.length) return r269("training.badDetails", 400, lang, { keys });
+    const people = TIME_269.map(([id, lessonsPassed, attempts0, minutes, sessionsSigned, checklistsSigned]) => {
+      const p = tPerson(id);
+      return { id, name: p.name, role: p.role, sites: sitesOfPerson(p).map((sid) => ({ id: sid, name: (state.sites.find((s0) => s0.id === sid) || {}).name || "" })), lessonsPassed, attempts: attempts0, minutes, sessionsSigned, checklistsSigned };
+    }).filter((p) => !siteId || p.sites.some((s0) => s0.id === siteId));
+    const cols = ["lessonsPassed", "attempts", "minutes", "sessionsSigned", "checklistsSigned"];
+    const totals = { people: people.length };
+    cols.forEach((c) => { totals[c] = people.reduce((n, p) => n + p[c], 0); });
+    if (format === "csv") {
+      const q = (v) => (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+      const rows = [["id", "name", "role", "sites"].concat(cols)].concat(people.map((p) => [p.id, p.name, p.role, p.sites.map((s0) => s0.name).join("; ")].concat(cols.map((c) => p[c]))), [["TOTAL", totals.people + " people", "", ""].concat(cols.map((c) => totals[c]))]);
+      return { status: 200, json: null, bytes: Buffer.from("﻿" + rows.map((r) => r.map(q).join(",")).join("\r\n") + "\r\n", "utf8"), contentType: "text/csv; charset=utf-8", headers: { "Content-Disposition": 'attachment; filename="training-time-' + from + "-" + to + '.csv"' } };
+    }
+    return ok({ from, to, people, totals });
+  };
+  // The matrix: the gaps' items as cells, one person with a second site so the per-site topic has a
+  // cell with two sites, and how each record was made.
+  const MATRIX_EXTRA_SITE = { "u-staff-6": "s-1" };
+  const matrixSitesOf = (p) => sitesOfPerson(p).concat(MATRIX_EXTRA_SITE[p.id] && sitesOfPerson(p).indexOf(MATRIX_EXTRA_SITE[p.id]) < 0 ? [MATRIX_EXTRA_SITE[p.id]] : []);
+  // The second site's orientation, done at a session there.
+  const MATRIX_SITE_DONE = { "u-staff-6|tp-2|s-1": { status: "current", completedDate: seed.shift(-30), expiresOn: null, recordId: null } };
+  const WORST_269 = ["missing", "expired", "refresherDue", "awaitingTrainer", "inProgress", "dueSoon", "current"];
+  const methodOf269 = (it) => {
+    if (it.status === "missing" && !it.completedDate) return null;
+    const rec = it.recordId ? allRecords().find((r) => r.id === it.recordId) : null;
+    if (!rec) return it.completedDate ? "form" : null;
+    if (rec.attempt_id) { const a = attempts().find((x) => x.id === rec.attempt_id); const v = a ? versions().find((x) => x.id === a.versionId) : null; return v && v.kind === "observation" ? "checklist" : "lesson"; }
+    if (rec.session_id) return "session";
+    if (rec.certificate_path) return "certificate";
+    return "record";
+  };
+  const matrixAnswer = (query, lang) => {
+    const me = person();
+    if (me.role !== "admin" && me.role !== "supervisor") return r269("training.noAccess", 403, lang);
+    const siteId = query.get("siteId") || "", role = query.get("role") || "", category = query.get("category") || "", format = query.get("format") || "json";
+    const keys = [];
+    if (siteId && !state.sites.some((s0) => s0.id === siteId)) keys.push("siteId");
+    if (role && T_ROLES.indexOf(role) < 0) keys.push("role");
+    if (category && category !== "other" && !T_CATEGORIES.some((c) => c[0] === category)) keys.push("category");
+    if (format !== "json" && format !== "csv") keys.push("format");
+    if (keys.length) return r269("training.badDetails", 400, lang, { keys });
+    const mine = me.role === "admin" ? null : state.sites.filter((s0) => s0.supervisor_id === me.id).map((s0) => s0.id);
+    if (mine && siteId && mine.indexOf(siteId) < 0) return r269("training.noAccess", 403, lang);
+    const shown = topics().filter((tp) => tp.active && (!category || (tp.category || "other") === category))
+      .sort((a, b) => categoryRank(a.category) - categoryRank(b.category) || orderOf(a) - orderOf(b) || a.names.en.localeCompare(b.names.en));
+    const people = state.staff.filter((p) => p.status === "active" && (!role || p.role === role)).map((p) => ({ p, sites: matrixSitesOf(p) }))
+      .filter((x) => (!siteId || x.sites.indexOf(siteId) >= 0) && (!mine || x.sites.some((sid) => mine.indexOf(sid) >= 0)))
+      .map(({ p, sites }) => {
+        const cells = {};
+        shown.filter((tp) => tActiveReqs(tp).some((r) => reqApplies(r, p))).forEach((tp) => {
+          if (!tp.perSite) { const it = gapItem(tp, p, null, lang); cells[tp.id] = { status: it.status, completedDate: it.completedDate, expiresOn: it.expiresOn, method: methodOf269(it), sites: null }; return; }
+          const list = sites.filter((sid) => !siteId || sid === siteId).map((sid) => Object.assign(gapItem(tp, p, sid, lang), MATRIX_SITE_DONE[p.id + "|" + tp.id + "|" + sid] || {}));
+          if (!list.length) return;
+          const worst = WORST_269.find((s0) => list.some((it) => it.status === s0)) || list[0].status;
+          const pick = list.find((it) => it.status === worst) || list[0];
+          cells[tp.id] = { status: worst, completedDate: pick.completedDate, expiresOn: pick.expiresOn, method: methodOf269(pick), sites: list.map((it) => ({ siteId: it.siteId, status: it.status, completedDate: it.completedDate })) };
+        });
+        return { id: p.id, name: p.name, role: p.role, sites: sites.map((sid) => ({ id: sid, name: (state.sites.find((s0) => s0.id === sid) || {}).name || "" })), cells };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+    const out = { asOf: T_TODAY, topics: shown.map((tp) => ({ id: tp.id, key: tp.key, name: tp.names[lang] || tp.names.en, category: tp.category || "other", categoryName: tp.category ? catName(T_CATEGORIES.find((c) => c[0] === tp.category), lang) : (lang === "es" ? "Otras capacitaciones" : "Other trainings"), docCode: tp.docCode, docSection: tp.docSection, perSite: !!tp.perSite })), people };
+    if (format === "csv") {
+      const q = (v) => (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+      const rows = [["id", "name", "role", "sites"].concat(out.topics.map((tp) => tp.key))].concat(people.map((p) => [p.id, p.name, p.role, p.sites.map((s0) => s0.name).join("; ")].concat(out.topics.map((tp) => { const c = p.cells[tp.id]; return c ? c.status + (c.completedDate ? " " + c.completedDate : "") : ""; }))));
+      return { status: 200, json: null, bytes: Buffer.from("﻿" + rows.map((r) => r.map(q).join(",")).join("\r\n") + "\r\n", "utf8"), contentType: "text/csv; charset=utf-8", headers: { "Content-Disposition": 'attachment; filename="training-matrix-' + T_TODAY + '.csv"' } };
+    }
+    return ok(out);
+  };
+  function step269Route(method, path, query, body, said, base) {
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    const me = person();
+    // Step 270's topic and requests are there before the matrix reads the catalog.
+    if (step270) requests270();
+    if (path === "/api/users/me/permissions" && method === "GET") {
+      const a = base();
+      if (a && a.json && a.json.capabilities) a.json.capabilities.view_owner_dashboard = me.role === "admin";
+      return a;
+    }
+    // The person's own site assignments, as GET /api/auth/me answers them: a supervisor's are the sites
+    // the matrix holds them to.
+    if (path === "/api/auth/me" && method === "GET") {
+      const a = base();
+      if (a && a.json) a.json.sites = (me.role === "admin" ? [] : state.sites.filter((s0) => s0.supervisor_id === me.id)).map((s0, i) => ({ assignmentId: "as-" + (i + 1), siteId: s0.id, siteName: s0.name }));
+      return a;
+    }
+    if (path === "/api/owner/dashboard" && method === "GET") return me.role === "admin" ? ownerAnswer(query, lang) : r269("owner.noAccess", 403, lang);
+    if (path === "/api/training/time" && method === "GET") return timeAnswer(query, lang);
+    if (path === "/api/training/matrix" && method === "GET") return matrixAnswer(query, lang);
+    return base();
+  }
   // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
   function step247Route(method, path, query, body, lang, base) {
     const es = lang === "es";
@@ -5614,7 +5824,8 @@ function createStubs() {
     const over256 = () => (step256 ? step256Route(method, path, u.searchParams, body, record.language, over253) : over253());
     const over262 = () => (step262 ? step262Route(method, path, u.searchParams, body, record.language, over256) : over256());
     const over266 = () => (step266 ? step266Route(method, path, u.searchParams, body, record.language, over262) : over262());
-    const answer = step270 ? step270Route(method, path, u.searchParams, body, record.language, over266) : over266();
+    const over270 = () => (step270 ? step270Route(method, path, u.searchParams, body, record.language, over266) : over266());
+    const answer = step269 ? step269Route(method, path, u.searchParams, body, record.language, over270) : over270();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -5683,6 +5894,9 @@ function createStubs() {
     setStep266: (v) => { step266 = v !== false; if (step266) { step262 = true; step256 = true; } },
     // The routes and keys of the API's Step 270, on or off; on brings Step 266's and the rest with it.
     setStep270: (v) => { step270 = v !== false; if (step270) { step266 = true; step262 = true; step256 = true; } },
+    // The routes and keys of the API's Step 269, on or off, laid over whichever later step the run arms;
+    // on brings Step 256's, whose topics and records the matrix reads.
+    setStep269: (v) => { step269 = v !== false; if (step269) step256 = true; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -5736,6 +5950,7 @@ function createStubs() {
       // Step 266 off, and its store and assignments as they started.
       step266 = false; state.lessonImages = null; state.imageSeq = 0; state.assignments = null;
       step270 = false; state.requests270 = null; state.requestSeq = 0; state.notif270 = false;
+      step269 = false;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
