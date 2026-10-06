@@ -80,6 +80,11 @@
 //     Spanish, once Help has answered: a how-to answer draws its picture under it from the screen's
 //     language's file, described by its entry's title, opens it full screen and closes it; an answer to
 //     anything else draws none; and, in English, a portal picture is read from the portal's address.
+//   - against the stub's answers for the API's Step 280 (Step 282), at 1280 in English and in Spanish
+//     and at 390 in English: the Requests tab says how many items a request holds and names the
+//     first; a three-item request has one item approved at 3 of 5, one denied with a note and the
+//     third approved by Approve all, each sent as the items it decides, and then reads approved in
+//     its window and in the list; and Download for ordering saves the two approved items as a CSV.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -152,9 +157,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -1234,6 +1239,81 @@ async function step269(d, origin, p, stubs) {
   });
 }
 
+// Step 282's supply requests with many items, against the stub armed with setStep280 (audit/stubs.js):
+// the stub lists a three-line refill first, the list says how many items it holds and names the
+// first, one line is approved at 3 of 5, one denied with a note and the third by Approve all, each
+// sent as the lines it decides, and the request then reads approved in the window and the list.
+// Download for ordering then saves the approved lines for the dates and the site chosen.
+const REQUEST_280 = { id: "sr-4", first: "Can liner 40x46" };
+const DENY_NOTE_280 = { en: "Use the soap already at the site.", es: "Use el jab\u00f3n que ya est\u00e1 en el sitio." };
+async function step280(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const decided = () => stubs.calls.filter((c) => c.path === "/api/supplies/requests/" + REQUEST_280.id + "/decide" && c.method === "POST");
+  const sent = (call) => JSON.stringify(call ? call.body && call.body.items : null);
+  const fill = (key, ...v) => v.reduce((t0, x, i) => t0.split("{" + i + "}").join(String(x)), d.say(key));
+  const line = (n) => d.page.locator('[data-request-line="' + REQUEST_280.id + "-" + n + '"]');
+  const lineIs = (n, decision) => until(d, '[data-request-line="' + REQUEST_280.id + "-" + n + '"][data-request-line-decision="' + decision + '"]');
+  const requestsTab = async (ready) => {
+    await go(d, "supplies", null, '[data-supplies-tab="requests"]');
+    await d.page.locator('[data-supplies-tab="requests"]').click();
+    await until(d, ready);
+  };
+  const saved = async (name) => { await d.page.waitForFunction((x) => window.__audit.downloads.some((y) => y.name === x), name); return true; };
+  await check("a three-item request is decided a line at a time and by Approve all, and reads approved", async () => {
+    await requestsTab('[data-request-open="' + REQUEST_280.id + '"]');
+    // The stub lists the three-line request first.
+    const count = await d.page.locator("[data-request-lines]").first().getAttribute("data-request-lines");
+    const first = (await d.page.locator("[data-request-first]").first().innerText()).trim();
+    if (count !== "3" || first !== REQUEST_280.first) return "the list reads " + count + " items, the first " + first;
+    await d.page.locator('[data-request-open="' + REQUEST_280.id + '"]').click();
+    await until(d, '[data-request-window="' + REQUEST_280.id + '"]');
+    if ((await d.page.locator("[data-request-window] [data-request-line]").count()) !== 3) return "the window does not hold three lines";
+    const before = decided().length;
+    await line(1).locator("[data-request-line-qty]").fill("3");
+    await line(1).locator("[data-request-line-approve]").click();
+    await lineIs(1, "approved");
+    if (sent(decided()[before]) !== JSON.stringify([{ id: REQUEST_280.id + "-1", decision: "approved", approvedQuantity: 3 }])) return "the first line was sent as " + sent(decided()[before]);
+    const said = (await line(1).locator("[data-request-line-said]").innerText()).trim();
+    if (said.indexOf(fill("Approved {0} of {1}", 3, 5)) < 0) return "the first line reads " + said;
+    await line(2).locator("[data-request-line-note]").fill(DENY_NOTE_280[p.lang]);
+    await line(2).locator("[data-request-line-deny]").click();
+    await lineIs(2, "denied");
+    if (sent(decided()[before + 1]) !== JSON.stringify([{ id: REQUEST_280.id + "-2", decision: "denied", note: DENY_NOTE_280[p.lang] }])) return "the second line was sent as " + sent(decided()[before + 1]);
+    if ((await line(2).locator("[data-request-line-said-note]").innerText()).indexOf(DENY_NOTE_280[p.lang]) < 0) return "the denied line does not read its note";
+    if ((await d.page.locator('[data-request-window] [data-request-status="pending"]').count()) !== 1) return "the request is not pending with a line still undecided";
+    await d.page.locator("[data-request-approve-all]").click();
+    await until(d, '[data-request-window] [data-request-status="approved"]');
+    if (sent(decided()[before + 2]) !== JSON.stringify([{ id: REQUEST_280.id + "-3", decision: "approved", approvedQuantity: 2 }])) return "Approve all was sent as " + sent(decided()[before + 2]);
+    if ((await line(3).getAttribute("data-request-line-decision")) !== "approved") return "the third line is not approved";
+    if ((await d.page.locator("[data-request-approve-all], [data-request-deny-all]").count()) !== 0) return "Approve all and Deny all are offered with every line decided";
+    await d.page.locator('[data-request-window="' + REQUEST_280.id + '"] button[aria-label="' + d.say("Close") + '"]').click();
+    await d.page.locator("[data-request-window]").waitFor({ state: "detached" });
+    const state = await d.page.locator("[data-request-state]").first().getAttribute("data-request-state");
+    return state === "approved" ? "" : "the list reads " + state;
+  });
+  await check("Download for ordering saves the approved items as a CSV", async () => {
+    await requestsTab("[data-ordering-download]");
+    const from = await d.page.locator("[data-ordering-from]").inputValue();
+    const to = await d.page.locator("[data-ordering-to]").inputValue();
+    const name = "supplies-for-ordering-" + from + "-to-" + to + ".csv";
+    await d.page.locator("[data-ordering-download]").click();
+    await saved(name);
+    const call = stubs.calls.filter((c) => c.path === "/api/supplies/requests/approved.csv").pop();
+    if (!call || call.status !== 200 || call.query.indexOf("from=" + from) < 0 || call.query.indexOf("to=" + to) < 0) return "the CSV was not asked for with the dates shown";
+    const file = (await d.downloads()).filter((x) => x.name === name).pop();
+    const rows = String(file ? file.body : "").replace(/^\ufeff/, "").trim().split(/\r?\n/);
+    // The header and the two lines approved above, at 3 and at 2.
+    if (rows.length !== 3 || rows[1].indexOf("Can liner 40x46") < 0 || rows[1].indexOf(",3,") < 0 || rows[2].indexOf("Microfiber cloth pack") < 0 || rows[2].indexOf(",2,") < 0) return "the CSV holds " + JSON.stringify(rows);
+    return "";
+  });
+}
+
 // Step 273's First due after and keys heads-up, each a line, against the stub armed with setStep275
 // (audit/stubs.js) over Step 269's. Every line waits for what it reads.
 async function step275(d, origin, p, stubs) {
@@ -1379,6 +1459,8 @@ async function runPass(browser, origin, p) {
   if (p.step269) stubs.setStep269(true);
   // Step 275's answers are laid over Step 269's.
   if (p.step275) stubs.setStep275(true);
+  // Step 280's answers are laid over whichever of those the pass arms.
+  if (p.step280) stubs.setStep280(true);
   if (p.secondStep) armSecondStep(stubs);
   const kept = keepSignIn(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
@@ -1466,6 +1548,7 @@ async function runPass(browser, origin, p) {
     if (p.step270) await step270(d, origin, p, stubs);
     if (p.step269) await step269(d, origin, p, stubs);
     if (p.step275) await step275(d, origin, p, stubs);
+    if (p.step280) await step280(d, origin, p, stubs);
 
     // Help, asked one question.
     {

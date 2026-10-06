@@ -4189,6 +4189,99 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   </div>);
 }
 
+// ===== SUPPLY REQUESTS WITH MANY ITEMS (Step 282, STEP280_CONTRACT.md section 3) =====
+// Once the API's Step 280 is live, every request answer carries items, its lines in order: id,
+// supplyId, name, unit, quantity, note, and once decided decision, approvedQuantity, decisionNote,
+// decidedAt and decidedBy. A request without items is drawn and decided as it always was.
+const requestLinesOf = (r) => (r && Array.isArray(r.items) && r.items.length ? r.items : null);
+// What a box holds as a quantity to approve: a whole number from 1 to the quantity asked for, or null.
+const approveQtyOf = (v, max) => { const s = String(v == null ? "" : v).trim(); if (!/^[0-9]+$/.test(s)) return null; const n = Number(s); return n >= 1 && n <= Number(max) ? n : null; };
+// A request's window: every line with its name, quantity and note. An undecided line takes Approve,
+// its quantity editable from the quantity asked for down to 1, or Deny with an optional note; Approve
+// all and Deny all decide every undecided line at once, at the quantity and with the note in each
+// line's boxes. A decided line says its decision and, until the request is fulfilled, Change opens
+// its boxes again. Each decision is POST /api/supplies/requests/:id/decide with the lines it decides,
+// and the API sets the request approved or denied once every line is decided. A refusal is drawn in
+// the API's words over the buttons.
+function SupplyRequestWindow({ t, af, r, onClose, onDecided, stateWord, stateColor, typeWord, urgencyWord, unitOf }) {
+  const lines = requestLinesOf(r) || [];
+  const fulfilled = r.status === "fulfilled";
+  const [edits, setEdits] = useState({});
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const editOf = (it) => edits[it.id] || { qty: String(it.decision === "approved" && it.approvedQuantity ? it.approvedQuantity : it.quantity), note: it.decision === "denied" && it.decisionNote ? it.decisionNote : "", changing: false };
+  const setEdit = (it, patch) => setEdits(e => ({ ...e, [it.id]: { ...editOf(it), ...patch } }));
+  const isOpen = (it) => !fulfilled && (!it.decision || editOf(it).changing);
+  const undecided = fulfilled ? [] : lines.filter(it => !it.decision);
+  const approval = (it) => ({ id: it.id, decision: "approved", approvedQuantity: approveQtyOf(editOf(it).qty, it.quantity) });
+  const denial = (it) => { const note = editOf(it).note.trim(); return note ? { id: it.id, decision: "denied", note } : { id: it.id, decision: "denied" }; };
+  const decide = async (key, items) => {
+    if (busy || !items.length) return;
+    setBusy(key); setRefusal("");
+    try {
+      const d = await af("/api/supplies/requests/" + encodeURIComponent(r.id) + "/decide", { method: "POST", body: { items } });
+      setEdits(e => { const next = { ...e }; items.forEach(x => { delete next[x.id]; }); return next; });
+      await onDecided(d);
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const allQtyOk = undecided.every(it => approveQtyOf(editOf(it).qty, it.quantity) != null);
+  const amount = (n, unit) => (unit ? n + " " + unitOf(unit) : String(n));
+  const lineBtn = (c) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + c, background: "transparent", color: c, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY });
+  return (<Mdl t={t} onClose={onClose}><div data-request-window={r.id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{typeWord}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 3, wordBreak: "break-word" }}>{[r.requested_by_name, r.created_at ? fd(r.created_at) : "", r.site_name || ""].filter(Boolean).join(" | ")}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} />
+      <span data-request-status={r.status}><Bdg l={stateWord[r.status] || r.status} c={stateColor[r.status] || t.textMut} /></span>
+      <span style={{ fontSize: 12, color: t.textSec }}>{trn("{0} items|supply request", lines.length)}</span>
+    </div>
+    {r.description ? <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, marginBottom: 12, wordBreak: "break-word" }}>{r.description}</div> : null}
+    {lines.map(it => {
+      const e = editOf(it);
+      const q = approveQtyOf(e.qty, it.quantity);
+      return (<div key={it.id} data-request-line={it.id} data-request-line-decision={it.decision || ""} style={{ border: "1px solid " + t.border, borderRadius: R.md, padding: 12, marginBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, wordBreak: "break-word" }}>{it.name}</div>
+          <div data-request-line-quantity={it.quantity} style={{ fontSize: 13, color: t.textSec, whiteSpace: "nowrap" }}>{tr("Quantity")}: {amount(it.quantity, it.unit)}</div>
+        </div>
+        {it.note ? <div style={{ fontSize: 12, color: t.textMut, marginTop: 4, lineHeight: 1.5, wordBreak: "break-word" }}>{it.note}</div> : null}
+        {it.decision && !e.changing ? <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <div data-request-line-said={it.decision} style={{ fontSize: 13, lineHeight: 1.5, minWidth: 0, wordBreak: "break-word" }}>
+            <span style={{ fontWeight: 600, color: it.decision === "approved" ? GR : RD }}>{it.decision === "approved" ? tr("Approved {0} of {1}", it.approvedQuantity != null ? it.approvedQuantity : it.quantity, it.quantity) : tr("Denied|item")}</span>
+            {it.decision === "denied" && it.decisionNote ? <span data-request-line-said-note="" style={{ color: t.textSec }}>{": " + it.decisionNote}</span> : null}
+            {it.decidedBy && it.decidedBy.name ? <span style={{ color: t.textMut, fontSize: 12 }}>{" | " + it.decidedBy.name + (it.decidedAt ? ", " + fd(it.decidedAt) : "")}</span> : null}
+          </div>
+          {!fulfilled ? <button onClick={() => setEdit(it, { changing: true })} disabled={!!busy} data-request-line-change="" style={{ ...lineBtn(t.textSec), borderColor: t.border }}>{tr("Change")}</button> : null}
+        </div> : null}
+        {isOpen(it) ? <div style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ width: 130 }}><Lbl>{tr("Quantity to approve")}</Lbl><Inp t={t} type="number" inputMode="numeric" min={1} max={it.quantity} step={1} aria-label={tr("Quantity to approve")} data-request-line-qty="" value={e.qty} onChange={ev => setEdit(it, { qty: ev.target.value })} style={q == null ? { borderColor: RD } : undefined} /></div>
+            <button onClick={() => q != null && decide(it.id, [approval(it)])} disabled={!!busy || q == null} data-request-line-approve="" style={{ ...lineBtn(GR), opacity: busy || q == null ? 0.6 : 1 }}>{busy === it.id ? tr("Saving...") : tr("Approve")}</button>
+          </div>
+          {q == null ? <div role="alert" data-request-line-qty-wrong="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{tr("A whole number from 1 to {0}", it.quantity)}</div> : null}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 8 }}>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Note (optional)")}</Lbl><Inp t={t} aria-label={tr("Note (optional)")} data-request-line-note="" maxLength={500} value={e.note} onChange={ev => setEdit(it, { note: ev.target.value })} /></div>
+            <button onClick={() => decide(it.id, [denial(it)])} disabled={!!busy} data-request-line-deny="" style={{ ...lineBtn(RD), opacity: busy ? 0.6 : 1 }}>{tr("Deny")}</button>
+            {e.changing ? <button onClick={() => setEdit(it, { changing: false })} disabled={!!busy} style={{ ...lineBtn(t.textSec), borderColor: t.border }}>{tr("Cancel")}</button> : null}
+          </div>
+        </div> : null}
+      </div>);
+    })}
+    {refusal ? <div role="alert" data-request-refusal="" style={{ fontSize: 13, color: RD, margin: "8px 0", lineHeight: 1.5 }}>{refusal}</div> : null}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginTop: 12 }}>
+      {undecided.length > 0 ? <Btn t={t} v="ghost" data-request-deny-all="" disabled={!!busy} onClick={() => decide("all", undecided.map(denial))}>{tr("Deny all")}</Btn> : null}
+      {undecided.length > 0 ? <Btn t={t} data-request-approve-all="" disabled={!!busy || !allQtyOk} onClick={() => allQtyOk && decide("all", undecided.map(approval))} style={{ opacity: busy || !allQtyOk ? 0.6 : 1 }}>{busy === "all" ? tr("Saving...") : tr("Approve all")}</Btn> : null}
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Close")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
 // Whether GET /api/supplies/labels.pdf answers (STEP250_CONTRACT.md, section 10): one read with
 // nothing named, which an API that has the route refuses with 400 and one without answers 404. The
 // labels are drawn only when the route is there and the API's Step 250 answers, since the two ship
@@ -4268,6 +4361,30 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
   const loadRequests = () => af("/api/supplies/requests").then(setRequests).catch(e => showToast(e.message, "error"));
   useEffect(() => { loadSupplies(); loadRequests(); loadRemoved(); }, []);
+  // Step 282: a request whose answer carries items opens in its window by id, so a list read anew
+  // redraws it. A decision's answer is laid over the row when it is the request with its items, and
+  // the list is read again either way.
+  const [openReqId, setOpenReqId] = useState(null);
+  const openReq = openReqId == null ? null : requests.find(x => String(x.id) === String(openReqId)) || null;
+  const requestDecided = async (d) => {
+    const row = d && Array.isArray(d.items) && d.id != null ? d : d && d.request && Array.isArray(d.request.items) && d.request.id != null ? d.request : null;
+    if (row) setRequests(rs => rs.map(x => (String(x.id) === String(row.id) ? { ...x, ...row } : x)));
+    await loadRequests();
+  };
+  // Download for ordering (Step 282): GET /api/supplies/requests/approved.csv?from=&to=&siteId=, the
+  // approved lines of the requests not yet fulfilled, for the dates and the site chosen; the last 30
+  // days and every site to start. Offered once any request answer carries items.
+  const linesLive = requests.some(x => x && Array.isArray(x.items));
+  const [ordering, setOrdering] = useState(() => { const d = localDate(todayISO()); return { from: toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 29)), to: todayISO(), siteId: "", busy: false, error: "" }; });
+  const orderingOk = !!ordering.from && !!ordering.to && ordering.from <= ordering.to;
+  const downloadOrdering = async () => {
+    if (ordering.busy || !orderingOk) return;
+    setOrdering(o => ({ ...o, busy: true, error: "" }));
+    const q = "from=" + encodeURIComponent(ordering.from) + "&to=" + encodeURIComponent(ordering.to) + (ordering.siteId ? "&siteId=" + encodeURIComponent(ordering.siteId) : "");
+    const name = "supplies-for-ordering-" + ordering.from + "-to-" + ordering.to + ".csv";
+    try { await saveDownload("/api/supplies/requests/approved.csv?" + q, token, name, name); setOrdering(o => ({ ...o, busy: false })); }
+    catch (e) { setOrdering(o => ({ ...o, busy: false, error: e.message || tr("Request failed") })); }
+  };
   const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast(tr("Name, category, and unit required"), "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
   const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Supply updated")); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
   const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); loadRemoved(); } catch (e) { showToast(e.message, "error"); } };
@@ -4286,8 +4403,8 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   return (<div>
     <SecT t={t} action={canManageSupplies ? tr("Add Supply") : undefined} onAction={canManageSupplies ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-      <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
-      <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
+      <button onClick={() => setTab("inventory")} data-supplies-tab="inventory" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
+      <button onClick={() => setTab("requests")} data-supplies-tab="requests" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
     </div>
     {tab === "inventory" && labelsOn && canManageSupplies && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}><div data-supply-site-labels="" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 220px", minWidth: 0, maxWidth: 360 }}><Lbl>{tr("Print labels for a site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={siteForLabels} onChange={e => setLabelSite(e.target.value)} options={sites.map(x => ({ v: String(x.id), l: x.name }))} /></div>
@@ -4300,10 +4417,22 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
       <SecT t={t}>{tr("Removed supplies")}</SecT>
       {removed.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14, opacity: 0.75 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}</div></div><Btn t={t} v="ghost" onClick={() => bringBack(s)} disabled={!!restoring} style={{ minHeight: 44, fontSize: 12 }}>{restoring === String(s.id) ? tr("Saving...") : tr("Bring back")}</Btn></div></Crd>))}
     </div>}
-    {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || tr("General")} {r.site_name ? tr("at {0}", r.site_name) : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>))}
+    {tab === "requests" && linesLive && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}><div data-ordering="">
+      <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10 }}>{tr("The approved items of the requests not yet fulfilled, for the dates and the site chosen.")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, alignItems: "end" }}>
+        <div><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" aria-label={tr("From")} data-ordering-from="" value={ordering.from} max={ordering.to || undefined} onChange={e => { const v = e.target.value; setOrdering(o => ({ ...o, from: v, error: "" })); }} /></div>
+        <div><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" aria-label={tr("To")} data-ordering-to="" value={ordering.to} min={ordering.from || undefined} onChange={e => { const v = e.target.value; setOrdering(o => ({ ...o, to: v, error: "" })); }} /></div>
+        <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-ordering-site="" value={ordering.siteId} onChange={e => { const v = e.target.value; setOrdering(o => ({ ...o, siteId: v, error: "" })); }} options={[{ v: "", l: tr("All sites") }].concat(sites.map(x => ({ v: String(x.id), l: x.name })))} /></div>
+        <div><Btn t={t} v="ghost" data-ordering-download="" disabled={ordering.busy || !orderingOk} onClick={downloadOrdering} style={{ width: "100%", opacity: ordering.busy || !orderingOk ? 0.6 : 1 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><DlI sz={14} c="currentColor" />{ordering.busy ? tr("Downloading...") : tr("Download for ordering (CSV)")}</span></Btn></div>
+      </div>
+      {!orderingOk ? <div role="alert" data-ordering-range="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{tr("Choose a To date on or after the From date.")}</div> : null}
+      {ordering.error ? <div role="alert" data-ordering-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8, lineHeight: 1.5 }}>{ordering.error}</div> : null}
+    </div></Crd>}
+    {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
+    {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} r={openReq} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
     {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }

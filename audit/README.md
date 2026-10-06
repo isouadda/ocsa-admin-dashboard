@@ -92,6 +92,12 @@ Then it checks, one line a check:
   described by its entry's title, and the picture opens full screen and closes; an answer to anything
   else draws none; and at 1280 in English a portal picture is read from the portal's address, which the
   driver answers from `public/guide-shots`, so nothing leaves the machine.
+- against the stub's answers for the API's Step 280 contract (Step 282), which the smoke check arms with
+  `setStep280` over whichever steps a pass arms: at 1280 in English and in Spanish and at 390 in English,
+  the Requests tab says how many items a request holds and names the first; a three-item request has
+  one item approved at 3 of 5, one denied with a note and the third approved by Approve all, each sent
+  as the items it decides, and the request then reads approved in its window and in the list; and
+  Download for ordering saves the two approved items, read back from the CSV, under the dates shown.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -137,7 +143,13 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-warning-signature`, `data-who-source`, `data-signature-request-window` and
 `data-signature-request-close`, and Step 278's by `data-help-answer`, `data-help-picture`,
 `data-help-picture-open` and `data-help-picture-close`, and the wrong sign-in line's by
-`data-second-code`, `data-second-say`, `data-second-left` and `data-second-back`.
+`data-second-code`, `data-second-say`, `data-second-left` and `data-second-back`, and Step 282's by
+`data-supplies-tab`, `data-request-lines`, `data-request-first`, `data-request-open`,
+`data-request-window`, `data-request-line`, `data-request-line-decision`, `data-request-line-qty`,
+`data-request-line-approve`, `data-request-line-note`, `data-request-line-deny`,
+`data-request-line-said`, `data-request-line-said-note`, `data-request-status`,
+`data-request-approve-all`, `data-request-deny-all`, `data-request-state`, `data-ordering-from`,
+`data-ordering-to` and `data-ordering-download`.
 
 ## Pictures of the screen
 
