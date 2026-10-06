@@ -22337,7 +22337,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trViews.length > 1 && <div role="tablist" data-training-views="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
-      {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
+      {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -23061,6 +23061,11 @@ const TRAINING_PROBES = {
   // Step 263, against the API's Step 262 (STEP262_CONTRACT.md).
   sessions: ["/api/training/sessions", (d) => !!(d && Array.isArray(d.sessions))],
   documents: ["/api/documents", (d) => !!(d && Array.isArray(d.documents))],
+  // Step 268, against the API's Step 266 (STEP266_CONTRACT.md): the catalog answering categories is
+  // how that step says it is there, and the pieces with no read of their own (the Image block, the
+  // checker on a published lesson, the void's warning) wait on it; the Drafts tab waits on its list.
+  categories: ["/api/training/topics", (d) => !!(d && Array.isArray(d.categories))],
+  drafts: ["/api/training/lesson-drafts", (d) => !!(d && Array.isArray(d.drafts))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23112,21 +23117,83 @@ const trainingKeysOf = (e) => (e && e.body && Array.isArray(e.body.keys) ? e.bod
 // anything else is "".
 const courseLinkOf = (u) => { const x = String(u || "").trim(); return /^https:\/\/\S+$/i.test(x) ? x : ""; };
 
+// ===== CATEGORIES AND ORDER (Step 268, against the API's Step 266) =====
+// STEP266_CONTRACT.md section 2: the categories staff see the catalog by, fixed in code in this order.
+// The catalog groups by them once GET /api/training/topics answers categories, which is how the API's
+// Step 266 says it is there; until then the catalog is the flat list it was. A topic with no category
+// is listed last under Other trainings, which is never stored.
+const TRAINING_CATEGORIES = [
+  { key: "start_here", l: "Start here" }, { key: "safety", l: "Safety at work" }, { key: "chemicals", l: "Chemicals" },
+  { key: "cleaning_methods", l: "Cleaning methods" }, { key: "floor_care", l: "Floor care" }, { key: "equipment", l: "Equipment|category" },
+  { key: "customer_service", l: "Customer service" }, { key: "site_security", l: "Building security" }, { key: "supervisors", l: "For supervisors" },
+];
+const OTHER_CATEGORY = "other";
+const SORT_ORDER_MAX = 9999;
+// The categories as the answer lists them, each with its name in the screen's language (the API's
+// word first, then the code's), and Other trainings last when the answer leaves it out.
+function categoriesOf(answered) {
+  const list = (Array.isArray(answered) ? answered : []).filter(c => c && c.key).map(c => {
+    const own = TRAINING_CATEGORIES.find(x => x.key === c.key);
+    const names = c.names || {};
+    return { key: String(c.key), name: names[getLang()] || c.name || (own ? tr(own.l) : c.key === OTHER_CATEGORY ? tr("Other trainings") : String(c.key)) };
+  });
+  const known = list.filter(c => c.key !== OTHER_CATEGORY);
+  const other = list.find(c => c.key === OTHER_CATEGORY) || { key: OTHER_CATEGORY, name: tr("Other trainings") };
+  return known.concat([other]);
+}
+const topicCategoryKey = (tp) => ((tp && tp.category) || OTHER_CATEGORY);
+const categoryNameOf = (cats, key) => { const c = (cats || []).find(x => x.key === (key || OTHER_CATEGORY)); return c ? c.name : (key ? String(key) : tr("Other trainings")); };
+// Topics in the order the catalog draws them inside a category: by sortOrder, then by name.
+const byTopicOrder = (a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || String(a.name || "").localeCompare(String(b.name || ""), localeTag());
+// The topics that can sign another off (section 6): an active topic whose live lesson is an
+// observation checklist, read from the lesson summary the topic carries, and whichever is named now.
+const signoffCandidates = (topics, self, current) => (topics || []).filter(x => x && x.active !== false && String(x.id) !== String(self || "") && ((x.lesson && x.lesson.kind === "observation") || (current && String(x.id) === String(current))));
+
 // The Catalog tab: every topic with its names, document and section, how often, when due, per site,
 // safety critical, the course link and who it is for. Management reads it; an admin adds a topic,
-// edits one, retires and restores it, and says who needs it.
-function TrainingCatalog({ af, t, isAdmin = false, people = [], showToast, onChanged }) {
+// edits one, retires and restores it, and says who needs it. Since Step 268 the topics are grouped
+// under their category headings once the answer carries categories, a Category filter narrows them,
+// and an admin moves a topic up or down inside its category, saved at once through
+// PUT /api/training/topics/order with the category's topics renumbered.
+function TrainingCatalog({ af, t, token = "", isAdmin = false, people = [], showToast, onChanged }) {
   const [which, setWhich] = useState("true");
   const [topics, setTopics] = useState(null);
+  const [cats, setCats] = useState(null);
+  const [catFilter, setCatFilter] = useState("");
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(null);
+  const [moving, setMoving] = useState(false);
   const load = useCallback(async () => {
     setFailed(false);
-    try { const d = await af("/api/training/topics?active=" + which); setTopics(d && Array.isArray(d.topics) ? d.topics : []); }
+    try { const d = await af("/api/training/topics?active=" + which); setTopics(d && Array.isArray(d.topics) ? d.topics : []); setCats(d && Array.isArray(d.categories) ? d.categories : null); }
     catch (e) { setTopics([]); setFailed(true); showToast(e.message, "error"); }
   }, [af, which, showToast]);
   useEffect(() => { setTopics(null); load(); }, [load]);
   const changed = (tp) => { load(); if (tp) setOpen(o => (o && o !== "new" && o.id === tp.id ? tp : o === "new" ? tp : o)); if (onChanged) onChanged(); };
+  const grouped = cats !== null;
+  const categories = useMemo(() => (grouped ? categoriesOf(cats) : []), [grouped, cats]);
+  // Each category with its topics in order, the empty ones left out, narrowed by the filter.
+  const groups = useMemo(() => {
+    if (!grouped || !topics) return [];
+    return categories.map(c => ({ key: c.key, name: c.name, topics: topics.filter(tp => topicCategoryKey(tp) === c.key).slice().sort(byTopicOrder) })).filter(g => g.topics.length > 0 && (!catFilter || g.key === catFilter));
+  }, [grouped, categories, topics, catFilter]);
+  // A topic moved up or down inside its category: the category's topics renumbered 10, 20, 30 in
+  // their new order and sent as one list; the answer's topics take the place of the ones sent.
+  const move = async (g, i, by) => {
+    const j = i + by;
+    if (j < 0 || j >= g.topics.length || moving) return;
+    const list = g.topics.slice();
+    const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+    const rows = list.map((tp, k) => ({ id: tp.id, category: tp.category || null, sortOrder: (k + 1) * 10 }));
+    setMoving(true);
+    setTopics(prev => (prev || []).map(tp => { const r = rows.find(x => String(x.id) === String(tp.id)); return r ? { ...tp, sortOrder: r.sortOrder } : tp; }));
+    try {
+      const d = await af("/api/training/topics/order", { method: "PUT", body: { topics: rows } });
+      const back = d && Array.isArray(d.topics) ? d.topics : [];
+      if (back.length) setTopics(prev => (prev || []).map(tp => back.find(x => String(x.id) === String(tp.id)) || tp));
+    } catch (e) { showToast(e.message, "error"); load(); }
+    setMoving(false);
+  };
   const columns = [
     { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
     { header: tr("Document"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: tp => topicDocLine(tp) },
@@ -23137,34 +23204,55 @@ function TrainingCatalog({ af, t, isAdmin = false, people = [], showToast, onCha
     { header: tr("Course link"), render: tp => (courseLinkOf(tp.linkUrl) ? <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a> : null) },
     { header: tr("Who it is for"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 160 }, render: tp => topicWhoLine(tp) || <span style={{ color: t.textMut }}>{tr("Nobody yet")}</span> },
   ];
-  return (<div data-training-catalog="">
+  const arrow = { minHeight: 44, minWidth: 44, padding: "0 10px", background: "none", border: "1px solid " + t.border, borderRadius: R.sm, color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
+  const orderColumn = (g) => ({ header: tr("Order|topic"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: tp => {
+    const i = g.topics.findIndex(x => String(x.id) === String(tp.id));
+    return <span style={{ display: "inline-flex", gap: 6 }}>
+      <button type="button" data-topic-up={tp.id} aria-label={tr("Move up")} disabled={moving || i <= 0} onClick={e => { e.stopPropagation(); move(g, i, -1); }} style={{ ...arrow, opacity: i <= 0 ? 0.4 : 1 }}>{tr("Up|order")}</button>
+      <button type="button" data-topic-down={tp.id} aria-label={tr("Move down")} disabled={moving || i >= g.topics.length - 1} onClick={e => { e.stopPropagation(); move(g, i, 1); }} style={{ ...arrow, opacity: i >= g.topics.length - 1 ? 0.4 : 1 }}>{tr("Down|order")}</button>
+    </span>;
+  } });
+  const shown = grouped ? groups.reduce((n, g) => n + g.topics.length, 0) : (topics || []).length;
+  return (<div data-training-catalog={grouped ? "grouped" : ""}>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
       <div style={{ minWidth: 160 }}><Sel t={t} aria-label={tr("Show")} data-catalog-which="" options={[{ v: "true", l: tr("Active topics") }, { v: "false", l: tr("Retired topics") }, { v: "all", l: tr("All topics") }]} value={which} onChange={e => setWhich(e.target.value)} /></div>
-      {topics && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} topic|count", topics.length)}</span>}
+      {grouped && <div style={{ minWidth: 180 }}><Sel t={t} aria-label={tr("Category")} data-catalog-category-filter="" options={[{ v: "", l: tr("All categories") }].concat(categories.map(c => ({ v: c.key, l: c.name })))} value={catFilter} onChange={e => setCatFilter(e.target.value)} /></div>}
+      {topics && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} topic|count", shown)}</span>}
       {isAdmin && <Btn t={t} data-topic-add="" onClick={() => setOpen("new")} style={{ marginLeft: "auto" }}>{tr("Add a topic")}</Btn>}
     </div>
     {topics === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
-      : <DataTable t={t} columns={columns} rows={topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={which === "true" ? tr("No topics yet.") : tr("No topics here.")} />}
-    {open && <TrainingTopicWindow af={af} t={t} topic={open === "new" ? null : open} isAdmin={isAdmin} people={people} showToast={showToast} onClose={() => setOpen(null)} onSaved={changed} />}
+      : !grouped ? <DataTable t={t} columns={columns} rows={topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={which === "true" ? tr("No topics yet.") : tr("No topics here.")} />
+      : groups.length === 0 ? <Crd t={t}><div style={{ padding: 10, textAlign: "center", color: t.textMut, fontSize: 13 }}>{which === "true" ? tr("No topics yet.") : tr("No topics here.")}</div></Crd>
+      : groups.map(g => <div key={g.key} data-catalog-category={g.key} style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{g.name}</div>
+          <span style={{ fontSize: 12, color: t.textMut }}>{trn("{0} topic|count", g.topics.length)}</span>
+        </div>
+        <DataTable t={t} columns={isAdmin ? columns.concat([orderColumn(g)]) : columns} rows={g.topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={tr("No topics here.")} />
+      </div>)}
+    {open && <TrainingTopicWindow af={af} t={t} token={token} topic={open === "new" ? null : open} isAdmin={isAdmin} people={people} categories={grouped ? categories : null} topics={topics || []} showToast={showToast} onClose={() => setOpen(null)} onSaved={changed} />}
   </div>);
 }
 
 // The fields a topic's form edits, by the key a refusal names them with.
-const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames"];
+const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId"];
 const topicFieldOf = (k) => (k === "names" ? "names.en" : TOPIC_FIELDS.indexOf(k) >= 0 ? k : "");
 const topicFormOf = (tp) => ({
   key: (tp && tp.key) || "", en: (tp && tp.names && tp.names.en) || "", es: (tp && tp.names && tp.names.es) || "", fr: (tp && tp.names && tp.names.fr) || "",
   docCode: (tp && tp.docCode) || "", docSection: (tp && tp.docSection) || "", frequency: (tp && tp.frequency) || "yearly", dueRule: (tp && tp.dueRule) || "first_day",
   perSite: !!(tp && tp.perSite), safetyCritical: !!(tp && tp.safetyCritical), linkUrl: (tp && tp.linkUrl) || "", evidenceForm: (tp && tp.evidenceForm) || "",
   recordNames: ((tp && tp.recordNames) || []).join("\n"),
+  // Step 268: the category, the order inside it (100 to start, as the API defaults it) and the
+  // checklist topic that signs this one off.
+  category: (tp && tp.category) || "", sortOrder: tp && tp.sortOrder != null ? String(tp.sortOrder) : "100", signoffTopicId: tp && tp.signoffTopicId != null ? String(tp.signoffTopicId) : "",
 });
 
 // One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
 // on its form, and once saved it is a topic like any other. Since Step 257's lessons, a Lesson tab once
 // the topic's versions answer. A lesson draft with changes not saved asks before the window closes or
 // another tab opens.
-function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showToast, onClose: close, onSaved }) {
+function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people = [], categories = null, topics = [], showToast, onClose: close, onSaved }) {
   const [tp, setTp] = useState(topic);
   const [view, setView] = useState("details");
   const [editing, setEditing] = useState(!topic);
@@ -23198,16 +23286,16 @@ function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showT
         </div>}
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-        {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
-        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
+        {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} categories={categories} topics={topics} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
+        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} categories={categories} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
         {tp && view === "who" && <TopicWhoNeedsIt af={af} t={t} tp={tp} isAdmin={isAdmin} people={people} onSaved={saved} />}
-        {tp && view === "lesson" && versions && <TopicLesson af={af} t={t} tp={tp} isAdmin={isAdmin} versions={versions} onReload={loadVersions} showToast={showToast} guard={guard} />}
+        {tp && view === "lesson" && versions && <TopicLesson af={af} t={t} token={token} tp={tp} isAdmin={isAdmin} versions={versions} onReload={loadVersions} showToast={showToast} guard={guard} />}
       </div>
     </div>
   </Mdl>);
 }
 
-function TopicDetails({ af, t, tp, isAdmin, onEdit, onSaved, showToast }) {
+function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, showToast }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState("");
   const setActive = async (active) => {
@@ -23231,6 +23319,9 @@ function TopicDetails({ af, t, tp, isAdmin, onEdit, onSaved, showToast }) {
     {courseLinkOf(tp.linkUrl) && row(tr("Course link"), <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 600 }}>{courseLinkOf(tp.linkUrl)}</a>)}
     {tp.evidenceForm && row(tr("Evidence form"), tp.evidenceForm)}
     {(tp.recordNames || []).length > 0 && row(tr("Names on older records"), tp.recordNames.join("\n"))}
+    {categories && row(tr("Category"), <span data-topic-category={topicCategoryKey(tp)}>{tp.category ? (tp.categoryName || categoryNameOf(categories, tp.category)) : tr("None|category")}</span>)}
+    {categories && row(tr("Order|topic"), tp.sortOrder != null ? String(tp.sortOrder) : "")}
+    {categories && row(tr("Signed off by checklist"), tp.signoffTopicId ? <span data-topic-signoff={tp.signoffTopicId}>{tp.signoffTopicName || String(tp.signoffTopicId)}</span> : tr("None|checklist"))}
     {row(tr("Who it is for"), topicWhoLine(tp) || tr("Nobody yet"))}
     {refusal && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
     {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
@@ -23243,19 +23334,25 @@ function TopicDetails({ af, t, tp, isAdmin, onEdit, onSaved, showToast }) {
 
 // Add a topic, or Edit one: the key once, on a new topic, then the three names, the document and
 // section, how often and when due, per site, safety critical, the course link, the evidence form and
-// the names older records carry. A refusal is drawn under the field its keys name.
-function TopicForm({ af, t, topic, onCancel, onSaved }) {
+// the names older records carry. A refusal is drawn under the field its keys name. Since Step 268,
+// once the catalog answers categories: the Category, the Order inside it and the checklist topic
+// that signs this one off, sent with the rest and refused under their own fields.
+function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onSaved }) {
   const [f, setF] = useState(() => topicFormOf(topic));
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e && e.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e });
   const bad = (k) => refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "";
   const save = async () => {
-    setBusy(true); setRefusal(null);
+    setRefusal(null);
+    const order = Number(f.sortOrder);
+    if (categories && !(Number.isInteger(order) && order >= 0 && order <= SORT_ORDER_MAX)) { setRefusal({ text: tr("The order is a whole number from 0 to 9999."), fields: ["sortOrder"] }); return; }
+    setBusy(true);
     const body = {
       names: { en: f.en.trim(), es: f.es.trim(), fr: f.fr.trim() }, docCode: f.docCode.trim() || null, docSection: f.docSection.trim() || null,
       frequency: f.frequency, dueRule: f.dueRule, perSite: !!f.perSite, safetyCritical: !!f.safetyCritical, linkUrl: f.linkUrl.trim() || null,
       evidenceForm: f.evidenceForm.trim() || null, recordNames: f.recordNames.split("\n").map(x => x.trim()).filter(Boolean),
+      ...(categories ? { category: f.category || null, sortOrder: order, signoffTopicId: f.signoffTopicId || null } : {}),
     };
     try {
       const d = topic
@@ -23264,11 +23361,12 @@ function TopicForm({ af, t, topic, onCancel, onSaved }) {
       if (d && d.topic) onSaved(d.topic);
     } catch (e) {
       const keys = trainingKeysOf(e);
-      const fields = keys.map(topicFieldOf).filter(Boolean).concat(e && e.code === "training.duplicateKey" ? ["key"] : []);
+      const fields = keys.map(topicFieldOf).filter(Boolean).concat(e && e.code === "training.duplicateKey" ? ["key"] : [], e && e.code === "training.badSignoff" ? ["signoffTopicId"] : []);
       setRefusal({ text: e.message || tr("Request failed"), fields });
     }
     setBusy(false);
   };
+  const checklists = categories ? signoffCandidates(topics, topic && topic.id, f.signoffTopicId) : [];
   const field = (k, label, input, hint) => <div data-topic-field={k} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{label}</div>{input}
     {hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{hint}</div>}
@@ -23289,6 +23387,11 @@ function TopicForm({ af, t, topic, onCancel, onSaved }) {
       {field("frequency", tr("How often"), <Sel t={t} value={f.frequency} onChange={set("frequency")} options={TRAINING_FREQUENCIES.map(o => ({ v: o.v, l: tr(o.l) }))} />)}
       {field("dueRule", tr("When due"), <Sel t={t} value={f.dueRule} onChange={set("dueRule")} options={TRAINING_DUE_RULES.map(o => ({ v: o.v, l: tr(o.l) }))} />)}
     </div>
+    {categories && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+      {field("category", tr("Category"), <Sel t={t} aria-label={tr("Category")} value={f.category} onChange={set("category")} options={[{ v: "", l: tr("None|category") }].concat(categories.filter(c => c.key !== OTHER_CATEGORY).map(c => ({ v: c.key, l: c.name })))} />, tr("Staff see the catalog by category, in this order. A topic with none is listed last under Other trainings."))}
+      {field("sortOrder", tr("Order|topic"), <Inp t={t} type="number" min={0} max={SORT_ORDER_MAX} step={1} aria-label={tr("Order|topic")} value={f.sortOrder} onChange={set("sortOrder")} />, tr("A whole number from 0 to 9999. Lower comes first inside the category."))}
+    </div>}
+    {categories && field("signoffTopicId", tr("Signed off by checklist"), <Sel t={t} aria-label={tr("Signed off by checklist")} value={f.signoffTopicId} onChange={set("signoffTopicId")} options={[{ v: "", l: tr("None|checklist") }].concat(checklists.map(x => ({ v: String(x.id), l: x.name })))} />, checklists.length ? tr("When a trainer signs that checklist off for a person, this topic is signed off with it.") : tr("No topic has an observation checklist live yet."))}
     {tick("perSite", tr("Per site"), tr("One record for each site the person works at."))}
     {tick("safetyCritical", tr("Safety critical"), tr("A lesson on this topic needs a trainer to watch a demonstration."))}
     {field("linkUrl", tr("Course link"), <Inp t={t} type="url" value={f.linkUrl} onChange={set("linkUrl")} placeholder="https://" />, tr("An https address for a course taken outside the app. It opens in a new tab."))}
