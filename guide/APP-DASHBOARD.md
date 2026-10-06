@@ -1754,14 +1754,15 @@ Last checked: 2026-10-05
 
 ## Read and change the training catalog (admin dashboard)
 Who can do this: admins and supervisors read it; admins add, edit, retire and restore topics
-1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Catalog** (**Catálogo**).
-2. Each topic shows its **Document** (**Documento**) and section, **How often** (**Con qué frecuencia**), **When due** (**Cuándo se requiere**), **Per site** (**Por sitio**), **Safety critical** (**Crítico para la seguridad**), its **Course link** (**Enlace del curso**) and **Who it is for** (**Para quién es**). Point at a topic's name to read it in English, Spanish and French. Pick **Retired topics** (**Temas dados de baja**) or **All topics** (**Todos los temas**) to see the others.
+1. Click **Training** (**Capacitación**) on the side panel, then **Catalog** (**Catálogo**). The tab is also under **HR Records** (**Expedientes de personal**), **Training** (**Capacitación**).
+2. The topics are listed under their category headings, in the order staff see them, with the topics that have no category last under **Other trainings** (**Otras capacitaciones**). Narrow them with **All categories** (**Todas las categorías**). Each topic shows its **Document** (**Documento**) and section, **How often** (**Con qué frecuencia**), **When due** (**Cuándo se requiere**), **Per site** (**Por sitio**), **Safety critical** (**Crítico para la seguridad**), its **Course link** (**Enlace del curso**) and **Who it is for** (**Para quién es**). Point at a topic's name to read it in English, Spanish and French. Pick **Retired topics** (**Temas dados de baja**) or **All topics** (**Todos los temas**) to see the others. The line above the list says that every topic reaches the roles under **Who needs it** (**Quién la necesita**) on its own, and that **Assign training** (**Asignar capacitación**) is for anyone else.
 3. To add one, click **Add a topic** (**Agregar un tema**). Type the **Key** (**Clave**) in lowercase letters, numbers and underscores; it never changes. Type the **Name in English** (**Nombre en inglés**), the **Name in Spanish** (**Nombre en español**) and the **Name in French** (**Nombre en francés**), the **Document** (**Documento**) and the **Section** (**Sección**), and pick **How often** (**Con qué frecuencia**) and **When due** (**Cuándo se requiere**).
-4. Tick **Per site** (**Por sitio**) when each site a person works at needs its own record, and **Safety critical** (**Crítico para la seguridad**) for a safety topic. A **Course link** (**Enlace del curso**) is the https address of a course taken outside the app, which opens in a new tab. Under **Names on older records** (**Nombres en registros anteriores**), list the names older records were saved under, one a line, so they count for the topic. Click **Add the topic** (**Agregar el tema**).
-5. To change one, click it, then **Edit** (**Editar**), and **Save** (**Guardar**). **Retire** (**Dar de baja**) stops asking anyone for the topic; **Restore** (**Restaurar**) brings it back.
-If it does not work: a refusal is shown under the field it names, such as a key another topic already uses. The catalog shows once the system answers it.
-Words people use for this: training catalog, required trainings, training topics, add a training topic, course link, mandated training, catálogo de capacitación.
-Last checked: 2026-10-05
+4. Pick the **Category** (**Categoría**) staff find it under, or **None** (**Ninguna**), and type its **Order** (**Orden**) inside the category, a whole number from 0 to 9999 with the lowest first. Under **Signed off by checklist** (**Firmado con la lista de verificación**), pick the topic whose observation checklist signs this one off, or **None** (**Ninguna**); only a topic with such a checklist live is offered.
+5. Tick **Per site** (**Por sitio**) when each site a person works at needs its own record, and **Safety critical** (**Crítico para la seguridad**) for a safety topic. A **Course link** (**Enlace del curso**) is the https address of a course taken outside the app, which opens in a new tab. Under **Names on older records** (**Nombres en registros anteriores**), list the names older records were saved under, one a line, so they count for the topic. Click **Add the topic** (**Agregar el tema**).
+6. To change one, click it, then **Edit** (**Editar**), and **Save** (**Guardar**). **Retire** (**Dar de baja**) stops asking anyone for the topic; **Restore** (**Restaurar**) brings it back.
+If it does not work: a refusal is shown under the field it names, such as a key another topic already uses or a checklist topic that has no observation checklist. The catalog shows once the system answers it, and the categories once the system answers them; until then the topics are one list.
+Words people use for this: training catalog, required trainings, training topics, add a training topic, course link, mandated training, training category, catálogo de capacitación.
+Last checked: 2026-10-06
 
 ## Say who needs a training topic (admin dashboard)
 Who can do this: admins
@@ -1780,40 +1781,40 @@ Who can do this: admins and supervisors
 2. Narrow it with **All sites** (**Todos los sitios**), **All roles** (**Todos los roles**), **All topics** (**Todos los temas**) and **All statuses** (**Todos los estados**). The line above the table names the day the list is as of.
 3. The table counts each topic's people as **Current** (**Vigente**), **Due soon** (**Vence pronto**), **Expired** (**Vencida**), **Missing** (**Falta**), **Refresher due** (**Repaso pendiente**), **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**). Click a topic to narrow the list to it; **Sessions** (**Sesiones**) then lists the days it was given, each with its attendance sheet.
 4. Below the table, the people with the most open items come first, each item a chip in its status's words. An online lesson with no tries left reads **Needs an in-person session** (**Necesita una sesión en persona**).
-5. Click a person to open their own list: each item with when it was done, when it expires and its course link, the tries a lesson has used, and each attempt with its **Print** (**Imprimir**). An item whose record holds a certificate has **Open the certificate** (**Abrir el certificado**), and **Upload a certificate** (**Subir un certificado**) adds one. An admin can **Void** (**Anular**) an attempt, with the reason; the record it wrote is removed with it. A notice that a person's training is expiring opens their list here.
-6. **Print** (**Imprimir**) at the top gives a page per site.
+5. Click a person to open their own list: each item with when it was done, when it expires and its course link, the tries a lesson has used, and each attempt with its **Print** (**Imprimir**). An item a checklist signs off reads **Covered by** (**Cubierto por**) and the checklist's name. An item whose record holds a certificate has **Open the certificate** (**Abrir el certificado**), and **Upload a certificate** (**Subir un certificado**) adds one. An admin can **Void** (**Anular**) an attempt, with the reason; the record it wrote is removed with it. A notice that a person's training is expiring opens their list here.
+6. **Print** (**Imprimir**) at the top gives a page per site. Admins also have **Assign training** (**Asignar capacitación**) there, to name topics for people the roles do not cover.
 7. The same items show in **Staff Management** (**Gestión de personal**), on a person's **HR Files** (**Archivos de personal**) tab.
 If it does not work: Gaps shows once the system answers it; until then **Who has no record** (**Quién no tiene registro**) stays.
 Words people use for this: training gaps, who needs training, who is missing training, expired training, training due soon, training by site, brechas de capacitación.
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## Write and publish a training lesson (admin dashboard)
 Who can do this: admins write and publish; admins and supervisors read the versions
 1. Open the topic from **Catalog** (**Catálogo**) and click **Lesson** (**Lección**). Each version shows its status, its **Kind** (**Tipo**), when it was published and by whom, its **Change note** (**Nota del cambio**) and the **Attempts** (**Intentos**) taken on it. **Stale** (**Desactualizada**) means a passage it cites has changed since.
 2. Click **New draft from the live lesson** (**Nuevo borrador a partir de la lección vigente**) or **New blank draft** (**Nuevo borrador en blanco**). A draft already started opens with **Open the draft** (**Abrir el borrador**).
 3. Pick the **Kind** (**Tipo**): **Quiz** (**Cuestionario**), a lesson read and answered, or **Observation checklist** (**Lista de observación**), steps a trainer watches the person do on the job. Write the **Title** (**Título**) in English, with the Spanish and the French under it.
-4. For an observation checklist, write 1 to 30 **Steps** (**Pasos**) with **Add a step** (**Agregar un paso**), each in all three languages, then go on to step 6. It has no questions, and **Needs a trainer** (**Necesita un instructor**) stays ticked. For a quiz, under **Blocks** (**Bloques**), click **Add a block** (**Agregar un bloque**) and pick **Text** (**Texto**), **List** (**Lista**) or **Warning** (**Advertencia**), and write it in all three languages. **Cite a passage** (**Citar un pasaje**) finds the section of the procedure it comes from; click **Cite** (**Citar**) beside it.
+4. For an observation checklist, write 1 to 30 **Steps** (**Pasos**) with **Add a step** (**Agregar un paso**), each in all three languages, then go on to step 6. It has no questions, and **Needs a trainer** (**Necesita un instructor**) stays ticked. For a quiz, under **Blocks** (**Bloques**), click **Add a block** (**Agregar un bloque**) and pick **Text** (**Texto**), **List** (**Lista**) or **Warning** (**Advertencia**), and write it in all three languages, or click **Add a picture** (**Agregar una imagen**) for an **Image** (**Imagen**) block; see Add a picture to a lesson. **Cite a passage** (**Citar un pasaje**) finds the section of the procedure it comes from; click **Cite** (**Citar**) beside it.
 5. Write 5 to 10 questions with **Add a question** (**Agregar una pregunta**), each with 2 to 5 answers through **Add an answer** (**Agregar una respuesta**), and tick the right answer.
 6. Write the **Acknowledgement** (**Declaración**) the person signs once they pass, or, for a checklist, once the trainer has watched every step. For a quiz, set the **Pass mark (percent)** (**Nota para aprobar (porcentaje)**), 80 to start, and the **Tries** (**Intentos**), 3 to start. **Needs a trainer** (**Necesita un instructor**) is ticked and locked for a safety topic.
-7. **Translate** (**Traducir**) fills the Spanish and the French left empty. Have someone fluent check them and type their name under **Spanish checked by** (**Español revisado por**) and **French checked by** (**Francés revisado por**). A safety lesson is published only with its Spanish checker named, and its French reaches staff once a French checker is named.
-8. Click **Save draft** (**Guardar borrador**). The problems still to fix are listed at the top, and each one is drawn under its field; click one to go to it.
-9. Click **Publish** (**Publicar**). The version live until then is retired and staff take the new one. **Discard** (**Descartar**) drops the draft, and **Retire the live lesson** (**Dar de baja la lección vigente**) stops the lesson being offered.
+7. **Translate** (**Traducir**) fills the Spanish and the French left empty. Have someone fluent check them and type their name under **Spanish checked by** (**Español revisado por**) and **French checked by** (**Francés revisado por**). On a safety topic the Spanish may stay empty, and the lesson publishes without a checker: staff are offered the Spanish as soon as it is written, and the version reads **Spanish not checked yet** (**Español sin revisar**) until a name is saved, here or on the published lesson. On any other topic every Spanish text is required. The French may stay empty on any lesson; a version with some French empty reads **French missing** (**Falta el francés**), and its French reaches staff once it is written and, on a safety topic, a French checker is named.
+8. Click **Save draft** (**Guardar borrador**). The problems still to fix are listed at the top, and each one is drawn under its field; click one to go to it. The notes under them, such as French missing, do not stop publishing.
+9. Click **Publish** (**Publicar**). The version live until then is retired and staff take the new one. **Discard** (**Descartar**) drops the draft, and **Retire the live lesson** (**Dar de baja la lección vigente**) stops the lesson being offered. To publish several drafts at once, see Publish lesson drafts.
 If it does not work: a refusal is shown at the top or under the field it names. Leaving the draft with changes not saved asks first.
 Words people use for this: write a lesson, online training, training quiz, training questions, publish a lesson, translate a lesson, observation checklist, on the job sign-off, lección en línea.
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## Sign off training after a demonstration (admin dashboard)
 Who can do this: admins and supervisors, for anyone other than themselves
 OCSA-HR-016 5.5 has a trainer watch the person do a safety task before the training counts.
-1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Awaiting sign-off** (**Por firmar**). Each row is a person who passed a lesson and signed it, with the topic, the site, the score and when they signed. Your own attempts are never listed for you.
+1. Click **Training** (**Capacitación**) on the side panel, then **Awaiting sign-off** (**Por firmar**). Each row is a person who passed a lesson and signed it, with the topic, the site, the score and when they signed. A row of a topic that a checklist signs off reads **Covered by** (**Cubierto por**) and the checklist's name; a row of the checklist itself reads **Observation checklist** (**Lista de observación**). Your own attempts are never listed for you.
 2. Watch the person do the task.
 3. Click **Sign off** (**Firmar como instructor**). Sign in the box and click **Sign** (**Firmar**).
 4. Tick **I watched them do it** (**Vi a la persona hacerlo**), which is required, and add a note on what they showed you.
-5. Click **Sign off** (**Firmar como instructor**). The training record is saved, and **Print the record** (**Imprimir el registro**) prints it.
-6. A notice that someone waits for a sign-off opens this tab on their attempt. An admin can **Void** (**Anular**) an attempt here instead, with the reason.
+5. Click **Sign off** (**Firmar como instructor**). The training record is saved, and **Print the record** (**Imprimir el registro**) prints it. Signing off an observation checklist also signs off every module of that person that names it, and the window says how many were also signed.
+6. A notice that someone waits for a sign-off opens this tab on their attempt. An admin can **Void** (**Anular**) an attempt here instead, with the reason. Voiding an observation checklist's attempt returns every module it signed off to waiting for a trainer; the window warns so first and says how many were returned after.
 If it does not work: a refusal is shown under the signature or the tick. The tab shows once the system answers it.
-Words people use for this: sign off training, trainer sign-off, demonstration, watched them do it, safety sign-off, firmar capacitación.
-Last checked: 2026-10-05
+Words people use for this: sign off training, trainer sign-off, demonstration, watched them do it, safety sign-off, checklist sign-off, firmar capacitación.
+Last checked: 2026-10-06
 
 ## Print a training record for an assessor (admin dashboard)
 Who can do this: admins and supervisors
@@ -1871,3 +1872,63 @@ Who can do this: admins and supervisors
 If it does not work: a refusal is shown under the field it names. The block shows once the system answers it.
 Words people use for this: uniform, shirt, keys, badge, fob, company property, return a uniform, hand out keys, entregar uniforme.
 Last checked: 2026-10-05
+
+## Find training on the dashboard (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Training** (**Capacitación**) on the side panel, right under **HR Records** (**Expedientes de personal**). It opens the Training area.
+2. Its tabs are **Records** (**Registros**), **Gaps** (**Brechas**), **Catalog** (**Catálogo**), **Drafts** (**Borradores**), **Awaiting sign-off** (**Por firmar**), **Sessions** (**Sesiones**) and **Documents to sign** (**Documentos por firmar**). A tab shows once the system answers its route, and **Drafts** (**Borradores**) is for admins.
+3. The same area is still under **HR Records** (**Expedientes de personal**), on its **Training** (**Capacitación**) tab, and a link to it there keeps working.
+If it does not work: an account that cannot open HR Records cannot open Training either.
+Words people use for this: where is training, training menu, training page, find the catalog, training tab, capacitación en el panel.
+Last checked: 2026-10-06
+
+## Order the training catalog (admin dashboard)
+Who can do this: admins
+1. Click **Training** (**Capacitación**) on the side panel, then **Catalog** (**Catálogo**). The topics are grouped under their category headings, in the order staff see them.
+2. Click **Up** (**Subir**) or **Down** (**Bajar**) on a topic to move it inside its category. The category's topics are renumbered 10, 20, 30 in their new order and saved at once.
+3. To move a topic to another category, click it, then **Edit** (**Editar**), pick the **Category** (**Categoría**) and type its **Order** (**Orden**), and click **Save** (**Guardar**). A topic with **None** (**Ninguna**) is listed last under **Other trainings** (**Otras capacitaciones**).
+4. Narrow the list with **All categories** (**Todas las categorías**) to see one category at a time.
+If it does not work: a move that the system refuses is undone and the list is read again. The headings show once the system answers the categories; until then the topics are one list and cannot be moved.
+Words people use for this: order the catalog, move a topic up, training categories, sort trainings, catalog order, ordenar el catálogo.
+Last checked: 2026-10-06
+
+## Add a picture to a lesson (admin dashboard)
+Who can do this: admins
+1. Open the topic from **Catalog** (**Catálogo**), click **Lesson** (**Lección**) and open or start a draft.
+2. Under **Blocks** (**Bloques**), click **Add a picture** (**Agregar una imagen**), or set a block's **Kind** (**Tipo**) to **Image** (**Imagen**). A lesson holds up to 12 pictures.
+3. Either click **Upload a picture** (**Subir una imagen**) and choose a JPEG, PNG, WebP or HEIC up to 5 MB, which is uploaded at once and previewed, or paste the text of a drawing under **Paste a drawing (SVG)** (**Pegar un dibujo (SVG)**): plain text starting with svg, with xmlns and a viewBox, and no scripts, links or outside images. A block holds one or the other; **Remove the picture** (**Quitar la imagen**) clears it.
+4. Write the **Alt text** (**Texto alternativo**), what the picture shows read aloud to someone who cannot see it, in English with the Spanish and the French under it; the English is required. A **Caption** (**Pie de imagen**) is optional.
+5. Use **Move up** (**Subir**) and **Move down** (**Bajar**) to place the block, then **Save draft** (**Guardar borrador**). Staff see the picture full width in the lesson, with the caption under it.
+If it does not work: a file of another kind, or one over 5 MB, is refused under the file. A drawing the lesson cannot hold, or a picture the store no longer has, is listed in the problems and drawn under its block. The Image kind is offered once the system answers the catalog's categories.
+Words people use for this: add a picture, lesson image, upload a photo to a lesson, diagram in a lesson, SVG drawing, alt text, agregar una imagen a la lección.
+Last checked: 2026-10-06
+
+## Publish lesson drafts (admin dashboard)
+Who can do this: admins
+1. Click **Training** (**Capacitación**) on the side panel, then **Drafts** (**Borradores**). Every lesson draft still open is listed by category, with its **Kind** (**Tipo**), its **Change note** (**Nota del cambio**), its **Problems** (**Problemas**) and its **Notes** (**Notas**). A draft without problems reads **Ready to publish** (**Lista para publicar**) and carries a tick; a draft with problems has none.
+2. Read each draft first in its topic's **Lesson** (**Lección**) tab. A draft of a safety topic whose Spanish no one has checked reads **Spanish not checked yet** (**Español sin revisar**); it publishes all the same.
+3. Tick the drafts to publish, or click **Select all ready** (**Seleccionar los listos**), and click **Publish selected** (**Publicar seleccionados**). Each draft is published on its own, and a refusal stops none of the others.
+4. The page then lists the lessons published, each with its version, and the drafts refused, each with its problems, and reads the list again.
+If it does not work: a draft refused for a problem that showed only at publishing, such as a picture the store no longer has, stays open; fix it in its topic's **Lesson** (**Lección**) tab. The tab shows once the system answers it.
+Words people use for this: publish drafts, publish several lessons, open drafts, drafts list, publish selected, publicar borradores.
+Last checked: 2026-10-06
+
+## Name the Spanish checker (admin dashboard)
+Who can do this: admins
+1. Open the safety topic from **Catalog** (**Catálogo**) and click **Lesson** (**Lección**). A version whose Spanish is written and not yet checked reads **Spanish not checked yet** (**Español sin revisar**); staff are offered the Spanish all the same, as soon as it is written.
+2. Under **Languages** (**Idiomas**), type the name of whoever checked the Spanish under **Spanish checked by** (**Español revisado por**) and click **Save** (**Guardar**). The name is recorded on the live version with no new version, and the chip clears.
+3. To change the name, type the new one and click **Save** (**Guardar**) again.
+If it does not work: a refusal is shown under the field. The field shows on a published lesson of a safety topic once the system answers the catalog's categories.
+Words people use for this: Spanish checker, who checked the Spanish, Spanish not checked, translation checked, safety lesson in Spanish, revisor del español.
+Last checked: 2026-10-06
+
+## Assign training to people (admin dashboard)
+Who can do this: admins
+Every topic reaches the roles under **Who needs it** (**Quién la necesita**) on its own; this is for anyone else.
+1. Click **Training** (**Capacitación**) on the side panel, then **Catalog** (**Catálogo**) or **Gaps** (**Brechas**), and click **Assign training** (**Asignar capacitación**). From **Staff Management** (**Gestión de personal**), on a person's **HR Files** (**Archivos de personal**) tab, the same button opens the window with that person already ticked.
+2. Under **Topics** (**Temas**), tick one or more topics, listed by category.
+3. Under **People** (**Personas**), find people with **Search by name** (**Buscar por nombre**), narrow them by **Site** (**Sitio**) and **Role** (**Rol**), and tick them one by one or with **Select all** (**Seleccionar todo**).
+4. Click **Assign** (**Asignar**). The topics and the people are sent once, and the window says how many were added and how many were already assigned.
+If it does not work: a refusal is shown under the topics or the people. The button shows once the system answers the assignments route.
+Words people use for this: assign training, assign a topic to a person, training for one person, extra training, who gets this training, asignar capacitación.
+Last checked: 2026-10-06

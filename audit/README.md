@@ -64,6 +64,16 @@ Then it checks, one line a check:
   person's signature and marked returned; the End employment window lists what is still out; and a
   certificate for a topic taken at each site asks for the site and is sent with it, while a topic taken
   once asks for none (Step 265). At 390 in English the document line runs again.
+- against the stub's answers for the API's Step 266, which the smoke check arms with `setStep266` over
+  Step 262's: at 1280 in English and in Spanish, the Training item on the side panel opens the Training
+  area; the catalog groups its topics by category, a topic moves down inside its category through the
+  order route and the topic window reads its category and offers the checklist that signs it off; an
+  image block is uploaded, previewed and saved with its path and alt text; Drafts lists every open
+  draft and Publish selected publishes the ready ones and refuses the one whose picture the store does
+  not hold; a safety lesson reads Spanish not checked yet until its checker is named on the published
+  lesson, and a version reads French missing; and Assign training posts once with two topics and three
+  people. With Step 266 armed the lesson line publishes without a Spanish checker, as the API does
+  since decision 339. At 390 in English the side panel and catalog lines run again.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -93,7 +103,15 @@ and `data-supply-print-label`, and Step 257's by `data-training-catalog`, `data-
 `data-doc-signature`, `data-doc-print`, `data-property-row`, `data-property-kind`,
 `data-property-return` and `data-collect-item`, and Step 265's by `data-doc-who-row`, `data-doc-who-edit`,
 `data-doc-who-form`, `data-doc-who-everyone`, `data-certificate-upload`, `data-certificate-window`,
-`data-certificate-field`, `data-certificate-send`, `data-lesson-version` and `data-lesson-version-status`.
+`data-certificate-field`, `data-certificate-send`, `data-lesson-version` and `data-lesson-version-status`,
+and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-category`,
+`data-catalog-category-filter`, `data-topic-up`, `data-topic-down`, `data-topic-category`,
+`data-lesson-add-image`, `data-lesson-image`, `data-lesson-image-file`, `data-lesson-image-preview`,
+`data-training-drafts`, `data-draft-tick`, `data-draft-not-ready`, `data-drafts-select-ready`,
+`data-drafts-publish`, `data-drafts-published`, `data-drafts-refused`, `data-lesson-checkers`,
+`data-lesson-checker`, `data-lesson-checker-save`, `data-lesson-spanish-unchecked`,
+`data-lesson-french-missing`, `data-assign-training`, `data-assign-window`, `data-assign-topic`,
+`data-assign-person`, `data-assign-send` and `data-assign-result`.
 
 ## What comes out
 
