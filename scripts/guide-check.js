@@ -4,11 +4,16 @@
 //   two entries share a title, or an entry has no title or no content;
 //   a **English** (**Spanish**) pair has no row in translation/dashboard_words.csv whose English, the
 //   part of the key before any |, and Spanish match it exactly, unless guide/check-allow.txt lists it;
-//   the file holds an email address or a phone number.
+//   the file holds an email address or a phone number;
+//   a Picture: line breaks its rules (STEP276_CONTRACT.md, section 1): an entry names more than two, a
+//   name is not 1 to 60 of a-z, 0-9 and -, the line is not just before Last checked:, either language's
+//   file in public/guide-shots/ is missing or over 250 KB, two entries name the same picture, or a file
+//   in public/guide-shots/ is named by no entry.
 // Each failure is printed with its line. With GUIDE_CHECK_BASE naming a commit, a change since it that
 // touches src/ and leaves the guide file alone draws a warning that the guide may need an entry, and
 // does not fail. It prints the file's fingerprint, which is the one the sync answers once the file is
-// loaded. A path given on the command line is checked in place of the guide file.
+// loaded, and the same worked out with the Picture: lines left out, which is what the rows hold once the
+// API's Step 276 keeps them apart. A path given on the command line is checked in place of the guide file.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -19,6 +24,9 @@ const ROOT = path.join(__dirname, "..");
 const GUIDE = "guide/APP-DASHBOARD.md";
 const CSV = "translation/dashboard_words.csv";
 const ALLOW = "guide/check-allow.txt";
+const SHOTS = "public/guide-shots";
+const SHOT_LANGS = ["en", "es"];
+const SHOT_MAX_BYTES = 250 * 1024;
 const DOC_CODE = "APP-DASHBOARD";
 const inActions = process.env.GITHUB_ACTIONS === "true";
 
@@ -78,6 +86,45 @@ function parseGuide(text) {
 // The md5 of the md5s of title|content, in the order Help numbers the entries, which is the file's.
 const md5 = (s) => crypto.createHash("md5").update(s, "utf8").digest("hex");
 const fingerprint = (entries) => md5(entries.map((e) => md5(e.title + "|" + e.content)).join(""));
+
+// A picture's line, Picture: <name>, and anything that looks like one, so a slip is caught here and
+// never stored as words in Help.
+const PICTURE = /^Picture: ([a-z0-9-]{1,60})$/;
+const LIKE_PICTURE = /^\s*picture\s*:/i;
+const withoutPictures = (entries) => entries.map((e) => ({ title: e.title, content: e.body.filter((l) => !LIKE_PICTURE.test(l)).join("\n").trim() }));
+
+// Each entry's pictures held to the files beside the guide (STEP276_CONTRACT.md, section 1).
+function checkPictures(g, fail, failAt) {
+  const named = new Map();
+  g.entries.forEach((e) => {
+    const lines = [];
+    e.body.forEach((l, i) => { if (LIKE_PICTURE.test(l)) lines.push({ text: l, at: e.line + 1 + i, i }); });
+    lines.forEach((p) => {
+      const m = PICTURE.exec(p.text);
+      if (!m) { fail(p.at, "This line is not Picture: and a name of 1 to 60 of a-z, 0-9 and -."); return; }
+      let next = p.i + 1;
+      while (next < e.body.length && PICTURE.test(e.body[next])) next += 1;
+      if (next >= e.body.length || !/^Last checked:/.test(e.body[next])) fail(p.at, "A Picture: line sits just before Last checked:.");
+      if (named.has(m[1])) fail(p.at, "The picture " + m[1] + " is named on line " + named.get(m[1]).at + " already. A picture belongs to one entry.");
+      else named.set(m[1], { at: p.at, title: e.title });
+    });
+    if (lines.length > 2) fail(lines[2].at, "The entry " + e.title + " names " + lines.length + " pictures, and an entry takes at most two.");
+  });
+  const dir = path.join(ROOT, SHOTS);
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  named.forEach((p, name) => SHOT_LANGS.forEach((lang) => {
+    const f = name + "." + lang + ".jpg";
+    if (files.indexOf(f) < 0) { fail(p.at, SHOTS + "/" + f + " is missing. npm run shots takes it."); return; }
+    const size = fs.statSync(path.join(dir, f)).size;
+    if (size > SHOT_MAX_BYTES) fail(p.at, SHOTS + "/" + f + " is " + Math.ceil(size / 1024) + " KB, over 250 KB.");
+  }));
+  files.forEach((f) => {
+    const m = /^([a-z0-9-]{1,60})\.([a-z]{2})\.jpg$/.exec(f);
+    if (!m || SHOT_LANGS.indexOf(m[2]) < 0) failAt(SHOTS + "/" + f, "This file is not <name>.en.jpg or <name>.es.jpg.");
+    else if (!named.has(m[1])) failAt(SHOTS + "/" + f, "No entry names the picture " + m[1] + ".");
+  });
+  return named.size;
+}
 
 // An allowed pair, one to a line, written as the guide writes it. Spanish is written as \u escapes so
 // the file stays plain ASCII. Pairs sit in blocks, a blank line ending each, and a block starts with
@@ -144,6 +191,7 @@ function main() {
     if (PHONE.some((re) => re.test(l))) fail(i + 1, "This line holds a phone number. The repository is public.");
   });
   allowed.forEach((a) => { if (!a.used) console.log(ALLOW + ":" + a.line + ": this pair is no longer in the guide, and can come out of the list."); });
+  const pictures = checkPictures(g, fail, (file, message) => failures.push({ file, line: 1, message }));
 
   const base = process.env.GUIDE_CHECK_BASE;
   if (base) {
@@ -159,6 +207,7 @@ function main() {
     if (inActions) console.log("::error file=" + escProp(f.file) + ",line=" + f.line + "::" + escData(f.message));
   });
   console.log(g.entries.length + " entries, fingerprint " + fingerprint(g.entries) + ".");
+  console.log(pictures + " pictures; with the Picture: lines left out, fingerprint " + fingerprint(withoutPictures(g.entries)) + ".");
   if (failures.length) {
     console.log(failures.length + (failures.length === 1 ? " failure." : " failures."));
     process.exit(1);
