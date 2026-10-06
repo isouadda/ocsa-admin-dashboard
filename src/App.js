@@ -22012,6 +22012,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const awaitingLive = useTrainingLive(af, "awaiting");
   const sessionsLive = useTrainingLive(af, "sessions");
   const documentsLive = useTrainingLive(af, "documents");
+  // Step 268: the Drafts tab, once GET /api/training/lesson-drafts answers, which it does for admins.
+  const draftsLive = useTrainingLive(af, "drafts");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -22227,7 +22229,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22338,6 +22340,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
+      {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -23882,6 +23885,8 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
   const [refusal, setRefusal] = useState("");
   const live = (versions || []).find(v => v.status === "published") || null;
   const open = (versions || []).find(v => v.status === "draft") || null;
+  // Step 268: the checker named on the live lesson of a safety topic, once the API's Step 266 is there.
+  const checkersLive = useTrainingLive(af, "categories");
   const openDraft = async (id) => {
     setBusy("open"); setRefusal("");
     try { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(id)); if (d && d.draft) setDraft(d); }
@@ -23918,6 +23923,7 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
   return (<div data-topic-lesson="">
     {!live && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("No lesson is live for this topic.")}</div>}
     <DataTable t={t} columns={cols} rows={versions || []} rowKey={v => v.id} onRowClick={isAdmin ? (v => { if (v.status === "draft") openDraft(v.id); }) : undefined} empty={tr("No lesson written yet.")} />
+    {live && tp.safetyCritical && checkersLive && <LessonCheckers af={af} t={t} tp={tp} live={live} isAdmin={isAdmin} showToast={showToast} onSaved={onReload} />}
     {refusal && <div role="alert" data-lesson-refusal="" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
     {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
       {open ? <Btn t={t} data-lesson-open-draft="" disabled={!!busy} onClick={() => openDraft(open.id)}>{tr("Open the draft")}</Btn> : <>
@@ -23928,6 +23934,45 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
     </div>}
   </div>);
 }
+
+// Spanish checked by, on the published lesson of a safety topic (STEP266_CONTRACT.md section 5, and
+// the owner's change of October 6 matching the API's): staff are offered the Spanish as soon as it is
+// written, and the version reads Spanish not checked yet (spanishUnchecked) until someone fluent has
+// checked it and is named here, through PATCH /api/training/lessons/:topicId/checkers, which records
+// the name on the live version with no new version and clears the chip. The name starts from what the
+// version row carries, when it carries one.
+function LessonCheckers({ af, t, tp, live, isAdmin = false, showToast, onSaved }) {
+  const [name, setName] = useState(() => (live && live.checkedEsBy) || "");
+  const [saved, setSaved] = useState(() => (live && live.checkedEsBy) || "");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  useEffect(() => { const v = (live && live.checkedEsBy) || ""; if (v) { setName(v); setSaved(v); } }, [live]);
+  const save = async () => {
+    setBusy(true); setRefusal("");
+    try {
+      const d = await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/checkers", { method: "PATCH", body: { checkedEsBy: name.trim() || null } });
+      const v = d && d.version;
+      const now = v && Object.prototype.hasOwnProperty.call(v, "checkedEsBy") ? (v.checkedEsBy || "") : name.trim();
+      setSaved(now); setName(now);
+      showToast(now ? tr("Spanish checker saved.") : tr("Spanish checker cleared."));
+      if (onSaved) onSaved();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<div data-lesson-checkers="" style={{ marginTop: 14, padding: 12, border: "1px solid " + t.border, borderRadius: R.md, background: t.card }}>
+    <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{tr("Languages")}</div>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: t.textSec, marginBottom: 8 }}><span>{tr("Version {0} is live.", live.version != null ? live.version : "")}</span>{live.spanishUnchecked === true && spanishUncheckedChip()}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Spanish checked by")}</div>
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 220px", minWidth: 0 }}><Inp t={t} aria-label={tr("Spanish checked by")} data-lesson-checker="es" value={name} disabled={!isAdmin || busy} onChange={e => setName(e.target.value)} placeholder={tr("The name of whoever checked the Spanish")} /></div>
+      {isAdmin && <Btn t={t} v="ghost" data-lesson-checker-save="" disabled={busy || name.trim() === saved.trim()} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>}
+    </div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Staff are offered the Spanish as soon as it is written. Name whoever checked it once they have, and the chip clears.")}</div>
+    {refusal && <div role="alert" data-lesson-checker-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+  </div>);
+}
+// The chip a version or a draft wears while its Spanish is written and not yet checked.
+const spanishUncheckedChip = () => <span data-lesson-spanish-unchecked="" title={tr("The Spanish is offered to staff and no one has checked it yet.")}><Bdg l={tr("Spanish not checked yet")} c={OR} /></span>;
 
 // Three texts of one thing, English first and the Spanish and French under it, each with the problems
 // the API named for it.
@@ -23963,6 +24008,9 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
   const [draft, setDraft] = useState(initial.draft);
   const [f, setF] = useState(() => take(initial.draft));
   const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
+  // Step 268: the notes a draft's read lists beside its problems (French empty, Spanish held on a
+  // safety topic), which never stop publishing.
+  const [notes, setNotes] = useState(Array.isArray(initial.notes) ? initial.notes : []);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
   const [refusal, setRefusal] = useState(null);
@@ -24008,7 +24056,7 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
     if (e && e.body && Array.isArray(e.body.problems)) setProblems(e.body.problems);
     setRefusal({ text: e.message || tr("Request failed"), fields });
   };
-  const after = (d) => { if (d && d.draft) { setDraft(d.draft); setF(take(d.draft)); } if (d && Array.isArray(d.problems)) setProblems(d.problems); setDirty(false); };
+  const after = (d) => { if (d && d.draft) { setDraft(d.draft); setF(take(d.draft)); } if (d && Array.isArray(d.problems)) setProblems(d.problems); if (d && Array.isArray(d.notes)) setNotes(d.notes); setDirty(false); };
   const saveNow = async () => { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id), { method: "PATCH", body: body() }); after(d); return d; };
   const run = async (what, fn) => { setBusy(what); setRefusal(null); try { await fn(); } catch (e) { fail(e); } setBusy(""); };
   const save = () => run("save", async () => { await saveNow(); showToast(tr("Draft saved")); });
@@ -24099,6 +24147,10 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
       <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 6 }}>{trn("{0} problem to fix before it is published|count", problems.length)}</div>
       {problems.map((pr, i) => <button key={i} data-lesson-problem={lessonPathOf(pr.path)} onClick={() => goTo(pr.path)} style={{ display: "block", width: "100%", textAlign: "left", minHeight: 36, padding: "4px 0", background: "none", border: "none", color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</button>)}
       {dirty && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Save the draft to check it again.")}</div>}
+    </div>}
+    {notes.length > 0 && <div data-lesson-notes={notes.length} style={{ border: "1px solid " + t.border, background: t.hover, borderRadius: R.md, padding: 12, marginBottom: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>{tr("Notes that do not stop publishing")}</div>
+      {notes.map((pr, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, padding: "2px 0", overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>)}
     </div>}
 
     {kindLive && <div data-lesson-path="kind">
@@ -24216,7 +24268,7 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
       <div data-lesson-path="checkedEsBy"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Spanish checked by")}</div>
         <Inp t={t} aria-label={tr("Spanish checked by")} data-lesson-checked="es" value={f.checkedEsBy} onChange={e => edit({ ...f, checkedEsBy: e.target.value })} />
-        {tp.safetyCritical && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A safety lesson is published only once someone fluent has checked the Spanish.")}</div>}
+        {tp.safetyCritical && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{step266 ? tr("A safety lesson publishes without it, and staff are offered the Spanish as soon as it is written. Name whoever checked it, here or on the published lesson, and the Spanish not checked yet chip clears.") : tr("A safety lesson is published only once someone fluent has checked the Spanish.")}</div>}
         {bad("checkedEsBy")}{probs("checkedEsBy")}</div>
       <div data-lesson-path="checkedFrBy"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("French checked by")}</div>
         <Inp t={t} aria-label={tr("French checked by")} data-lesson-checked="fr" value={f.checkedFrBy} onChange={e => edit({ ...f, checkedFrBy: e.target.value })} />
@@ -24266,6 +24318,97 @@ function LessonLibrary({ af, t, docCode = "", onPick, onClose }) {
         <Btn t={t} onClick={() => onPick(sec)} style={{ minHeight: 44 }}>{tr("Cite")}</Btn>
       </div>)}</div>}
   </div>;
+}
+
+// ===== DRAFTS PUBLISHED IN ONE PASS (Step 268, STEP266_CONTRACT.md section 7) =====
+// The Training area's Drafts tab, drawn once GET /api/training/lesson-drafts answers: every open draft
+// with its topic and category, its kind, its change note, the problems that stop it publishing and
+// the notes that do not. A draft without problems carries a tick; Select all ready ticks every such
+// draft, and Publish selected sends the ticked ids to POST /api/training/lesson-drafts/publish, which
+// publishes each in its own transaction and refuses one without stopping the rest. The published and
+// the refused are listed after, and the list is read again.
+function TrainingDrafts({ af, t, showToast }) {
+  const [list, setList] = useState(null);
+  const [cats, setCats] = useState([]);
+  const [failed, setFailed] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [refusal, setRefusal] = useState("");
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/training/lesson-drafts"); setList(d && Array.isArray(d.drafts) ? d.drafts : []); }
+    catch (e) { setList([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, showToast]);
+  useEffect(() => { load(); }, [load]);
+  // The category names, from the catalog's answer.
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) setCats(categoriesOf(d && d.categories)); }).catch(() => {});
+    return () => { alive = false; };
+  }, [af]);
+  const ready = (d) => !(Array.isArray(d.problems) && d.problems.length > 0);
+  const readyIds = (list || []).filter(ready).map(d => String(d.id));
+  const toggle = (id) => setPicked(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const nameOf = (d) => d.topicName || String(d.topicId || "");
+  const publish = async () => {
+    const ids = Array.from(picked);
+    if (!ids.length || busy) return;
+    if (!window.confirm(trn("Publish {0} draft? Each is published on its own, and a refusal stops none of the others.|count", ids.length))) return;
+    setBusy(true); setRefusal(""); setResult(null);
+    try {
+      const d = await af("/api/training/lesson-drafts/publish", { method: "POST", body: { ids } });
+      const published = d && Array.isArray(d.published) ? d.published : [];
+      const refused = d && Array.isArray(d.refused) ? d.refused : [];
+      const was = list || [];
+      setResult({ published: published.map(x => ({ ...x, topicName: nameOf(was.find(y => String(y.id) === String(x.id)) || { topicId: x.topicId }) })), refused: refused.map(x => ({ ...x, topicName: nameOf(was.find(y => String(y.id) === String(x.id)) || { topicId: x.topicId }) })) });
+      setPicked(new Set());
+      showToast(published.length ? trn("{0} lesson published|count", published.length) : tr("Nothing was published."));
+      load();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const cols = [
+    { header: "", tdStyle: { width: 44 }, render: d => (ready(d)
+      ? <input type="checkbox" data-draft-tick={d.id} aria-label={tr("Publish {0}", nameOf(d))} checked={picked.has(String(d.id))} onChange={() => toggle(String(d.id))} onClick={e => e.stopPropagation()} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} />
+      : <span data-draft-not-ready={d.id} title={tr("Fix the problems listed first.")} style={{ display: "inline-block", width: 20, height: 20, borderRadius: 4, border: "1px dashed " + t.border }} />) },
+    { header: tr("Topic"), tdStyle: { minWidth: 160 }, render: d => <div><div style={{ color: t.text, fontWeight: 600 }}>{nameOf(d)}</div><div style={{ fontSize: 11, color: t.textMut }}>{categoryNameOf(cats, d.category)}</div>{d.spanishUnchecked === true && <div style={{ marginTop: 4 }}>{spanishUncheckedChip()}</div>}</div> },
+    { header: tr("Kind|lesson"), tdStyle: { color: t.textSec }, render: d => lessonTypeWord(d.kind) },
+    { header: tr("Change note"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: d => d.changeNote || "" },
+    { header: tr("Problems"), tdStyle: { fontSize: 12, minWidth: 180 }, render: d => (ready(d) ? <span data-draft-ready={d.id}><Bdg l={tr("Ready to publish")} c={GR} /></span> : <div data-draft-problems={d.problems.length}>
+      <div style={{ color: RD, fontWeight: 600, marginBottom: 2 }}>{trn("{0} problem|count", d.problems.length)}</div>
+      {d.problems.slice(0, 4).map((pr, i) => <div key={i} style={{ color: t.textSec, overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>)}
+      {d.problems.length > 4 && <div style={{ color: t.textMut }}>{tr("and {0} more", d.problems.length - 4)}</div>}
+    </div>) },
+    { header: tr("Notes"), tdStyle: { fontSize: 12, color: t.textSec, minWidth: 160 }, render: d => (Array.isArray(d.notes) && d.notes.length ? d.notes.map((pr, i) => <div key={i} style={{ overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>) : "") },
+    { header: tr("Updated"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: d => stampDay(d.updatedAt) },
+  ];
+  return (<div data-training-drafts="">
+    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("Every lesson draft still open, by category. Read each one in its topic's Lesson tab, then publish the ones that are ready in one pass.")}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      {list && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} draft|count", list.length)}{" . "}{trn("{0} ready|count", readyIds.length)}</span>}
+      <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {readyIds.length > 0 && readyIds.some(id => !picked.has(id)) && <Btn t={t} v="ghost" data-drafts-select-ready="" disabled={busy} onClick={() => setPicked(new Set(readyIds))}>{tr("Select all ready")}</Btn>}
+        {picked.size > 0 && <Btn t={t} v="ghost" disabled={busy} onClick={() => setPicked(new Set())}>{tr("Clear selection")}</Btn>}
+        <Btn t={t} data-drafts-publish="" disabled={busy || picked.size === 0} onClick={publish}>{busy ? tr("Publishing...") : trn("Publish selected ({0})|count", picked.size)}</Btn>
+      </span>
+    </div>
+    {refusal && <div role="alert" data-drafts-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    {result && <Crd t={t} style={{ marginBottom: 14 }}>
+      <div data-drafts-published={result.published.length} style={{ fontSize: 13, fontWeight: 600, color: result.published.length ? GR : t.textSec, marginBottom: 4 }}>{trn("{0} lesson published|count", result.published.length)}</div>
+      {result.published.map((x, i) => <div key={"p" + i} style={{ fontSize: 13, color: t.textSec }}>{x.topicName}{x.version && x.version.version != null ? ", " + tr("Version {0}", x.version.version) : ""}</div>)}
+      {result.refused.length > 0 && <div data-drafts-refused={result.refused.length} style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 4 }}>{trn("{0} draft refused|count", result.refused.length)}</div>
+        {result.refused.map((x, i) => <div key={"r" + i} style={{ fontSize: 13, marginBottom: 4 }}>
+          <div style={{ color: t.text, fontWeight: 600 }}>{x.topicName}</div>
+          {(x.problems || []).map((pr, j) => <div key={j} style={{ fontSize: 12, color: t.textSec, overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</div>)}
+        </div>)}
+      </div>}
+    </Crd>}
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={list} rowKey={d => d.id} onRowClick={d => { if (ready(d)) toggle(String(d.id)); }} empty={tr("No draft is open.")} />}
+  </div>);
 }
 
 // ===== SIGN-OFF AND THE TRAINING RECORD (Step 257, slice 2 of the API's Step 256) =====
