@@ -5833,6 +5833,46 @@ function createStubs() {
     return hit ? hit.ms : 0;
   };
 
+  // Step 278: what the pictures of the screen need beyond the API's steps, answered only once a run
+  // arms it with setStep278, which npm run shots does: the screens no check had drawn, from
+  // audit/pictures-stub.js, the capabilities those screens ask for, and a stand-in for every one-pixel
+  // image. Every value is invented.
+  let step278 = false;
+  // What a picture shows where every other run is served the one-pixel PNG: a QR code of an invented
+  // join address, https://portal.example.invalid/join/K7Q4PZ, a drawn signature, and a made-up photo
+  // of a tiled floor, each a file in audit/fixtures.
+  const FIXTURE_278 = (f) => require("fs").readFileSync(require("path").join(__dirname, "fixtures", f));
+  const PICTURE_IMAGES = [
+    { test: /qr\.png$/, file: "qr.png", type: "image/png" },
+    { test: /signature/, file: "signature.png", type: "image/png" },
+    { test: /photo|image|thumb|file/, file: "photo.jpg", type: "image/jpeg" },
+  ].map((x) => Object.assign(x, { bytes: FIXTURE_278(x.file) }));
+  const pictureImage = (path, a) => {
+    if (!a || a.bytes !== PNG_BYTES) return a;
+    const hit = PICTURE_IMAGES.find((x) => x.test.test(path));
+    return hit ? Object.assign({}, a, { bytes: hit.bytes, contentType: hit.type }) : a;
+  };
+  // The capabilities a picture's screen asks for beyond the role's defaults, granted to the admin.
+  const granted278 = new Set();
+  // What only the pictures need, in audit/pictures-stub.js, each part answering null for a call it
+  // does not draw.
+  const pictures278 = require("./pictures-stub")({ seed, state, ok, created, clone, plusDays, person, tPersonName,
+    siteName: (id) => ((state.sites || []).find((s0) => s0.id === id) || {}).name || "",
+    refuse: (status, code, error, extra) => ({ status, json: Object.assign({ error, code }, extra || {}) }),
+    signatureOf270: (kind, id) => (step270 ? signatureOf270(kind, id) : null),
+    grant: (key) => { granted278.add(key); } });
+  function step278Route(method, path, query, body, said, base) {
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    if (path === "/api/users/me/permissions" && method === "GET") {
+      const a = base();
+      if (a && a.json && a.json.capabilities && person().role === "admin") granted278.forEach((k) => { a.json.capabilities[k] = true; });
+      return a;
+    }
+    const mine = pictures278(method, path, query, body, lang, base);
+    if (mine) return pictureImage(path, mine);
+    return pictureImage(path, base());
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -5883,7 +5923,8 @@ function createStubs() {
     const over266 = () => (step266 ? step266Route(method, path, u.searchParams, body, record.language, over262) : over262());
     const over270 = () => (step270 ? step270Route(method, path, u.searchParams, body, record.language, over266) : over266());
     const over269 = () => (step269 ? step269Route(method, path, u.searchParams, body, record.language, over270) : over270());
-    const answer = step275 ? step275Route(method, path, u.searchParams, body, record.language, over269) : over269();
+    const over275 = () => (step275 ? step275Route(method, path, u.searchParams, body, record.language, over269) : over269());
+    const answer = step278 ? step278Route(method, path, u.searchParams, body, record.language, over275) : over275();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -5958,6 +5999,8 @@ function createStubs() {
     // The routes and keys of the API's Step 275 contract, on or off, laid over Step 269's; on brings Step
     // 256's, whose topics it adds to.
     setStep275: (v) => { step275 = v !== false; if (step275) step256 = true; },
+    // What the pictures of the screen need (Step 278), on or off, laid over whichever steps the run arms.
+    setStep278: (v) => { step278 = v !== false; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -6013,6 +6056,7 @@ function createStubs() {
       step270 = false; state.requests270 = null; state.requestSeq = 0; state.notif270 = false;
       step269 = false;
       step275 = false; state.t275 = false;
+      step278 = false;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
