@@ -1669,9 +1669,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const gapsLive = useTrainingLive(af, "gaps");
   const [hrItems, setHrItems] = useState(null);
   // Step 268, the owner's change of October 6: Assign training from the person's list, once the
-  // assignments route answers, for an admin.
+  // API's Step 266 is there (the catalog answers categories), for an admin.
   const [assigning, setAssigning] = useState(false);
-  const assignLive = useTrainingLive(af, "assignments");
+  const assignLive = useTrainingLive(af, "categories");
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
   // Step 187: the filed reports about this person, the source form items of their HR folder, and
   // the one open in its review window.
@@ -23081,12 +23081,10 @@ const TRAINING_PROBES = {
   documents: ["/api/documents", (d) => !!(d && Array.isArray(d.documents))],
   // Step 268, against the API's Step 266 (STEP266_CONTRACT.md): the catalog answering categories is
   // how that step says it is there, and the pieces with no read of their own (the Image block, the
-  // checker on a published lesson, the void's warning) wait on it; the Drafts tab waits on its list.
+  // checker on a published lesson, the void's warning, and Assign training, whose POST shipped in the
+  // same API step with no read beside it) wait on it; the Drafts tab waits on its list.
   categories: ["/api/training/topics", (d) => !!(d && Array.isArray(d.categories))],
   drafts: ["/api/training/lesson-drafts", (d) => !!(d && Array.isArray(d.drafts))],
-  // The owner's change of October 6: Assign training is offered once GET /api/training/assignments
-  // answers with a list, since its POST cannot be asked without assigning.
-  assignments: ["/api/training/assignments", (d) => !!(d && Array.isArray(d.assignments))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23185,7 +23183,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
   const [open, setOpen] = useState(null);
   const [moving, setMoving] = useState(false);
   const [assigning, setAssigning] = useState(false);
-  const assignLive = useTrainingLive(af, "assignments");
+  const assignLive = useTrainingLive(af, "categories");
   const load = useCallback(async () => {
     setFailed(false);
     try { const d = await af("/api/training/topics?active=" + which); setTopics(d && Array.isArray(d.topics) ? d.topics : []); setCats(d && Array.isArray(d.categories) ? d.categories : null); }
@@ -23571,7 +23569,7 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, is
   const [records, setRecords] = useState(null);
   const [person, setPerson] = useState(focusPerson);
   const [assigning, setAssigning] = useState(false);
-  const assignLive = useTrainingLive(af, "assignments");
+  const assignLive = useTrainingLive(af, "categories");
   // A notice's person (Step 263) opens their list.
   useEffect(() => { if (focusPerson) setPerson(focusPerson); }, [focusPerson]);
   useEffect(() => {
@@ -24449,7 +24447,8 @@ function TrainingDrafts({ af, t, showToast }) {
 // by name and narrowed by site and role, with Select all, and Assign sends them once to
 // POST /api/training/assignments { topicIds, userIds }, whose answer says how many were added and how
 // many were already assigned. Opened from Catalog, from Gaps, and from a person's list in their HR
-// Files with that person ticked. The button is offered once GET /api/training/assignments answers.
+// Files with that person ticked. The button is offered once the catalog answers categories, the read
+// that marks the API's Step 266, which shipped the POST with no read beside it.
 const ASSIGN_FIELDS = ["topicIds", "userIds"];
 const countOf = (v) => (Array.isArray(v) ? v.length : Number(v) || 0);
 function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast, onClose, onDone }) {

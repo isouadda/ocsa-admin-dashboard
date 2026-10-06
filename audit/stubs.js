@@ -3800,10 +3800,7 @@ function createStubs() {
       ["checkedEsBy", "checkedFrBy"].forEach((k) => { if (b[k] !== undefined) live[k] = b[k] == null || String(b[k]).trim() === "" ? null : String(b[k]).trim().slice(0, 120); });
       return ok({ version: versionRow(live) });
     }
-    if (path === "/api/training/assignments" && method === "GET") {
-      if (!admin) return tRefusal("training.noAccess", 403, lang);
-      return ok({ assignments: assignments().map((x) => ({ id: x.id, topicId: x.topicId, userId: x.userId, assignedAt: x.assignedAt })) });
-    }
+    // The API's Step 266 as built (ocsa-api #134) ships the POST and no read beside it.
     if (path === "/api/training/assignments" && method === "POST") {
       if (!admin) return tRefusal("training.noAccess", 403, lang);
       const topicIds = Array.isArray(b.topicIds) ? b.topicIds.map(String) : [];

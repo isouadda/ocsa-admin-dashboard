@@ -1929,6 +1929,6 @@ Every topic reaches the roles under **Who needs it** (**Quién la necesita**) on
 2. Under **Topics** (**Temas**), tick one or more topics, listed by category.
 3. Under **People** (**Personas**), find people with **Search by name** (**Buscar por nombre**), narrow them by **Site** (**Sitio**) and **Role** (**Rol**), and tick them one by one or with **Select all** (**Seleccionar todo**).
 4. Click **Assign** (**Asignar**). The topics and the people are sent once, and the window says how many were added and how many were already assigned.
-If it does not work: a refusal is shown under the topics or the people. The button shows once the system answers the assignments route.
+If it does not work: a refusal is shown under the topics or the people. The button shows once the system answers the catalog's categories.
 Words people use for this: assign training, assign a topic to a person, training for one person, extra training, who gets this training, asignar capacitación.
 Last checked: 2026-10-06
