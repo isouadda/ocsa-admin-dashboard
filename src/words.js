@@ -4872,6 +4872,25 @@ export const WORDS = {
   "Open the safety inspection record": { es: "Abrir el registro de la inspecci\u00f3n de seguridad" },
   "Filed as the safety walk of a scheduled inspection.": { es: "Presentado como el recorrido de seguridad de una inspecci\u00f3n programada." },
   "Open the inspection": { es: "Abrir la inspecci\u00f3n" },
+  "Schedule by shift": { es: "Horario por turno" },
+  "Each block's window and kind, with its steps. A block with days shows on those days only.": { es: "La franja y el tipo de cada bloque, con sus pasos. Un bloque con d\u00edas se muestra solo esos d\u00edas." },
+  "Work|block kind": { es: "Trabajo" },
+  "Critical|block kind": { es: "Cr\u00edtico" },
+  "Residents' meal": { es: "Comida de los residentes" },
+  "Empty, full access": { es: "Vac\u00edo, acceso total" },
+  "Check-in": { es: "Entrada" },
+  "Check-out": { es: "Salida" },
+  "When there is free time": { es: "Cuando haya tiempo libre" },
+  "Every day": { es: "Todos los d\u00edas" },
+  "{0} steps|block": {
+    en: { one: "{0} step", other: "{0} steps" },
+    es: { one: "{0} paso", other: "{0} pasos" },
+  },
+  "No steps": { es: "Sin pasos" },
+  "Edit the block": { es: "Editar el bloque" },
+  "Ends at": { es: "Termina a las" },
+  "On a night shift that runs past midnight, the end can be before the start.": { es: "En un turno de noche que pasa de la medianoche, el fin puede ser antes del inicio." },
+  "None ticked means every day.": { es: "Si no marca ninguno, son todos los d\u00edas." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

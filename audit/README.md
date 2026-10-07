@@ -185,6 +185,15 @@ Then it checks, one line a check:
   was filed as the walk's safety part and whose Open the inspection lands on `#inspections/insp-4` again.
   The stub keeps what each schedule sent, answers `with_safety` on every scheduled inspection, and
   answers the walk's `safety_response_id` and the record's `inspection: { id }`.
+- against the stub's answers for the API's Step 315 contract (Step 317, timed site schedules), which the
+  smoke check arms with `setStep315` over whichever steps a pass arms: at 1280 in English and in Spanish
+  and at 390 in English, `#sites/s-2/tasks` draws Schedule by shift with the stub's two shifts and all
+  fourteen blocks, every kind among them, each with its window, its kind in words (a critical block says
+  Critical), its days (a weekday block reads Mon to Fri) and its steps, the any-time block reading When
+  there is free time, in time order; Edit on a block sends `{ anchorTime, endTime, kind, daysOfWeek }` and
+  the timeline redraws the block with its new kind and window; and an end before the start on a day
+  block is refused 400 with the stub's words under Ends at, and nothing is saved. The stub's second site
+  holds an invented two-shift schedule, and its tasks add the steps that belong to the blocks.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -268,7 +277,11 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-order-send-again`, `data-order-ordered`, `data-order-no-vendor`, `data-request-read-only`,
 `data-request-po` and `data-request-ordered`, and Step 314's by `data-schedule-with-safety`,
 `data-inspection-with-safety`, `data-inspection-safety`, `data-inspection-safety-answer`,
-`data-open-safety-record`, `data-filed-inspection` and `data-open-inspection`. Since Step 291 a person
+`data-open-safety-record`, `data-filed-inspection` and `data-open-inspection`, and Step 317's by
+`data-site-schedule`, `data-site-schedule-shift`, `data-schedule-block`, `data-schedule-kind`,
+`data-schedule-kind-word`, `data-schedule-window`, `data-schedule-days`, `data-schedule-step`,
+`data-schedule-edit`, `data-schedule-window-edit`, `data-schedule-end`, `data-schedule-kind-pick`,
+`data-schedule-save` and `data-schedule-refusal`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -293,7 +306,7 @@ picture's name with the day it was taken in both languages, which `npm run guide
 entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures current).
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280, Step 283, Step 289, Step 292, Step 299, Step 305, Step 308 and Step 312 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283, Step 289, Step 292, Step 299, Step 305, Step 308, Step 312 and Step 315 contracts among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and

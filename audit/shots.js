@@ -1608,6 +1608,19 @@ const SHOTS = [
   { name: "safety-record-inspection-link", entry: "Read an inspection's safety walk",
     open: report("fr-safety-1"), ready: "[data-open-inspection]",
     act: async (c) => { await wait(200); } },
+  // Step 317: the second site's schedule by shift, and a block's window being edited (audit/stubs.js,
+  // setStep315).
+  { name: "site-schedule", entry: "Read a site's schedule by shift",
+    open: "sites/s-2/tasks", ready: "[data-schedule-block]",
+    act: async (c) => { await until(c, "[data-schedule-step]"); await toTop(c, "[data-site-schedule]", 100); } },
+  { name: "site-schedule-edit", entry: "Change a block's time, kind and days",
+    open: "sites/s-2/tasks", ready: '[data-schedule-edit="tb-5"]',
+    act: async (c) => {
+      await click(c, '[data-schedule-edit="tb-5"]'); await until(c, "[data-schedule-window-edit]");
+      await c.page.locator("[data-schedule-end]").fill("10:45");
+      await c.page.locator("[data-schedule-kind-pick]").selectOption("critical");
+      await blur(c);
+    } },
 ];
 
 
@@ -1671,7 +1684,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312", "setStep315"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

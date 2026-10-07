@@ -146,6 +146,11 @@
 //     read from the OCSA-FRM-015 record itself, with its answers, findings and result; and Open the
 //     safety inspection record opens that record under Forms, whose Open the inspection opens the
 //     inspection again by its address.
+//   - against the stub's answers for the API's Step 315 contract (Step 317, timed site schedules), which
+//     the smoke check arms with setStep315, at 1280 in English and in Spanish and at 390 in English: the
+//     second site's Service Details draws its two shifts as a timeline, every block with its window, its
+//     kind in words, its days and its steps, in time order; editing a block's end and kind sends them and
+//     the timeline redraws it; and an end before the start is refused under Ends at, with nothing saved.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -218,9 +223,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -2344,6 +2349,68 @@ async function step314(d, origin, p, stubs) {
   });
 }
 
+// Step 317's timed site schedules (STEP315_CONTRACT.md section 3), each a line, against the stub armed
+// with setStep315 (audit/stubs.js): the second site's schedule by shift as a timeline, editing a
+// block's window and kind, and an end before the start refused under Ends at. Every line waits for
+// what it reads.
+const SITE_317 = "s-2";
+async function step317(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const open = async () => { await go(d, "sites", [SITE_317, "tasks"], "[data-schedule-block]"); await until(d, "[data-schedule-step]"); };
+  const blocksRead = () => stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/sites/" + SITE_317 + "/shift-blocks" && c.json && Array.isArray(c.json.blocks)).pop();
+  await check("a site's Service Details draws its schedule by shift, each block's window, kind and days with its steps", async () => {
+    await open();
+    const blocks = blocksRead().json.blocks;
+    if ((await d.page.locator("[data-site-schedule-shift]").count()) !== 2) return "it draws " + (await d.page.locator("[data-site-schedule-shift]").count()) + " shifts of 2";
+    const drawn = await d.page.locator("[data-schedule-block]").evaluateAll((els) => els.map((e) => [e.getAttribute("data-schedule-block"), e.getAttribute("data-schedule-kind")]));
+    if (drawn.length !== blocks.length) return "it draws " + drawn.length + " blocks of " + blocks.length;
+    const kinds = drawn.map((x) => x[1]).filter((k, i, all) => all.indexOf(k) === i).sort();
+    if (kinds.join() !== ["anytime", "check_in", "check_out", "critical", "full_access", "meal", "work"].join()) return "its kinds are " + JSON.stringify(kinds);
+    const crit = await d.page.locator('[data-schedule-block="tb-4"] [data-schedule-kind-word]').innerText();
+    if (crit.indexOf(d.say("Critical|block kind")) < 0) return "a critical block does not say so in words";
+    const days = await d.page.locator('[data-schedule-block="tb-6"] [data-schedule-days]').innerText();
+    if (days.indexOf(d.say("{0} to {1}").replace("{0}", d.say("Mon")).replace("{1}", d.say("Fri"))) !== 0) return "a weekday block's days read " + JSON.stringify(days);
+    if ((await d.page.locator('[data-schedule-block="tb-13"] [data-schedule-window]').innerText()).trim() !== d.say("When there is free time")) return "the any-time block does not say When there is free time";
+    if ((await d.page.locator('[data-schedule-block="tb-4"] [data-schedule-step]').count()) !== 3) return "a block's steps are not listed under it";
+    const order = drawn.filter((x) => ["tb-1", "tb-2", "tb-3", "tb-4"].indexOf(x[0]) >= 0).map((x) => x[0]).join();
+    return order === "tb-1,tb-2,tb-3,tb-4" ? "" : "the first shift is not in time order: " + order;
+  });
+  await check("editing a block's window and kind sends them and the timeline redraws it", async () => {
+    await open();
+    const was = await d.page.locator('[data-schedule-block="tb-5"] [data-schedule-window]').innerText();
+    await d.page.locator('[data-schedule-edit="tb-5"]').click();
+    await until(d, "[data-schedule-window-edit]");
+    await d.page.locator("[data-schedule-end]").fill("10:45");
+    await d.page.locator("[data-schedule-kind-pick]").selectOption("critical");
+    await d.page.locator("[data-schedule-save]").click();
+    await until(d, '[data-schedule-block="tb-5"][data-schedule-kind="critical"]');
+    const b = (stubs.saves315().pop() || {}).body || {};
+    if (b.anchorTime !== "09:15" || b.endTime !== "10:45" || b.kind !== "critical" || b.daysOfWeek !== null) return "it sent " + JSON.stringify(b);
+    const now = await d.page.locator('[data-schedule-block="tb-5"] [data-schedule-window]').innerText();
+    return now !== was && now.indexOf("10:45") >= 0 ? "" : "the window still reads " + JSON.stringify(now);
+  });
+  await check("an end before the start is refused under Ends at, and nothing is saved", async () => {
+    await open();
+    const before = stubs.saves315().length;
+    await d.page.locator('[data-schedule-edit="tb-4"]').click();
+    await until(d, "[data-schedule-window-edit]");
+    await d.page.locator("[data-schedule-end]").fill("08:00");
+    await d.page.locator("[data-schedule-save]").click();
+    await until(d, '[data-schedule-refusal="endTime"]');
+    const refused = stubs.calls.filter((c) => c.method === "PATCH" && c.path === "/api/sites/" + SITE_317 + "/shift-blocks/tb-4").pop();
+    const said = (await d.page.locator('[data-schedule-refusal="endTime"]').innerText()).trim();
+    if (!refused || refused.status !== 400 || said !== refused.json.error) return "the refusal reads " + JSON.stringify(said);
+    return stubs.saves315().length === before ? "" : "the block was saved";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -2375,6 +2442,8 @@ async function runPass(browser, origin, p) {
   if (p.step309) stubs.setStep308(true);
   // Step 312's answers (the dashboard's Step 314, one inspection walk) are laid over those.
   if (p.step314) stubs.setStep312(true);
+  // Step 315's answers (the dashboard's Step 317, timed site schedules) are laid over those.
+  if (p.step317) stubs.setStep315(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -2480,6 +2549,7 @@ async function runPass(browser, origin, p) {
     if (p.step306) await step306(d, origin, p, stubs);
     if (p.step309) await step309(d, origin, p, stubs);
     if (p.step314) await step314(d, origin, p, stubs);
+    if (p.step317) await step317(d, origin, p, stubs);
 
     // Help, asked one question.
     {

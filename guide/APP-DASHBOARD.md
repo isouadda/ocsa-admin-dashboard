@@ -2464,3 +2464,27 @@ Words people use for this: safety part of an inspection, safety walk, frm-015 wi
 Picture: inspection-safety-part
 Picture: safety-record-inspection-link
 Last checked: 2026-10-07
+
+## Read a site's schedule by shift (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Sites** (**Sitios**), click the site, then the **Service Details** (**Detalles del servicio**) tab.
+2. **Schedule by shift** (**Horario por turno**) shows each shift with its start and end, and under it each block in time order: its window, such as 8:30 AM to 10:30 AM, a bar across the shift showing when it falls, its kind, its name, its days and its steps.
+3. The kind is written on each block: **Critical** (**Crítico**), **Residents' meal** (**Comida de los residentes**) for a time the space is in use, with no steps, **Empty, full access** (**Vacío, acceso total**) for a time nobody is in the space, **Check-in** (**Entrada**) and **Check-out** (**Salida**) for the shift's start and end, **When there is free time** (**Cuando haya tiempo libre**) for work done whenever there is time, and **Work** (**Trabajo**) for the rest.
+4. **Every day** (**Todos los días**) means the block runs every day; a block with days, such as Mon to Fri, shows on the staff checklist on those days only.
+If it does not work: the schedule shows once the site's blocks have their end and kind. A site with no timed blocks shows its tasks as before. The blocks are named and added under **Shift names** (**Nombres de turnos**).
+Words people use for this: site schedule, cleaning schedule, timeline, time schedule, shift schedule, what happens when, horario del sitio.
+Picture: site-schedule
+Last checked: 2026-10-07
+
+## Change a block's time, kind and days (admin dashboard)
+Who can do this: admins and supervisors who manage tasks
+1. Click **Sites** (**Sitios**), click the site, then the **Service Details** (**Detalles del servicio**) tab.
+2. Under **Schedule by shift** (**Horario por turno**), click **Edit** (**Editar**) on the block.
+3. Set **Starts at** (**Empieza a las**) and **Ends at** (**Termina a las**). On a night shift that runs past midnight, the end can be before the start.
+4. Choose the **Kind** (**Tipo**).
+5. Under **Days** (**Días**), tick the days the block runs; **None ticked means every day.** (**Si no marca ninguno, son todos los días.**)
+6. Click **Save Changes** (**Guardar los cambios**). The timeline shows the block in its new place.
+If it does not work: an end before the start on a day shift is refused, and the reason shows in red under **Ends at** (**Termina a las**). Fix the time and save again.
+Words people use for this: change a block time, block end time, critical block, meal time, full access, days of the week, cambiar el horario de un bloque.
+Picture: site-schedule-edit
+Last checked: 2026-10-07

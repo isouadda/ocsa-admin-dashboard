@@ -6735,6 +6735,95 @@ function createStubs() {
     return base();
   }
 
+  // Timed site schedules (STEP315_CONTRACT.md sections 1 and 3, the API's Step 315, for the dashboard's
+  // Step 317), answered only once a run arms it with setStep315, over everything else: the second site
+  // holds an invented two-shift schedule with every kind of block, GET /api/sites/:siteId/shift-blocks
+  // answering each block's endTime, kind and daysOfWeek beside anchorTime, with its names in the screen's
+  // language; the site's tasks add the steps that belong to the blocks; and PATCH
+  // /api/sites/:siteId/shift-blocks/:id takes anchorTime, endTime, kind and daysOfWeek, refusing an end
+  // before the start (except a night block that runs past midnight), an unknown kind and a bad day list,
+  // each with keys. Every name and time is invented.
+  let step315 = false;
+  const SITE_315 = S[1].id;
+  const T315 = (lang, en, es) => (lang === "es" ? es : en);
+  const BLOCKS_315 = () => {
+    const B = (id, shift, block, start, end, kind, days, es) => ({ id, siteId: SITE_315, shiftLabel: shift, blockLabel: block, anchorTime: start ? start + ":00" : null, endTime: end ? end + ":00" : null, kind, daysOfWeek: days, isActive: true, es });
+    const F = ["First shift", "Primer turno"], N = ["Second shift", "Segundo turno"];
+    return [
+      B("tb-1", F[0], "Sign in", "07:00", "07:15", "check_in", null, [F[1], "Registro de entrada"]),
+      B("tb-2", F[0], "Empty the office and break room trash", "07:15", "08:30", "critical", null, [F[1], "Vaciar la basura de oficinas y salas de descanso"]),
+      B("tb-3", F[0], "Residents' breakfast", "07:15", "09:15", "meal", null, [F[1], "Desayuno de los residentes"]),
+      B("tb-4", F[0], "Clean the first floor restrooms", "08:30", "10:30", "critical", null, [F[1], "Limpiar los ba\u00f1os del primer piso"]),
+      B("tb-5", F[0], "Dust the window sills, first floor", "09:15", "10:15", "work", null, [F[1], "Sacudir los alf\u00e9izares, primer piso"]),
+      B("tb-6", F[0], "Clean the second floor lounge", "10:15", "11:00", "work", "mon,tue,wed,thu,fri", [F[1], "Limpiar la sala del segundo piso"]),
+      B("tb-7", F[0], "Lounge: empty, full access", "13:00", "14:00", "full_access", null, [F[1], "Sala: vac\u00eda, acceso total"]),
+      B("tb-8", F[0], "End-of-shift check and check out", "15:15", "15:30", "check_out", null, [F[1], "Revisi\u00f3n de fin de turno y salida"]),
+      B("tb-9", N[0], "Sign in", "14:00", "14:15", "check_in", null, [N[1], "Registro de entrada"]),
+      B("tb-10", N[0], "Residents' dinner", "16:00", "18:15", "meal", null, [N[1], "Cena de los residentes"]),
+      B("tb-11", N[0], "Clean the dining room after dinner", "18:00", "20:00", "critical", null, [N[1], "Limpiar el comedor despu\u00e9s de la cena"]),
+      B("tb-12", N[0], "Dining room: empty, full access", "19:00", "20:00", "full_access", "wed,thu,fri,sat,sun", [N[1], "Comedor: vac\u00edo, acceso total"]),
+      B("tb-13", N[0], "Stairway upkeep", null, null, "anytime", "sat", [N[1], "Mantenimiento de las escaleras"]),
+      B("tb-14", N[0], "End-of-shift check and check out", "21:45", "22:00", "check_out", null, [N[1], "Revisi\u00f3n de fin de turno y salida"]),
+    ];
+  };
+  const STEPS_315 = [
+    ["tb-2", "Empty every office trash can and replace the liner", "Vaciar cada bote de basura de las oficinas y cambiar la bolsa"],
+    ["tb-2", "Take the bags to the dumpster", "Llevar las bolsas al contenedor"],
+    ["tb-4", "Clean the toilets, urinals and sinks", "Limpiar los inodoros, urinarios y lavamanos"],
+    ["tb-4", "Refill the soap and the paper", "Rellenar el jab\u00f3n y el papel"],
+    ["tb-4", "Mop the floor", "Trapear el piso"],
+    ["tb-5", "Dust the sills and the ledges", "Sacudir los alf\u00e9izares y las repisas"],
+    ["tb-6", "Vacuum the carpet", "Aspirar la alfombra"],
+    ["tb-6", "Wipe the tables", "Limpiar las mesas"],
+    ["tb-7", "Damp mop the lounge floor", "Trapear con h\u00famedo el piso de la sala"],
+    ["tb-11", "Wipe the chairs and tables", "Limpiar las sillas y las mesas"],
+    ["tb-11", "Sweep and mop the floor", "Barrer y trapear el piso"],
+    ["tb-12", "Spot clean the walls", "Limpiar las manchas de las paredes"],
+    ["tb-13", "Sweep the stairs and landings", "Barrer las escaleras y los descansos"],
+  ];
+  const s315 = () => state.s315 || (state.s315 = { blocks: BLOCKS_315(), saves: [] });
+  const blockView315 = (b, lang) => Object.assign({}, b, { es: undefined, taskCount: STEPS_315.filter((x) => x[0] === b.id).length, display: { shift: T315(lang, b.shiftLabel, b.es[0]), block: T315(lang, b.blockLabel, b.es[1]) } });
+  const KINDS_315 = ["work", "critical", "meal", "full_access", "check_in", "check_out", "anytime"];
+  const DAYS_315 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  function step315Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    const site = /^\/api\/sites\/([^/]+)\/shift-blocks$/.exec(path);
+    if (site && method === "GET" && decodeURIComponent(site[1]) === SITE_315) return ok({ siteId: SITE_315, blocks: s315().blocks.map((x) => blockView315(x, lang)) });
+    const one = /^\/api\/sites\/([^/]+)\/shift-blocks\/([^/]+)$/.exec(path);
+    if (one && method === "PATCH" && decodeURIComponent(one[1]) === SITE_315) {
+      const row = s315().blocks.find((x) => x.id === decodeURIComponent(one[2]));
+      if (!row) return { status: 404, json: { error: T315(lang, "Block not found", "No se encontr\u00f3 el bloque"), code: "shiftBlocks.notFound" } };
+      const bad = (keys, code, en, es) => ({ status: 400, json: { error: T315(lang, en, es), code, keys } });
+      const hhmm = (v) => (v == null || v === "" ? null : /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(v)) ? String(v).slice(0, 5) + ":00" : undefined);
+      const start = b.anchorTime !== undefined ? hhmm(b.anchorTime) : row.anchorTime;
+      const end = b.endTime !== undefined ? hhmm(b.endTime) : row.endTime;
+      if (start === undefined) return bad(["anchorTime"], "shiftBlocks.badTime", "Write the start as a time.", "Escriba el inicio como una hora.");
+      if (end === undefined) return bad(["endTime"], "shiftBlocks.badTime", "Write the end as a time.", "Escriba el fin como una hora.");
+      const kind = b.kind !== undefined ? b.kind : row.kind;
+      if (KINDS_315.indexOf(kind) < 0) return bad(["kind"], "shiftBlocks.badKind", "Choose a kind of block.", "Elija un tipo de bloque.");
+      const night = start && end && start >= "18:00:00" && end <= "08:00:00";
+      if (start && end && end <= start && !night) return bad(["endTime"], "shiftBlocks.endBeforeStart", "The end is before the start. Only a night block that runs past midnight can end before it starts.", "El fin es antes del inicio. Solo un bloque de noche que pasa de la medianoche puede terminar antes de empezar.");
+      const days = b.daysOfWeek !== undefined ? b.daysOfWeek : row.daysOfWeek;
+      if (days != null && (typeof days !== "string" || !days.split(",").every((d) => DAYS_315.indexOf(d) >= 0))) return bad(["daysOfWeek"], "shiftBlocks.badDays", "Choose days from Monday to Sunday.", "Elija d\u00edas de lunes a domingo.");
+      Object.assign(row, { anchorTime: start, endTime: end, kind, daysOfWeek: days || null });
+      s315().saves.push({ id: row.id, body: clone(b) });
+      return ok(blockView315(row, lang));
+    }
+    const tasks = /^\/api\/sites\/([^/]+)\/tasks$/.exec(path);
+    if (tasks && method === "GET" && decodeURIComponent(tasks[1]) === SITE_315) {
+      const a = base();
+      if (!a || a.status !== 200 || !Array.isArray(a.json)) return a;
+      const blocks = s315().blocks;
+      a.json = a.json.concat(STEPS_315.map((x, i) => {
+        const blk = blocks.find((y) => y.id === x[0]);
+        return { id: "tt-315-" + (i + 1), site_id: SITE_315, label: x[1], zone: "Common area", priority: "standard", cims_category: "SD", site_shift_block_id: blk.id, shift_label: blk.shiftLabel, block_label: blk.blockLabel,
+          anchor_time: blk.anchorTime, days_of_week: null, description: "", display: { label: T315(lang, x[1], x[2]), zone: T315(lang, "Common area", "\u00c1rea com\u00fan"), shift: T315(lang, blk.shiftLabel, blk.es[0]), block: T315(lang, blk.blockLabel, blk.es[1]) } };
+      }));
+      return a;
+    }
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6794,7 +6883,8 @@ function createStubs() {
     const over305 = () => (step305 ? step305Route(method, path, u.searchParams, body, record.language, over292) : over292());
     const over308 = () => (step308 ? step308Route(method, path, u.searchParams, body, record.language, over305) : over305());
     const over312 = () => (step312 ? step312Route(method, path, u.searchParams, body, record.language, over308) : over308());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over312) : over312();
+    const over315 = () => (step315 ? step315Route(method, path, u.searchParams, body, record.language, over312) : over312());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over315) : over315();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6901,6 +6991,10 @@ function createStubs() {
     // on or off, laid over whichever steps the run arms; and every schedule sent since, with what it sent.
     setStep312: (v) => { step312 = v !== false; },
     scheduled312: () => (state.s312 ? state.s312.scheduled.slice() : []),
+    // The routes and keys of the API's Step 315 contract (the dashboard's Step 317), timed site
+    // schedules, on or off, laid over whichever steps the run arms; and every block save it took.
+    setStep315: (v) => { step315 = v !== false; },
+    saves315: () => (state.s315 ? state.s315.saves.slice() : []),
     // Every purchase order sent since the run armed Step 308, to whom.
     sent308: () => (state.s308 ? state.s308.sent.slice() : []),
     // Every welcome email tried since the run armed Step 292, with whom and how it went.
@@ -6921,7 +7015,7 @@ function createStubs() {
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null; library305Empty = false;
-      state.s308 = null; holder308 = true; noVendors308 = false; state.s312 = null;
+      state.s308 = null; holder308 = true; noVendors308 = false; state.s312 = null; state.s315 = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};
