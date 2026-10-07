@@ -1790,7 +1790,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
   const [q, setQ] = useState(""); const [roleF, setRoleF] = useState("all"); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [assignForm, setAssignForm] = useState(null);
-  const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
+  const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState("");
   // Session 28: inline validation error for the Employee ID field (shared by Add Staff modal and Profile edit form)
   // The refusal is known by its code: users.employeeIdTaken from the create route, and
   // users.employeeIdTakenByOther from a profile's save. The English match stays only until every API
@@ -1806,25 +1806,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
   // Step 243 review: whether the API keeps an account in French, read once from GET /api/languages.
   const frenchKept = useFrenchKept(af);
-  const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
-  // Step 257: the person's training items from GET /api/training/gaps/people/:userId once the route
-  // answers, or null before then.
-  const gapsLive = useTrainingLive(af, "gaps");
-  const [hrItems, setHrItems] = useState(null);
-  // Step 268, the owner's change of October 6: Assign training from the person's list, once the
-  // API's Step 266 is there (the catalog answers categories), for an admin.
-  const [assigning, setAssigning] = useState(false);
-  const assignLive = useTrainingLive(af, "categories");
-  const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
-  // Step 187: the filed reports about this person, the source form items of their HR folder, and
-  // the one open in its review window.
-  const [hrForms, setHrForms] = useState([]); const [hrOpenReport, setHrOpenReport] = useState(null); const [hrPdfBusy, setHrPdfBusy] = useState("");
-  // The folder read that fills the Filed forms card, and whether it failed, which the card says with
-  // Try again rather than No filed forms.
-  const [hrFormsFailed, setHrFormsFailed] = useState(false);
-  const loadHrForms = async (userId) => { try { const folder = await af("/api/hr/employee-folder/" + userId); setHrForms(((folder && folder.items) || []).filter(it => it && it.source === "form")); setHrFormsFailed(false); } catch (e) { setHrForms([]); setHrFormsFailed(true); } };
-  // A report voided from its window is marked Void on its row at once.
-  const markVoid = (setter) => (id) => setter(prev => prev.map(it => (it && String(it.responseId) === String(id) ? { ...it, status: "void" } : it)));
+  // Step 291: a person's HR lives in HR Records alone. The profile keeps Profile, Assignments and
+  // Timeline, and Open HR file opens the person's folder there, which holds what the HR Files and
+  // Certifications tabs held, with every action.
   // Timeline state (Session 18)
   const [timeline, setTimeline] = useState([]); const [tlTotal, setTlTotal] = useState(0);
   const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false);
@@ -1870,10 +1854,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // The timeline's categories: what its chips say, and what a printed timeline names its filter with.
   const tlCats = [{ id: "all", l: tr("All|timeline") }, { id: "clock", l: tr("Clock") }, { id: "tasks", l: tr("Tasks") }, { id: "inspections", l: tr("Inspections") }, { id: "issues", l: tr("Issues") }, { id: "schedule", l: tr("Schedule") }, { id: "marketplace", l: tr("Marketplace") }, { id: "documents", l: tr("Documents") }, { id: "training", l: tr("Training") }, { id: "profile", l: tr("Profile") }, { id: "timesheets", l: tr("Timesheets") }, { id: "supplies", l: tr("Supplies") }];
   const tlCatWord = (c) => (tlCats.find((x) => x.id === c) || {}).l || c;
-  // A training record's type reads the training_types list's displayLabel, the way HR Records draws
-  // it, and its status the table's word.
-  const trainingTypeShown = lkMap("training_types", true);
-  const trainingStateOf = (s) => ({ completed: tr("completed|training"), failed: tr("failed|training") })[s] || s;
   // The employment types a form offers. Each choice sends the code it always sent.
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
@@ -1899,43 +1879,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const refreshProfile = async (id) => {
     try { const d = await af("/api/users/profile/" + id); setProfile(d); } catch (e) { showToast(e.message, "error"); }
     loadEmployment(id); load(); if (loadStaff) loadStaff();
-  };
-
-  // Load HR data for the HR Files tab
-  const loadHrData = async (userId) => {
-    setHrLoading(true);
-    setHrItems(null);
-    if (gapsLive) af("/api/training/gaps/people/" + encodeURIComponent(userId)).then(d => setHrItems(d && Array.isArray(d.items) ? d.items : [])).catch(e => { console.warn("Training items:", e.message); setHrItems(null); });
-    try {
-      const [docs, train] = await Promise.all([
-        af("/api/hr/documents?user_id=" + userId),
-        af("/api/hr/training?user_id=" + userId)
-      ]);
-      setHrDocs(docs); setHrTraining(train);
-      try { const ob = await af("/api/hr/onboarding/" + userId); setHrOnboarding(ob); } catch (e) { setHrOnboarding([]); }
-      await loadHrForms(userId);
-    } catch (e) { showToast(e.message, "error"); }
-    setHrLoading(false);
-  };
-  useEffect(() => { if (profile && profileTab === "hr") loadHrData(profile.user.id); }, [profileTab, profile?.user?.id, gapsLive]);
-
-  // Session 25 Phase 3: open a private-bucket document via the authenticated streaming endpoint.
-  // Same pattern used in HRRecordsPage.
-  const viewDoc = async (docId) => {
-    try {
-      const apiBase = API;
-      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
-        headers: { Authorization: "Bearer " + (token || "") }
-      });
-      if (!resp.ok) {
-        const errBody = await resp.json().catch(() => ({}));
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
-      }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (e) { showToast(e.message, "error"); }
   };
 
   // Timeline loader (Session 18)
@@ -2190,7 +2133,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     return <Ini name={name} sz={sz} color={user.status === "pending" ? OR : GO} />;
   };
 
-  const ptabs = [{ id: "info", l: tr("Profile") }, { id: "hr", l: tr("HR Files") }, { id: "assign", l: tr("Assignments") }, { id: "certs", l: tr("Certifications") }, { id: "timeline", l: tr("Timeline") }];
+  const ptabs = [{ id: "info", l: tr("Profile") }, { id: "assign", l: tr("Assignments") }, { id: "timeline", l: tr("Timeline") }];
   // Shared branded print header builder (Session 18)
   const printHeader = (title, subtitle, photoUrl) => {
     let h = '<div class="header"><div style="display:flex;align-items:center;gap:16px">';
@@ -2244,6 +2187,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         subtitle={roleOf(u.role) + (u.employmentType ? " (" + employmentOf(u.employmentType) + ")" : "")}
         badges={<><Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />{signInOf(u) ? <span style={{ flexBasis: "100%", marginTop: 4 }}><SignInState t={t} si={signInOf(u)} /></span> : null}</>}
         actions={<>
+          <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>
           {canChange(u) && signInOf(u) && signInOf(u).lockedUntil && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-staff-unlock={u.id} disabled={!!unlocking} onClick={() => unlock(u.id)}>{tr("Unlock")}</Btn>}
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
@@ -2328,64 +2272,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div>}
 
       {/* HR FILES TAB */}
-      {profileTab === "hr" && <div>
-        {hrLoading ? <div style={{ textAlign: "center", padding: 40, color: t.textMut, fontSize: 13 }}>{tr("Loading HR files...")}</div> : <div>
-          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Documents ({0})", hrDocs.length)}</div>
-            {hrDocs.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No documents on file")}</div>}
-            {hrDocs.map((doc, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{tr(HR_CATEGORY_LABEL(doc.category || doc.document_type))}</div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{doc.file_name || tr("No file")}{doc.expiry_date ? " | " + tr("Exp: {0}", fmtDate(doc.expiry_date)) : ""}</div>
-              </div>
-              {doc.file_name && <button onClick={() => viewDoc(doc.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, background: "transparent", color: BL, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("View")}</button>}
-            </div>)}
-          </Crd>
-          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            {/* Step 257: the person's items, each in its status's words, once the gaps route answers; the
-                records follow, with no status of their own, since the table keeps none. */}
-            {hrItems && <div data-profile-training-items="" style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Required training ({0})", hrItems.length)}</div>
-                {user && user.role === "admin" && assignLive && profile && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)} style={{ marginLeft: "auto", minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Assign training")}</Btn>}
-              </div>
-              <TrainingItemsList t={t} items={hrItems} compact />
-              {assigning && profile && <AssignTrainingWindow af={af} t={t} sites={sites} presetUserIds={[String(profile.id)]} showToast={showToast} onClose={() => setAssigning(false)} onDone={() => loadHrData(profile.id)} />}
-            </div>}
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Training Records ({0})", hrTraining.length)}</div>
-            {hrTraining.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No training records")}</div>}
-            {hrTraining.map((rec, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{rec.training_name}</div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{rec.training_type ? (trainingTypeShown[rec.training_type] || rec.training_type) : tr("Training")}{rec.completed_date ? " | " + tr("Completed: {0}", fmtDate(rec.completed_date)) : ""}{rec.score ? " | " + tr("Score: {0}", rec.score) : ""}</div>
-              </div>
-              {!hrItems && <Bdg l={trainingStateOf(rec.status || "completed")} c={rec.status === "failed" ? RD : GR} />}
-            </div>)}
-          </Crd>
-          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Filed forms ({0})", hrForms.length)}</div>
-            {hrFormsFailed && <LoadFailed t={t} onRetry={() => loadHrForms(profile.user.id)} style={{ padding: 0, textAlign: "left", fontSize: 12 }} />}
-            {!hrFormsFailed && hrForms.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No filed forms")}</div>}
-            {hrForms.map((it, i) => <div key={it.responseId || i} onClick={() => setHrOpenReport(it)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", minHeight: 44, padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4, cursor: "pointer" }}>
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{builderText(it.formTitle) || it.title || it.formCode}{it.status === "void" && <span style={{ marginLeft: 8 }}><Bdg l={tr("Void|status")} c={RD} /></span>}</div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{[tr(HR_CATEGORY_LABEL(it.category)), it.date ? new Date(it.date).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "", it.filedBy && it.filedBy.name ? tr("Filed by {0}", it.filedBy.name) : ""].filter(Boolean).join(" | ")}</div>
-              </div>
-              <button onClick={async (e) => { e.stopPropagation(); if (hrPdfBusy) return; setHrPdfBusy(it.responseId); try { const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(it.responseId) + "/pdf", token, (it.formCode || "report") + "-" + String(it.responseId).slice(0, 8) + ".pdf"); const url = URL.createObjectURL(f.blob); const a = document.createElement("a"); a.href = url; a.download = f.filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 5000); } catch (err) { showToast(err.message, "error"); } setHrPdfBusy(""); }} disabled={hrPdfBusy === it.responseId} style={{ minHeight: 44, padding: "3px 10px", borderRadius: 4, border: "1px solid " + BL, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: FONT_BODY }}>{hrPdfBusy === it.responseId ? tr("Loading...") : tr("View PDF")}</button>
-            </div>)}
-          </Crd>
-          {hrOpenReport && <IncidentReportWindow af={af} token={token} t={t} id={hrOpenReport.responseId} row={hrOpenReport.filedBy && hrOpenReport.filedBy.name ? { userName: hrOpenReport.filedBy.name } : null} onClose={() => setHrOpenReport(null)} people={allStaff} onVoided={markVoid(setHrForms)} />}
-          {hrOnboarding.length > 0 && <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Onboarding Steps")}</div>
-            {/* A step is done when the API says is_completed, on its completed_date, the two fields HR Records reads. */}
-            {hrOnboarding.map((step, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-              <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.is_completed ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.is_completed ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.is_completed && <ChkI sz={10} c={GR} />}</div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.is_completed && step.completed_date && <div style={{ fontSize: 9, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_date))}</div>}</div>
-            </div>)}
-          </Crd>}
-        </div>}
-      </div>}
-
       {/* ASSIGNMENTS TAB */}
       {profileTab === "assign" && <div>
         <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
@@ -2398,21 +2284,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             <button onClick={() => unassign(u.id, a.site_id)} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove")}</button>
           </div>)}
           {(!profile.assignments || profile.assignments.filter(a => a.is_active).length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No sites assigned")}</div>}
-        </Crd>
-      </div>}
-
-      {/* CERTIFICATIONS TAB */}
-      {profileTab === "certs" && <div>
-        <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Certifications")}</div>
-            <button onClick={() => setAddCert({ userId: u.id, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Add")}</button>
-          </div>
-          {(!profile.certifications || profile.certifications.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No certifications on file")}</div>}
-          {profile.certifications?.map((c, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.greenSubtle, borderRadius: 6, marginBottom: 4, border: "1px solid " + t.greenBorder }}>
-            <div><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? " | " + tr("Exp: {0}", fmtDate(c.expiry_date)) : ""}</div></div>
-            <button onClick={async () => { if (!window.confirm(tr("Remove this certification?"))) return; try { await af("/api/users/" + u.id + "/certifications/" + c.id, { method: "DELETE" }); showToast(tr("Removed|certification")); openProfile(u.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
-          </div>)}
         </Crd>
       </div>}
 
@@ -2534,17 +2405,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Shift")}</Lbl><Sel t={t} value={assignForm.shift} onChange={e => setAssignForm({ ...assignForm, shift: e.target.value })} options={getOpts("shift_names", tr("Select shift..."), true)} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Start")}</Lbl><Inp t={t} type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>{tr("End")}</Lbl><Inp t={t} type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={assignSite}>{tr("Assign")}</Btn></div></div></Mdl>}
-      {addCert && <Mdl t={t} onClose={() => setAddCert(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAddCert(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Name *")}</Lbl><Inp t={t} value={addCert.certName} onChange={e => setAddCert({ ...addCert, certName: e.target.value })} placeholder={tr("e.g. Green Cleaning Fundamentals")} /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={addCert.certType} onChange={e => setAddCert({ ...addCert, certType: e.target.value })} options={getOpts("certification_types", null, true)} /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Issuing Body")}</Lbl><Inp t={t} value={addCert.issuingBody} onChange={e => setAddCert({ ...addCert, issuingBody: e.target.value })} placeholder={tr("e.g. ISSA, OSHA")} /></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-          <div><Lbl>{tr("Issued Date")}</Lbl><Inp t={t} type="date" value={addCert.issuedDate} onChange={e => setAddCert({ ...addCert, issuedDate: e.target.value })} /></div>
-          <div><Lbl>{tr("Expiry Date")}</Lbl><Inp t={t} type="date" value={addCert.expiryDate} onChange={e => setAddCert({ ...addCert, expiryDate: e.target.value })} /></div>
-        </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCert(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={async () => { if (!addCert.certName) { showToast(tr("Name required"), "error"); return; } try { await af("/api/users/" + addCert.userId + "/certifications", { method: "POST", body: addCert }); showToast(tr("Certification added")); setAddCert(null); openProfile(addCert.userId); } catch (e) { showToast(e.message, "error"); } }}>{tr("Add Certification")}</Btn></div>
-      </div></Mdl>}
     </div>);
   }
 
@@ -21949,6 +21809,75 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
   </Crd>);
 }
 
+// Step 291: a person's HR lives in their HR Records folder alone. What the Staff Management profile's
+// HR Files and Certifications tabs held and the folder did not is drawn here, with every action and
+// for the same people as before.
+// The person's required training (Step 257): each item in its status's words once GET
+// /api/training/gaps/people/:userId answers, and Assign training for an admin once the catalog answers
+// categories (Step 268).
+function FolderTrainingItems({ af, t, userId, sites = [], isAdmin = false, showToast }) {
+  const gapsLive = useTrainingLive(af, "gaps");
+  const assignLive = useTrainingLive(af, "categories");
+  const [items, setItems] = useState(null);
+  const [assigning, setAssigning] = useState(false);
+  const load = useCallback(() => {
+    af("/api/training/gaps/people/" + encodeURIComponent(userId)).then(d => setItems(d && Array.isArray(d.items) ? d.items : [])).catch(e => { console.warn("Training items:", e.message); setItems(null); });
+  }, [af, userId]);
+  useEffect(() => { setItems(null); if (gapsLive) load(); }, [gapsLive, load]);
+  if (!gapsLive || !items) return null;
+  return (<div data-folder-training-items="" style={{ marginBottom: 16 }}><Crd t={t} style={{ padding: 16 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Required training ({0})", items.length)}</div>
+      {isAdmin && assignLive && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)} style={{ marginLeft: "auto", minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Assign training")}</Btn>}
+    </div>
+    <TrainingItemsList t={t} items={items} compact />
+    {assigning && <AssignTrainingWindow af={af} t={t} sites={sites} presetUserIds={[String(userId)]} showToast={showToast} onClose={() => setAssigning(false)} onDone={load} />}
+  </Crd></div>);
+}
+// The person's certifications, for whoever opens Staff Management (manage_staff, which the profile
+// route and the certification routes ask for): the list from GET /api/users/profile/:id, Add, which
+// posts POST /api/users/:id/certifications, and Remove, DELETE /api/users/:id/certifications/:certId.
+function FolderCertifications({ af, t, userId, getOpts, showToast }) {
+  const [certs, setCerts] = useState(null);
+  const [adding, setAdding] = useState(null);
+  const load = useCallback(() => {
+    af("/api/users/profile/" + encodeURIComponent(userId)).then(d => setCerts(d && Array.isArray(d.certifications) ? d.certifications : [])).catch(e => { console.warn("Certifications:", e.message); setCerts(null); });
+  }, [af, userId]);
+  useEffect(() => { setCerts(null); load(); }, [load]);
+  if (!certs) return null;
+  const remove = async (c) => {
+    if (!window.confirm(tr("Remove this certification?"))) return;
+    try { await af("/api/users/" + encodeURIComponent(userId) + "/certifications/" + encodeURIComponent(c.id), { method: "DELETE" }); showToast(tr("Removed|certification")); load(); }
+    catch (e) { showToast(e.message, "error"); }
+  };
+  const save = async () => {
+    if (!adding.certName) { showToast(tr("Name required"), "error"); return; }
+    try { await af("/api/users/" + encodeURIComponent(userId) + "/certifications", { method: "POST", body: adding }); showToast(tr("Certification added")); setAdding(null); load(); }
+    catch (e) { showToast(e.message, "error"); }
+  };
+  return (<div data-folder-certifications="" style={{ marginBottom: 16 }}><Crd t={t} style={{ padding: 16 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Certifications")}</div>
+      <Btn t={t} v="ghost" data-folder-certification-add="" onClick={() => setAdding({ userId, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Add Certification")}</Btn>
+    </div>
+    {certs.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No certifications on file")}</div>}
+    {certs.map((c, i) => <div key={c.id || i} data-folder-certification={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", background: t.greenSubtle, borderRadius: 6, marginBottom: 4, border: "1px solid " + t.greenBorder }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? (c.issuing_body ? " | " : "") + tr("Exp: {0}", fdLong(c.expiry_date)) : ""}</div></div>
+      <Btn t={t} v="ghost" onClick={() => remove(c)} style={{ minHeight: 44, padding: "4px 10px", fontSize: 11, color: RD }}>{tr("Remove")}</Btn>
+    </div>)}
+    {adding && <Mdl t={t} onClose={() => setAdding(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAdding(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Name *")}</Lbl><Inp t={t} value={adding.certName} onChange={e => setAdding({ ...adding, certName: e.target.value })} placeholder={tr("e.g. Green Cleaning Fundamentals")} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={adding.certType} onChange={e => setAdding({ ...adding, certType: e.target.value })} options={getOpts("certification_types", null, true)} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Issuing Body")}</Lbl><Inp t={t} value={adding.issuingBody} onChange={e => setAdding({ ...adding, issuingBody: e.target.value })} placeholder={tr("e.g. ISSA, OSHA")} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div><Lbl>{tr("Issued Date")}</Lbl><Inp t={t} type="date" value={adding.issuedDate} onChange={e => setAdding({ ...adding, issuedDate: e.target.value })} /></div>
+        <div><Lbl>{tr("Expiry Date")}</Lbl><Inp t={t} type="date" value={adding.expiryDate} onChange={e => setAdding({ ...adding, expiryDate: e.target.value })} /></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAdding(null)}>{tr("Cancel")}</Btn><Btn t={t} data-folder-certification-save="" onClick={save}>{tr("Add Certification")}</Btn></div>
+    </div></Mdl>}
+  </Crd></div>);
+}
 function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, sites = [], focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
@@ -21976,7 +21905,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const trainingTypeMap = lkMap("training_types", true);
   const onbCatMap = lkMap("onboarding_categories", true);
   // What a row's status code says. A code with no word here is drawn as it arrives.
-  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item"), void: tr("Void|status") })[s] || s;
+  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item"), void: tr("Void|status"), failed: tr("failed|training") })[s] || s;
 
   const fmtDate = (d) => d ? fdLong(d) : "";
   const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
@@ -22122,6 +22051,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
       <PersonProperty af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
+      <FolderTrainingItems af={af} t={t} userId={userId} sites={sites} isAdmin={isAdmin} showToast={showToast} />
+      {canOpenStaff && <FolderCertifications af={af} t={t} userId={userId} getOpts={getOpts} showToast={showToast} />}
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -22178,6 +22109,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                         ) : ""}
                         {it.submitter_name && !(isForm && it.filedBy && it.filedBy.name) ? " . " + it.submitter_name : ""}
                         {it.administered_by ? " . " + tr("by {0}", it.administered_by) : ""}
+                        {it.score ? " . " + tr("Score: {0}", it.score) : ""}
                         {it.status ? " . " + itemStateOf(it.status) : ""}
                       </div>
                     </div>
