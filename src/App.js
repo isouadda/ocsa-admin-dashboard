@@ -6325,6 +6325,9 @@ const agentDraftFrom = (row, say = agentEnglish) => ({
   nextQuestion: agentPick(row, ["nextQuestion", "next_question"]),
 });
 const agentAnsweredLine = (answered, remaining, say = agentEnglish) => (answered === undefined || answered === null || remaining === undefined || remaining === null) ? "" : say("{0} of {1} answered", Number(answered), Number(answered) + Number(remaining));
+// The document an answer offers to open (Step 306, STEP305_CONTRACT.md section 1.3): openDocument:
+// { docCode, title }, drawn as Open {docCode} under the answer.
+const agentOpenDocumentOf = (v) => (v && typeof v === "object" && typeof v.docCode === "string" && v.docCode.trim() ? { docCode: v.docCode.trim(), title: typeof v.title === "string" ? v.title : "" } : null);
 const agentMessageFrom = (m, i) => {
   const role = String(agentPick(m, ["role", "sender"]) || "").toLowerCase() === "user" ? "user" : "assistant";
   const cited = agentPick(m, ["citedDocs", "cited_doc_codes", "citedDocCodes"]);
@@ -6333,7 +6336,7 @@ const agentMessageFrom = (m, i) => {
   const names = agentPick(m, ["citedNames", "cited_names"]);
   const rowId = agentPick(m, ["id", "messageId", "message_id"]);
   const fb = m && m.feedback && typeof m.feedback === "object" ? m.feedback : null;
-  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], citedNames: Array.isArray(names) ? names : [], pictures: role === "assistant" ? agentPicturesFrom(agentPick(m, ["pictures"])) : [], messageId: role === "assistant" && rowId !== undefined ? String(rowId) : "", feedback: role === "assistant" ? fb : null, degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
+  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], citedNames: Array.isArray(names) ? names : [], pictures: role === "assistant" ? agentPicturesFrom(agentPick(m, ["pictures"])) : [], openDocument: role === "assistant" ? agentOpenDocumentOf(agentPick(m, ["openDocument", "open_document"])) : null, messageId: role === "assistant" && rowId !== undefined ? String(rowId) : "", feedback: role === "assistant" ? fb : null, degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
 };
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
 // What is still unanswered, for the line on the Help page. The API names the questions when it can:
@@ -6906,7 +6909,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         } else if (event === "done") {
           const r = d || {};
           if (r.conversationId) setConversationId(r.conversationId);
-          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], pictures: agentPicturesFrom(r.pictures), messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
+          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], pictures: agentPicturesFrom(r.pictures), openDocument: agentOpenDocumentOf(r.openDocument), messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
           if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
           const ticket = agentTicketDraftOf(r);
           if (ticket) { setTicketDraft(ticket); setTicketSent(false); }
@@ -7051,6 +7054,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
               {!isMe && !arriving && agentPicturesShown(m.pictures, AGENT_PORTAL).length > 0 && <div data-help-pictures="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
                 {agentPicturesShown(m.pictures, AGENT_PORTAL).map(p => <HelpPicture key={p.app + ":" + p.name} p={p} lang={getLang()} t={t} onOpen={setPicture} />)}
               </div>}
+              {!isMe && !arriving && m.openDocument && <div style={{ marginTop: 6 }}><Btn t={t} v="ghost" data-help-open-document={m.openDocument.docCode} title={m.openDocument.title || undefined} onClick={() => libraryOpen(m.openDocument.docCode)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Open {0}|document", m.openDocument.docCode)}</Btn></div>}
               {!isMe && agentSourcesLine(m.citedDocs, tr, m.citedNames) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr, m.citedNames))}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
               {!isMe && !arriving && m.messageId && <div style={{ marginTop: 4 }}>
@@ -7105,11 +7109,79 @@ function HelpPage({ af, sf, uf, showToast, t }) {
 // title, version, folder, folderName, locales, hasPdf, parts }] }, sorted by number, and the side panel
 // offers Library once it answers a list; an empty list says the library is loading. ?q= finds documents
 // by number, title and words in their sections, best first, each carrying the section it matched as
-// match: { sectionRef, sectionTitle }, and a result is opened at that section as #library/<docCode>/<ref>.
+// match: { sectionRef, sectionTitle }, and a result opens the document at that section. The reader is
+// GET /api/documents/:docCode/read in the screen's language where an edition exists, drawn in the look
+// the staff app's handbook reader has (Step 290): a cover with the title on a navy band over a gold
+// rule, Contents by Part, every section under its Part's heading, callouts in a pale gold box and
+// "Table columns:" lines as a table. See the designed version opens the PDF behind the token. Nothing
+// is signed here: the section a document is signed on reads as text, with no signature box.
 const libraryDocsOf = (d) => (d && Array.isArray(d.documents) ? d.documents.filter(x => x && typeof x.docCode === "string" && x.docCode.trim()) : null);
 const libraryMatchOf = (x) => { const m = x && x.match && typeof x.match === "object" ? x.match : null; return m && (m.sectionRef != null || m.sectionTitle) ? { ref: m.sectionRef == null ? "" : String(m.sectionRef), title: m.sectionTitle ? String(m.sectionTitle) : "" } : null; };
 const libraryOpen = (code, ref) => { window.location.hash = ["library", encodeURIComponent(code)].concat(ref ? [encodeURIComponent(ref)] : []).join("/"); };
-function LibraryPage({ af, t }) {
+// The read answer, in the shape the staff app reads it: sections with their text, the Parts, the
+// section that is the signed page, the designed version's path and whether it reads in English.
+function libraryReadOf(d) {
+  const doc = d && typeof d === "object" && d.document && typeof d.document === "object" ? d.document : null;
+  if (!doc) return null;
+  const str = (v) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
+  const sections = (Array.isArray(doc.sections) ? doc.sections : []).map((x, i) => (x && typeof x === "object" ? { ref: str(x.ref) || String(i + 1), title: str(x.title), content: typeof x.content === "string" ? x.content : "" } : null)).filter(x => x && (x.title || x.content));
+  if (!sections.length) return null;
+  const parts = (Array.isArray(doc.parts) ? doc.parts : []).map(p => (p && typeof p === "object" && str(p.ref) ? { ref: str(p.ref), title: str(p.title) } : null)).filter(Boolean);
+  const pdf = str(doc.pdfUrl);
+  return { docCode: str(doc.docCode), title: str(doc.title), version: str(doc.version), locale: str(doc.locale) || "en", sections, parts, ackSectionRef: str(doc.ackSectionRef), pdfUrl: /^\/api\//.test(pdf) ? pdf : "", shownInEnglish: doc.shownInEnglish === true };
+}
+// The Part a section is in: the one whose number is the section's, or begins it, 8 for 8.2. Read
+// First, at 0, is in none.
+const libraryPartOf = (parts, ref) => parts.find(p => ref === p.ref || ref.indexOf(p.ref + ".") === 0) || null;
+const libraryPartWords = (p) => (p.title ? tr("Part {0}: {1}", p.ref, p.title) : tr("Part {0}", p.ref));
+const libraryReadFirst = (s) => s.ref === "0";
+// A section's text as blocks, read the way the staff app reads what ocsa-mis's chunker writes: a table
+// head and the "- a | b" rows under it; a short line ending in a colon with "- " lines under it, a
+// callout (or a subheading over a list when it starts with a number); other "- " lines, a list; and
+// every other line, a paragraph.
+const LIBRARY_TABLE_HEAD = /^(Table columns|Columnas de la tabla|Colonnes du tableau)\s*:\s*(.+)$/i;
+const libraryItem = (line) => /^\s*-\s+/.test(line);
+const libraryItemText = (line) => line.replace(/^\s*-\s+/, "").trim();
+function libraryBlocks(content) {
+  const lines = String(content || "").split("\n").map(l => l.trim());
+  const out = [];
+  let i = 0;
+  const items = () => { const list = []; while (i < lines.length && libraryItem(lines[i])) { list.push(libraryItemText(lines[i])); i += 1; } return list; };
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line) { i += 1; continue; }
+    const head = LIBRARY_TABLE_HEAD.exec(line);
+    if (head) {
+      const cols = head[2].split("|").map(c => c.trim());
+      const rows = [];
+      i += 1;
+      while (i < lines.length && libraryItem(lines[i]) && libraryItemText(lines[i]).indexOf("|") !== -1) {
+        const cells = libraryItemText(lines[i]).split("|").map(c => c.trim());
+        while (cells.length < cols.length) cells.push("");
+        rows.push(cells);
+        i += 1;
+      }
+      out.push({ kind: "table", head: cols, rows });
+      continue;
+    }
+    if (!libraryItem(line) && /:$/.test(line) && line.length <= 90 && i + 1 < lines.length && libraryItem(lines[i + 1])) {
+      const title = line.slice(0, -1).trim();
+      i += 1;
+      const list = items();
+      if (/^\d+(\.\d+)*\.?\s/.test(title)) out.push({ kind: "subhead", text: title }, { kind: "list", items: list });
+      else out.push({ kind: "box", title, items: list });
+      continue;
+    }
+    if (libraryItem(line)) { out.push({ kind: "list", items: items() }); continue; }
+    out.push({ kind: "p", text: line });
+    i += 1;
+  }
+  return out;
+}
+
+function LibraryPage({ af, t, token, route = [] }) {
+  const code = route[0] ? decodeURIComponent(route[0]) : "";
+  if (code) return <LibraryReader key={code} af={af} t={t} token={token} docCode={code} at={route[1] ? decodeURIComponent(route[1]) : ""} />;
   return <LibraryList af={af} t={t} />;
 }
 
@@ -7176,6 +7248,112 @@ function LibraryList({ af, t }) {
         </Crd>))}
       </>}
     </>}
+  </div>);
+}
+
+function LibraryReader({ af, t, token, docCode, at = "" }) {
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [again, setAgain] = useState(0);
+  const [pdf, setPdf] = useState(false);
+  const lang = getLang();
+  useEffect(() => {
+    let alive = true;
+    setD(null); setFailed("");
+    af("/api/documents/" + encodeURIComponent(docCode) + "/read?locale=" + encodeURIComponent(lang))
+      .then(x => { if (!alive) return; const r = libraryReadOf(x); if (r) setD(r); else setFailed(tr("This document did not open. Try again.")); })
+      .catch(e => { if (alive) setFailed(e.message || tr("This document did not open. Try again.")); });
+    return () => { alive = false; };
+  }, [af, docCode, lang, again]);
+  // A search result lands on the section it matched, once the document is drawn and laid out, and the
+  // reader then says which section it landed on.
+  const go = (ref) => { const el = document.querySelector('[data-library-section="' + String(ref).replace(/"/g, "") + '"]'); if (el) el.scrollIntoView({ block: "start" }); };
+  const [landed, setLanded] = useState("");
+  useEffect(() => {
+    if (!d) return undefined;
+    if (!at) { window.scrollTo(0, 0); return undefined; }
+    const frame = requestAnimationFrame(() => { go(at); setLanded(at); });
+    return () => cancelAnimationFrame(frame);
+  }, [d, at]);
+  const back = (<button onClick={() => { window.location.hash = "library"; }} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, padding: "6px 0", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8, fontFamily: FONT_BODY }}>
+    <Ic d="M19 12H5M12 19l-7-7 7-7" sz={16} c={t.goldText} /> {tr("Back to the Library")}
+  </button>);
+  if (!d) return (<div data-library-reader={docCode}>{back}
+    {failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} /></Crd> : <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+  </div>);
+  const smallSt = { fontSize: 12, color: t.textMut, lineHeight: 1.4, overflowWrap: "anywhere" };
+  const bodySt = { fontSize: 14, color: t.text, lineHeight: 1.6, overflowWrap: "anywhere", fontFamily: FONT_BODY };
+  const partSt = { fontSize: 13, fontWeight: 700, color: t.text, fontFamily: FONT_HEAD, textTransform: "uppercase", letterSpacing: "0.8px", lineHeight: 1.4, overflowWrap: "anywhere", borderBottom: "2px solid " + GO, paddingBottom: 6 };
+  const titleSt = { fontSize: 18, fontWeight: 700, color: t.text, fontFamily: FONT_HEAD, lineHeight: 1.3, overflowWrap: "anywhere" };
+  const boxSt = { marginTop: 12, padding: "12px 14px", borderRadius: R.sm, background: t.goldBg, border: "1px solid " + t.goldBorder, borderLeft: "4px solid " + GO };
+  const boxHeadSt = { fontSize: 12, fontWeight: 700, color: t.text, fontFamily: FONT_HEAD, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6, overflowWrap: "anywhere" };
+  const dashList = (list, key) => list.map((s, i) => (<div key={key + i} style={{ display: "flex", gap: 8, marginTop: 6 }}><span aria-hidden="true" style={{ color: GO, fontWeight: 700, flexShrink: 0 }}>-</span><span style={{ ...bodySt, minWidth: 0 }}>{s}</span></div>));
+  const drawBlock = (b, i) => {
+    if (b.kind === "p") return <div key={i} style={{ ...bodySt, marginTop: 10 }}>{b.text}</div>;
+    if (b.kind === "subhead") return <div key={i} role="heading" aria-level={4} style={{ ...bodySt, fontWeight: 700, fontFamily: FONT_HEAD, marginTop: 14 }}>{b.text}</div>;
+    if (b.kind === "list") return <div key={i} style={{ marginTop: 6 }}>{dashList(b.items, "l" + i)}</div>;
+    if (b.kind === "box") return <div key={i} data-library-box="callout" style={boxSt}><div style={boxHeadSt}>{b.title}</div>{dashList(b.items, "b" + i)}</div>;
+    return (<div key={i} data-library-table={b.head.length} style={{ marginTop: 12, overflowX: "auto", borderRadius: R.sm, border: "1px solid " + t.borderSolid }}>
+      <table style={{ borderCollapse: "collapse", width: "100%", minWidth: Math.min(b.head.length, 4) * 120, fontSize: 13, lineHeight: 1.45, fontFamily: FONT_BODY }}>
+        <thead><tr>{b.head.map((h, j) => <th key={j} scope="col" style={{ background: NAVY, color: "#F8F7F4", fontWeight: 700, textAlign: "left", verticalAlign: "top", padding: "8px 10px", fontFamily: FONT_HEAD, overflowWrap: "anywhere" }}>{h}</th>)}</tr></thead>
+        <tbody>{b.rows.map((r, ri) => <tr key={ri} style={{ background: ri % 2 === 1 ? t.cardAlt : t.card }}>{r.map((c, j) => <td key={j} style={{ color: t.text, verticalAlign: "top", padding: "8px 10px", borderTop: "1px solid " + t.borderSolid, overflowWrap: "anywhere" }}>{c}</td>)}</tr>)}</tbody>
+      </table>
+    </div>);
+  };
+  const facts = [[tr("Document number"), d.docCode || docCode], [tr("Version"), d.version], [tr("Language"), (LANGUAGES.find(x => x.id === d.locale) || {}).label || d.locale]].filter(x => x[1]);
+  const english = d.shownInEnglish || (d.locale === "en" && lang !== "en");
+  const contentsRow = (s) => {
+    const part = libraryPartOf(d.parts, s.ref);
+    const label = libraryReadFirst(s) ? "" : part && s.ref === part.ref ? tr("Part {0}", part.ref) : tr("Section {0}", s.ref);
+    return (<button key={s.ref} onClick={() => go(s.ref)} data-library-jump={s.ref} style={{ display: "block", width: "100%", minHeight: 44, padding: "8px 12px", marginTop: 6, borderRadius: R.md, background: t.card, border: "1px solid " + t.borderSolid, color: t.text, textAlign: "left", cursor: "pointer", fontFamily: FONT_HEAD, overflowWrap: "anywhere" }}>
+      {label && <span style={{ display: "block", fontSize: 11, color: t.textMut }}>{label}</span>}
+      <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>{s.title || label}</span>
+    </button>);
+  };
+  const free = d.sections.filter(s => !libraryReadFirst(s) && !libraryPartOf(d.parts, s.ref));
+  let lastPart = null;
+  return (<div data-library-reader={docCode} data-library-landed={landed || undefined} style={{ maxWidth: 860 }}>
+    {back}
+    <div data-library-cover="" style={{ background: NAVY, border: "1px solid " + t.borderSolid, borderBottom: "4px solid " + GO, borderRadius: R.md + "px " + R.md + "px 0 0", padding: "22px 16px 18px", textAlign: "center" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: GO, fontFamily: FONT_HEAD, overflowWrap: "anywhere" }}>{clientConfig.company.name}</div>
+      <div role="heading" aria-level={1} style={{ fontSize: 22, fontWeight: 700, color: "#F8F7F4", fontFamily: FONT_HEAD, lineHeight: 1.3, marginTop: 10, overflowWrap: "anywhere" }}>{d.title || docCode}</div>
+    </div>
+    <div style={{ border: "1px solid " + t.borderSolid, borderTop: "none", borderRadius: "0 0 " + R.md + "px " + R.md + "px", overflow: "hidden" }}>
+      {facts.map(([k, v], i) => (<div key={k} style={{ display: "flex", flexWrap: "wrap", gap: "2px 12px", padding: "10px 12px", background: i % 2 === 0 ? t.cardAlt : t.card }}>
+        <div style={{ flex: "1 1 120px", fontSize: 13, fontWeight: 700, color: t.text, fontFamily: FONT_HEAD }}>{k}</div>
+        <div style={{ flex: "1 1 120px", fontSize: 13, color: t.text, overflowWrap: "anywhere" }}>{v}</div>
+      </div>))}
+    </div>
+    {english && <div data-library-english="" style={{ ...smallSt, marginTop: 10 }}>{tr("This document is shown in English.")}</div>}
+    {d.pdfUrl && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-library-designed="" onClick={() => setPdf(true)}>{tr("See the designed version")}</Btn></div>}
+    <div data-library-contents="" style={{ marginTop: 18 }}>
+      <div role="heading" aria-level={2} style={titleSt}>{tr("Contents")}</div>
+      {d.sections.filter(libraryReadFirst).map(contentsRow)}
+      {d.parts.map(p => { const inPart = d.sections.filter(s => !libraryReadFirst(s) && libraryPartOf(d.parts, s.ref) === p); return inPart.length ? (<div key={p.ref} style={{ marginTop: 14 }}><div style={partSt}>{libraryPartWords(p)}</div>{inPart.map(contentsRow)}</div>) : null; })}
+      {free.length > 0 && <div style={{ marginTop: 14 }}>{free.map(contentsRow)}</div>}
+    </div>
+    {d.sections.map(s => {
+      const part = libraryPartOf(d.parts, s.ref);
+      const newPart = part && part !== lastPart;
+      lastPart = part || lastPart;
+      const blocks = libraryBlocks(s.content);
+      return (<div key={s.ref} data-library-section={s.ref} style={{ marginTop: 22, scrollMarginTop: 80 }}>
+        {newPart && <div data-library-part={part.ref} style={{ ...partSt, marginBottom: 10 }}>{libraryPartWords(part)}</div>}
+        {libraryReadFirst(s)
+          ? <div data-library-box="read-first" style={boxSt}><div style={boxHeadSt}>{s.title}</div>{blocks.map((b, i) => (b.kind === "p" ? <div key={i} style={{ ...bodySt, marginTop: i ? 8 : 0 }}>{b.text}</div> : drawBlock(b, i)))}</div>
+          : <>
+            {part && s.ref !== part.ref && <div style={smallSt}>{tr("Section {0}", s.ref)}</div>}
+            <div role="heading" aria-level={3} style={{ ...titleSt, marginTop: 2 }}>{s.title || (part ? libraryPartWords(part) : tr("Section {0}", s.ref))}</div>
+            {blocks.map(drawBlock)}
+          </>}
+      </div>);
+    })}
+    <div style={{ marginTop: 24, paddingTop: 12, borderTop: "1px solid " + t.border, display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={() => window.scrollTo(0, 0)}>{tr("Back to the top")}</Btn>
+      <Btn t={t} v="ghost" onClick={() => { window.location.hash = "library"; }}>{tr("Back to the Library")}</Btn>
+    </div>
+    {pdf && <PdfWindow token={token} t={t} onClose={() => setPdf(false)} boxProps={{ "data-library-pdf": docCode }} title={d.title || docCode} sub={[d.docCode || docCode, d.version ? tr("Version {0}", d.version) : ""].filter(Boolean).join(" . ")}
+      pathFor={(lang) => d.pdfUrl.split("?")[0] + "?locale=" + lang} fallbackName={(d.docCode || docCode) + ".pdf"} startLang={d.locale} />}
   </div>);
 }
 
