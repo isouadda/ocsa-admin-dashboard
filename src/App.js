@@ -2793,6 +2793,166 @@ function ShiftNamesPanel({ af, t, siteId, canEdit, showToast }) {
   </div>);
 }
 
+// ===== A SITE'S SCHEDULE BY SHIFT (Step 317, STEP315_CONTRACT.md section 3) =====
+// Once GET /api/sites/:siteId/shift-blocks answers each block's end and kind (the API's Step 315: endTime,
+// kind and daysOfWeek beside anchorTime, read in either case), a site's Service Details draws its
+// schedule by shift as a timeline: each block's window on a bar across its shift, its kind in words (the
+// bar's color is never the only sign), its days, and its steps, the site's tasks that belong to it. A
+// holder of manage_tasks edits a block's start, end, kind and days, PATCH
+// /api/sites/:siteId/shift-blocks/:id { anchorTime, endTime, kind, daysOfWeek }, and a refusal is drawn
+// under the field its keys name, an end before the start among them.
+const BLOCK_KINDS = ["work", "critical", "meal", "full_access", "check_in", "check_out", "anytime"];
+const blockKindWord = (k) => ({ work: tr("Work|block kind"), critical: tr("Critical|block kind"), meal: tr("Residents' meal"), full_access: tr("Empty, full access"), check_in: tr("Check-in"), check_out: tr("Check-out"), anytime: tr("When there is free time") })[k] || String(k || "");
+const blockKindColor = (k) => ({ critical: RD, meal: OR, full_access: GR, check_in: PU, check_out: PU, anytime: GO })[k] || BL;
+const BLOCK_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const blockField = (b, camel, snake) => (b[camel] !== undefined ? b[camel] : b[snake]);
+const blockKindOf = (b) => { const k = blockField(b, "kind", "kind"); return BLOCK_KINDS.indexOf(k) >= 0 ? k : "work"; };
+const blockDaysOf = (b) => { const v = blockField(b, "daysOfWeek", "days_of_week"); const list = Array.isArray(v) ? v : String(v || "").split(","); return BLOCK_DAY_KEYS.filter(d => list.map(x => String(x).trim().toLowerCase()).indexOf(d) >= 0); };
+// A block's days as a person says them: every day, a run such as Mon to Fri, or the days one by one.
+const blockDaysWords = (days) => {
+  if (!days.length || days.length === 7) return tr("Every day");
+  const at = days.map(d => BLOCK_DAY_KEYS.indexOf(d));
+  const run = at.every((x, i) => i === 0 || x === at[i - 1] + 1);
+  const word = (d) => tr(PATTERN_DAY_LABELS[d]);
+  return run && days.length >= 3 ? tr("{0} to {1}", word(days[0]), word(days[days.length - 1])) : days.map(word).join(", ");
+};
+const blockMinutes = (v) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(v || "")); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const blockWindowWords = (b) => {
+  const s = blockField(b, "anchorTime", "anchor_time"), e = blockField(b, "endTime", "end_time");
+  if (!s && !e) return blockKindOf(b) === "anytime" ? tr("When there is free time") : "";
+  return e ? tr("{0} to {1}", blockTime(s), blockTime(e)) : blockTime(s);
+};
+const blocksTimedLive = (blocks) => (blocks || []).some(b => b && (typeof b.kind === "string" || b.endTime !== undefined || b.end_time !== undefined));
+// Which field a refusal of a block's save names, by its keys or its code.
+const blockRefusalField = (e) => {
+  const keys = (e && e.body && Array.isArray(e.body.keys) ? e.body.keys : []).map(k => String(k).toLowerCase().replace(/_/g, ""));
+  const code = String((e && e.code) || "").toLowerCase();
+  if (keys.indexOf("endtime") >= 0 || code.indexOf("end") >= 0) return "endTime";
+  if (keys.indexOf("anchortime") >= 0 || keys.indexOf("starttime") >= 0) return "anchorTime";
+  if (keys.indexOf("kind") >= 0 || code.indexOf("kind") >= 0) return "kind";
+  if (keys.indexOf("daysofweek") >= 0 || code.indexOf("days") >= 0) return "daysOfWeek";
+  return "";
+};
+
+function SiteSchedulePanel({ af, t, siteId, tasks = [], canEdit = false, showToast }) {
+  const [blocks, setBlocks] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const base = "/api/sites/" + encodeURIComponent(siteId) + "/shift-blocks";
+  const load = useCallback(() => { af(base).then(d => setBlocks(d && Array.isArray(d.blocks) ? d.blocks : [])).catch(e => { setBlocks([]); console.warn("Site schedule:", e.message); }); }, [af, base]);
+  useEffect(() => { load(); }, [load]);
+  const phone = usePhoneWidth();
+  if (!blocks || !blocksTimedLive(blocks)) return null;
+  const shifts = blocks.map(b => b.shiftLabel).filter((v, i, all) => all.indexOf(v) === i);
+  const stepsOf = (b) => tasks.filter(tk => (tk.site_shift_block_id != null ? String(tk.site_shift_block_id) === String(b.id) : tk.shift_label === b.shiftLabel && tk.block_label === b.blockLabel));
+  return (<div data-site-schedule="" style={{ marginBottom: 16 }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Schedule by shift")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Each block's window and kind, with its steps. A block with days shows on those days only.")}</div>
+    {shifts.map(sh => {
+      const mine = blocks.filter(b => b.shiftLabel === sh);
+      const raw = (b) => blockMinutes(blockField(b, "anchorTime", "anchor_time"));
+      const timed = mine.filter(b => raw(b) != null);
+      // A shift that runs past midnight has blocks starting more than twelve hours apart: its day starts
+      // at its first block after noon, and a block starting before that belongs to the next morning.
+      const starts = timed.map(raw);
+      const late = starts.filter(x => x >= 720);
+      const dayStart = starts.length && late.length && Math.max(...starts) - Math.min(...starts) > 720 ? Math.min(...late) : 0;
+      const startOf = (b) => { const s = raw(b); return s == null ? null : s < dayStart ? s + 1440 : s; };
+      const endOf = (b) => { const s = startOf(b); let e = blockMinutes(blockField(b, "endTime", "end_time")); if (e == null) return s + 15; if (s >= 1440) e += 1440; return e <= s ? e + 1440 : e; };
+      const from = timed.length ? Math.min(...timed.map(startOf)) : 0;
+      const to = timed.length ? Math.max(...timed.map(endOf)) : 1440;
+      const span = Math.max(15, to - from);
+      const order = mine.slice().sort((a, b) => { const x = startOf(a), y = startOf(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return x - y || endOf(a) - endOf(b); });
+      const shown = (mine[0] && mine[0].display && mine[0].display.shift) || sh;
+      const clock = (m) => { const v = ((m % 1440) + 1440) % 1440; return blockTime(String(Math.floor(v / 60)).padStart(2, "0") + ":" + String(v % 60).padStart(2, "0")); };
+      const ticks = [];
+      for (let h = Math.ceil(from / 60) * 60; h <= to; h += 60) ticks.push(h);
+      return (<Crd key={sh} t={t} style={{ marginBottom: 12 }}>
+        <div data-site-schedule-shift={sh} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{shown}</div>
+          {timed.length > 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("{0} to {1}", clock(from), clock(to))}</div>}
+        </div>
+        {!phone && timed.length > 0 && <div aria-hidden="true" style={{ display: "grid", gridTemplateColumns: "170px 1fr", gap: 12, marginBottom: 4 }}>
+          <div />
+          <div style={{ position: "relative", height: 14 }}>{ticks.map(h => <span key={h} style={{ position: "absolute", left: ((h - from) / span * 100) + "%", transform: "translateX(-50%)", fontSize: 10, color: t.textMut, whiteSpace: "nowrap" }}>{(h - from) % 120 === 0 ? clock(h).replace(/:00/, "") : ""}</span>)}</div>
+        </div>}
+        {order.map(b => {
+          const kind = blockKindOf(b);
+          const s = startOf(b);
+          const left = s == null ? 0 : (s - from) / span * 100;
+          const width = s == null ? 100 : Math.max(1.5, (endOf(b) - s) / span * 100);
+          const steps = stepsOf(b);
+          const c = blockKindColor(kind);
+          const bar = kind === "meal" ? "repeating-linear-gradient(45deg," + c + "," + c + " 6px," + c + "99 6px," + c + "99 12px)" : kind === "anytime" ? "repeating-linear-gradient(90deg," + c + "66," + c + "66 4px,transparent 4px,transparent 8px)" : c;
+          return (<div key={b.id} data-schedule-block={b.id} data-schedule-kind={kind} style={{ display: "grid", gridTemplateColumns: phone ? "1fr" : "170px 1fr", gap: phone ? 4 : 12, padding: "10px 0", borderTop: "1px solid " + t.border }}>
+            <div>
+              <div data-schedule-window="" style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{blockWindowWords(b)}</div>
+              <div style={{ marginTop: 4 }}><span data-schedule-kind-word="" style={{ display: "inline-block", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: R.pill, border: "1px solid " + c, color: kind === "work" ? t.textSec : c, background: t.card }}>{kind === "critical" ? "! " : ""}{blockKindWord(kind)}</span></div>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ position: "relative", height: 10, borderRadius: 5, background: t.hover, marginTop: 4 }}>
+                <div style={{ position: "absolute", top: 0, bottom: 0, left: left + "%", width: Math.min(width, 100 - left) + "%", borderRadius: 5, background: bar, border: kind === "full_access" ? "1px solid " + c : "none" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{(b.display && b.display.block) || b.blockLabel}</div>
+                  <div data-schedule-days="" style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[blockDaysWords(blockDaysOf(b)), steps.length ? trn("{0} steps|block", steps.length) : tr("No steps")].join(" | ")}</div>
+                </div>
+                {canEdit && <Btn t={t} v="ghost" data-schedule-edit={b.id} onClick={() => setEdit(b)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Edit")}</Btn>}
+              </div>
+              {steps.length > 0 && <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{steps.map(tk => <li key={tk.id} data-schedule-step="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{(tk.display && tk.display.label) || tk.label}</li>)}</ul>}
+            </div>
+          </div>);
+        })}
+      </Crd>);
+    })}
+    {edit && <BlockWindowWindow key={edit.id} af={af} t={t} base={base} b={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); showToast(tr("Saved")); }} />}
+  </div>);
+}
+
+// A block's start, end, kind and days. Days ticked none means every day.
+function BlockWindowWindow({ af, t, base, b, onClose, onSaved }) {
+  const [form, setForm] = useState(() => ({ anchorTime: String(blockField(b, "anchorTime", "anchor_time") || "").slice(0, 5), endTime: String(blockField(b, "endTime", "end_time") || "").slice(0, 5), kind: blockKindOf(b), days: blockDaysOf(b) }));
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const save = async () => {
+    if (busy) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      await af(base + "/" + encodeURIComponent(b.id), { method: "PATCH", body: { anchorTime: form.anchorTime || null, endTime: form.endTime || null, kind: form.kind, daysOfWeek: form.days.length && form.days.length < 7 ? form.days.join(",") : null } });
+      onSaved();
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: blockRefusalField(e) }); }
+    setBusy(false);
+  };
+  const said = (field) => (refusal.text && refusal.field === field ? <div role="alert" data-schedule-refusal={field} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const toggle = (d) => setForm(f => ({ ...f, days: f.days.indexOf(d) >= 0 ? f.days.filter(x => x !== d) : BLOCK_DAY_KEYS.filter(x => x === d || f.days.indexOf(x) >= 0) }));
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div data-schedule-window-edit={b.id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit the block")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, wordBreak: "break-word" }}>{[(b.display && b.display.shift) || b.shiftLabel, (b.display && b.display.block) || b.blockLabel].filter(Boolean).join(" | ")}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Starts at")}</Lbl><Inp t={t} type="time" aria-label={tr("Starts at")} data-schedule-start="" value={form.anchorTime} onChange={e => setForm({ ...form, anchorTime: e.target.value })} />{said("anchorTime")}</div>
+      <div><Lbl>{tr("Ends at")}</Lbl><Inp t={t} type="time" aria-label={tr("Ends at")} data-schedule-end="" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} style={refusal.field === "endTime" ? { borderColor: RD } : undefined} />{said("endTime")}</div>
+    </div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: -6, marginBottom: 12 }}>{tr("On a night shift that runs past midnight, the end can be before the start.")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} data-schedule-kind-pick="" value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })} options={BLOCK_KINDS.map(k => ({ v: k, l: blockKindWord(k) }))} />{said("kind")}</div>
+    <div style={{ marginBottom: 16 }}>
+      <Lbl>{tr("Days")}</Lbl>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{BLOCK_DAY_KEYS.map(d => { const on = form.days.indexOf(d) >= 0; return <button key={d} onClick={() => toggle(d)} data-schedule-day={d} aria-pressed={on} aria-label={tr(PATTERN_DAY_LABELS[d])} style={{ width: 44, height: 44, borderRadius: 6, fontSize: 11, fontWeight: on ? 700 : 500, cursor: "pointer", background: on ? GO : "transparent", color: on ? NAVY : t.textMut, border: "1px solid " + (on ? GO : t.border), fontFamily: FONT_BODY }}>{tr(PATTERN_DAY_LABELS[d])}</button>; })}</div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{form.days.length ? blockDaysWords(form.days) : tr("None ticked means every day.")}</div>
+      {said("daysOfWeek")}
+    </div>
+    {refusal.text && !refusal.field && <div role="alert" data-schedule-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy} data-schedule-save="">{busy ? tr("Saving...") : tr("Save Changes")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
 // A site's contract reference and service lines (STEP204_CONTRACT.md, section 3). The service lines are
 // the eight of OCSA-FRM-011, each a code the API takes and answers, drawn as its word; a code the page
 // does not know reads as it came and is kept on save. The monthly client report fills its Contract
@@ -3422,6 +3582,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       {siteTab === "tasks" && <div>
         {/* Step 291: this site's periodic work first, once GET /api/periodic-work?siteId= answers. */}
         <PeriodicWorkPanel key={selectedSite} af={af} t={t} siteId={selectedSite} />
+        {/* Step 317: the site's schedule by shift, once its blocks answer their end and kind. */}
+        <SiteSchedulePanel key={"schedule-" + selectedSite} af={af} t={t} siteId={selectedSite} tasks={st} canEdit={canManageTasks} showToast={showToast} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Tasks ({0})", st.length)}</div>
           {canManageTasks && <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Task")}</button>}
