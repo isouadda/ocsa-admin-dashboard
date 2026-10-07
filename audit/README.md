@@ -110,6 +110,24 @@ Then it checks, one line a check:
   one item approved at 3 of 5, one denied with a note and the third approved by Approve all, each sent
   as the items it decides, and the request then reads approved in its window and in the list; and
   Download for ordering saves the two approved items, read back from the CSV, under the dates shown.
+- against the stub's answers for the API's Step 289 contract (Step 291), which the smoke check arms with
+  `setStep289` over whichever steps a pass arms: at 1280 in English and in Spanish and at 390 in English,
+  Sites opens on the list with Add Site and the first site inside the first screen of the page and each
+  site's plan on its row, under the site's name on a phone; a site's Service Details tab draws that site's
+  periodic work, read with its siteId, above its tasks; Quality, Periodic work lists every site's and a
+  row opens that site's checklist; a profile has no HR Files or Certifications tab, and Open HR file lands
+  on `#hr/<id>` with every record of the folder answer drawn and the person's certifications; Schedule
+  Shift asks for the Site before the Staff Member, its picker lists the site's people and everyone else
+  under two headings with the Schedule page's own search set to one person, and typing an admin's name
+  finds and picks the admin; Open a case's About whom finds one person by a badge number and On behalf of
+  another by an employee ID, each the only one offered, and the case is sent with both; a ticket is moved
+  to Done with a note, sent as `{ status, statusNote }`, the person who sent it is told once in their
+  language, and Export's text holds the ticket, its note and its status; App support contact draws the
+  API's refusal of an address under Email and then saves the name and email; the signed acknowledgment
+  page in a person's folder reads its document and Signed in Spanish; and a PTO request reads PTO (paid
+  time off) in the list and is approved in its window. The stub serves the support routes, a PTO request,
+  the signed page in u-staff-5's folder, and the periodic work, workload plans and discipline steps the
+  pictures' answers hold, since Sites opens on the list and Open a case waits for the steps.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -166,7 +184,16 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-request-line-approve`, `data-request-line-note`, `data-request-line-deny`,
 `data-request-line-said`, `data-request-line-said-note`, `data-request-status`,
 `data-request-approve-all`, `data-request-deny-all`, `data-request-state`, `data-ordering-from`,
-`data-ordering-to` and `data-ordering-download`.
+`data-ordering-to` and `data-ordering-download`, and Step 291's by `data-site-plan`, `data-site-periodic`,
+`data-periodic-work`, `data-open-hr-file`, `data-folder-certifications`, `data-folder-certification`,
+`data-folder-training-items`, `data-schedule-shift-site`, `data-schedule-shift-staff`, `data-open-case`,
+`data-person-pick`, `data-person-pick-field`, `data-person-pick-search`, `data-person-pick-option`,
+`data-person-pick-group`, `data-ticket-state`, `data-ticket-window`, `data-ticket-status-choice`,
+`data-ticket-note`, `data-ticket-save`, `data-tickets`, `data-tickets-export-open`,
+`data-tickets-export-text`, `data-settings-tab`, `data-support-contact`, `data-support-contact-name`,
+`data-support-contact-email`, `data-support-contact-save`, `data-support-contact-refusal`,
+`data-folder-signed-page`, `data-folder-signed-language` and `data-time-off-type`. Since Step 291 a person
+is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
 
@@ -188,7 +215,7 @@ guide. `npm run shots -- <name>` takes one picture, an entry's title takes its p
 check, and it takes about two minutes.
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280 and Step 283 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283 and Step 289 contracts among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and

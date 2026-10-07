@@ -2757,6 +2757,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   // Every active site's plan at once, GET /api/workload-plans, read each time the list shows, so a
   // plan taken or ended on a site is there on the way back.
   const [plansAll, setPlansAll] = useState(null);
+  // On a phone the plan sits under the site's name, since the row has no room for a column more.
+  const phoneWide = usePhoneWidth();
   useEffect(() => {
     if (selectedSite) return undefined;
     let alive = true;
@@ -3684,12 +3686,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}</div></div> },
+        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
         { header: tr("Staff"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? trn("{0} staff|count", s.staff_count) : "-" },
         { header: tr("Tasks"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? trn("{0} task|count", s.task_count) : "-" },
         { header: tr("Contract"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => contractOf(s.contract_type) || "-" },
         { header: tr("Status"), render: s => <Bdg l={siteStateOf(s.status)} c={s.status === "active" ? GR : OR} /> },
-        ...(plansAll ? [{ header: tr("Workload plan"), tdStyle: { maxWidth: 170 }, render: planCell }] : []),
+        ...(plansAll && !phoneWide ? [{ header: tr("Workload plan"), tdStyle: { maxWidth: 170 }, render: planCell }] : []),
         { header: tr("Actions"), align: "right", render: s => <button title={tr("View site")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No sites found.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
@@ -6444,7 +6446,7 @@ const ticketDetails = (x) => [
   ["Status", ticketStateWord(x.status)],
   ["Note|ticket", x.statusNote],
   ["From|ticket", x.who],
-  ["Sent", irWhen(x.createdAt)],
+  ["Sent|ticket", irWhen(x.createdAt)],
   ["App", TICKET_APPS[x.app] ? tr(TICKET_APPS[x.app]) : x.app],
   ["Sent from", TICKET_SOURCES[x.source] ? tr(TICKET_SOURCES[x.source]) : x.source],
   ["Screen", x.screen],
@@ -6559,7 +6561,7 @@ function TicketsPage({ af, t, showToast }) {
   const shown = all.filter(x => state === "all" || x.status === state).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const count = (s) => all.filter(x => x.status === s).length;
   const cols = [
-    { header: tr("Sent"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => irWhen(x.createdAt) },
+    { header: tr("Sent|ticket"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => irWhen(x.createdAt) },
     { header: tr("Kind of ticket"), tdStyle: { minWidth: 150, color: t.text, fontWeight: 600 }, render: x => ticketKindWord(x.kind) },
     { header: tr("From|ticket"), tdStyle: { minWidth: 120, color: t.textSec }, render: x => x.who || "--" },
     { header: tr("Where"), tdStyle: { minWidth: 120, color: t.textSec }, render: x => [TICKET_APPS[x.app] ? tr(TICKET_APPS[x.app]) : x.app, x.screen].filter(Boolean).join(", ") || "--" },

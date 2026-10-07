@@ -95,6 +95,19 @@
 //     first; a three-item request has one item approved at 3 of 5, one denied with a note and the
 //     third approved by Approve all, each sent as the items it decides, and then reads approved in
 //     its window and in the list; and Download for ordering saves the two approved items as a CSV.
+//   - against the stub's answers for the API's Step 289 contract (Step 291), which the smoke check arms
+//     with setStep289, at 1280 in English and in Spanish and at 390 in English: Sites opens on the list
+//     with Add Site and the first site in its first screen and its plan on the row; a site's Service
+//     Details tab draws its own periodic work above its tasks; Quality, Periodic work lists every site's
+//     and a row opens a site's checklist; Open HR file on a profile with no HR Files or Certifications
+//     tab lands on the folder, which draws every record the folder answer holds and the person's
+//     certifications; Schedule Shift asks for the Site first, lists the site's people and everyone else
+//     under two headings whatever the page's own search holds, and finds an admin by typing; Open a
+//     case finds a person by badge number and another by employee ID, each the only one offered, and
+//     sends both; a ticket is moved to Done with a note, the person who sent it is told in their
+//     language, and Export holds it with the note; App support contact draws the API's refusal under
+//     Email and then saves; the signed acknowledgment page reads its document and Signed in Spanish in
+//     the person's folder; and a PTO request reads PTO (paid time off) and is approved.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -167,9 +180,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -735,7 +748,9 @@ async function step256(d, origin, p, stubs) {
     await d.page.getByRole("button", { name: d.say("Log training for several people") }).click();
     await d.page.locator('[data-session-field="topicId"] select option[value="' + SESSION_TOPIC + '"]').waitFor({ state: "attached" });
     await d.page.locator('[data-session-field="topicId"] select').selectOption(SESSION_TOPIC);
-    await d.page.locator('[data-session-field="trainerId"] select').selectOption(seed.PEOPLE.supervisor.id);
+    // Since Step 291 the trainer is picked in the searchable picker.
+    await d.page.locator('[data-session-field="trainerId"] [data-person-pick-field]').click();
+    await d.page.locator('[data-session-field="trainerId"] [data-person-pick-option="' + seed.PEOPLE.supervisor.id + '"]').click();
     await d.page.locator('[data-session-field="locale"] button').nth(1).click();
     for (const id of SESSION_PEOPLE) await d.page.locator('[data-session-person="' + id + '"] input').check();
     const singles = stubs.calls.filter((c) => c.path === "/api/hr/training" && c.method === "POST").length;
@@ -1593,6 +1608,206 @@ async function step278(d, origin, p, stubs) {
   });
 }
 
+// Step 291's screens (STEP289_CONTRACT.md section 3), each a line, against the stub armed with
+// setStep289 (audit/stubs.js): Sites opening on the list, a site's periodic work and Quality's, Open
+// HR file landing on the folder with what the profile's HR Files and Certifications tabs held,
+// Schedule Shift asking for the Site first and finding an office account by typing, Open a case's
+// pickers narrowed by a badge number and an employee ID, a ticket moved to Done with a note and
+// exported, the support contact saved, the signed page in a folder and a PTO request decided. Every
+// line waits for what it reads.
+const CASE_291 = { about: "u-staff-6", badge: "4115", behalf: "u-staff-7", employeeId: "EMP-1007" };
+const OFFICE_291 = { id: "u-admin-1", typed: "Whitlock" };
+const TICKET_291 = { id: "tk-1", to: "u-staff-6", locale: "es", description: "When I press Send on the time off screen nothing happens." };
+const TICKET_NOTE_291 = { en: "Fixed in today's portal update.", es: "Se arregl\u00f3 en la actualizaci\u00f3n de hoy del portal." };
+const CONTACT_291 = { name: "Morgan Reyes", email: "help.desk@example.invalid" };
+// A person picked in the searchable picker inside within, by what is typed, and checked to be the only
+// one offered when only is set.
+async function pickPerson291(d, within, id, typed, only) {
+  // within may name the picker itself, which carries the attributes a screen gives it, or a part around it.
+  const box = d.page.locator(within + "[data-person-pick], " + within + " [data-person-pick]").first();
+  await box.locator("[data-person-pick-field]").click();
+  await box.locator("[data-person-pick-search]").fill(typed);
+  const offered = await box.locator("[data-person-pick-option]").evaluateAll((els) => els.map((e) => e.getAttribute("data-person-pick-option")));
+  await box.locator('[data-person-pick-option="' + id + '"]').click();
+  if (only && (offered.length !== 1 || offered[0] !== id)) return "typing " + typed + " offered " + JSON.stringify(offered);
+  return "";
+}
+async function step291(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const fill = (key, ...v) => v.reduce((t0, x, i) => t0.split("{" + i + "}").join(String(x)), d.say(key));
+  // Whether the first match sits inside the window's first screen of the page, wherever the window is
+  // scrolled, since a page opened by its address keeps the scroll of the page before.
+  const inView = async (sel) => {
+    const b = await d.page.locator(sel).first().boundingBox();
+    const at = await d.page.evaluate(() => ({ y: window.scrollY, h: window.innerHeight }));
+    return !!b && b.y + at.y >= 0 && b.y + at.y + b.height <= at.h;
+  };
+  await check("Sites opens on the list, with Add Site and the first site in view", async () => {
+    await go(d, "sites", null, "table tbody tr");
+    if ((await d.page.getByRole("button", { name: d.say("Add Site") }).count()) === 0) return "no Add Site";
+    if (!(await inView('button:has-text("' + d.say("Add Site") + '")'))) return "Add Site is not in view";
+    if (!(await inView("table tbody tr"))) return "the first site is not in view";
+    if ((await d.page.locator("[data-workload-plans], [data-periodic-work]").count()) > 0) return "the plans or periodic work still sit above the list";
+    await until(d, "[data-site-plan]");
+    return "";
+  });
+  await check("a site's Service Details tab draws its periodic work first", async () => {
+    await go(d, "sites", [seed.SITES[0].id, "tasks"], "[data-site-periodic] table tbody tr");
+    const read = stubs.calls.filter((c) => c.path === "/api/periodic-work" && c.query.indexOf("siteId=" + seed.SITES[0].id) >= 0).pop();
+    if (!read || !read.json) return "the site's periodic work was not asked for by its siteId";
+    const rows = await d.page.locator("[data-site-periodic] table tbody tr").count();
+    if (rows !== read.json.items.length) return "it draws " + rows + " rows of " + read.json.items.length;
+    const per = await d.page.locator("[data-site-periodic]").boundingBox();
+    const tasks = await d.page.getByText(fill("Tasks ({0})", "").replace(/\(\)$/, ""), { exact: false }).last().boundingBox();
+    return per && tasks && per.y < tasks.y ? "" : "the periodic work is not above the tasks";
+  });
+  await check("Quality, Periodic work lists every site's and a row opens the site's checklist", async () => {
+    await openNav(d, "periodic");
+    await until(d, "[data-periodic-work] table tbody tr");
+    const read = stubs.calls.filter((c) => c.path === "/api/periodic-work" && c.query.indexOf("siteId=") < 0 && c.query.indexOf("state=") < 0).pop();
+    const rows = await d.page.locator("[data-periodic-work] table tbody tr").count();
+    if (!read || !read.json || rows !== read.json.items.length) return "it draws " + rows + " rows";
+    await d.page.locator("[data-periodic-work] table tbody tr").first().click();
+    await until(d, "[data-site-periodic]");
+    return /#sites\/[^/]+\/tasks$/.test(await d.page.evaluate(() => window.location.hash)) ? "" : "the row did not open a site's checklist";
+  });
+  await check("Open HR file lands on the folder with every record the profile's HR tabs held", async () => {
+    await go(d, "staff", [PROPERTY_PERSON], "[data-open-hr-file]");
+    const tabs = await d.page.getByRole("button", { name: d.say("HR Files"), exact: true }).count() + await d.page.getByRole("button", { name: d.say("Certifications"), exact: true }).count();
+    if (tabs) return "the profile still has HR Files or Certifications";
+    await d.page.locator("[data-open-hr-file]").click();
+    await until(d, "[data-folder-certifications]");
+    await until(d, "[data-folder-training-items]");
+    if ((await d.page.evaluate(() => window.location.hash)) !== "#hr/" + PROPERTY_PERSON) return "it opened " + (await d.page.evaluate(() => window.location.hash));
+    const folder = stubs.calls.filter((c) => c.path === "/api/hr/employee-folder/" + PROPERTY_PERSON).pop();
+    const profile = stubs.calls.filter((c) => c.path === "/api/users/profile/" + PROPERTY_PERSON).pop();
+    if (!folder || !folder.json || !profile || !profile.json) return "the folder or the certifications were not read";
+    const certs = await d.page.locator("[data-folder-certification]").count();
+    if (certs !== profile.json.certifications.length) return certs + " certifications drawn of " + profile.json.certifications.length;
+    const kinds = new Set(folder.json.items.map((x) => x.source));
+    ["document", "training", "onboarding"].forEach((k) => { if (!kinds.has(k)) kinds.add("missing:" + k); });
+    if ([...kinds].some((k) => /^missing:/.test(k))) return "the stub's folder lacks " + [...kinds].filter((k) => /^missing:/.test(k)).join(", ");
+    const text = await d.page.locator("body").innerText();
+    const lost = folder.json.items.filter((x) => x.title && text.indexOf(x.title) < 0).map((x) => x.title);
+    return lost.length ? "the folder does not draw " + lost.join(", ") : "";
+  });
+  await check("Schedule Shift asks for the Site first and finds an office account by typing", async () => {
+    await go(d, "schedule", null, 'input[placeholder="' + d.say("Search staff...") + '"]');
+    // The page's own search narrows the grid to one person; the window's list is held to everyone.
+    await d.page.locator('input[placeholder="' + d.say("Search staff...") + '"]').fill("Tomasz");
+    await d.page.getByRole("button", { name: d.say("Schedule Shift") }).first().click();
+    await until(d, "[data-schedule-shift-site]");
+    const site = await d.page.locator("[data-schedule-shift-site]").boundingBox();
+    const staff = await d.page.locator("[data-schedule-shift-staff]").boundingBox();
+    if (!site || !staff || site.y >= staff.y) return "the Site is not above the Staff Member";
+    await d.page.locator("[data-schedule-shift-site]").selectOption(seed.SITES[1].id);
+    await d.page.locator("[data-schedule-shift-staff] [data-person-pick-field]").click();
+    const groups = await d.page.locator("[data-schedule-shift-staff] [data-person-pick-group]").allInnerTexts();
+    if (groups.length !== 2) return "the list has " + groups.length + " headings";
+    const offered = await d.page.locator("[data-schedule-shift-staff] [data-person-pick-option]").count();
+    if (offered < 3) return "the list holds " + offered + " rows, cut by the page's own search";
+    await d.page.keyboard.press("Escape");
+    const why = await pickPerson291(d, "[data-schedule-shift-staff]", OFFICE_291.id, OFFICE_291.typed, true);
+    if (why) return why;
+    const shown = (await d.page.locator("[data-schedule-shift-staff] [data-person-pick-field]").innerText()).trim();
+    return shown.indexOf("Dana Whitlock") >= 0 ? "" : "the field reads " + shown;
+  });
+  await check("Open a case's pickers find a person by badge number and by employee ID", async () => {
+    await go(d, "cases", null, "table tbody tr");
+    await d.page.getByRole("button", { name: d.say("Open a case") }).first().click();
+    await until(d, "[data-open-case]");
+    await d.page.locator("[data-open-case] textarea").first().fill(p.lang === "es" ? "Un compa\u00f1ero se queda con el piso asignado." : "A coworker keeps taking the assigned floor.");
+    const field = (label) => d.page.locator('[data-open-case] button[data-person-pick-field][aria-label="' + d.say(label) + '"]').locator("xpath=..");
+    const pickBy = async (label, id, typed) => {
+      const box = field(label);
+      await box.locator("[data-person-pick-field]").click();
+      await box.locator("[data-person-pick-search]").fill(typed);
+      const offered = await box.locator("[data-person-pick-option]").evaluateAll((els) => els.map((e) => e.getAttribute("data-person-pick-option")));
+      if (offered.length !== 1 || offered[0] !== id) return "typing " + typed + " under " + label + " offered " + JSON.stringify(offered);
+      await box.locator('[data-person-pick-option="' + id + '"]').click();
+      return "";
+    };
+    let why = await pickBy("About whom", CASE_291.about, CASE_291.badge);
+    if (why) return why;
+    await d.page.locator("[data-open-case]").getByRole("button", { name: d.say("Add"), exact: true }).click();
+    why = await pickBy("On behalf of", CASE_291.behalf, CASE_291.employeeId);
+    if (why) return why;
+    await d.page.locator('[data-open-case] select[aria-label="' + d.say("Is this about someone in management?") + '"]').selectOption("no");
+    const before = stubs.calls.filter((c) => c.path === "/api/hr-cases" && c.method === "POST").length;
+    await d.page.locator("[data-open-case]").getByRole("button", { name: d.say("Open a case") }).last().click();
+    for (let i = 0; i < 40 && stubs.calls.filter((c) => c.path === "/api/hr-cases" && c.method === "POST").length === before; i++) await wait(100);
+    const sent = JSON.stringify((stubs.calls.filter((c) => c.path === "/api/hr-cases" && c.method === "POST").pop() || {}).body || null);
+    return sent.indexOf(CASE_291.about) >= 0 && sent.indexOf(CASE_291.behalf) >= 0 ? "" : "the case was sent as " + sent;
+  });
+  await check("a ticket is moved to Done with a note, the person is told, and it is exported", async () => {
+    await go(d, "tickets", null, '[data-ticket-state="new"]');
+    await d.page.locator('[data-ticket-state="new"]').first().click();
+    await until(d, '[data-ticket-window="' + TICKET_291.id + '"]');
+    await d.page.locator('[data-ticket-status-choice="done"]').click();
+    await d.page.locator("[data-ticket-note]").fill(TICKET_NOTE_291[p.lang]);
+    await d.page.locator("[data-ticket-save]").click();
+    await d.page.locator("[data-ticket-window]").waitFor({ state: "detached" });
+    const patch = stubs.calls.filter((c) => c.method === "PATCH" && c.path === "/api/support/tickets/" + TICKET_291.id).pop();
+    if (!patch || JSON.stringify(patch.body) !== JSON.stringify({ status: "done", statusNote: TICKET_NOTE_291[p.lang] })) return "the ticket was sent as " + JSON.stringify(patch && patch.body);
+    const told = stubs.notified289().filter((x) => x.ticket === TICKET_291.id && x.to === TICKET_291.to && x.locale === TICKET_291.locale && x.status === "done");
+    if (told.length !== 1) return "the person was told " + told.length + " times";
+    await d.page.locator("[data-tickets] button").filter({ hasText: d.say("Done|ticket") }).first().click();
+    await until(d, '[data-ticket-state="done"]');
+    await d.page.locator("[data-tickets-export-open]").click();
+    await until(d, "[data-tickets-export-text]");
+    const text = await d.page.locator("[data-tickets-export-text]").inputValue();
+    const want = [TICKET_291.description, TICKET_NOTE_291[p.lang], d.say("Done|ticket"), d.say("Something is not working")];
+    const lost = want.filter((w) => text.indexOf(w) < 0);
+    return lost.length ? "the export lacks " + lost.join(", ") : "";
+  });
+  await check("Settings, App support contact refuses an address that is not one and saves", async () => {
+    await go(d, "settings", null, '[data-settings-tab="support"]');
+    await d.page.locator('[data-settings-tab="support"]').click();
+    await until(d, "[data-support-contact]");
+    await d.page.locator("[data-support-contact-email]").fill("not an address");
+    await d.page.locator("[data-support-contact-save]").click();
+    await until(d, '[data-support-contact-refusal="email"]');
+    const said = (await d.page.locator('[data-support-contact-refusal="email"]').innerText()).trim();
+    const put = stubs.calls.filter((c) => c.method === "PUT" && c.path === "/api/settings/support-contact").pop();
+    if (!put || !put.json || said !== put.json.error) return "the refusal reads " + said;
+    await d.page.locator("[data-support-contact-name]").fill(CONTACT_291.name);
+    await d.page.locator("[data-support-contact-email]").fill(CONTACT_291.email);
+    await d.page.locator("[data-support-contact-save]").click();
+    await d.page.locator('[data-support-contact-refusal="email"]').waitFor({ state: "detached" });
+    const saved = stubs.calls.filter((c) => c.method === "PUT" && c.path === "/api/settings/support-contact").pop();
+    return saved && saved.status === 200 && JSON.stringify(saved.body) === JSON.stringify(CONTACT_291) ? "" : "it was sent as " + JSON.stringify(saved && saved.body);
+  });
+  await check("the signed acknowledgment page is in the person's folder with the language signed", async () => {
+    await go(d, "hr", [PROPERTY_PERSON], "[data-folder-signed-page]");
+    const row = d.page.locator("[data-folder-signed-page]").first();
+    const text = (await row.innerText()).trim();
+    const lang = await row.getAttribute("data-folder-signed-language");
+    const want = fill("Signed in {0}", d.say("Spanish"));
+    return lang === "es" && text.indexOf("OCSA-HR-002 1.1") >= 0 && text.indexOf(want) >= 0 ? "" : "the row reads " + text;
+  });
+  await check("a PTO request reads PTO (paid time off) and is approved", async () => {
+    await go(d, "schedule", null, 'input[placeholder="' + d.say("Search staff...") + '"]');
+    await d.page.getByRole("button", { name: new RegExp("^" + d.say("Time off")) }).first().click();
+    await until(d, '[data-time-off-type="pto"]');
+    const word = (await d.page.locator('[data-time-off-type="pto"]').first().innerText()).trim();
+    if (word !== d.say("PTO (paid time off)")) return "the list reads " + word;
+    await d.page.locator('[data-time-off-type="pto"]').first().click();
+    await until(d, 'div[style*="z-index: 500"] [data-time-off-type="pto"]');
+    await d.page.getByRole("button", { name: d.say("Approve"), exact: true }).last().click();
+    for (let i = 0; i < 40 && !stubs.calls.some((c) => c.path === "/api/time-off/to-pto/approve" && c.status === 200); i++) await wait(100);
+    if (!stubs.calls.some((c) => c.path === "/api/time-off/to-pto/approve" && c.status === 200)) return "the approval was not sent";
+    await d.page.getByText(d.say("Approved|request"), { exact: true }).first().waitFor();
+    return "";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -1612,6 +1827,8 @@ async function runPass(browser, origin, p) {
   if (p.step275) stubs.setStep275(true);
   // Step 280's answers are laid over whichever of those the pass arms.
   if (p.step280) stubs.setStep280(true);
+  // Step 289's answers (the dashboard's Step 291) are laid over whichever of those the pass arms.
+  if (p.step291) stubs.setStep289(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -1711,6 +1928,7 @@ async function runPass(browser, origin, p) {
     if (p.step275) await step275(d, origin, p, stubs);
     if (p.step280) await step280(d, origin, p, stubs);
     if (p.step283) await step283(d, origin, p, stubs);
+    if (p.step291) await step291(d, origin, p, stubs);
 
     // Help, asked one question.
     {

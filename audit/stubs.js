@@ -6082,6 +6082,118 @@ function createStubs() {
     return pictureImage(path, base());
   }
 
+  // The round of October 6 (STEP289_CONTRACT.md sections 1 and 3, the API's Step 289, for the
+  // dashboard's Step 291), answered only once a run arms it with setStep289, over everything else:
+  // GET /api/support/contact with no token; GET and PUT /api/settings/support-contact for an admin,
+  // refusing an address that is not one in the screen's language under the field; GET
+  // /api/support/tickets?status=&kind=&app= for an admin and 403 for anyone else; POST
+  // /api/support/tickets, refusing a kind it does not know or an empty description; PATCH
+  // /api/support/tickets/:id { status, statusNote }, refusing a status it does not know or a note over
+  // 1000; a PTO request waiting in time off, decided by the routes as every request is; the signed
+  // acknowledgment page filed in a person's folder, with signedPage; and the periodic work and workload
+  // plans the pictures' answers hold, since Sites now opens on the list and its plan column, and the
+  // discipline steps, which Open a case waits for. Every value is invented, the support contact among
+  // them.
+  let step289 = false;
+  const CONTACT_289 = { name: "Jordan Avery", email: "app.support@example.invalid" };
+  const SIGNED_PAGE_289 = { person: "u-staff-5", id: "doc-ack-289", docCode: "OCSA-HR-002", docVersion: "1.1", locale: "es", signedAt: seed.shift(-1) + "T15:20:00Z" };
+  const PTO_289 = { id: "to-pto", userId: "u-staff-10", userName: "Bertrand Lefevre", leaveType: "pto", startsOn: seed.shift(14), endsOn: seed.shift(15), partDay: false, hours: 16, status: "requested", reason: "Moving to a new apartment.", createdAt: seed.shift(-2) + "T13:10:00Z", shifts: [] };
+  const TICKETS_289 = () => [
+    { id: "tk-1", kind: "bug", status: "new", statusNote: null, description: "When I press Send on the time off screen nothing happens.", screen: "Time off", appVersion: "portal 2026.10.06", device: "iPhone, Safari 18", locale: "es", app: "portal", source: "form", createdBy: { id: "u-staff-6", name: "Ngozi Okonkwo" }, handledBy: null, createdAt: seed.shift(0) + "T07:40:00Z", updatedAt: seed.shift(0) + "T07:40:00Z", emailedAt: seed.shift(0) + "T07:40:05Z", screenshotPath: null },
+    { id: "tk-2", kind: "idea", status: "new", statusNote: null, description: "Show next week's shifts on the home screen.", screen: "Schedule", appVersion: "portal 2026.10.06", device: "Android, Chrome 129", locale: "en", app: "portal", source: "form", createdBy: { id: "u-staff-5", name: "Tomasz Wisniewski" }, handledBy: null, createdAt: seed.shift(-1) + "T18:05:00Z", updatedAt: seed.shift(-1) + "T18:05:00Z", screenshotPath: null },
+    { id: "tk-3", kind: "wrong_info", status: "working", statusNote: "Checking the site plan with the field lead.", description: "Help said the lobby is stripped monthly; the site plan says quarterly.", screen: "Help", appVersion: "build 1a2b3c4d", device: "Windows, Edge 129", locale: "en", app: "dashboard", source: "help", createdBy: { id: "u-sup-1", name: "Marcus Ferreira" }, handledBy: { id: "u-admin-1", name: "Dana Whitlock" }, createdAt: seed.shift(-2) + "T14:30:00Z", updatedAt: seed.shift(-1) + "T09:00:00Z", screenshotPath: null },
+    { id: "tk-4", kind: "cant_sign_in", status: "done", statusNote: "PIN reset; signed in on Monday.", description: "My PIN stopped working after I changed phones.", screen: "Sign in", appVersion: "portal 2026.10.02", device: "iPhone, Safari 17", locale: "en", app: "portal", source: "form", createdBy: { id: "u-staff-8", name: "Rashid Haddad" }, handledBy: { id: "u-admin-1", name: "Dana Whitlock" }, createdAt: seed.shift(-6) + "T06:10:00Z", updatedAt: seed.shift(-5) + "T10:00:00Z", screenshotPath: null },
+    { id: "tk-5", kind: "help_miss", status: "wont_do", statusNote: "Parking is the client's rule; ask the site supervisor.", description: "Help did not know where to park at the clinic.", screen: "Help", appVersion: "portal 2026.10.02", device: "Android, Chrome 128", locale: "es", app: "portal", source: "help", createdBy: { id: "u-staff-7", name: "Elena Barbosa" }, handledBy: { id: "u-admin-1", name: "Dana Whitlock" }, createdAt: seed.shift(-9) + "T12:00:00Z", updatedAt: seed.shift(-8) + "T15:00:00Z", screenshotPath: null },
+  ];
+  const s289 = () => {
+    if (!state.s289) state.s289 = { contact: clone(CONTACT_289), tickets: TICKETS_289(), seq: 5, notified: [] };
+    return state.s289;
+  };
+  const T289 = (lang, en, es) => (lang === "es" ? es : en);
+  const KINDS_289 = ["bug", "idea", "wrong_info", "help_miss", "cant_sign_in"];
+  const STATES_289 = ["new", "working", "done", "wont_do"];
+  function step289Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    const me = person();
+    const admin = me.role === "admin";
+    const bad = (code, keys, en, es) => ({ status: 400, json: { error: T289(lang, en, es), code, keys } });
+    const no = () => ({ status: 403, json: { error: T289(lang, "Only an admin or the support contact can do that.", "Solo un administrador o el contacto de soporte puede hacer eso."), code: "support.forbidden" } });
+    if (path === "/api/support/contact" && method === "GET") return ok({ name: s289().contact.name, email: s289().contact.email });
+    // Help offers a ticket when someone says something is not working, names the contact from the
+    // setting, and drafts the ticket from the question, which the app files only once it is confirmed.
+    if (path === "/api/agent/message/stream" && method === "POST" && !agentStream && /not working|no funciona/i.test(String(b.text || ""))) {
+      const c = s289().contact;
+      agentStream = { pieces: [T289(lang, "That sounds like something App support should look at. App support is " + c.name + ", " + c.email + ". I drafted a ticket below; press Send ticket to file it.",
+        "Parece algo que debe revisar el soporte de la aplicaci\u00f3n. El soporte de la aplicaci\u00f3n es " + c.name + ", " + c.email + ". Prepar\u00e9 un ticket abajo; presione Enviar ticket para enviarlo.")],
+        done: { ticketDraft: { kind: "bug", description: String(b.text || "").trim(), screen: "Schedule" } } };
+    }
+    if (path === "/api/settings/support-contact") {
+      if (!admin) return no();
+      if (method === "GET") return ok(clone(s289().contact));
+      if (method === "PUT") {
+        const name = String(b.name || "").trim();
+        const email = String(b.email || "").trim();
+        if (!name || name.length > 120) return bad("settings.badDetails", ["name"], "Write the contact's name.", "Escriba el nombre del contacto.");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bad("settings.badDetails", ["email"], "That is not an email address.", "Esa no es una direcci\u00f3n de correo.");
+        s289().contact = { name, email };
+        return ok(clone(s289().contact));
+      }
+    }
+    if (path === "/api/support/tickets" && method === "GET") {
+      if (!admin) return no();
+      const st = query.get("status") || "", kind = query.get("kind") || "", app = query.get("app") || "";
+      return ok({ tickets: s289().tickets.filter((x) => (!st || x.status === st) && (!kind || x.kind === kind) && (!app || x.app === app)).slice().sort((x, y) => y.createdAt.localeCompare(x.createdAt)) });
+    }
+    if (path === "/api/support/tickets/mine" && method === "GET") return ok({ tickets: s289().tickets.filter((x) => x.createdBy && x.createdBy.id === me.id) });
+    if (path === "/api/support/tickets" && method === "POST") {
+      if (KINDS_289.indexOf(b.kind) < 0) return bad("support.badDetails", ["kind"], "Choose what kind of ticket this is.", "Elija qu\u00e9 tipo de ticket es.");
+      const text = String(b.description || "").trim();
+      if (!text || text.length > 4000) return bad("support.badDetails", ["description"], "Say what happened, in up to 4000 characters.", "Diga qu\u00e9 pas\u00f3, en hasta 4000 caracteres.");
+      s289().seq += 1;
+      const x = { id: "tk-" + s289().seq, kind: b.kind, status: "new", statusNote: null, description: text, screen: b.screen || null, appVersion: b.appVersion || null, device: b.device || null, locale: b.locale || lang, app: b.app || "dashboard", source: b.source || "form",
+        createdBy: { id: me.id, name: me.firstName + " " + me.lastName }, handledBy: null, createdAt: seed.NOW_ISO, updatedAt: seed.NOW_ISO, screenshotPath: b.screenshot ? "support/" + "tk-" + s289().seq + ".jpg" : null };
+      s289().tickets.unshift(x);
+      return created({ ticket: x });
+    }
+    const one = /^\/api\/support\/tickets\/([^/]+)$/.exec(path);
+    if (one && method === "PATCH") {
+      if (!admin) return no();
+      const x = s289().tickets.find((y) => y.id === decodeURIComponent(one[1]));
+      if (!x) return { status: 404, json: { error: T289(lang, "That ticket was not found.", "No se encontr\u00f3 ese ticket."), code: "support.notFound" } };
+      if (b.status !== undefined && STATES_289.indexOf(b.status) < 0) return bad("support.badDetails", ["status"], "Choose a status.", "Elija un estado.");
+      if (b.statusNote != null && (typeof b.statusNote !== "string" || b.statusNote.length > 1000)) return bad("support.badDetails", ["statusNote"], "Keep the note to 1000 characters.", "Deje la nota en 1000 caracteres o menos.");
+      const changed = b.status !== undefined && b.status !== x.status;
+      if (b.status !== undefined) x.status = b.status;
+      if (b.statusNote !== undefined) x.statusNote = b.statusNote ? String(b.statusNote).trim() || null : null;
+      x.handledBy = { id: me.id, name: me.firstName + " " + me.lastName };
+      x.updatedAt = seed.NOW_ISO;
+      if (changed) s289().notified.push({ ticket: x.id, to: x.createdBy.id, locale: x.locale, status: x.status });
+      return ok({ ticket: x });
+    }
+    // A PTO request waiting, decided by the time off routes below as every request is.
+    if (path.indexOf("/api/time-off") === 0) {
+      if (!state.timeOff) state.timeOff = clone(TIME_OFF);
+      if (!state.timeOff.some((r) => r.id === PTO_289.id)) state.timeOff.unshift(Object.assign(clone(PTO_289), { leaveTypeLabel: T289(lang, "PTO (paid time off)", "PTO (tiempo libre pagado)") }));
+      return base();
+    }
+    // The signed acknowledgment page, filed for the person as an HR document.
+    if (path === "/api/hr/employee-folder/" + SIGNED_PAGE_289.person && method === "GET") {
+      const a = base();
+      if (a && a.json && Array.isArray(a.json.items)) {
+        a.json.items.unshift({ source: "document", source_id: SIGNED_PAGE_289.id, title: T289(lang, "Handbook acknowledgment, OCSA-HR-002 1.1", "Acuse de recibo del manual, OCSA-HR-002 1.1"), category: "legal", raw_category_label: "handbook_acknowledgment",
+          date: SIGNED_PAGE_289.signedAt, expiry_date: null, file_name: "OCSA-HR-002-1.1-es-signed.pdf",
+          signedPage: { docCode: SIGNED_PAGE_289.docCode, docVersion: SIGNED_PAGE_289.docVersion, locale: SIGNED_PAGE_289.locale, signedAt: SIGNED_PAGE_289.signedAt } });
+        a.json.counts_by_category = Object.assign({}, a.json.counts_by_category, { legal: ((a.json.counts_by_category || {}).legal || 0) + 1 });
+        a.json.total_items = a.json.items.length;
+      }
+      return a;
+    }
+    // The discipline steps too, which the API has answered since its Step 228: Open a case shows once
+    // they answer, and its pickers are part of this round.
+    if (method === "GET" && (path === "/api/periodic-work" || path === "/api/workload-plans" || path === "/api/discipline/steps")) return pictures278(method, path, query, body, lang, base) || base();
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6135,7 +6247,8 @@ function createStubs() {
     const over275 = () => (step275 ? step275Route(method, path, u.searchParams, body, record.language, over269) : over269());
     const over280 = () => (step280 ? step280Route(method, path, u.searchParams, body, record.language, over275) : over275());
     const over278 = () => (step278 ? step278Route(method, path, u.searchParams, body, record.language, over280) : over280());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over278) : over278();
+    const over289 = () => (step289 ? step289Route(method, path, u.searchParams, body, record.language, over278) : over278());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over289) : over289();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6218,6 +6331,11 @@ function createStubs() {
     // The routes and words of the API's Step 283, sign-in made simple and closed, on or off, over
     // everything else.
     setStep283: (v) => { step283 = v !== false; },
+    // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
+    // over whichever steps the run arms.
+    setStep289: (v) => { step289 = v !== false; },
+    // Who a ticket's status change told, in which language, since the run armed Step 289.
+    notified289: () => (state.s289 ? state.s289.notified.slice() : []),
     // Whether a person is on the PIN the office gave, which with Step 283 armed holds every route but
     // /me and change-pin until they choose their own.
     setMustSetPin: (who, v) => { si283().mustSetPin[who] = v !== false; },
@@ -6231,7 +6349,7 @@ function createStubs() {
       state.sites = clone(seed.SITES);
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
-      state.schedule = null; state.patterns = null; state.timeOff = null;
+      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};
