@@ -639,6 +639,7 @@ const SHOTS = [
       await choose(c, "Monthly quality walk"); await choose(c, seed.SITES[1].name); await choose(c, "Marcus Ferreira");
       await inModal(c).locator("input[type=date]").first().fill(seed.shift(7));
       await blur(c);
+      await show(c, "[data-schedule-with-safety]");
     } },
   { name: "inspections-new-template", entry: "Create an inspection template",
     open: "inspections", ready: SHELL,
@@ -1599,6 +1600,14 @@ const SHOTS = [
   { name: "vendors-edit", entry: "Add or edit a vendor",
     open: "vendors/v-1", ready: "[data-vendor-order-fields]",
     act: async (c) => { await inModal(c).locator("select").last().scrollIntoViewIfNeeded(); await wait(200); } },
+  // Step 314: a completed walk's safety part, and the OCSA-FRM-015 record filed with it (audit/stubs.js,
+  // setStep312).
+  { name: "inspection-safety-part", entry: "Read an inspection's safety walk",
+    open: "inspections/insp-4", ready: "[data-inspection-safety-answer]",
+    act: async (c) => { await until(c, '[data-inspection-safety-answer="findings"]'); await toTop(c, "[data-inspection-safety]", 120); } },
+  { name: "safety-record-inspection-link", entry: "Read an inspection's safety walk",
+    open: report("fr-safety-1"), ready: "[data-open-inspection]",
+    act: async (c) => { await wait(200); } },
 ];
 
 
@@ -1662,7 +1671,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

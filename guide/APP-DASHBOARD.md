@@ -352,8 +352,10 @@ Who can do this: admins and supervisors
 2. Click the **Scheduled** tab.
 3. Click **Schedule Inspection**.
 4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date. Only active supervisors are listed.
-5. Click **Schedule**.
+5. **Include the safety walk** (**Incluir el recorrido de seguridad**) is ticked to start: the inspector fills in the safety inspection (OCSA-FRM-015) in the same walk, signs once, and both records are kept. Untick it for an inspection with no safety part, such as one at a site whose safety inspection is done another way this month.
+6. Click **Schedule**.
 If it does not work: a supervisor who has left is not listed. An inspection already held by someone who left shows them with their status until you pick someone else.
+Words people use for this: schedule an inspection, monthly inspection, site inspection, safety walk, one walk, inspection and safety inspection together, programar una inspección.
 Picture: inspections-schedule
 Last checked: 2026-10-07
 ## Create an inspection template (admin dashboard)
@@ -1258,11 +1260,12 @@ Who can do this: anyone who can open Inspections
 5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
 6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
 7. Beside the score, **Band** (**Banda**) reads the inspection's band under OCSA-QMS-014 5.2, and **Findings** (**Hallazgos**) lists the tickets the inspection opened; see the entry on reading an inspection's findings and band.
+8. An inspection that held the safety walk shows **Safety walk** (**Recorrido de seguridad**) with its safety part above the items; see Read an inspection's safety walk.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
 Picture: inspection-completed-photos
 Picture: inspection-completed-signature
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Check who is still working with the roster check (admin dashboard)
 Who can do this: admins who manage staff
@@ -2448,4 +2451,16 @@ Who can do this: admins
 If it does not work: the vendor name is required. A vendor opened from a supply order's **Edit this vendor** (**Editar este proveedor**) opens straight in its editor.
 Words people use for this: add a vendor, supplier, approved supplier list, vendor email, vendor address, change a vendor, proveedor.
 Picture: vendors-edit
+Last checked: 2026-10-07
+
+## Read an inspection's safety walk (admin dashboard)
+Who can do this: anyone who can open Inspections
+1. Click **Inspections** (**Inspecciones**), then the **Completed** (**Completadas**) tab, and click the inspection. Its cards say **Safety walk** (**Recorrido de seguridad**): **Included** (**Incluido**) or **Not included** (**No incluido**).
+2. When it was included, the **Safety walk** (**Recorrido de seguridad**) card above the items shows the safety part: each area with its result and note, what the crew said, the findings with their severity, owner and due date, and the overall result.
+3. Click **Open the safety inspection record** (**Abrir el registro de la inspección de seguridad**) to open the OCSA-FRM-015 under **Filed forms** (**Formularios presentados**). It says **Filed as the safety walk of a scheduled inspection.** (**Presentado como el recorrido de seguridad de una inspección programada.**), and the Field Lead reviews and signs it there as always.
+4. On that record, **Open the inspection** (**Abrir la inspección**) goes back to the inspection.
+If it does not work: an inspection scheduled without the safety walk has no safety part; its safety inspection, when there is one, is a form of its own under **Filed forms** (**Formularios presentados**).
+Words people use for this: safety part of an inspection, safety walk, frm-015 with the inspection, safety findings, one walk, recorrido de seguridad.
+Picture: inspection-safety-part
+Picture: safety-record-inspection-link
 Last checked: 2026-10-07

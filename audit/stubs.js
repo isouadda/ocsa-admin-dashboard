@@ -6665,6 +6665,76 @@ function createStubs() {
     return base();
   }
 
+  // One inspection walk (STEP312_CONTRACT.md sections 1 and 3, the API's Step 312, for the dashboard's
+  // Step 314), answered only once a run arms it with setStep312, over everything else: POST
+  // /api/inspections/scheduled takes withSafety, true when it is not sent, and keeps what each schedule
+  // sent; every scheduled inspection read carries with_safety; the completed walk at the first site
+  // (insp-4) answers its result with safety_response_id and safety: { responseId }, and GET
+  // /api/forms/responses/:id answers that OCSA-FRM-015 submitted with it, inspection: { id } naming it
+  // back, with its areas, what the crew said, its findings and its result in the screen's language.
+  // Every value is invented.
+  let step312 = false;
+  const WALK_312 = "insp-4";
+  const SAFETY_312 = "fr-safety-1";
+  const T312 = (lang, en, es) => (lang === "es" ? es : en);
+  const s312 = () => state.s312 || (state.s312 = { scheduled: [] });
+  const safetyForm312 = (lang) => {
+    const L = (en, es) => T312(lang, en, es);
+    const pick = [{ value: "pass", label: L("Pass", "Aprobado") }, { value: "fail", label: L("Fail", "No aprobado") }, { value: "na", label: L("Not applicable", "No aplica") }];
+    const site = S.find((x) => x.id === "s-1");
+    return {
+      draft: { id: SAFETY_312, formCode: "OCSA-FRM-015", formName: L("Safety Inspection Checklist", "Lista de inspecci\u00f3n de seguridad"), version: 3, status: "submitted",
+        siteId: site.id, siteName: site.name, createdAt: seed.shift(-7) + "T17:10:00Z", submittedAt: seed.shift(-7) + "T18:00:00Z", source: "inspection", inspection: { id: WALK_312 } },
+      inspection: { id: WALK_312 },
+      fields: [
+        { key: "site", label: L("Site", "Sitio"), type: "site", value: site.id, displayValue: site.name },
+        { key: "kind", label: L("Kind of inspection", "Tipo de inspecci\u00f3n"), type: "select", value: "monthly", displayValue: L("Monthly", "Mensual") },
+        { key: "areas", label: L("Areas", "\u00c1reas"), type: "grid",
+          rows: [{ key: "exits", label: L("Exits and walkways", "Salidas y pasillos") }, { key: "chemicals", label: L("Chemical storage", "Almacenamiento de qu\u00edmicos") }, { key: "ladders", label: L("Ladders", "Escaleras") }, { key: "first_aid", label: L("First aid kit", "Botiqu\u00edn") }],
+          columns: [{ key: "result", label: L("Result", "Resultado"), type: "select", options: pick }, { key: "note", label: L("Note", "Nota"), type: "text" }],
+          value: { exits: { result: "pass" }, chemicals: { result: "fail", note: L("Two bottles with no label", "Dos botellas sin etiqueta") }, ladders: { result: "pass" }, first_aid: { result: "na" } } },
+        { key: "crew", label: L("What the crew said", "Lo que dijo el equipo"), type: "grid",
+          columns: [{ key: "who", label: L("Who", "Qui\u00e9n"), type: "text" }, { key: "said", label: L("What they said", "Lo que dijo"), type: "text" }],
+          value: [{ who: L("Day porter", "Conserje de d\u00eda"), said: L("The labels peel off in the wet closet.", "Las etiquetas se despegan en el cuarto h\u00famedo.") }, { who: L("Crew lead", "L\u00edder del equipo"), said: L("No concerns this month.", "Sin inquietudes este mes.") }] },
+        { key: "findings", label: L("Findings", "Hallazgos"), type: "grid",
+          columns: [{ key: "finding", label: L("Finding", "Hallazgo"), type: "text" }, { key: "severity", label: L("Severity", "Gravedad"), type: "select", options: ["A", "B", "C", "D"].map((v) => ({ value: v, label: v })) }, { key: "owner", label: L("Owner", "Responsable"), type: "text" }, { key: "due", label: L("Due", "Vence"), type: "date" }],
+          value: [{ finding: L("Relabel the two bottles in the chemical closet", "Volver a etiquetar las dos botellas del cuarto de qu\u00edmicos"), severity: "C", owner: "Marcus Ferreira", due: seed.shift(0) }] },
+        { key: "overall", label: L("Overall result", "Resultado general"), type: "select", value: "pass_findings", displayValue: L("Pass with findings", "Aprobado con hallazgos") },
+        { key: "inspected_by", label: L("Inspected by", "Inspeccionado por"), type: "signoff", value: { name: "Priya Raghunathan", at: seed.shift(-7) + "T18:00:00Z" } },
+      ],
+      sections: [],
+      canSign: [], canWriteSupervisor: false, supervisorMissing: [],
+    };
+  };
+  function step312Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    if (path === "/api/inspections/scheduled" && method === "POST") {
+      const a = base();
+      const withSafety = b.withSafety !== false;
+      s312().scheduled.push({ body: clone(b), withSafety });
+      if (a && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { with_safety: withSafety });
+      return a;
+    }
+    if (path === "/api/inspections/scheduled" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((r) => Object.assign({}, r, { with_safety: r.with_safety !== false }));
+      return a;
+    }
+    const one = /^\/api\/inspections\/scheduled\/([^/]+)$/.exec(path);
+    if (one && method === "GET") {
+      const a = base();
+      if (!a || a.status !== 200 || !a.json || typeof a.json !== "object") return a;
+      a.json = Object.assign({}, a.json, { with_safety: true });
+      if (one[1] === WALK_312 && a.json.result) {
+        a.json.result = Object.assign({}, a.json.result, { safety_response_id: SAFETY_312 });
+        a.json.safety = { responseId: SAFETY_312 };
+      }
+      return a;
+    }
+    if (path === "/api/forms/responses/" + SAFETY_312 && method === "GET") return ok(safetyForm312(lang));
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6723,7 +6793,8 @@ function createStubs() {
     const over292 = () => (step292 ? step292Route(method, path, u.searchParams, body, record.language, over299) : over299());
     const over305 = () => (step305 ? step305Route(method, path, u.searchParams, body, record.language, over292) : over292());
     const over308 = () => (step308 ? step308Route(method, path, u.searchParams, body, record.language, over305) : over305());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over308) : over308();
+    const over312 = () => (step312 ? step312Route(method, path, u.searchParams, body, record.language, over308) : over308());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over312) : over312();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6826,6 +6897,10 @@ function createStubs() {
     setStep308: (v) => { step308 = v !== false; },
     setStep308Holder: (v) => { holder308 = v !== false; },
     setStep308NoVendors: (v) => { noVendors308 = v !== false; },
+    // The routes and keys of the API's Step 312 contract (the dashboard's Step 314), one inspection walk,
+    // on or off, laid over whichever steps the run arms; and every schedule sent since, with what it sent.
+    setStep312: (v) => { step312 = v !== false; },
+    scheduled312: () => (state.s312 ? state.s312.scheduled.slice() : []),
     // Every purchase order sent since the run armed Step 308, to whom.
     sent308: () => (state.s308 ? state.s308.sent.slice() : []),
     // Every welcome email tried since the run armed Step 292, with whom and how it went.
@@ -6846,7 +6921,7 @@ function createStubs() {
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null; library305Empty = false;
-      state.s308 = null; holder308 = true; noVendors308 = false;
+      state.s308 = null; holder308 = true; noVendors308 = false; state.s312 = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};

@@ -4864,6 +4864,14 @@ export const WORDS = {
   "Send to {0}": { es: "Enviar a {0}" },
   "Ordered {0}": { es: "Pedido el {0}" },
   "A supply order fills in the vendor's name, contact, phone, email and address from here, and offers only an approved vendor.": { es: "Una orden de suministros toma de aqu\u00ed el nombre, el contacto, el tel\u00e9fono, el correo y la direcci\u00f3n del proveedor, y solo ofrece proveedores aprobados." },
+  "Include the safety walk": { es: "Incluir el recorrido de seguridad" },
+  "The inspector fills in the safety inspection (OCSA-FRM-015) in the same walk and signs both once. Each is kept as its own record.": { es: "Quien inspecciona llena la inspecci\u00f3n de seguridad (OCSA-FRM-015) en el mismo recorrido y firma ambas una sola vez. Cada una se guarda como su propio registro." },
+  "Safety walk": { es: "Recorrido de seguridad" },
+  "Included|safety walk": { es: "Incluido" },
+  "Not included|safety walk": { es: "No incluido" },
+  "Open the safety inspection record": { es: "Abrir el registro de la inspecci\u00f3n de seguridad" },
+  "Filed as the safety walk of a scheduled inspection.": { es: "Presentado como el recorrido de seguridad de una inspecci\u00f3n programada." },
+  "Open the inspection": { es: "Abrir la inspecci\u00f3n" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

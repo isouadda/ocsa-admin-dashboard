@@ -139,6 +139,13 @@
 //     and Send again sends once more and keeps the date; an admin without the capability reads a
 //     request with no decision controls and downloads the ordering CSV; and with no approved vendor,
 //     Sign and order says to add one under Vendors.
+//   - against the stub's answers for the API's Step 312 contract (Step 314, one inspection walk), which
+//     the smoke check arms with setStep312, at 1280 in English and in Spanish and at 390 in English:
+//     Schedule Inspection offers Include the safety walk, on, and sends withSafety true, and unticked
+//     sends false; a completed walk's result says the safety walk was included and shows its safety part,
+//     read from the OCSA-FRM-015 record itself, with its answers, findings and result; and Open the
+//     safety inspection record opens that record under Forms, whose Open the inspection opens the
+//     inspection again by its address.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -211,9 +218,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -2271,6 +2278,72 @@ async function step309(d, origin, p, stubs) {
   });
 }
 
+// Step 314's one inspection walk (STEP312_CONTRACT.md section 3), each a line, against the stub armed
+// with setStep312 (audit/stubs.js): Schedule Inspection with Include the safety walk on, sending
+// withSafety true, and off, sending false; a completed walk's result showing its safety part; and the
+// links both ways between the inspection and its OCSA-FRM-015 record. Every line waits for what it reads.
+const WALK_314 = "insp-4";
+const SAFETY_314 = "fr-safety-1";
+async function step314(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const win = () => d.page.locator("div[style*='z-index: 500']").last();
+  const schedule = async (withSafety) => {
+    await go(d, "inspections");
+    await d.page.getByRole("button", { name: d.say("Scheduled|inspections") }).first().click();
+    await d.page.getByRole("button", { name: d.say("Schedule Inspection") }).first().click();
+    await until(d, "[data-schedule-with-safety]");
+    const box = d.page.locator('[data-schedule-with-safety] input[type="checkbox"]');
+    if (!(await box.isChecked())) return { why: "Include the safety walk is not on to start" };
+    if (!withSafety) await box.uncheck();
+    await win().locator("select").nth(0).selectOption("tp-1");
+    await win().locator("select").nth(1).selectOption(seed.SITES[1].id);
+    await win().locator('input[type="date"]').first().fill(seed.shift(9));
+    const before = stubs.scheduled312().length;
+    await win().getByRole("button", { name: d.say("Schedule|verb"), exact: true }).click();
+    for (let i = 0; i < 30 && stubs.scheduled312().length === before; i++) await wait(100);
+    return { sent: stubs.scheduled312()[before] };
+  };
+  await check("Schedule Inspection offers Include the safety walk, on, and sends withSafety true", async () => {
+    const r = await schedule(true);
+    if (r.why) return r.why;
+    if (!r.sent) return "nothing was scheduled";
+    return r.sent.body.withSafety === true ? "" : "it sent withSafety " + JSON.stringify(r.sent.body.withSafety);
+  });
+  await check("unticked, Include the safety walk sends withSafety false", async () => {
+    const r = await schedule(false);
+    if (r.why) return r.why;
+    if (!r.sent) return "nothing was scheduled";
+    return r.sent.body.withSafety === false ? "" : "it sent withSafety " + JSON.stringify(r.sent.body.withSafety);
+  });
+  await check("a completed walk's result shows its safety part: its answers, findings and result", async () => {
+    await go(d, "inspections", [WALK_314], '[data-inspection-safety-answer="findings"]');
+    const read = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/forms/responses/" + SAFETY_314 && c.json && Array.isArray(c.json.fields)).pop();
+    if (!read) return "the safety record was not read";
+    if ((await d.page.locator('[data-inspection-with-safety="true"]').count()) !== 1) return "the inspection does not say the safety walk was included";
+    const keys = await d.page.locator("[data-inspection-safety-answer]").evaluateAll((els) => els.map((e) => e.getAttribute("data-inspection-safety-answer")));
+    const want = ["site", "kind", "areas", "crew", "findings", "overall"];
+    if (keys.join() !== want.join()) return "it draws " + JSON.stringify(keys);
+    const result = read.json.fields.find((f) => f.key === "overall").displayValue;
+    return (await d.page.locator('[data-inspection-safety-answer="overall"]').innerText()).indexOf(result) >= 0 ? "" : "the overall result is not drawn";
+  });
+  await check("the safety part opens its OCSA-FRM-015 record, which opens the inspection again", async () => {
+    await go(d, "inspections", [WALK_314], "[data-open-safety-record]");
+    await d.page.locator("[data-open-safety-record]").click();
+    await until(d, '[data-filed-inspection="' + WALK_314 + '"]');
+    if (!/^#forms\/reports\//.test(await d.page.evaluate(() => window.location.hash))) return "the record did not open under Forms";
+    await d.page.locator("[data-open-inspection]").click();
+    await until(d, '[data-inspection-safety="' + SAFETY_314 + '"]');
+    return (await d.page.evaluate(() => window.location.hash)) === "#inspections/" + WALK_314 ? "" : "the inspection did not open by its address";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -2300,6 +2373,8 @@ async function runPass(browser, origin, p) {
   if (p.step306) stubs.setStep305(true);
   // Step 308's answers (the dashboard's Step 309, supply orders) are laid over Step 280's requests.
   if (p.step309) stubs.setStep308(true);
+  // Step 312's answers (the dashboard's Step 314, one inspection walk) are laid over those.
+  if (p.step314) stubs.setStep312(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -2404,6 +2479,7 @@ async function runPass(browser, origin, p) {
     if (p.step293) await step293(d, origin, p, stubs);
     if (p.step306) await step306(d, origin, p, stubs);
     if (p.step309) await step309(d, origin, p, stubs);
+    if (p.step314) await step314(d, origin, p, stubs);
 
     // Help, asked one question.
     {
