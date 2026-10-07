@@ -20,6 +20,11 @@
 //
 // Any pull request that adds or changes a guide entry reruns this for that entry's pictures, and
 // npm run guide-check holds the files to the guide. It is not part of npm run smoke.
+//
+// Since Step 293 the run keeps guide/shots-taken.json, each picture's name with the day it was taken,
+// YYYY-MM-DD where the run is: a picture taken in both languages in one run gets that day, one taken
+// in one language only keeps the day it had, and a name no longer on the list is taken out. npm run
+// guide-check fails an entry whose Last checked: is later than the day of any of its pictures.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -31,6 +36,7 @@ const { BUILD_DIR, ROOT } = require("./lib/build");
 const seed = require("./seed");
 
 const OUT = path.join(ROOT, "public", "guide-shots");
+const TAKEN = path.join(ROOT, "guide", "shots-taken.json");
 const GUIDE = path.join(ROOT, "guide", "APP-DASHBOARD.md");
 const SUFFIX = " (admin dashboard)";
 const NAME = /^[a-z0-9-]{1,60}$/;
@@ -446,7 +452,23 @@ const SHOTS = [
     } },
   // Step 284: each person's sign-in under their status, one locked with Unlock.
   { name: "staff-sign-in", entry: "See whether a person can sign in, and unlock them",
-    open: "staff", ready: '[data-staff-unlock="u-staff-5"]' },
+    open: "staff", ready: '[data-staff-unlock="u-staff-5"]',
+    act: async (c) => { await until(c, '[data-sign-in-state*="welcome"]'); await top(c, '[data-staff-unlock="u-staff-5"]', 260); } },
+  // Step 293: the welcome email, from Add Staff's window and from a profile.
+  { name: "staff-added-welcome", entry: "Add a staff member",
+    open: "staff", ready: "table tbody tr",
+    act: async (c) => {
+      await press(c, "Add Staff"); await until(c, MODAL);
+      const inputs = inModal(c).locator("input");
+      await inputs.nth(0).fill("Imani"); await inputs.nth(1).fill("Castellanos");
+      await inputs.nth(2).fill("2155550199"); await inputs.nth(3).fill("imani.castellanos@example.invalid");
+      await inModal(c).getByRole("button", { name: c.say("Add Staff") }).click();
+      await until(c, "[data-added-welcome]");
+    } },
+  { name: "staff-welcome-email", entry: "Send a welcome email",
+    open: "staff/u-staff-6", ready: "[data-welcome-send]" },
+  { name: "staff-welcome-no-email", entry: "Send a welcome email",
+    open: "staff/u-staff-9", ready: "[data-welcome-no-email]" },
   { name: "staff-reset-pin", entry: "Reset a staff member's PIN",
     open: "staff/u-staff-6", ready: "text=Ngozi Okonkwo",
     act: async (c) => { await press(c, "Reset PIN"); await until(c, MODAL); await inModal(c).locator("input").first().fill("4827"); } },
@@ -464,7 +486,47 @@ const SHOTS = [
     } },
   { name: "cases-case-window", entry: "Respond to a Speak Up case",
     open: "cases", ready: "table tbody tr",
-    act: async (c) => { await click(c, "table tbody tr"); await until(c, MODAL); } },
+    act: async (c) => { await click(c, "table tbody tr"); await until(c, "[data-case-log-entry]"); await top(c, "[data-case-log]", 160); } },
+  { name: "cases-closing-note", entry: "Respond to a Speak Up case",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-log-entry]");
+      await c.page.locator("[data-case-status]").selectOption("resolved");
+      await typeIn(c, "[data-case-closing-note]", "Cover was added to the overnight shift and the person who raised it was told.", "Se agreg\u00f3 cobertura al turno de noche y se le avis\u00f3 a quien lo plante\u00f3.");
+      await top(c, "[data-case-status]", 200);
+    } },
+  { name: "cases-add-update", entry: "Add to a case as it goes",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-update]");
+      await c.page.locator("[data-case-update-kind]").selectOption("conversation");
+      await pickIn(c, "[data-case-update]", "u-staff-6", "Okonkwo");
+      await typeIn(c, "[data-case-update-body]", "Went over the overnight rota with them at the start of the shift.", "Revis\u00f3 con la persona el turno de noche al empezar el turno.");
+      await c.page.locator("[data-case-update-files]").setInputFiles({ name: "rota-meeting.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF\n", "latin1") });
+      await until(c, "[data-case-update-file]");
+      await blur(c);
+      await top(c, "[data-case-update]", 20);
+    } },
+  { name: "cases-correct-entry", entry: "Correct an entry in a case log",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-log-entry]");
+      await click(c, '[data-case-log-entry="cu-1"] [data-case-log-correct]');
+      await until(c, '[data-case-update-correcting="cu-1"]');
+      await typeIn(c, "[data-case-update-body]", "The rota was read on the second day of the week.", "El turno se ley\u00f3 el segundo d\u00eda de la semana.");
+      await blur(c);
+      await top(c, "[data-case-update]", 20);
+    } },
+  { name: "cases-print", entry: "Print a case",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-print]");
+      await click(c, "[data-case-print]");
+      let html = "";
+      for (let i = 0; i < 40 && !html; i++) { await wait(100); const p = await c.d.prints(); html = p.length ? p[p.length - 1].html : ""; }
+      if (!html) throw new Error("Print case opened no page");
+      await c.page.setContent(html);
+    } },
   { name: "issues-issue-window", entry: "Review a reported problem and assign it",
     open: "issues", ready: "[data-issue-row]",
     act: async (c) => { await click(c, '[data-issue-row="i-1"]'); await until(c, "[data-issue-status]"); } },
@@ -1383,6 +1445,9 @@ const SHOTS = [
     } },
   { name: "training-gaps", entry: "See training gaps by role and site",
     open: "training/gaps", ready: "[data-gaps-person]" },
+  { name: "training-gaps-missing", entry: "See who has no record of a training",
+    open: "training/gaps", ready: "[data-gaps-person]",
+    act: async (c) => { await c.page.locator('[data-gaps-filter="status"]').selectOption("missing"); await wait(400); await until(c, "[data-gaps-person]"); } },
   { name: "training-gaps-person", entry: "See training gaps by role and site",
     open: "training/gaps", ready: "[data-gaps-person]",
     act: async (c) => { await click(c, "[data-gaps-person]"); await until(c, "[data-person-training] [data-training-item]"); } },
@@ -1560,7 +1625,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the
@@ -1635,6 +1700,17 @@ async function takeOne(session, origin, shot, lang) {
   return jpeg(page);
 }
 
+// The day each picture was taken (Step 293), read and written in name order, one name to a line.
+const dayHere = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+function readTaken() {
+  try { return JSON.parse(fs.readFileSync(TAKEN, "utf8")); } catch (e) { return {}; }
+}
+function writeTaken(days) {
+  const names = Object.keys(days).sort();
+  const body = names.map((n) => "  " + JSON.stringify(n) + ": " + JSON.stringify(days[n])).join(",\n");
+  fs.writeFileSync(TAKEN, "{\n" + body + (names.length ? "\n" : "") + "}\n");
+}
+
 // ---- the run ----------------------------------------------------------------------------------
 function chosen(args) {
   const words = args.filter((a) => !a.startsWith("--"));
@@ -1690,8 +1766,10 @@ async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const started = Date.now();
   let failed = 0, taken = 0;
+  // Which languages of each picture this run took, for guide/shots-taken.json.
+  const tookIn = {};
   const report = (ok, lang, name, what) => {
-    if (ok) taken += 1; else failed += 1;
+    if (ok) { taken += 1; (tookIn[name] = tookIn[name] || new Set()).add(lang); } else failed += 1;
     process.stdout.write((ok ? "ok    " : "FAIL  ") + lang + "  " + name.padEnd(44) + what + "\n");
   };
   const server = await serve(BUILD_DIR);
@@ -1706,6 +1784,14 @@ async function main() {
     await server.close();
   }
   const listed = new Set(SHOTS.map((s) => s.name));
+  const days = readTaken();
+  const today = dayHere(new Date());
+  Object.keys(tookIn).forEach((name) => {
+    if (LANGS.every((l) => tookIn[name].has(l))) days[name] = today;
+    else process.stdout.write("note  " + name + " was taken in " + [...tookIn[name]].join(" and ") + " alone, so its day in guide/shots-taken.json stays " + (days[name] || "unset") + "\n");
+  });
+  Object.keys(days).forEach((name) => { if (!listed.has(name)) delete days[name]; });
+  writeTaken(days);
   const strays = fs.readdirSync(OUT).filter((f) => !listed.has(f.replace(/\.(en|es)\.jpg$/, "")));
   strays.forEach((f) => process.stdout.write("note  public/guide-shots/" + f + " is on no line of the list\n"));
   process.stdout.write(taken + " taken, " + failed + " failed, in " + Math.round((Date.now() - started) / 1000) + "s\n");

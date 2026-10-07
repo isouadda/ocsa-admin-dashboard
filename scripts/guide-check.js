@@ -8,7 +8,12 @@
 //   a Picture: line breaks its rules (STEP276_CONTRACT.md, section 1): an entry names more than two, a
 //   name is not 1 to 60 of a-z, 0-9 and -, the line is not just before Last checked:, either language's
 //   file in public/guide-shots/ is missing or over 250 KB, two entries name the same picture, or a file
-//   in public/guide-shots/ is named by no entry.
+//   in public/guide-shots/ is named by no entry;
+//   a picture is older than its entry (Step 293, STEP292_CONTRACT.md section 4): the entry's Last
+//   checked: is later than the day guide/shots-taken.json gives any of its pictures, a named picture
+//   has no day there, or the file names a picture no entry names;
+//   an entry has no Picture: line and guide/no-picture.txt does not list its title with a reason, or
+//   that file lists a title that is not an entry, one with no reason, or one that has a picture.
 // Each failure is printed with its line. With GUIDE_CHECK_BASE naming a commit, a change since it that
 // touches src/ and leaves the guide file alone draws a warning that the guide may need an entry, and
 // does not fail. It prints the file's fingerprint, which is the one the sync answers once the file is
@@ -24,6 +29,8 @@ const ROOT = path.join(__dirname, "..");
 const GUIDE = "guide/APP-DASHBOARD.md";
 const CSV = "translation/dashboard_words.csv";
 const ALLOW = "guide/check-allow.txt";
+const TAKEN = "guide/shots-taken.json";
+const NO_PICTURE = "guide/no-picture.txt";
 const SHOTS = "public/guide-shots";
 const SHOT_LANGS = ["en", "es"];
 const SHOT_MAX_BYTES = 250 * 1024;
@@ -123,7 +130,63 @@ function checkPictures(g, fail, failAt) {
     if (!m || SHOT_LANGS.indexOf(m[2]) < 0) failAt(SHOTS + "/" + f, "This file is not <name>.en.jpg or <name>.es.jpg.");
     else if (!named.has(m[1])) failAt(SHOTS + "/" + f, "No entry names the picture " + m[1] + ".");
   });
-  return named.size;
+  return named;
+}
+
+// Every picture taken after its entry was last checked (Step 293). guide/shots-taken.json, which npm
+// run shots writes, gives each picture's name the day it was taken. An entry whose Last checked: is
+// later than the day of any of its pictures fails on that line, with the command that retakes them.
+function checkPictureDays(g, named, failures, guideRel) {
+  const file = path.join(ROOT, TAKEN);
+  let days = {};
+  if (fs.existsSync(file)) {
+    try { days = JSON.parse(fs.readFileSync(file, "utf8")); }
+    catch (e) { failures.push({ file: TAKEN, line: 1, message: "This file is not JSON: " + String(e.message || e).split("\n")[0] }); return; }
+  }
+  Object.keys(days).forEach((name) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(days[name]))) failures.push({ file: TAKEN, line: 1, message: "The day of " + name + " is not YYYY-MM-DD." });
+    if (!named.has(name)) failures.push({ file: TAKEN, line: 1, message: "No entry names the picture " + name + ". npm run shots takes it out." });
+  });
+  g.entries.forEach((e) => {
+    const mine = [...named].filter(([, p]) => p.title === e.title).map(([name, p]) => ({ name, at: p.at }));
+    if (!mine.length) return;
+    const at = e.body.findIndex((l) => /^Last checked:/.test(l));
+    const checked = at >= 0 ? (/^Last checked:\s*(\d{4}-\d{2}-\d{2})/.exec(e.body[at]) || [])[1] : "";
+    const retake = 'npm run shots -- "' + e.title + '"';
+    mine.forEach((p) => {
+      if (!days[p.name]) { failures.push({ file: guideRel, line: p.at, message: "The picture " + p.name + " has no day in " + TAKEN + ". " + retake + " takes it and writes its day." }); return; }
+      if (checked && checked > days[p.name]) failures.push({ file: guideRel, line: e.line + 1 + at, message: "The entry " + e.title + " was last checked " + checked + ", after its picture " + p.name + " was taken on " + days[p.name] + ". " + retake + " retakes it." });
+    });
+  });
+}
+
+// The entries with no picture, and why (Step 293). Each line of guide/no-picture.txt is an entry's
+// title, a bar, and the reason it has no picture; a line starting # is a comment. An entry with no
+// Picture: line that the file does not list fails, and so does a line naming a title that is not an
+// entry, one with no reason, or one whose entry has a picture.
+function checkNoPicture(g, named, failures, guideRel) {
+  const excused = new Map();
+  const file = path.join(ROOT, NO_PICTURE);
+  if (fs.existsSync(file)) {
+    fs.readFileSync(file, "utf8").split("\n").forEach((raw, i) => {
+      const l = raw.trim();
+      if (!l || l.startsWith("#")) return;
+      const bar = l.indexOf("|");
+      const title = (bar >= 0 ? l.slice(0, bar) : l).trim();
+      const why = bar >= 0 ? l.slice(bar + 1).trim() : "";
+      if (!why) failures.push({ file: NO_PICTURE, line: i + 1, message: "The line for " + title + " gives no reason after a bar." });
+      excused.set(title, i + 1);
+    });
+  }
+  const pictured = new Set([...named.values()].map((p) => p.title));
+  const titles = new Set(g.entries.map((e) => e.title));
+  excused.forEach((line, title) => {
+    if (!titles.has(title)) failures.push({ file: NO_PICTURE, line, message: "No entry is titled " + title + "." });
+    else if (pictured.has(title)) failures.push({ file: NO_PICTURE, line, message: "The entry " + title + " has a picture, so it comes out of this file." });
+  });
+  g.entries.forEach((e) => {
+    if (e.title && !pictured.has(e.title) && !excused.has(e.title)) failures.push({ file: guideRel, line: e.line, message: "The entry " + e.title + " has no Picture: line. Give it one with npm run shots, or list it in " + NO_PICTURE + " with the reason it has none." });
+  });
 }
 
 // An allowed pair, one to a line, written as the guide writes it. Spanish is written as \u escapes so
@@ -191,7 +254,10 @@ function main() {
     if (PHONE.some((re) => re.test(l))) fail(i + 1, "This line holds a phone number. The repository is public.");
   });
   allowed.forEach((a) => { if (!a.used) console.log(ALLOW + ":" + a.line + ": this pair is no longer in the guide, and can come out of the list."); });
-  const pictures = checkPictures(g, fail, (file, message) => failures.push({ file, line: 1, message }));
+  const named = checkPictures(g, fail, (file, message) => failures.push({ file, line: 1, message }));
+  checkPictureDays(g, named, failures, guideRel);
+  checkNoPicture(g, named, failures, guideRel);
+  const pictures = named.size;
 
   const base = process.env.GUIDE_CHECK_BASE;
   if (base) {

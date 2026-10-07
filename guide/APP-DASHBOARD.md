@@ -82,24 +82,27 @@ Last checked: 2026-10-07
 
 ## Add a staff member (admin dashboard)
 Who can do this: admins
-1. Click **Staff Management**.
-2. Click **Add Staff**.
+1. Click **Staff Management** (**Gestión de personal**).
+2. Click **Add Staff** (**Agregar persona**).
 3. Fill in first name, phone and email, and the role and employment type.
-4. Click **Add Staff** to save. A window stays open with the **Temporary PIN** (**PIN temporal**), hidden; **Show** (**Mostrar**) reveals it and **Copy** (**Copiar**) copies it for the person's sign-in slip.
-5. If the person has an email, **Send activation invite** (**Enviar invitación de activación**) emails them a link to set up their account; **Invite sent.** (**Invitación enviada.**) confirms it.
-The first time the person signs in with the temporary PIN, the staff app asks them to choose their own.
-Words people use for this: new hire, add an employee, onboard someone, set up an account for someone, temporary pin, activation invite.
+4. Click **Add Staff** (**Agregar persona**) to save. The person is active at once, and the welcome email goes to their email by itself.
+5. The window that stays open says **Welcome email sent to {0}.** (**Se envió el correo de bienvenida a {0}.**) with the address, or **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason, such as a placeholder address.
+6. The **Temporary PIN** (**PIN temporal**) stays in the window, hidden, in case the email does not reach them: **Show** (**Mostrar**) reveals it and **Copy** (**Copiar**) copies it for the person's sign-in slip.
+7. To send the email again, click **Send it again** (**Enviarlo de nuevo**), or **Send welcome email** (**Enviar el correo de bienvenida**) when the first one did not go.
+The welcome email has a button to set up the account, in English and in Spanish. The first time the person signs in with the temporary PIN instead, the staff app asks them to choose their own.
+If it does not work: fix a placeholder email on the person's profile, then send the welcome email from there. See Send a welcome email.
+Words people use for this: new hire, add an employee, onboard someone, set up an account for someone, temporary pin, welcome email, activation invite.
 Picture: staff-add-window
-Last checked: 2026-09-28
-
+Picture: staff-added-welcome
+Last checked: 2026-10-07
 ## Approve a new employee's registration (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management**.
 2. Click the **Pending** tab.
 3. Click **Approve** on the person's row.
+4. The message says **Welcome email sent.** (**Se envió el correo de bienvenida.**) when the welcome email went to the person, or **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason.
 Picture: staff-pending
-Last checked: 2026-09-16
-
+Last checked: 2026-10-07
 ## Edit a staff member's information (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
@@ -127,11 +130,12 @@ Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**) and open the person's profile.
 2. When the profile shows the **Employment** (**Empleo**) card, its buttons record why: **End employment** (**Terminar el empleo**), **Put on leave** (**Poner en licencia**), **Return from leave** (**Regresar de la licencia**) or **Rehire** (**Recontratar**). Each has its own entry.
 3. A profile without that card has **Deactivate** (**Desactivar**) or **Reactivate** (**Reactivar**).
-4. Their records stay in the system either way.
-Words people use for this: someone quit, terminate, fire, let go, turn off an account, bring someone back, deactivate, rehire, leave of absence.
+4. Bringing back someone who has never signed in sends them the welcome email, and the message says **Welcome email sent.** (**Se envió el correo de bienvenida.**) or **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason.
+5. Their records stay in the system either way.
+If it does not work: when the server refuses to show the person's employment, its own sentence shows under **Employment** (**Empleo**), such as a missing permission; ask an admin to check your access. When it could not be read, **Employment could not be loaded. Try again.** (**No se pudo cargar el empleo. Vuelva a intentarlo.**) shows with **Try again** (**Intentar de nuevo**).
+Words people use for this: someone quit, terminate, fire, let go, turn off an account, bring someone back, deactivate, rehire, leave of absence, cannot end employment.
 Picture: staff-employment-card
 Last checked: 2026-10-07
-
 ## Assign a staff member to a site (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** and open the person's profile.
@@ -155,14 +159,16 @@ Last checked: 2026-10-07
 ## Respond to a Speak Up case (admin dashboard)
 Who can do this: admins, except anyone the case is about
 1. Click **Cases**. It opens on **Needs response**, with the most urgent first.
-2. Click a case to open it.
+2. Click a case to open it. The **Case log** (**Registro del caso**) under the summary lists everything done on the case, oldest first, with who did it and when.
 3. Click **Take this case** to hold it yourself, or click **Hand to** (**Entregar a**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick the person and click **Hand over** (**Entregar**).
-4. Change the status, add resolution notes, and click **Save changes**. The first save counts as the team's response.
-5. To give it back to the team, click **Release**.
-6. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
-If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left.
-Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up.
+4. To record a conversation, a meeting, a phone call, a note or a file, use **Add an update** (**Agregar una actualización**) at the bottom of the log.
+5. Change the status and click **Save changes**. The first save counts as the team's response. Setting **Resolved** (**Resuelto**) or **Closed** (**Cerrado**) asks for a **Closing note** (**Nota de cierre**), which goes into the log as the case's last entry.
+6. To give it back to the team, click **Release**.
+7. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
+If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left. **Save changes** with Resolved or Closed and an empty closing note says **Write the closing note.** (**Escriba la nota de cierre.**) Taking, releasing, handing over, escalating and every status change are written into the log by the app.
+Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up, close a case, closing note, nota de cierre.
 Picture: cases-case-window
+Picture: cases-closing-note
 Last checked: 2026-10-07
 
 ## Add an HR document for an employee (admin dashboard)
@@ -345,11 +351,11 @@ Who can do this: admins and supervisors
 1. Click **Inspections**.
 2. Click the **Scheduled** tab.
 3. Click **Schedule Inspection**.
-4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date.
+4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date. Only active supervisors are listed.
 5. Click **Schedule**.
+If it does not work: a supervisor who has left is not listed. An inspection already held by someone who left shows them with their status until you pick someone else.
 Picture: inspections-schedule
 Last checked: 2026-10-07
-
 ## Create an inspection template (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Inspections** (**Inspecciones**).
@@ -506,9 +512,10 @@ Who can do this: admins and supervisors
 2. Under **Who has no record**, pick the training in **Pick a training...**.
 3. To see one site, pick it in **All sites**.
 4. The line under the pickers counts the active people with no record of that training, such as **7 of 10 have no record**, and each of them is listed by name.
-5. Once the Training tab shows **Gaps** (**Brechas**), it takes the place of **Who has no record** (**Quién no tiene registro**): see training gaps by role and site.
+5. Once the Training tab shows **Gaps** (**Brechas**), it takes the place of **Who has no record** (**Quién no tiene registro**). There, pick **Missing** (**Falta**) in **All statuses** (**Todos los estados**) to list the people with no record, and a topic in **All topics** (**Todos los temas**) to see one training: see training gaps by role and site.
 Words people use for this: who still needs training, who is missing training, who has not been trained, training gaps.
-Last checked: 2026-10-05
+Picture: training-gaps-missing
+Last checked: 2026-10-07
 
 ## Print a training attendance sheet (admin dashboard)
 Who can do this: admins and supervisors
@@ -2255,13 +2262,13 @@ Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**). Under each person's **Status** (**Estado**), and on their profile, a line says how their sign-in stands.
 2. **Locked until {0}** (**Bloqueado hasta {0}**) means too many wrong tries, with the time sign-in opens again. **On a given PIN** (**Con un PIN asignado**) means they still have the PIN the office gave and choose their own at their next sign-in. **No working email** (**Sin un correo que funcione**) means no sign-in code or reset link can reach their email; fix the email on their profile.
 3. The last line reads **Last signed in {0}** (**Último inicio de sesión: {0}**) with the day and time, or **Never signed in** (**Nunca ha iniciado sesión**).
-4. To let a locked person try again now, click **Unlock** (**Desbloquear**) under their status or on their profile. **Sign-in unlocked.** (**Inicio de sesión desbloqueado.**) confirms it.
-5. **Reset PIN** (**Restablecer el PIN**) also unlocks the person and signs them out everywhere; see the entry on resetting a staff member's PIN.
+4. For someone who has never signed in, a line under it says **Welcome email sent {0}** (**Correo de bienvenida enviado el {0}**) with the day, or **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason.
+5. To let a locked person try again now, click **Unlock** (**Desbloquear**) under their status or on their profile. **Sign-in unlocked.** (**Inicio de sesión desbloqueado.**) confirms it.
+6. **Reset PIN** (**Restablecer el PIN**) also unlocks the person and signs them out everywhere; see the entry on resetting a staff member's PIN.
 If it does not work: these lines show once the system sends them.
-Words people use for this: locked out, unlock, too many tries, cannot sign in, never signed in, last login, sign-in, desbloquear.
+Words people use for this: locked out, unlock, too many tries, cannot sign in, never signed in, last login, sign-in, welcome email, desbloquear.
 Picture: staff-sign-in
 Last checked: 2026-10-07
-
 ## Pick a person by name, badge number or employee ID (admin dashboard)
 Who can do this: anyone signed in
 1. Wherever the dashboard asks for a person, such as **Staff Member *** (**Persona ***) in **Schedule Shift** (**Programar turno**), **Assign To *** (**Asignar a ***) on a task, **Hand to** (**Entregar a**) on a case or **Person** (**Persona**) on time off, click the field.
@@ -2339,4 +2346,53 @@ Who can do this: admins and supervisors
 If it does not work: the row shows once the system files signed pages.
 Words people use for this: signed handbook page, acknowledgment page, proof they signed, handbook signature, acuse de recibo.
 Picture: hr-folder-signed-page
+Last checked: 2026-10-07
+
+## Add to a case as it goes (admin dashboard)
+Who can do this: admins, except anyone the case is about
+1. Click **Cases** and click the case to open it.
+2. Under the **Case log** (**Registro del caso**), go to **Add an update** (**Agregar una actualización**) at the bottom.
+3. Choose the **Type** (**Tipo**): **Note** (**Nota**), **Conversation** (**Conversación**), **Meeting** (**Reunión**), **Phone call** (**Llamada telefónica**) or **File** (**Archivo**).
+4. Under **With** (**Con**), type a name, badge number or employee ID and pick the person, or type the name of someone outside the company in the box under it. Leave it empty for a note.
+5. Change **When it happened** (**Cuándo ocurrió**) if it was earlier. It starts at now and cannot be later than now.
+6. Write **What was said or done** (**Qué se dijo o se hizo**).
+7. To add a picture or a PDF, choose it under **Attach files** (**Adjuntar archivos**): up to 5, 10 MB each.
+8. Click **Add to the case log** (**Agregar al registro del caso**). The entry shows at the end of the log with your name and the time.
+If it does not work: every type but File needs text, and File needs at least one file. A picture must be JPEG, PNG, WebP or HEIC. Entries cannot be changed once added; to fix one, see Correct an entry in a case log. To open a file in the log, click its name.
+Words people use for this: case notes, add a note to a case, log a conversation, record a meeting, attach a file to a case, case update, notas del caso.
+Picture: cases-add-update
+Last checked: 2026-10-07
+
+## Correct an entry in a case log (admin dashboard)
+Who can do this: admins, except anyone the case is about
+1. Click **Cases** and click the case to open it.
+2. In the **Case log** (**Registro del caso**), find the entry and click **Correct this** (**Corregir esto**) under it.
+3. The form at the bottom reads **Add a correction** (**Agregar una corrección**) and names the entry it corrects. Write what is right in **What was said or done** (**Qué se dijo o se hizo**).
+4. Click **Add to the case log** (**Agregar al registro del caso**).
+5. The correction shows at the end of the log and names the entry it corrects; that entry now says **Corrected below** (**Corregida más abajo**). Click either line to jump to the other.
+If it does not work: the first entry stays as it was written, beside its correction, so the log keeps both. **Cancel** (**Cancelar**) leaves the form without adding the correction.
+Words people use for this: fix a case note, wrong date in a case, edit a case entry, change a case note, corregir una nota del caso.
+Picture: cases-correct-entry
+Last checked: 2026-10-07
+
+## Print a case (admin dashboard)
+Who can do this: admins, except anyone the case is about
+1. Click **Cases** and click the case to open it.
+2. Click **Print case** (**Imprimir el caso**) at the top of the window.
+3. A page opens with the case's details, the summary and the whole **Case log** (**Registro del caso**), each entry numbered, with its files listed by name. Print it or save it as a PDF from the browser.
+If it does not work: when nothing opens, allow pop-ups for the dashboard and click **Print case** (**Imprimir el caso**) again. The files are listed by name; open each one from the case log.
+Words people use for this: print a case, case report, export a case, case pdf, imprimir el caso.
+Picture: cases-print
+Last checked: 2026-10-07
+
+## Send a welcome email (admin dashboard)
+Who can do this: admins
+1. Click **Staff Management** (**Gestión de personal**) and open the person's profile. The welcome email is for an active person who has never signed in.
+2. Click **Send welcome email** (**Enviar el correo de bienvenida**). When one already went, the button reads **Send it again** (**Enviarlo de nuevo**) and asks **Send a new welcome email? The last link stops working.** (**¿Enviar un nuevo correo de bienvenida? El enlace anterior dejará de funcionar.**) first.
+3. **Welcome email sent.** (**Se envió el correo de bienvenida.**) confirms it, and the line under the person's status says **Welcome email sent {0}** (**Correo de bienvenida enviado el {0}**) with the day.
+4. The email, in English and in Spanish, has a button to set up the account. The link works once, for 7 days. The person chooses a PIN and a language, then signs in with their badge number, phone or email.
+If it does not work: the button is grayed out with **No working email** (**Sin un correo que funcione**) when the person's email is a placeholder; fix the email on their profile first. A refusal says why, such as **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason. Someone who has already signed in gets no welcome email; send them a PIN reset link instead.
+Words people use for this: welcome email, activation email, resend the invite, set up link, they never got the email, correo de bienvenida.
+Picture: staff-welcome-email
+Picture: staff-welcome-no-email
 Last checked: 2026-10-07

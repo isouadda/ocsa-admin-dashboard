@@ -128,6 +128,30 @@ Then it checks, one line a check:
   time off) in the list and is approved in its window. The stub serves the support routes, a PTO request,
   the signed page in u-staff-5's folder, and the periodic work, workload plans and discipline steps the
   pictures' answers hold, since Sites opens on the list and Open a case waits for the steps.
+- against the stub's answers for the API's Step 299 contract (Step 300, the case log), which the smoke
+  check arms with `setStep299` over whichever steps a pass arms: at 1280 in English and in Spanish and at
+  390 in English, a case opens with its log in the order the API gives it, with Happened, who a call was
+  with, Corrected below on the corrected entry and the correction pointing back to it, and no Resolution
+  notes box; a conversation is added with a person picked in the searchable picker and a PDF, sent as a
+  data URL, and drawn last with its author, its time, who it was with and the file, which opens behind
+  the token; Correct this on the first entry adds a correction of it, which then says Corrected below;
+  Resolved asks for the closing note, refuses to save without it, then sends `closing_note` and no
+  `resolution_notes`, and the log draws the closing entry; and Print case prints every entry with its
+  text and its files by name. The stub keeps each case's entries, writes its own for a status change, a
+  take, a release, a hand to, an escalation and a close, refuses an update in the routes' style with keys
+  naming the field, and answers a file behind the token.
+- against the stub's answers for the API's Step 292 contract (Step 293, the welcome email), which the
+  smoke check arms with `setStep292` over whichever steps a pass arms: at 1280 in English and in Spanish
+  and at 390 in English, Add Staff says "Welcome email sent to" the address with the PIN still hidden
+  behind Show; a placeholder address draws the reason the create answered and Send welcome email; the
+  profile's Send it again asks "Send a new welcome email? The last link stops working." first and then
+  sends; Send welcome email is disabled with No working email for a person whose email is a
+  placeholder; a rehire with no sites restored toasts "Employment updated. Welcome email sent."; and the
+  list's sign-in line says when the welcome email went for someone who has never signed in. At 1280 in
+  English, Schedule inspection's Assigned Supervisor leaves out a supervisor the list answers as
+  inactive. The stub creates a person active, keeps each person's latest welcome, says its reason in
+  the screen's language, answers welcome where an account is made active, refuses an invite in the 422
+  style of `helpers/invites.js`, and lists a supervisor who has left.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -192,7 +216,16 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-ticket-note`, `data-ticket-save`, `data-tickets`, `data-tickets-export-open`,
 `data-tickets-export-text`, `data-settings-tab`, `data-support-contact`, `data-support-contact-name`,
 `data-support-contact-email`, `data-support-contact-save`, `data-support-contact-refusal`,
-`data-folder-signed-page`, `data-folder-signed-language` and `data-time-off-type`. Since Step 291 a person
+`data-folder-signed-page`, `data-folder-signed-language` and `data-time-off-type`, and Step 300's by
+`data-case-log`, `data-case-log-entry`, `data-case-log-kind`, `data-case-log-author`, `data-case-log-when`,
+`data-case-log-happened`, `data-case-log-with`, `data-case-log-body`, `data-case-log-file`,
+`data-case-log-correct`, `data-case-log-correction-of`, `data-case-log-corrected`, `data-case-update`,
+`data-case-update-kind`, `data-case-update-with`, `data-case-update-body`, `data-case-update-files`,
+`data-case-update-file`, `data-case-update-add`, `data-case-update-correcting`, `data-case-status`,
+`data-case-closing-note`, `data-case-closing-refusal`, `data-case-print` and the printed page's
+`data-case-print-entry`, and Step 293's by `data-added-welcome`, `data-added-send-welcome`,
+`data-welcome-send`, `data-welcome-no-email`, `data-sign-in-state` (with `welcome` or `welcome-not-sent`),
+`data-employment-said` and `data-employment-again`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -212,10 +245,12 @@ what it waits for and what it presses or types there. The run holds the list to
 `guide/APP-DASHBOARD.md` before it takes anything, and `npm run guide-check` holds the files to the
 guide. `npm run shots -- <name>` takes one picture, an entry's title takes its pictures, `--lang=en` or
 `--lang=es` one language, and `--missing` only the files not there yet. It is not part of the smoke
-check, and it takes about two minutes.
+check, and it takes about two minutes. Since Step 293 it also writes `guide/shots-taken.json`, each
+picture's name with the day it was taken in both languages, which `npm run guide-check` holds every
+entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures current).
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280, Step 283 and Step 289 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283, Step 289, Step 292 and Step 299 contracts among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and
