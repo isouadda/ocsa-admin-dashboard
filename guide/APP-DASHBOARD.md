@@ -512,9 +512,10 @@ Who can do this: admins and supervisors
 2. Under **Who has no record**, pick the training in **Pick a training...**.
 3. To see one site, pick it in **All sites**.
 4. The line under the pickers counts the active people with no record of that training, such as **7 of 10 have no record**, and each of them is listed by name.
-5. Once the Training tab shows **Gaps** (**Brechas**), it takes the place of **Who has no record** (**Quién no tiene registro**): see training gaps by role and site.
+5. Once the Training tab shows **Gaps** (**Brechas**), it takes the place of **Who has no record** (**Quién no tiene registro**). There, pick **Missing** (**Falta**) in **All statuses** (**Todos los estados**) to list the people with no record, and a topic in **All topics** (**Todos los temas**) to see one training: see training gaps by role and site.
 Words people use for this: who still needs training, who is missing training, who has not been trained, training gaps.
-Last checked: 2026-10-05
+Picture: training-gaps-missing
+Last checked: 2026-10-07
 
 ## Print a training attendance sheet (admin dashboard)
 Who can do this: admins and supervisors

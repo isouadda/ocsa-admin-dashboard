@@ -79,7 +79,13 @@ about (STEP276_CONTRACT.md, sections 1 and 3).
 - a `Picture:` line breaks the rules above: an entry names more than two, a name breaks the
   pattern, the line is not just before `Last checked:`, either language's file is missing or over
   250 KB, or two entries name the same picture; or a file in `public/guide-shots/` is named by no
-  entry.
+  entry;
+- an entry's `Last checked:` is later than the day any of its pictures was taken, by
+  `shots-taken.json`. The failure names the entry and the command that retakes its pictures,
+  `npm run shots -- "<entry title>"`. A named picture with no day in that file fails too, and so does
+  a day for a picture no entry names;
+- an entry has no `Picture:` line and `no-picture.txt` does not list it with a reason; or that file
+  lists a title that is not an entry, a title with no reason, or an entry that has a picture.
 
 When a pull request changes `src/` and leaves `APP-DASHBOARD.md` as it was, the check writes a
 warning that the guide may need an entry, and passes.
@@ -89,6 +95,25 @@ with a count filled in, and the wording of a filed form, which the API's form ca
 screen's language. Pairs sit in blocks under a comment line saying why they are there, with Spanish
 written as `\u` escapes so the file stays plain ASCII. The check names a listed pair the guide no
 longer holds, so it can come out of the list.
+
+## Every entry keeps its pictures current
+
+Since Step 293 (STEP292_CONTRACT.md section 4) every build saves its screens for Help, and the check
+holds each entry's pictures to the day the entry was last checked.
+
+- `shots-taken.json` gives each picture's name the day it was taken, `YYYY-MM-DD`, one name to a line in
+  name order. `npm run shots` writes it: a picture taken in both languages in one run gets that day,
+  one taken in one language only keeps the day it had (the run says so), and a name no longer on the
+  shots list is taken out. Nobody edits it by hand.
+- The file was seeded once, for the pictures already in `public/guide-shots/`, from each file's last
+  commit day (`git log -1 --format=%cs -- <file>`), the earlier of a picture's two files.
+- An entry whose steps change gets today's `Last checked:`, so its pictures are retaken in the same
+  pull request: `npm run shots -- "<entry title>"`. A picture taken on the same day as the check, or
+  later, passes. Look at both files before committing them.
+- An entry with no screen of its own goes in `no-picture.txt`, one line each: the entry's title exactly
+  as the guide writes it, a bar, and the reason it has no picture. A line starting `#` is a comment.
+  Take the line out when the entry gets a picture. Today it lists Move around the dashboard with the
+  keyboard and Read a filed form.
 
 ## Fingerprint
 

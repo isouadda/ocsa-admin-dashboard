@@ -20,6 +20,11 @@
 //
 // Any pull request that adds or changes a guide entry reruns this for that entry's pictures, and
 // npm run guide-check holds the files to the guide. It is not part of npm run smoke.
+//
+// Since Step 293 the run keeps guide/shots-taken.json, each picture's name with the day it was taken,
+// YYYY-MM-DD where the run is: a picture taken in both languages in one run gets that day, one taken
+// in one language only keeps the day it had, and a name no longer on the list is taken out. npm run
+// guide-check fails an entry whose Last checked: is later than the day of any of its pictures.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -31,6 +36,7 @@ const { BUILD_DIR, ROOT } = require("./lib/build");
 const seed = require("./seed");
 
 const OUT = path.join(ROOT, "public", "guide-shots");
+const TAKEN = path.join(ROOT, "guide", "shots-taken.json");
 const GUIDE = path.join(ROOT, "guide", "APP-DASHBOARD.md");
 const SUFFIX = " (admin dashboard)";
 const NAME = /^[a-z0-9-]{1,60}$/;
@@ -1439,6 +1445,9 @@ const SHOTS = [
     } },
   { name: "training-gaps", entry: "See training gaps by role and site",
     open: "training/gaps", ready: "[data-gaps-person]" },
+  { name: "training-gaps-missing", entry: "See who has no record of a training",
+    open: "training/gaps", ready: "[data-gaps-person]",
+    act: async (c) => { await c.page.locator('[data-gaps-filter="status"]').selectOption("missing"); await wait(400); await until(c, "[data-gaps-person]"); } },
   { name: "training-gaps-person", entry: "See training gaps by role and site",
     open: "training/gaps", ready: "[data-gaps-person]",
     act: async (c) => { await click(c, "[data-gaps-person]"); await until(c, "[data-person-training] [data-training-item]"); } },
@@ -1691,6 +1700,17 @@ async function takeOne(session, origin, shot, lang) {
   return jpeg(page);
 }
 
+// The day each picture was taken (Step 293), read and written in name order, one name to a line.
+const dayHere = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+function readTaken() {
+  try { return JSON.parse(fs.readFileSync(TAKEN, "utf8")); } catch (e) { return {}; }
+}
+function writeTaken(days) {
+  const names = Object.keys(days).sort();
+  const body = names.map((n) => "  " + JSON.stringify(n) + ": " + JSON.stringify(days[n])).join(",\n");
+  fs.writeFileSync(TAKEN, "{\n" + body + (names.length ? "\n" : "") + "}\n");
+}
+
 // ---- the run ----------------------------------------------------------------------------------
 function chosen(args) {
   const words = args.filter((a) => !a.startsWith("--"));
@@ -1746,8 +1766,10 @@ async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const started = Date.now();
   let failed = 0, taken = 0;
+  // Which languages of each picture this run took, for guide/shots-taken.json.
+  const tookIn = {};
   const report = (ok, lang, name, what) => {
-    if (ok) taken += 1; else failed += 1;
+    if (ok) { taken += 1; (tookIn[name] = tookIn[name] || new Set()).add(lang); } else failed += 1;
     process.stdout.write((ok ? "ok    " : "FAIL  ") + lang + "  " + name.padEnd(44) + what + "\n");
   };
   const server = await serve(BUILD_DIR);
@@ -1762,6 +1784,14 @@ async function main() {
     await server.close();
   }
   const listed = new Set(SHOTS.map((s) => s.name));
+  const days = readTaken();
+  const today = dayHere(new Date());
+  Object.keys(tookIn).forEach((name) => {
+    if (LANGS.every((l) => tookIn[name].has(l))) days[name] = today;
+    else process.stdout.write("note  " + name + " was taken in " + [...tookIn[name]].join(" and ") + " alone, so its day in guide/shots-taken.json stays " + (days[name] || "unset") + "\n");
+  });
+  Object.keys(days).forEach((name) => { if (!listed.has(name)) delete days[name]; });
+  writeTaken(days);
   const strays = fs.readdirSync(OUT).filter((f) => !listed.has(f.replace(/\.(en|es)\.jpg$/, "")));
   strays.forEach((f) => process.stdout.write("note  public/guide-shots/" + f + " is on no line of the list\n"));
   process.stdout.write(taken + " taken, " + failed + " failed, in " + Math.round((Date.now() - started) / 1000) + "s\n");

@@ -245,7 +245,9 @@ what it waits for and what it presses or types there. The run holds the list to
 `guide/APP-DASHBOARD.md` before it takes anything, and `npm run guide-check` holds the files to the
 guide. `npm run shots -- <name>` takes one picture, an entry's title takes its pictures, `--lang=en` or
 `--lang=es` one language, and `--missing` only the files not there yet. It is not part of the smoke
-check, and it takes about two minutes.
+check, and it takes about two minutes. Since Step 293 it also writes `guide/shots-taken.json`, each
+picture's name with the day it was taken in both languages, which `npm run guide-check` holds every
+entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures current).
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
 Step 280, Step 283, Step 289, Step 292 and Step 299 contracts among them, so Choose your PIN is taken in a session of its own signed

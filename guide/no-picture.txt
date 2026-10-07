@@ -1,0 +1,7 @@
+# The guide entries with no picture of the screen, and why (Step 293, STEP292_CONTRACT.md section 4).
+# One entry to a line: the entry's title exactly as the guide writes it, a bar, and the reason. Every
+# other entry names at least one picture, and npm run guide-check fails one that names none and is not
+# listed here. Take a line out when its entry gets a picture.
+
+Move around the dashboard with the keyboard (admin dashboard) | It describes keys that work the same on every screen, so no one screen shows it.
+Read a filed form (admin dashboard) | It sends the reader to Read a filed report, the same task on the same screen, whose pictures show it.
