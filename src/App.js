@@ -1196,7 +1196,7 @@ export default function AdminDashboard() {
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} />}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} sites={sites} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
-        {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -13627,7 +13627,87 @@ function InspectionReviewLine({ af, t, token, resultId, line, signature, onSigne
   </div>);
 }
 
-function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
+// One inspection walk (Step 314, STEP312_CONTRACT.md section 3). A scheduled inspection carries
+// with_safety, and once the walk is submitted its result carries safety_response_id, the OCSA-FRM-015
+// submitted with it, which the answer may also carry as safety: { responseId, result, findings }. The
+// inspection's result shows that safety part, read from the filed form itself (GET
+// /api/forms/responses/:id): its answers, its result and its findings, with Open the safety inspection
+// record; the record shows Open the inspection.
+const inspectionSafetyIdOf = (d) => {
+  const s = d && d.safety && typeof d.safety === "object" ? d.safety : null;
+  const v = (s && (s.responseId != null ? s.responseId : s.id)) ?? (d && d.result && d.result.safety_response_id) ?? (d && d.safetyResponseId);
+  return v == null || v === "" ? "" : String(v);
+};
+// The scheduled inspection a filed form was submitted with: inspection: { id } on the read, or
+// scheduledInspectionId, whichever the API sends.
+const filedInspectionIdOf = (read) => {
+  const pick = (k) => (read && read.draft && read.draft[k] !== undefined ? read.draft[k] : read ? read[k] : undefined);
+  const v = pick("inspection");
+  const id = v && typeof v === "object" ? (v.scheduledInspectionId != null ? v.scheduledInspectionId : v.id) : pick("scheduledInspectionId");
+  return id == null || id === "" ? "" : String(id);
+};
+const openInspection = (id) => { window.location.hash = "inspections/" + encodeURIComponent(String(id)); };
+// A filed form's answer as words: the form's own display value, a picked option's label, Yes or No for
+// a box, and otherwise what was stored.
+const safetyAnswerText = (f) => {
+  if (f.displayValue != null && f.displayValue !== "") return String(f.displayValue);
+  const v = f.value;
+  if (v == null || v === "") return "";
+  if (f.type === "checkbox" || typeof v === "boolean") return v === true || v === "true" ? tr("Yes") : tr("No");
+  if (Array.isArray(f.options)) { const o = f.options.find(x => String(x.value) === String(v)); if (o) return o.label; }
+  if (typeof v === "object") return v.name ? String(v.name) : "";
+  return String(v);
+};
+function InspectionSafetyPart({ af, t, id }) {
+  const [read, setRead] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setFailed("");
+    af("/api/forms/responses/" + encodeURIComponent(id)).then(d => { if (alive) setRead(d || {}); }).catch(e => { if (alive) setFailed(e.message || tr("This did not load.")); });
+    return () => { alive = false; };
+  }, [af, id, again]);
+  const fields = read && Array.isArray(read.fields) ? read.fields.filter(f => f && f.half !== "supervisor" && ["signoff", "photos", "customer_signature"].indexOf(f.type) < 0) : [];
+  const cell = (c, raw) => {
+    if (c && c.type === "checkbox") return raw === true || raw === "true" ? tr("Yes") : tr("No");
+    if (c && Array.isArray(c.options)) { const o = c.options.find(x => String(x.value) === String(raw)); if (o) return o.label; }
+    return raw == null ? "" : String(raw);
+  };
+  const thSt = { textAlign: "left", padding: "6px 8px", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" };
+  const tdSt = { padding: "6px 8px", fontSize: 12, color: t.text, borderBottom: "1px solid " + t.border, verticalAlign: "top" };
+  const grid = (f) => {
+    const cols = Array.isArray(f.columns) ? f.columns : [];
+    const rows = Array.isArray(f.rows) ? f.rows.map(r => ({ key: r.key, head: r.label, row: (f.value || {})[r.key] || {} })) : (Array.isArray(f.value) ? f.value : []).map((v, i) => ({ key: String(i), head: String(i + 1), row: v || {} }));
+    if (!rows.length) return <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing was added.")}</div>;
+    return (<div style={{ overflowX: "auto", border: "1px solid " + t.border, borderRadius: 8 }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead><tr><th style={thSt}>{Array.isArray(f.rows) ? tr("Item") : "#"}</th>{cols.map(c => <th key={c.key} style={thSt}>{c.label}</th>)}</tr></thead>
+      <tbody>{rows.map(r => <tr key={r.key}><td style={{ ...tdSt, fontWeight: 500 }}>{r.head}</td>{cols.map(c => <td key={c.key} style={tdSt}>{cell(c, r.row[c.key])}</td>)}</tr>)}</tbody>
+    </table></div>);
+  };
+  return (<Crd t={t} style={{ marginBottom: 16 }}>
+    <div data-inspection-safety={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <div>
+        <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Safety walk")}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{(read && read.draft && read.draft.formName) || "OCSA-FRM-015"}</div>
+      </div>
+      <Btn t={t} v="ghost" data-open-safety-record="" onClick={() => openFiledReport(id)} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open the safety inspection record")}</Btn>
+    </div>
+    {!read && !failed && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+    {failed && <LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} />}
+    {read && fields.map(f => {
+      if (f.type === "grid") return (<div key={f.key} data-inspection-safety-answer={f.key} style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{f.label}</div>{grid(f)}</div>);
+      const said = safetyAnswerText(f);
+      if (!said) return null;
+      return (<div key={f.key} data-inspection-safety-answer={f.key} style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid " + t.border }}>
+        <div style={{ flex: "1 1 200px", fontSize: 12, color: t.textMut }}>{f.label}</div>
+        <div style={{ flex: "2 1 240px", fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{said}</div>
+      </div>);
+    })}
+  </Crd>);
+}
+
+function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   const lkCimsLabels = lkMap("cims_categories");
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
   const ZONES = INSPECTION_ZONES;
@@ -13695,7 +13775,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor" });
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
+  // Step 314: Include the safety walk, on by default, goes as withSafety.
+  const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true });
   const [detailView, setDetailView] = useState(null);
   const [expandedItems, setExpandedItems] = useState(new Set());
   // Step 254: a completed inspection under 80 percent with no corrective action offers to start one
@@ -13822,13 +13903,17 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!scheduleForm.template_id || !scheduleForm.site_id || !scheduleForm.scheduled_date) { showToast(tr("Template, site, and date are required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled", { method: "POST", body: scheduleForm });
-      showToast(tr("Inspection scheduled")); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" }); loadScheduled();
+      showToast(tr("Inspection scheduled")); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true }); loadScheduled();
     } catch (e) { showToast(e.message, "error"); }
   };
 
   const openDetail = async (id) => {
     try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
   };
+  // Step 314: #inspections/<id> opens that inspection, which is where a safety inspection record's
+  // Open the inspection lands; Back goes to #inspections.
+  const routeId = route[0] ? decodeURIComponent(route[0]) : "";
+  useEffect(() => { if (routeId) openDetail(routeId); }, [routeId]);
 
 
   const openEditInspection = (si) => {
@@ -13914,7 +13999,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     return (
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button onClick={() => setDetailView(null)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
+          <button onClick={() => { setDetailView(null); if (routeId && onRoute) onRoute([]); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
             <Ic d="M15 18l-6-6 6-6" sz={14} c={t.textSec} /> {tr("Back")}
           </button>
           <div style={{ flex: 1 }}>
@@ -13947,6 +14032,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Scheduled Date")}</div><div style={{ fontWeight: 600, color: t.text }}>{fmtDate(d.scheduled_date)}</div></Crd>
           {d.assigned_name && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Assigned To")}</div><div style={{ fontWeight: 600, color: t.text }}>{d.assigned_name}</div></Crd>}
           <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Status")}</div><Bdg l={stateOf(d.status)} c={STATUS_C[d.status] || BL} /></Crd>
+          {typeof d.with_safety === "boolean" && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Safety walk")}</div><div data-inspection-with-safety={String(d.with_safety)} style={{ fontWeight: 600, color: t.text }}>{d.with_safety ? tr("Included|safety walk") : tr("Not included|safety walk")}</div></Crd>}
           {isComplete && <>
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed At")}</div><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed By")}</div><div style={{ fontWeight: 600, color: t.text }}>{d.result.completed_by_name}</div></Crd>
@@ -13993,6 +14079,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             {caStart.refusal && <div data-inspection-corrective-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{caStart.refusal}</div>}
           </div>}
         </Crd>}
+
+        {isComplete && inspectionSafetyIdOf(d) && <InspectionSafetyPart key={inspectionSafetyIdOf(d)} af={af} t={t} id={inspectionSafetyIdOf(d)} />}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(d.items || []).map(item => {
@@ -14477,7 +14565,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, scheduleForm.assigned_to)} /></div>
-        <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
+        <label data-schedule-with-safety="" style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 20, cursor: "pointer" }}>
+          <span style={chkWrap}><input type="checkbox" aria-label={tr("Include the safety walk")} checked={scheduleForm.withSafety !== false} onChange={e => setScheduleForm({ ...scheduleForm, withSafety: e.target.checked })} /></span>
+          <span style={{ paddingTop: 11 }}><span style={{ display: "block", fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Include the safety walk")}</span><span style={{ display: "block", fontSize: 12, color: t.textSec, marginTop: 2, lineHeight: 1.5 }}>{tr("The inspector fills in the safety inspection (OCSA-FRM-015) in the same walk and signs both once. Each is kept as its own record.")}</span></span>
+        </label>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={scheduleInspection}>{tr("Schedule|verb")}</Btn></div>
       </div></Mdl>}
     </div>
@@ -17759,6 +17851,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       {monthly.status === "overdue" && <div style={{ fontSize: 12, color: RD, fontWeight: 600, marginTop: 6 }}>{tr("Sent {0} and not acknowledged yet.", monthly.sentAt ? irDay(monthly.sentAt) : "--")}</div>}
       {monthly.acknowledgedBy && <div style={{ fontSize: 13, color: t.text, marginTop: 6 }}>{tr("Acknowledged by {0} on {1}", monthlyWho(monthly.acknowledgedBy), monthly.acknowledgedAt ? irWhen(monthly.acknowledgedAt) : "--")}</div>}
       {monthly.acknowledgedBy && monthly.comments ? <div style={{ fontSize: 13, color: t.textSec, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{String(monthly.comments)}</div> : null}
+    </div>}
+    {!loading && !error && draft && filedInspectionIdOf(data) && <div data-filed-inspection={filedInspectionIdOf(data)} style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ flex: "1 1 220px", fontSize: 13, color: t.text, lineHeight: 1.5 }}>{tr("Filed as the safety walk of a scheduled inspection.")}</span>
+      <Btn t={t} v="ghost" data-open-inspection="" onClick={() => openInspection(filedInspectionIdOf(data))} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open the inspection")}</Btn>
     </div>}
     {!loading && !error && draft && (<>
       <div style={{ marginBottom: 18 }}>
