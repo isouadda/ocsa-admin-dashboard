@@ -169,7 +169,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -631,6 +631,12 @@ export default function AdminDashboard() {
   // Whether GET /api/equipment answers this office account with { equipment } (Step 239): Equipment
   // joins the side panel. Read once a session.
   const [equipmentOn, setEquipmentOn] = useState(false);
+  // Whether GET /api/periodic-work answers this office account with { items } (Step 291): Quality >
+  // Periodic work joins the side panel. Read once a session.
+  const [periodicOn, setPeriodicOn] = useState(false);
+  // Whether GET /api/support/tickets answers this person (Step 291): admins, and whoever the support
+  // contact setting names, by email. The Tickets page joins the side panel. Read once a session.
+  const [ticketsOn, setTicketsOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -657,6 +663,8 @@ export default function AdminDashboard() {
     if (id === "discipline") return disciplineOn;
     if (id === "workspace") return workspaceOn;
     if (id === "equipment") return equipmentOn;
+    if (id === "periodic") return periodicOn;
+    if (id === "tickets") return ticketsOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -665,7 +673,7 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -695,12 +703,14 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
     af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); });
     af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); });
+    af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); });
+    af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); });
     af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
@@ -895,6 +905,7 @@ export default function AdminDashboard() {
   const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
   const BldI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 18v-6 M9 15h6" {...p} />;
   const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
+  const TkI = p => <Ic d="M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
@@ -916,6 +927,7 @@ export default function AdminDashboard() {
       { id: "issues", l: tr("Issues"), i: AlI },
       { id: "assigned", l: tr("Assigned Tasks"), i: WkI },
       { id: "inspections", l: tr("Inspections"), i: ClpI },
+      ...(canOpenPage("periodic") ? [{ id: "periodic", l: tr("Periodic work"), i: HsI }] : []),
     ]},
     { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }, ...(canOpenPage("equipment") ? [{ id: "equipment", l: tr("Equipment"), i: EqI }] : [])] },
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }, ...(canOpenPage("quotes") ? [{ id: "quotes", l: tr("Quotes"), i: DlrI }] : [])] },
@@ -926,14 +938,15 @@ export default function AdminDashboard() {
       ...(canOpenPage("form-builder") ? [{ id: "form-builder", l: tr("Form builder"), i: BldI }] : []),
     ]},
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
-    ...(canOpenPage("settings") || canOpenPage("chat-records") ? [{ label: null, items: [
+    ...(canOpenPage("settings") || canOpenPage("chat-records") || canOpenPage("tickets") ? [{ label: null, items: [
       ...(canOpenPage("settings") ? [{ id: "settings", l: tr("Settings"), i: StgI }] : []),
       ...(canOpenPage("chat-records") ? [{ id: "chat-records", l: tr("Chat records"), i: RecI }] : []),
+      ...(canOpenPage("tickets") ? [{ id: "tickets", l: tr("Tickets"), i: TkI }] : []),
     ] }] : []),
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -967,7 +980,7 @@ export default function AdminDashboard() {
   // A row of the More menu, the row the user menu draws.
   const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
 
-  return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
     {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
         closed again by a pick, by its own close button and by Escape. */}
@@ -1183,6 +1196,8 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1201,11 +1216,13 @@ export default function AdminDashboard() {
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} />}
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></ThemeCtx.Provider>);
+  </div></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
+  // Step 291: Can't sign in? with the support contact's email, once the open route answers one.
+  const contact = useSupportContact();
   // The words the code screen came back with (an expired code, too many tries), shown over the PIN.
   const [notice, setNotice] = useState("");
   // The PIN is let go once the code screen opens, so Back asks for it again.
@@ -1220,6 +1237,7 @@ function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, 
     <div style={{ marginBottom: 8 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" inputMode="numeric" autoComplete="current-password" maxLength={4} placeholder={tr("4-digit PIN")} data-signin-pin="" style={{ letterSpacing: pn ? "8px" : "normal", textAlign: "center", fontSize: pn ? 20 : 14 }} onKeyDown={e => e.key === "Enter" && go()} /></div>
     <div style={{ textAlign: "right", marginBottom: 16 }}><button type="button" onClick={() => onForgot && onForgot(ph)} data-signin-forgot="" style={{ background: "none", border: "none", minHeight: 44, padding: "0 4px", color: t.textSec, fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: FONT_BODY }}>{tr("Forgot your PIN?")}</button></div>
     {wrongTries >= 3 ? <div data-signin-lock-hint="" style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("After too many wrong tries, sign-in stops for a while. Ask the office for help.")}</div> : null}
+    {contact ? <div data-signin-support="" style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5, overflowWrap: "anywhere" }}>{tr("Can't sign in? Email {0}", "\u0000").split("\u0000").map((part, i) => <Fragment key={i}>{i > 0 ? <a href={"mailto:" + contact.email} style={{ color: t.goldText, fontWeight: 600 }}>{contact.email}</a> : null}{part}</Fragment>)}</div> : null}
     <button onClick={go} disabled={loading} data-signin-submit="" style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
 
@@ -1318,6 +1336,106 @@ function SecondStepForm({ t, second, onDone, onBack }) {
   </div>);
 }
 
+// ===== PERSON PICKER (Step 291) =====
+// Everywhere a person is chosen, one control with the forms' Search by name behavior (Step 187). Closed,
+// it is a field the height of a select drawing the choice. Pressed, it opens a box that searches by
+// name, badge number or employee ID over a list of 44 pixel rows, at most twelve at a time, narrowed as
+// the person types, and it opens empty every time. The list's row with no person (All Staff,
+// Unassigned, Nobody yet) is its first row until something is typed. With nobody on the list it says
+// so, with nobody matching what is typed it says that, and with more than twelve it says how many more
+// typing narrows. It takes the options a Sel took, { v, l }, and calls onChange the way a select does,
+// with { target: { value } }, so a screen sends exactly what it always sent. An option may carry hint,
+// drawn after the name, and group, drawn as a heading over its rows. A person's badge number and
+// employee ID are read from the option (badge, employeeId) or else from the shell's people, PeopleCtx,
+// by the option's id. Escape, a press outside and a pick close it.
+const PeopleCtx = createContext([]);
+const personKeysOf = (p) => ({ badge: String((p && (p.badgeNumber || p.badge_number || p.badge)) || ""), employeeId: String((p && (p.employeeId || p.employee_id)) || "") });
+const PICK_ROWS = 12;
+function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", ...rest }) {
+  const { borderColor, fontSize, ...wrapStyle } = style || {};
+  const known = useContext(PeopleCtx);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const boxRef = useRef(null);
+  const fieldRef = useRef(null);
+  const keys = useMemo(() => { const m = {}; [].concat(known || [], people || []).forEach(p => { if (p && p.id != null) m[String(p.id)] = personKeysOf(p); }); return m; }, [known, people]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("touchstart", away);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("touchstart", away); };
+  }, [open]);
+  const aria = rest["aria-label"] || placeholder || tr("Choose a person");
+  const blank = options.find(o => String(o.v) === "");
+  const rows = options.filter(o => String(o.v) !== "");
+  const want = value == null ? "" : String(value);
+  const current = options.find(o => String(o.v) === want);
+  const needle = q.trim().toLowerCase();
+  const keyOf = (o) => (o.badge != null || o.employeeId != null ? { badge: String(o.badge || ""), employeeId: String(o.employeeId || "") } : (keys[String(o.v)] || { badge: "", employeeId: "" }));
+  const hitOf = (o) => {
+    if (!needle || String(o.l || "").toLowerCase().indexOf(needle) >= 0) return "name";
+    const k = keyOf(o);
+    if (k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) return "badge";
+    if (k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0) return "id";
+    return "";
+  };
+  const found = rows.map(o => ({ o, hit: hitOf(o) })).filter(x => x.hit);
+  const shown = found.slice(0, PICK_ROWS);
+  const pick = (v) => { setOpen(false); setQ(""); if (onChange) onChange({ target: { value: v } }); setTimeout(() => { if (fieldRef.current) fieldRef.current.focus(); }, 0); };
+  const onKey = (e) => {
+    if (e.key === "Escape") { e.stopPropagation(); setOpen(false); if (fieldRef.current) fieldRef.current.focus(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (shown.length > 0) pick(shown[0].o.v); }
+  };
+  const row = { display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 44, padding: "8px 12px", textAlign: "left", border: "none", borderBottom: "1px solid " + t.border, background: "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" };
+  const note = { padding: "10px 12px", fontSize: 12, color: t.textMut };
+  const label = current ? current.l : (placeholder || (blank ? blank.l : tr("Choose a person")));
+  const { "aria-label": _a, ...attrs } = rest;
+  let group = null;
+  return (<div ref={boxRef} data-person-pick="" {...attrs} style={{ position: "relative", width: "100%", ...wrapStyle }} onKeyDown={open ? onKey : undefined}>
+    <button ref={fieldRef} type="button" data-person-pick-field="" aria-label={aria} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => (open ? setOpen(false) : (setQ(""), setOpen(true)))}
+      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + (borderColor || (open ? GO : t.inputBorder)), background: t.inputBg, color: current && String(current.v) !== "" ? t.text : t.textSec, fontSize: fontSize || 13, fontFamily: FONT_BODY, textAlign: "left", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.6 : 1 }}>
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      <Ic d="M6 9l6 6 6-6" sz={14} c={t.textMut} />
+    </button>
+    {open && <div data-person-pick-box="" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: 0, zIndex: 60, background: t.card, border: "1px solid " + t.border, borderRadius: 10, boxShadow: t.popShadow, padding: 8 }}>
+      <Inp t={t} autoFocus aria-label={aria} data-person-pick-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={{ minHeight: 44, fontSize: 13 }} />
+      <div role="listbox" aria-label={aria} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
+        {blank && !needle && <button type="button" role="option" aria-selected={want === ""} data-person-pick-option="" onClick={() => pick("")} style={{ ...row, color: t.textSec }}>{blank.l}</button>}
+        {shown.map(({ o, hit }) => {
+          const k = hit === "badge" || hit === "id" ? keyOf(o) : null;
+          const head = o.group && o.group !== group ? o.group : null;
+          if (o.group) group = o.group;
+          return (<Fragment key={String(o.v)}>
+            {head && <div data-person-pick-group="" style={{ padding: "8px 12px 4px", fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", background: t.cardAlt }}>{head}</div>}
+            <button type="button" role="option" aria-selected={String(o.v) === want} data-person-pick-option={String(o.v)} onClick={() => pick(o.v)} style={{ ...row, fontWeight: String(o.v) === want ? 600 : 400 }}
+              onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+              <span style={{ flex: 1, minWidth: 0 }}>{o.l}{k ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{hit === "badge" ? tr("Badge {0}", k.badge) : tr("Employee ID {0}", k.employeeId)}</span> : null}</span>
+              {o.hint ? <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{o.hint}</span> : null}
+            </button>
+          </Fragment>);
+        })}
+        {rows.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one is on this list.")}</div>}
+        {rows.length > 0 && needle && found.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one matches.")}</div>}
+        {found.length > shown.length && <div data-person-pick-more="" style={note}>{tr("{0} more. Type to narrow the list.", found.length - shown.length)}</div>}
+      </div>
+    </div>}
+  </div>);
+}
+// The same search for a list a screen draws itself (Step 291): a person matches what is typed by name,
+// or by badge number or employee ID, read from the person or else from the shell's people by id.
+function usePersonFind() {
+  const known = useContext(PeopleCtx);
+  const keys = useMemo(() => { const m = {}; (known || []).forEach(p => { if (p && p.id != null) m[String(p.id)] = personKeysOf(p); }); return m; }, [known]);
+  return useCallback((p, name, q) => {
+    const needle = String(q || "").trim().toLowerCase();
+    if (!needle || String(name || "").toLowerCase().indexOf(needle) >= 0) return true;
+    const own = personKeysOf(p);
+    const id = p && (p.id != null ? p.id : p.userId);
+    const k = own.badge || own.employeeId ? own : (keys[String(id)] || own);
+    return (!!k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) || (!!k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0);
+  }, [keys]);
+}
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
 // A table wider than its card scrolls inside the card. Its headers wrap between words when the room
@@ -1783,7 +1901,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
   const [q, setQ] = useState(""); const [roleF, setRoleF] = useState("all"); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [assignForm, setAssignForm] = useState(null);
-  const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
+  const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState("");
   // Session 28: inline validation error for the Employee ID field (shared by Add Staff modal and Profile edit form)
   // The refusal is known by its code: users.employeeIdTaken from the create route, and
   // users.employeeIdTakenByOther from a profile's save. The English match stays only until every API
@@ -1799,25 +1917,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
   // Step 243 review: whether the API keeps an account in French, read once from GET /api/languages.
   const frenchKept = useFrenchKept(af);
-  const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
-  // Step 257: the person's training items from GET /api/training/gaps/people/:userId once the route
-  // answers, or null before then.
-  const gapsLive = useTrainingLive(af, "gaps");
-  const [hrItems, setHrItems] = useState(null);
-  // Step 268, the owner's change of October 6: Assign training from the person's list, once the
-  // API's Step 266 is there (the catalog answers categories), for an admin.
-  const [assigning, setAssigning] = useState(false);
-  const assignLive = useTrainingLive(af, "categories");
-  const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
-  // Step 187: the filed reports about this person, the source form items of their HR folder, and
-  // the one open in its review window.
-  const [hrForms, setHrForms] = useState([]); const [hrOpenReport, setHrOpenReport] = useState(null); const [hrPdfBusy, setHrPdfBusy] = useState("");
-  // The folder read that fills the Filed forms card, and whether it failed, which the card says with
-  // Try again rather than No filed forms.
-  const [hrFormsFailed, setHrFormsFailed] = useState(false);
-  const loadHrForms = async (userId) => { try { const folder = await af("/api/hr/employee-folder/" + userId); setHrForms(((folder && folder.items) || []).filter(it => it && it.source === "form")); setHrFormsFailed(false); } catch (e) { setHrForms([]); setHrFormsFailed(true); } };
-  // A report voided from its window is marked Void on its row at once.
-  const markVoid = (setter) => (id) => setter(prev => prev.map(it => (it && String(it.responseId) === String(id) ? { ...it, status: "void" } : it)));
+  // Step 291: a person's HR lives in HR Records alone. The profile keeps Profile, Assignments and
+  // Timeline, and Open HR file opens the person's folder there, which holds what the HR Files and
+  // Certifications tabs held, with every action.
   // Timeline state (Session 18)
   const [timeline, setTimeline] = useState([]); const [tlTotal, setTlTotal] = useState(0);
   const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false);
@@ -1863,10 +1965,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // The timeline's categories: what its chips say, and what a printed timeline names its filter with.
   const tlCats = [{ id: "all", l: tr("All|timeline") }, { id: "clock", l: tr("Clock") }, { id: "tasks", l: tr("Tasks") }, { id: "inspections", l: tr("Inspections") }, { id: "issues", l: tr("Issues") }, { id: "schedule", l: tr("Schedule") }, { id: "marketplace", l: tr("Marketplace") }, { id: "documents", l: tr("Documents") }, { id: "training", l: tr("Training") }, { id: "profile", l: tr("Profile") }, { id: "timesheets", l: tr("Timesheets") }, { id: "supplies", l: tr("Supplies") }];
   const tlCatWord = (c) => (tlCats.find((x) => x.id === c) || {}).l || c;
-  // A training record's type reads the training_types list's displayLabel, the way HR Records draws
-  // it, and its status the table's word.
-  const trainingTypeShown = lkMap("training_types", true);
-  const trainingStateOf = (s) => ({ completed: tr("completed|training"), failed: tr("failed|training") })[s] || s;
   // The employment types a form offers. Each choice sends the code it always sent.
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
@@ -1892,43 +1990,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const refreshProfile = async (id) => {
     try { const d = await af("/api/users/profile/" + id); setProfile(d); } catch (e) { showToast(e.message, "error"); }
     loadEmployment(id); load(); if (loadStaff) loadStaff();
-  };
-
-  // Load HR data for the HR Files tab
-  const loadHrData = async (userId) => {
-    setHrLoading(true);
-    setHrItems(null);
-    if (gapsLive) af("/api/training/gaps/people/" + encodeURIComponent(userId)).then(d => setHrItems(d && Array.isArray(d.items) ? d.items : [])).catch(e => { console.warn("Training items:", e.message); setHrItems(null); });
-    try {
-      const [docs, train] = await Promise.all([
-        af("/api/hr/documents?user_id=" + userId),
-        af("/api/hr/training?user_id=" + userId)
-      ]);
-      setHrDocs(docs); setHrTraining(train);
-      try { const ob = await af("/api/hr/onboarding/" + userId); setHrOnboarding(ob); } catch (e) { setHrOnboarding([]); }
-      await loadHrForms(userId);
-    } catch (e) { showToast(e.message, "error"); }
-    setHrLoading(false);
-  };
-  useEffect(() => { if (profile && profileTab === "hr") loadHrData(profile.user.id); }, [profileTab, profile?.user?.id, gapsLive]);
-
-  // Session 25 Phase 3: open a private-bucket document via the authenticated streaming endpoint.
-  // Same pattern used in HRRecordsPage.
-  const viewDoc = async (docId) => {
-    try {
-      const apiBase = API;
-      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
-        headers: { Authorization: "Bearer " + (token || "") }
-      });
-      if (!resp.ok) {
-        const errBody = await resp.json().catch(() => ({}));
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
-      }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (e) { showToast(e.message, "error"); }
   };
 
   // Timeline loader (Session 18)
@@ -2183,7 +2244,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     return <Ini name={name} sz={sz} color={user.status === "pending" ? OR : GO} />;
   };
 
-  const ptabs = [{ id: "info", l: tr("Profile") }, { id: "hr", l: tr("HR Files") }, { id: "assign", l: tr("Assignments") }, { id: "certs", l: tr("Certifications") }, { id: "timeline", l: tr("Timeline") }];
+  const ptabs = [{ id: "info", l: tr("Profile") }, { id: "assign", l: tr("Assignments") }, { id: "timeline", l: tr("Timeline") }];
   // Shared branded print header builder (Session 18)
   const printHeader = (title, subtitle, photoUrl) => {
     let h = '<div class="header"><div style="display:flex;align-items:center;gap:16px">';
@@ -2237,6 +2298,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         subtitle={roleOf(u.role) + (u.employmentType ? " (" + employmentOf(u.employmentType) + ")" : "")}
         badges={<><Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />{signInOf(u) ? <span style={{ flexBasis: "100%", marginTop: 4 }}><SignInState t={t} si={signInOf(u)} /></span> : null}</>}
         actions={<>
+          <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>
           {canChange(u) && signInOf(u) && signInOf(u).lockedUntil && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-staff-unlock={u.id} disabled={!!unlocking} onClick={() => unlock(u.id)}>{tr("Unlock")}</Btn>}
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
@@ -2321,64 +2383,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div>}
 
       {/* HR FILES TAB */}
-      {profileTab === "hr" && <div>
-        {hrLoading ? <div style={{ textAlign: "center", padding: 40, color: t.textMut, fontSize: 13 }}>{tr("Loading HR files...")}</div> : <div>
-          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Documents ({0})", hrDocs.length)}</div>
-            {hrDocs.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No documents on file")}</div>}
-            {hrDocs.map((doc, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{tr(HR_CATEGORY_LABEL(doc.category || doc.document_type))}</div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{doc.file_name || tr("No file")}{doc.expiry_date ? " | " + tr("Exp: {0}", fmtDate(doc.expiry_date)) : ""}</div>
-              </div>
-              {doc.file_name && <button onClick={() => viewDoc(doc.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, background: "transparent", color: BL, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("View")}</button>}
-            </div>)}
-          </Crd>
-          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            {/* Step 257: the person's items, each in its status's words, once the gaps route answers; the
-                records follow, with no status of their own, since the table keeps none. */}
-            {hrItems && <div data-profile-training-items="" style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Required training ({0})", hrItems.length)}</div>
-                {user && user.role === "admin" && assignLive && profile && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)} style={{ marginLeft: "auto", minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Assign training")}</Btn>}
-              </div>
-              <TrainingItemsList t={t} items={hrItems} compact />
-              {assigning && profile && <AssignTrainingWindow af={af} t={t} sites={sites} presetUserIds={[String(profile.id)]} showToast={showToast} onClose={() => setAssigning(false)} onDone={() => loadHrData(profile.id)} />}
-            </div>}
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Training Records ({0})", hrTraining.length)}</div>
-            {hrTraining.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No training records")}</div>}
-            {hrTraining.map((rec, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{rec.training_name}</div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{rec.training_type ? (trainingTypeShown[rec.training_type] || rec.training_type) : tr("Training")}{rec.completed_date ? " | " + tr("Completed: {0}", fmtDate(rec.completed_date)) : ""}{rec.score ? " | " + tr("Score: {0}", rec.score) : ""}</div>
-              </div>
-              {!hrItems && <Bdg l={trainingStateOf(rec.status || "completed")} c={rec.status === "failed" ? RD : GR} />}
-            </div>)}
-          </Crd>
-          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Filed forms ({0})", hrForms.length)}</div>
-            {hrFormsFailed && <LoadFailed t={t} onRetry={() => loadHrForms(profile.user.id)} style={{ padding: 0, textAlign: "left", fontSize: 12 }} />}
-            {!hrFormsFailed && hrForms.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No filed forms")}</div>}
-            {hrForms.map((it, i) => <div key={it.responseId || i} onClick={() => setHrOpenReport(it)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", minHeight: 44, padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4, cursor: "pointer" }}>
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{builderText(it.formTitle) || it.title || it.formCode}{it.status === "void" && <span style={{ marginLeft: 8 }}><Bdg l={tr("Void|status")} c={RD} /></span>}</div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{[tr(HR_CATEGORY_LABEL(it.category)), it.date ? new Date(it.date).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "", it.filedBy && it.filedBy.name ? tr("Filed by {0}", it.filedBy.name) : ""].filter(Boolean).join(" | ")}</div>
-              </div>
-              <button onClick={async (e) => { e.stopPropagation(); if (hrPdfBusy) return; setHrPdfBusy(it.responseId); try { const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(it.responseId) + "/pdf", token, (it.formCode || "report") + "-" + String(it.responseId).slice(0, 8) + ".pdf"); const url = URL.createObjectURL(f.blob); const a = document.createElement("a"); a.href = url; a.download = f.filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 5000); } catch (err) { showToast(err.message, "error"); } setHrPdfBusy(""); }} disabled={hrPdfBusy === it.responseId} style={{ minHeight: 44, padding: "3px 10px", borderRadius: 4, border: "1px solid " + BL, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: FONT_BODY }}>{hrPdfBusy === it.responseId ? tr("Loading...") : tr("View PDF")}</button>
-            </div>)}
-          </Crd>
-          {hrOpenReport && <IncidentReportWindow af={af} token={token} t={t} id={hrOpenReport.responseId} row={hrOpenReport.filedBy && hrOpenReport.filedBy.name ? { userName: hrOpenReport.filedBy.name } : null} onClose={() => setHrOpenReport(null)} people={allStaff} onVoided={markVoid(setHrForms)} />}
-          {hrOnboarding.length > 0 && <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Onboarding Steps")}</div>
-            {/* A step is done when the API says is_completed, on its completed_date, the two fields HR Records reads. */}
-            {hrOnboarding.map((step, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-              <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.is_completed ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.is_completed ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.is_completed && <ChkI sz={10} c={GR} />}</div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.is_completed && step.completed_date && <div style={{ fontSize: 9, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_date))}</div>}</div>
-            </div>)}
-          </Crd>}
-        </div>}
-      </div>}
-
       {/* ASSIGNMENTS TAB */}
       {profileTab === "assign" && <div>
         <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
@@ -2391,21 +2395,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             <button onClick={() => unassign(u.id, a.site_id)} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove")}</button>
           </div>)}
           {(!profile.assignments || profile.assignments.filter(a => a.is_active).length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No sites assigned")}</div>}
-        </Crd>
-      </div>}
-
-      {/* CERTIFICATIONS TAB */}
-      {profileTab === "certs" && <div>
-        <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Certifications")}</div>
-            <button onClick={() => setAddCert({ userId: u.id, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Add")}</button>
-          </div>
-          {(!profile.certifications || profile.certifications.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No certifications on file")}</div>}
-          {profile.certifications?.map((c, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.greenSubtle, borderRadius: 6, marginBottom: 4, border: "1px solid " + t.greenBorder }}>
-            <div><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? " | " + tr("Exp: {0}", fmtDate(c.expiry_date)) : ""}</div></div>
-            <button onClick={async () => { if (!window.confirm(tr("Remove this certification?"))) return; try { await af("/api/users/" + u.id + "/certifications/" + c.id, { method: "DELETE" }); showToast(tr("Removed|certification")); openProfile(u.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
-          </div>)}
         </Crd>
       </div>}
 
@@ -2527,17 +2516,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Shift")}</Lbl><Sel t={t} value={assignForm.shift} onChange={e => setAssignForm({ ...assignForm, shift: e.target.value })} options={getOpts("shift_names", tr("Select shift..."), true)} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Start")}</Lbl><Inp t={t} type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>{tr("End")}</Lbl><Inp t={t} type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={assignSite}>{tr("Assign")}</Btn></div></div></Mdl>}
-      {addCert && <Mdl t={t} onClose={() => setAddCert(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAddCert(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Name *")}</Lbl><Inp t={t} value={addCert.certName} onChange={e => setAddCert({ ...addCert, certName: e.target.value })} placeholder={tr("e.g. Green Cleaning Fundamentals")} /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={addCert.certType} onChange={e => setAddCert({ ...addCert, certType: e.target.value })} options={getOpts("certification_types", null, true)} /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Issuing Body")}</Lbl><Inp t={t} value={addCert.issuingBody} onChange={e => setAddCert({ ...addCert, issuingBody: e.target.value })} placeholder={tr("e.g. ISSA, OSHA")} /></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-          <div><Lbl>{tr("Issued Date")}</Lbl><Inp t={t} type="date" value={addCert.issuedDate} onChange={e => setAddCert({ ...addCert, issuedDate: e.target.value })} /></div>
-          <div><Lbl>{tr("Expiry Date")}</Lbl><Inp t={t} type="date" value={addCert.expiryDate} onChange={e => setAddCert({ ...addCert, expiryDate: e.target.value })} /></div>
-        </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCert(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={async () => { if (!addCert.certName) { showToast(tr("Name required"), "error"); return; } try { await af("/api/users/" + addCert.userId + "/certifications", { method: "POST", body: addCert }); showToast(tr("Certification added")); setAddCert(null); openProfile(addCert.userId); } catch (e) { showToast(e.message, "error"); } }}>{tr("Add Certification")}</Btn></div>
-      </div></Mdl>}
     </div>);
   }
 
@@ -2779,6 +2757,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   // Every active site's plan at once, GET /api/workload-plans, read each time the list shows, so a
   // plan taken or ended on a site is there on the way back.
   const [plansAll, setPlansAll] = useState(null);
+  // On a phone the plan sits under the site's name, since the row has no room for a column more.
+  const phoneWide = usePhoneWidth();
   useEffect(() => {
     if (selectedSite) return undefined;
     let alive = true;
@@ -3373,6 +3353,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
       {/* SERVICE DETAILS TAB (Tasks) */}
       {siteTab === "tasks" && <div>
+        {/* Step 291: this site's periodic work first, once GET /api/periodic-work?siteId= answers. */}
+        <PeriodicWorkPanel key={selectedSite} af={af} t={t} siteId={selectedSite} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Tasks ({0})", st.length)}</div>
           {canManageTasks && <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Task")}</button>}
@@ -3638,7 +3620,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
         {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v, crit: v ? addTask.crit : false })} />}
         {critLive && addTask.touch && <CriticalToggle t={t} on={addTask.crit} onChange={v => setAddTask({ ...addTask, crit: v })} />}
-        <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><PersonPick t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask}>{tr("Create")}</Btn></div></div></Mdl>}
 
       {/* EDIT TASK MODAL */}
@@ -3671,22 +3653,22 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   }
 
   // ---- LIST VIEW ----
-  // Step 218: which sites have a workload plan, above the site list. A row opens the site on its
-  // Workload plan tab. The figures are hours and people, with no price.
-  const planCols = [
-    { header: tr("Site"), tdStyle: { minWidth: 140 }, render: r => <span style={{ fontWeight: 600, color: t.text }}>{r.siteName}</span> },
-    { header: tr("Plan"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.plan ? <span>{tr("Quote {0}, revision {1}", r.plan.quoteNumber || "--", r.plan.quoteRevision != null ? r.plan.quoteRevision : "--")}{r.plan.stale ? <div style={{ marginTop: 4 }}><Bdg l={tr("Changed since")} c={OR} /></div> : null}</span> : <span style={{ color: t.textMut }}>{tr("No plan yet")}</span>) },
-    { header: tr("Hours a month"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.monthlyHours) : "--") },
-    { header: tr("Staff recommended"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.recommendedStaff) : "--") },
-    { header: tr("Cleaners assigned"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => workloadNum(r.assigned ? r.assigned.cleaners : null) },
-  ];
+  // Step 291: the list, Add Site and the search come first. Each site's workload plan (Step 218), from
+  // GET /api/workload-plans, is one short column on its row, drawn once the route answers, and opens
+  // the site on its Workload plan tab. Periodic work for every site is Quality > Periodic work, and
+  // each site's own is at the top of its Service Details tab.
+  const planOf = {};
+  (plansAll || []).forEach(r => { if (r && r.siteId != null) planOf[String(r.siteId)] = r; });
+  const planCell = (s) => {
+    const r = planOf[String(s.id)];
+    const p = r && r.plan;
+    if (!p) return <span style={{ color: t.textMut }}>{tr("No plan yet")}</span>;
+    return (<button data-site-plan={s.id} onClick={e => { e.stopPropagation(); openProfile(s.id, "plan"); }} style={{ minHeight: 44, padding: "4px 0", background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", textAlign: "left" }}>
+      {tr("Quote {0}, revision {1}", p.quoteNumber || "--", p.quoteRevision != null ? p.quoteRevision : "--")}
+      {p.stale ? <div style={{ marginTop: 4 }}><Bdg l={tr("Changed since")} c={OR} /></div> : null}
+    </button>);
+  };
   return (<div>
-    {plansAll && <div data-workload-plans="" style={{ marginBottom: 24 }}>
-      <SecT t={t}>{tr("Workload plans")}</SecT>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.")}</div>
-      <DataTable t={t} columns={planCols} rows={plansAll} rowKey={r => r.siteId} onRowClick={r => openProfile(r.siteId, "plan")} empty={tr("No sites found.")} />
-    </div>}
-    <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => openProfile(sid, "tasks")} />
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -3704,11 +3686,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}</div></div> },
+        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
         { header: tr("Staff"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? trn("{0} staff|count", s.staff_count) : "-" },
         { header: tr("Tasks"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? trn("{0} task|count", s.task_count) : "-" },
         { header: tr("Contract"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => contractOf(s.contract_type) || "-" },
         { header: tr("Status"), render: s => <Bdg l={siteStateOf(s.status)} c={s.status === "active" ? GR : OR} /> },
+        ...(plansAll && !phoneWide ? [{ header: tr("Workload plan"), tdStyle: { maxWidth: 170 }, render: planCell }] : []),
         { header: tr("Actions"), align: "right", render: s => <button title={tr("View site")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No sites found.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
@@ -3946,7 +3929,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
       {under("start")}
       {mode === "approve" && <div data-request-approve-form="" style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 12 }}>
         <Lbl>{tr("Assign to")}</Lbl>
-        <Sel t={t} aria-label={tr("Assign to")} value={assignee} onChange={e => setAssignee(e.target.value)} options={assignees.map(a => ({ v: String(a.id), l: a.name + (a.onShift ? " (" + tr("On shift") + ")" : "") }))} />
+        <PersonPick t={t} aria-label={tr("Assign to")} value={assignee} onChange={e => setAssignee(e.target.value)} options={assignees.map(a => ({ v: String(a.id), l: a.name + (a.onShift ? " (" + tr("On shift") + ")" : "") }))} />
         {assignees.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginTop: 6 }}>{tr("Nobody is assigned to this site yet.")}</div>}
         {under("approve")}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
@@ -4334,7 +4317,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><Sel t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
@@ -4621,13 +4604,14 @@ function TagPicker({ af, t, channelId, onPick, onClose }) {
       .catch(e => { setFailed(true); console.warn("Members:", e.message); });
   }, [af, channelId]);
   useEffect(() => { load(); }, [load]);
-  const shown = (members || []).filter(m => !q.trim() || String(m.name || "").toLowerCase().includes(q.trim().toLowerCase()));
+  const find = usePersonFind();
+  const shown = (members || []).filter(m => find(m, m.name, q));
   return (<div role="dialog" aria-label={tr("Tag someone")} data-tag-picker style={{ position: "absolute", left: 16, right: 16, bottom: 64, maxWidth: 360, maxHeight: 320, display: "flex", flexDirection: "column", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 20 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 8px 8px 14px", borderBottom: "1px solid " + t.border }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, flex: 1 }}>{tr("Tag someone")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={16} c={t.textMut} /></button>
     </div>
-    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
+    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
     <div style={{ overflowY: "auto", padding: "0 6px 6px" }}>
       {failed && <LoadFailed t={t} onRetry={load} />}
       {!failed && members === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
@@ -4689,7 +4673,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose }) {
     <div style={{ maxHeight: "calc(100vh / var(--zoom, 1) - 300px)", minHeight: 160, overflowY: "auto" }}>
       {failed && <LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} />}
       {!failed && list === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
-      {!failed && list !== null && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>}
+      {!failed && list !== null && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>}
       {!failed && groups.map(g => (g.rows.length === 0 ? null : <div key={g.key} data-new-message-group={g.key}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{g.label}</div>
         {g.rows.map(p => (<button key={p.userId} onClick={() => onPick(p)} disabled={!!starting} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: starting ? "default" : "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
@@ -4808,13 +4792,13 @@ function WsAvatars({ t, members = [], max = 5, sz = 26 }) {
 // owner. meId marks the caller.
 function WsPeoplePicker({ t, people, chosen, onToggle, owners = null, onOwner, meId = "" }) {
   const [q, setQ] = useState("");
-  const needle = q.trim().toLowerCase();
-  const shown = (people || []).filter(p => !needle || p.name.toLowerCase().includes(needle));
+  const find = usePersonFind();
+  const shown = (people || []).filter(p => find(p, p.name, q));
   return (<div>
-    <Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search people")} aria-label={tr("Search people")} style={{ marginBottom: 8 }} />
+    <Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search people")} style={{ marginBottom: 8 }} />
     <div data-people-picker="" style={{ maxHeight: 260, overflowY: "auto", border: "1px solid " + t.border, borderRadius: R.md }}>
       {people === null ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
-        : shown.length === 0 ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>
+        : shown.length === 0 ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{people.length === 0 ? tr("No one is on this list.") : tr("No one matches.")}</div>
         : shown.map((p, i) => { const on = chosen.indexOf(p.id) >= 0; return (
           <div key={p.id} style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, padding: "0 8px", borderTop: i ? "1px solid " + t.border : "none" }}>
             <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, flex: 1, minWidth: 0, minHeight: 44, cursor: "pointer" }}>
@@ -5760,7 +5744,8 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
     setBusy("");
   };
   const needle = who.trim().toLowerCase();
-  const matches = needle ? people.filter(p => f.userIds.indexOf(p.id) < 0 && p.name.toLowerCase().includes(needle)).slice(0, 8) : [];
+  const find = usePersonFind();
+  const matches = needle ? people.filter(p => f.userIds.indexOf(p.id) < 0 && find(p, p.name, needle)).slice(0, 8) : [];
   const filtersLine = (x) => {
     const g = x && typeof x === "object" ? x : {};
     const ids = Array.isArray(g.userIds) ? g.userIds : String(g.userIds || "").split(",").filter(Boolean);
@@ -5780,7 +5765,8 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
     <Crd t={t} style={{ marginBottom: 14 }}>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("People")}</Lbl>
         {f.userIds.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>{f.userIds.map(id => <button key={id} onClick={() => set("userIds", f.userIds.filter(x => x !== id))} aria-label={tr("Remove {0}", nameOf(id))} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "4px 12px", borderRadius: R.pill, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.text, fontSize: 12, cursor: "pointer" }}>{nameOf(id)} <XI sz={12} c={t.textMut} /></button>)}</div>}
-        <Inp t={t} value={who} onChange={e => setWho(e.target.value)} placeholder={tr("Search people")} aria-label={tr("Search people")} />
+        <Inp t={t} value={who} onChange={e => setWho(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search people")} />
+        {needle && matches.length === 0 && <div data-records-people-none="" style={{ padding: "10px 4px", fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>}
         {matches.length > 0 && <div data-records-people="" style={{ border: "1px solid " + t.border, borderRadius: R.md, marginTop: 4 }}>{matches.map(p => <button key={p.id} onClick={() => { set("userIds", f.userIds.concat([p.id])); setWho(""); }} style={{ display: "block", width: "100%", minHeight: 44, padding: "6px 12px", textAlign: "left", border: "none", background: "transparent", color: t.text, fontSize: 13, cursor: "pointer" }}>{p.name}</button>)}</div>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
@@ -6155,7 +6141,8 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
     if (a.type === "users") return tr("Chosen people") + " (" + (Array.isArray(a.userIds) ? a.userIds.length : 0) + ")";
     return tr("Everyone");
   };
-  const people = allStaff.filter(p => { const n = ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || ""; return !pq.trim() || n.toLowerCase().includes(pq.trim().toLowerCase()); });
+  const find = usePersonFind();
+  const people = allStaff.filter(p => find(p, ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "", pq));
   const nameOf = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
   const errLine = (k) => (errors[k] ? <div style={{ fontSize: 12, color: RD, marginTop: 4 }}>{errors[k]}</div> : null);
   const choice = (v, l) => (<button key={v} onClick={() => setAud(v)} aria-pressed={aud === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (aud === v ? GO : t.border), background: aud === v ? t.goldBg : "transparent", color: aud === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
@@ -6185,13 +6172,13 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
           {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ minHeight: 44 }} />}
           {aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
           {aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
-            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
+            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
             <div style={{ maxHeight: 220, overflowY: "auto" }}>
               {people.map(p => { const on = userIds.indexOf(p.id) >= 0; return (<label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 6px", cursor: "pointer", fontSize: 13, color: t.text }}>
                 <input type="checkbox" checked={on} onChange={() => setUserIds(ids => (on ? ids.filter(x => x !== p.id) : [...ids, p.id]))} style={{ width: 18, height: 18 }} />
                 <span style={{ flex: 1 }}>{nameOf(p)}</span>{p.role && <span style={{ fontSize: 11, color: t.textMut }}>{roleOf(p.role)}</span>}
               </label>); })}
-              {people.length === 0 && <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{tr("No staff match that search")}</div>}
+              {people.length === 0 && <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{allStaff.length === 0 ? tr("No one is on this list.") : tr("No staff match that search")}</div>}
             </div>
           </div>}
           {errLine("audience")}
@@ -6400,8 +6387,291 @@ function HelpPicture({ p, lang, t, onOpen }) {
     <img src={src} alt={p.entry} onError={() => { if (src !== english) setSrc(english); else setGone(true); }} style={{ display: "block", width: "100%", height: "auto" }} />
   </button>);
 }
+// ===== APP SUPPORT (Step 291) =====
+// STEP289_CONTRACT.md sections 1.4 and 3.4. A ticket is a person's report about the apps: what kind,
+// what they wrote, the screen and the details their app sent on its own, and a status the office moves
+// through New, Working on it, Done and Won't do with a note. The API notifies the person who filed it
+// in their language on a status change, and emails the support contact the setting names. Nothing here
+// shows until the API answers it: the Tickets page joins the side panel once GET /api/support/tickets
+// answers this person (admins, and whoever the setting names), Settings gains App support contact once
+// GET /api/settings/support-contact answers, the sign-in card draws its line once the open GET
+// /api/support/contact answers an email, and Help draws its ticket card once an answer carries a draft.
+// The contact is a setting, so no name or address is written here.
+const TICKET_KINDS = [
+  { v: "bug", l: "Something is not working" },
+  { v: "idea", l: "An idea" },
+  { v: "wrong_info", l: "Wrong information" },
+  { v: "help_miss", l: "Help could not answer" },
+  { v: "cant_sign_in", l: "Cannot sign in" },
+];
+const TICKET_STATES = [
+  { v: "new", l: "New|ticket", get c() { return BL; } },
+  { v: "working", l: "Working on it", get c() { return OR; } },
+  { v: "done", l: "Done|ticket", get c() { return GR; } },
+  { v: "wont_do", l: "Won't do", get c() { return PU; } },
+];
+const TICKET_APPS = { portal: "Staff portal", dashboard: "Admin dashboard" };
+const TICKET_SOURCES = { form: "App support form", help: "Help" };
+const TICKET_LANGS = { en: "English", es: "Spanish", fr: "French" };
+const TICKET_NOTE_MAX = 1000;
+const ticketKindWord = (k) => { const x = TICKET_KINDS.find(y => y.v === k); return x ? tr(x.l) : String(k || ""); };
+const ticketStateOf = (s) => TICKET_STATES.find(y => y.v === s) || null;
+const ticketStateWord = (s) => { const x = ticketStateOf(s); return x ? tr(x.l) : String(s || ""); };
+const ticketsOf = (d) => (Array.isArray(d) ? d : d && Array.isArray(d.tickets) ? d.tickets : null);
+const ticketPick = (x, keys) => { for (const k of keys) { if (x && x[k] != null && x[k] !== "") return x[k]; } return null; };
+const ticketNameOf = (v) => (v && typeof v === "object" ? v.name || ((v.firstName || v.first_name || "") + " " + (v.lastName || v.last_name || "")).trim() : "");
+// One ticket in the shape the screens read, whichever case the API writes its keys in.
+const ticketShape = (x) => ({
+  id: String(ticketPick(x, ["id"]) || ""),
+  kind: ticketPick(x, ["kind"]) || "",
+  status: ticketPick(x, ["status"]) || "new",
+  statusNote: ticketPick(x, ["statusNote", "status_note"]) || "",
+  description: ticketPick(x, ["description"]) || "",
+  screen: ticketPick(x, ["screen"]) || "",
+  appVersion: ticketPick(x, ["appVersion", "app_version"]) || "",
+  device: ticketPick(x, ["device"]) || "",
+  locale: ticketPick(x, ["locale"]) || "",
+  app: ticketPick(x, ["app"]) || "",
+  source: ticketPick(x, ["source"]) || "",
+  createdAt: ticketPick(x, ["createdAt", "created_at"]) || "",
+  updatedAt: ticketPick(x, ["updatedAt", "updated_at"]) || "",
+  who: ticketNameOf(ticketPick(x, ["createdBy", "created_by"])) || ticketPick(x, ["createdByName", "created_by_name", "userName"]) || "",
+  handledBy: ticketNameOf(ticketPick(x, ["handledBy", "handled_by"])) || ticketPick(x, ["handledByName", "handled_by_name"]) || "",
+  screenshotUrl: ticketPick(x, ["screenshotUrl", "screenshot_url"]) || "",
+  screenshot: !!ticketPick(x, ["screenshotUrl", "screenshot_url", "screenshotPath", "screenshot_path"]),
+});
+// Each detail a ticket carries, as [label, value], in the order the window and the export draw them.
+const ticketDetails = (x) => [
+  ["Kind of ticket", ticketKindWord(x.kind)],
+  ["Status", ticketStateWord(x.status)],
+  ["Note|ticket", x.statusNote],
+  ["From|ticket", x.who],
+  ["Sent|ticket", irWhen(x.createdAt)],
+  ["App", TICKET_APPS[x.app] ? tr(TICKET_APPS[x.app]) : x.app],
+  ["Sent from", TICKET_SOURCES[x.source] ? tr(TICKET_SOURCES[x.source]) : x.source],
+  ["Screen", x.screen],
+  ["App version", x.appVersion],
+  ["Device", x.device],
+  ["Language", TICKET_LANGS[x.locale] ? tr(TICKET_LANGS[x.locale]) : x.locale],
+].filter(r => r[1]);
+// The tickets shown, as plain text to paste into a chat: a heading with the count and the day, then
+// each ticket's details and what the person wrote.
+function ticketsText(rows) {
+  const out = [tr("App support tickets ({0})", rows.length) + ", " + keptDay(todayISO())];
+  rows.forEach((x, i) => {
+    out.push("", "#" + (i + 1));
+    ticketDetails(x).forEach(([l, v]) => out.push(tr(l) + ": " + v));
+    out.push(tr("Description") + ":", x.description || "--");
+  });
+  return out.join("\n");
+}
+// What the dashboard says about itself on a ticket it files: the build it is running, read from the
+// bundle's own name, and the browser.
+const dashboardBuild = () => {
+  try { const src = Array.from(document.scripts || []).map(s => s.src || "").find(u => /\/static\/js\/main\.[0-9a-f]+\.js/.test(u)); const m = src && /main\.([0-9a-f]+)\.js/.exec(src); return m ? "build " + m[1] : "build dev"; }
+  catch (e) { return "build dev"; }
+};
+const dashboardDevice = () => { try { return String(navigator.userAgent || "").slice(0, 200); } catch (e) { return ""; } };
+
+// One ticket, opened from a row: every detail, the screenshot when the API sends its address, and the
+// status with its note, saved with PATCH /api/support/tickets/:id { status, statusNote }. A refusal is
+// drawn over Save in the API's words, and nothing closes.
+function TicketWindow({ af, t, ticket, showToast, onClose, onSaved }) {
+  const [status, setStatus] = useState(ticket.status);
+  const [note, setNote] = useState(ticket.statusNote || "");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const changed = status !== ticket.status || note.trim() !== String(ticket.statusNote || "").trim();
+  const save = async () => {
+    if (busy || !changed) return;
+    setBusy(true); setRefusal("");
+    try {
+      const d = await af("/api/support/tickets/" + encodeURIComponent(ticket.id), { method: "PATCH", body: { status, statusNote: note.trim() || null } });
+      const got = d && (d.ticket || (d.id ? d : null));
+      showToast(status !== ticket.status ? tr("Saved. The person who sent it is told in their language.") : tr("Saved."));
+      onSaved(got ? ticketShape(got) : Object.assign({}, ticket, { status, statusNote: note.trim() }));
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 110, flexShrink: 0, color: t.textMut }}>{tr(label)}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{value}</span></div>;
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ticket-window={ticket.id}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{ticketKindWord(ticket.kind)}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ marginBottom: 12 }}>{ticketDetails(ticket).filter(([l]) => l !== "Kind of ticket" && l !== "Status" && l !== "Note|ticket").map(([l, v]) => row(l, v))}</div>
+    <Lbl>{tr("Description")}</Lbl>
+    <div data-ticket-description="" style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, overflowWrap: "anywhere" }}>{ticket.description || "--"}</div>
+    {ticket.screenshotUrl ? <a href={ticket.screenshotUrl} target="_blank" rel="noopener noreferrer" data-ticket-screenshot="" style={{ display: "block", marginBottom: 12 }}><img src={ticket.screenshotUrl} alt={tr("Screenshot")} style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border }} /></a>
+      : ticket.screenshot ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("A screenshot is attached.")}</div> : null}
+    <Lbl>{tr("Status")}</Lbl>
+    <div role="group" aria-label={tr("Status")} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+      {TICKET_STATES.map(s => <button key={s.v} type="button" aria-pressed={status === s.v} data-ticket-status-choice={s.v} onClick={() => setStatus(s.v)} disabled={busy} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (status === s.v ? GO : t.border), background: status === s.v ? t.goldBg : "transparent", color: status === s.v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr(s.l)}</button>)}
+    </div>
+    <Lbl>{tr("Note to the person who sent it")}</Lbl>
+    <TArea t={t} rows={3} maxLength={TICKET_NOTE_MAX} aria-label={tr("Note to the person who sent it")} data-ticket-note="" value={note} onChange={e => setNote(e.target.value)} placeholder={tr("Optional.")} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 12, lineHeight: 1.5 }}>{tr("When the status changes, the person who sent it is told in the app, in their language, with this note.")}</div>
+    {refusal && <div role="alert" data-ticket-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-ticket-save="" onClick={save} disabled={busy || !changed} style={{ opacity: changed ? 1 : 0.6 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The text Export makes, in a window: Copy puts it on the clipboard, and the box holds it to select by
+// hand where the browser refuses the clipboard.
+function TicketsExportWindow({ t, text, showToast, onClose }) {
+  const boxRef = useRef(null);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); showToast(tr("Copied")); }
+    catch (e) { if (boxRef.current) { boxRef.current.focus(); boxRef.current.select(); } showToast(tr("Select the text and copy it.")); }
+  };
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-tickets-export="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Export")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The tickets shown, as text to paste into a chat.")}</div>
+    <textarea rows={12} readOnly ref={boxRef} aria-label={tr("Export")} data-tickets-export-text="" value={text} style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, resize: "vertical", fontFamily: "monospace" }} />
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Close")}</Btn>
+      <Btn t={t} data-tickets-copy="" onClick={copy}>{tr("Copy")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The Tickets inbox: GET /api/support/tickets?kind= read once per kind and app, the status tabs counted
+// from what it answers, a row opening the ticket, and Export making the rows shown into text.
+function TicketsPage({ af, t, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [state, setState] = useState("new");
+  const [kind, setKind] = useState("");
+  const [app, setApp] = useState("");
+  const [open, setOpen] = useState(null);
+  const [exporting, setExporting] = useState(null);
+  const load = useCallback(() => {
+    setFailed("");
+    const q = [kind ? "kind=" + encodeURIComponent(kind) : "", app ? "app=" + encodeURIComponent(app) : ""].filter(Boolean).join("&");
+    af("/api/support/tickets" + (q ? "?" + q : "")).then(d => setRows((ticketsOf(d) || []).map(ticketShape))).catch(e => { setRows([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, kind, app]);
+  useEffect(() => { load(); }, [load]);
+  const all = (rows || []).filter(x => !app || x.app === app);
+  const shown = all.filter(x => state === "all" || x.status === state).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const count = (s) => all.filter(x => x.status === s).length;
+  const cols = [
+    { header: tr("Sent|ticket"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => irWhen(x.createdAt) },
+    { header: tr("Kind of ticket"), tdStyle: { minWidth: 150, color: t.text, fontWeight: 600 }, render: x => ticketKindWord(x.kind) },
+    { header: tr("From|ticket"), tdStyle: { minWidth: 120, color: t.textSec }, render: x => x.who || "--" },
+    { header: tr("Where"), tdStyle: { minWidth: 120, color: t.textSec }, render: x => [TICKET_APPS[x.app] ? tr(TICKET_APPS[x.app]) : x.app, x.screen].filter(Boolean).join(", ") || "--" },
+    { header: tr("Description"), tdStyle: { minWidth: 200, maxWidth: 320, color: t.text }, render: x => <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.description}</span> },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: x => <span data-ticket-state={x.status}><Bdg l={ticketStateWord(x.status)} c={(ticketStateOf(x.status) || TICKET_STATES[0]).c} /></span> },
+  ];
+  return (<div data-tickets="">
+    <SecT t={t}>{tr("Tickets")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("What people report about the apps from App support and from Help. A bug and a sign-in problem are emailed to the support contact at once; the rest go in one summary each working morning.")}</div>
+    <FilterTabs t={t} value={state} onChange={setState} tabs={TICKET_STATES.map(s => ({ id: s.v, label: tr(s.l), count: rows ? count(s.v) : null, color: s.c })).concat([{ id: "all", label: tr("All|tickets"), count: rows ? all.length : null }])} />
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Kind of ticket")} data-tickets-kind="" value={kind} onChange={e => setKind(e.target.value)} options={[{ v: "", l: tr("All kinds") }].concat(TICKET_KINDS.map(k => ({ v: k.v, l: tr(k.l) })))} /></div>
+      <div style={{ minWidth: 180 }}><Sel t={t} aria-label={tr("App")} data-tickets-app="" value={app} onChange={e => setApp(e.target.value)} options={[{ v: "", l: tr("Both apps") }].concat(Object.keys(TICKET_APPS).map(k => ({ v: k, l: tr(TICKET_APPS[k]) })))} /></div>
+      <Btn t={t} v="ghost" data-tickets-export-open="" onClick={() => setExporting(ticketsText(shown))} disabled={!shown.length} style={{ marginLeft: "auto" }}>{tr("Export")}</Btn>
+    </div>
+    {rows === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={shown} rowKey={x => x.id} onRowClick={x => setOpen(x)} empty={all.length ? tr("Nothing matches this filter.") : tr("No tickets yet.")} />}
+    {open && <TicketWindow af={af} t={t} ticket={open} showToast={showToast} onClose={() => setOpen(null)} onSaved={(x) => { setOpen(null); setRows(prev => (prev || []).map(y => (y.id === x.id ? Object.assign({}, y, x) : y))); load(); }} />}
+    {exporting !== null && <TicketsExportWindow t={t} text={exporting} showToast={showToast} onClose={() => setExporting(null)} />}
+  </div>);
+}
+
+// Settings > App support contact: the name and email Help gives and the sign-in card shows, and where
+// the API emails a ticket, from GET /api/settings/support-contact and saved with PUT. A refusal that
+// names a field is drawn under it.
+function SupportContactPanel({ af, t, showToast, initial }) {
+  const [f, setF] = useState({ name: (initial && initial.name) || "", email: (initial && initial.email) || "" });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const fieldOf = (e) => { const keys = (e && e.body && Array.isArray(e.body.keys) ? e.body.keys : []).concat(e && e.body && e.body.field ? [e.body.field] : []); return keys.indexOf("email") >= 0 ? "email" : keys.indexOf("name") >= 0 ? "name" : ""; };
+  const save = async () => {
+    if (busy) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      const d = await af("/api/settings/support-contact", { method: "PUT", body: { name: f.name.trim(), email: f.email.trim() } });
+      if (d && typeof d === "object" && (d.name != null || d.email != null)) setF({ name: d.name || "", email: d.email || "" });
+      showToast(tr("Saved."));
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div role="alert" data-support-contact-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Crd t={t} style={{ maxWidth: 560 }}><div data-support-contact="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("App support contact")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The person tickets go to. Help names them, the sign-in screens show the email, and a bug or a sign-in problem is emailed to them at once.")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} aria-label={tr("Name")} data-support-contact-name="" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} style={refusal.field === "name" ? { borderColor: RD } : undefined} />{under("name")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Email")}</Lbl><Inp t={t} type="email" aria-label={tr("Email")} data-support-contact-email="" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} style={refusal.field === "email" ? { borderColor: RD } : undefined} />{under("email")}</div>
+    {refusal.text && !refusal.field && <div role="alert" data-support-contact-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} data-support-contact-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div></Crd>);
+}
+
+// The contact the open route answers, for the sign-in card, read once a page load: { name, email }, or
+// null until it answers with an email.
+let supportContactRead = null;
+function useSupportContact() {
+  const [c, setC] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    if (!supportContactRead) supportContactRead = apiFetch("/api/support/contact").then(d => (d && typeof d.email === "string" && d.email.trim() ? { name: String(d.name || ""), email: d.email.trim() } : null)).catch(() => { supportContactRead = null; return null; });
+    supportContactRead.then(v => { if (alive) setC(v); });
+    return () => { alive = false; };
+  }, []);
+  return c;
+}
+
+// Help's ticket card: Help drafts a ticket from the conversation, and it is filed only when the person
+// presses Send ticket, with POST /api/support/tickets and the details this app sends on its own. Not
+// now puts it away. A refusal is drawn on the card in the API's words.
+function HelpTicketCard({ af, t, draft, onDone, onDismiss }) {
+  const [kind, setKind] = useState(TICKET_KINDS.some(k => k.v === draft.kind) ? draft.kind : "bug");
+  const [text, setText] = useState(String(draft.description || ""));
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const send = async () => {
+    if (busy || !text.trim()) return;
+    setBusy(true); setRefusal("");
+    try {
+      await af("/api/support/tickets", { method: "POST", body: { kind, description: text.trim(), screen: draft.screen || "help", appVersion: dashboardBuild(), device: dashboardDevice(), locale: getLang(), app: AGENT_APP, source: "help" } });
+      onDone();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<Crd t={t} style={{ marginBottom: 12 }}><div data-help-ticket="">
+    <Lbl>{tr("Ticket for app support")}</Lbl>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Kind of ticket")} data-help-ticket-kind="" value={kind} onChange={e => setKind(e.target.value)} options={TICKET_KINDS.map(k => ({ v: k.v, l: tr(k.l) }))} /></div>
+    </div>
+    <TArea t={t} rows={3} maxLength={4000} aria-label={tr("Description")} data-help-ticket-text="" value={text} onChange={e => setText(e.target.value)} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Nothing is sent until you press Send ticket. The screen, this app's version, your browser and your language go with it.")}</div>
+    {refusal && <div role="alert" data-help-ticket-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onDismiss} disabled={busy}>{tr("Not now")}</Btn>
+      <Btn t={t} data-help-ticket-send="" onClick={send} disabled={busy || !text.trim()}>{busy ? tr("Sending...") : tr("Send ticket")}</Btn>
+    </div>
+  </div></Crd>);
+}
+
+// A ticket Help drafted from the conversation (Step 291, STEP289_CONTRACT.md section 1.4), read from
+// the answer's ticketDraft: { kind, description, screen }. The contract names no key, so ticket_draft
+// and supportTicket are read too.
+const agentTicketDraftOf = (r) => {
+  const x = r && (r.ticketDraft || r.ticket_draft || r.supportTicket);
+  return x && typeof x === "object" && (x.kind || x.description) ? { kind: String(x.kind || ""), description: String(x.description || ""), screen: String(x.screen || "") } : null;
+};
 function HelpPage({ af, sf, uf, showToast, t }) {
   const [drafts, setDrafts] = useState([]);
+  // Step 291: the ticket Help drafted, shown on its card until it is sent or put away.
+  const [ticketDraft, setTicketDraft] = useState(null);
+  const [ticketSent, setTicketSent] = useState(false);
   const [thread, setThread] = useState([]);
   const [conversationId, setConversationId] = useState(null);
   const [formResponse, setFormResponse] = useState(null);
@@ -6571,6 +6841,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
           if (r.conversationId) setConversationId(r.conversationId);
           const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], pictures: agentPicturesFrom(r.pictures), messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
           if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
+          const ticket = agentTicketDraftOf(r);
+          if (ticket) { setTicketDraft(ticket); setTicketSent(false); }
           setThread(p => [...p.filter(m => m.id !== replyId).map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
           setText(cur => cur === body ? "" : cur);
           if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
@@ -6683,6 +6955,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
       {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("Still needed before you can submit:")}</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
     </Crd>}
     {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>{tr("Report submitted.")}</div>}
+    {ticketDraft && <HelpTicketCard key={ticketDraft.kind + "|" + ticketDraft.description} af={af} t={t} draft={ticketDraft} onDone={() => { setTicketDraft(null); setTicketSent(true); }} onDismiss={() => setTicketDraft(null)} />}
+    {ticketSent && <div role="status" data-help-ticket-sent="" style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>{tr("Ticket sent.")}</div>}
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: "1 1 0px", minHeight: "min-content" }}>
       {/* The conversation keeps 120 of the page's own pixels, and the reports list gives up its rows
           first. In a short window with the text large, 420 is what the top bar, the page's margins,
@@ -7098,7 +7372,7 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [], lkMap }) {
         </div>
       </div>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={tr("Add a person to {0}", ariaName)} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: tr("Add a person") }, ...opts]} /></div>
+        <div style={{ flex: 1, minWidth: 180 }}><PersonPick t={t} aria-label={tr("Add a person to {0}", ariaName)} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: tr("Add a person") }, ...opts]} /></div>
         <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>
       {allowEmail && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
@@ -9506,7 +9780,7 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
     </div>
     {refusal.text && known.length === 0 && <div role="alert" data-ppe-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     {!userId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
-      <Sel t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((people || []).map(p => ({ v: String(p.id), l: ppePersonName(p) })))} style={box("userId")} />{under("userId")}</div>}
+      <PersonPick t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((people || []).map(p => ({ v: String(p.id), l: ppePersonName(p) })))} style={box("userId")} />{under("userId")}</div>}
     {!siteId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
       <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF(p => ({ ...p, siteId: e.target.value, supplyId: p.supplyId === PPE_TYPED ? PPE_TYPED : "" }))} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Item")}</Lbl>
@@ -9796,7 +10070,9 @@ function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSave
 // when it was last done and by whom, the first day of the period it next owes work in (nextDueOn), that
 // period's last day (dueBy), and whether it is done, due or overdue, by the checklist's own week, month
 // and quarter rules, which need no start date. An item reads in the screen's language through its
-// display. The table sits on the Sites list once GET /api/periodic-work answers with { items }.
+// display. Since Step 291 the table for every site is Quality > Periodic work, its own page once GET
+// /api/periodic-work answers with { items }, and each site's Service Details tab draws its own items at
+// the top, read with ?siteId=, with no Site column.
 const PERIODIC_FREQUENCIES = { weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly", quarterly: "Quarterly", seasonal: "Seasonal" };
 const periodicFrequencyWord = (f) => (PERIODIC_FREQUENCIES[f] ? tr(PERIODIC_FREQUENCIES[f]) : String(f || ""));
 const PERIODIC_STATES = { overdue: { l: "Overdue|periodic", get c() { return RD; } }, due: { l: "Due|periodic", get c() { return OR; } }, done: { l: "Done|periodic", get c() { return GR; } } };
@@ -9805,20 +10081,23 @@ const PERIODIC_ORDER = ["overdue", "due", "done"];
 const periodicByOf = (x) => (x.lastDoneBy && typeof x.lastDoneBy === "object" ? x.lastDoneBy.name || "" : x.lastDoneBy || "");
 const shownLabel = (x) => (x && x.display && x.display.label) || (x && x.label) || "";
 const shownZone = (x) => (x && x.display && x.display.zone) || (x && x.zone) || "";
-function PeriodicWorkPanel({ af, t, onOpenSite }) {
+function PeriodicWorkPanel({ af, t, onOpenSite, siteId = "" }) {
   const [items, setItems] = useState(null);
   const [state, setState] = useState("all");
   useEffect(() => {
     let alive = true;
-    af("/api/periodic-work").then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : null); }).catch(e => { if (alive) setItems(null); console.warn("Periodic work:", e.message); });
+    setItems(null);
+    af("/api/periodic-work" + (siteId ? "?siteId=" + encodeURIComponent(siteId) : "")).then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : null); }).catch(e => { if (alive) setItems(null); console.warn("Periodic work:", e.message); });
     return () => { alive = false; };
-  }, [af]);
+  }, [af, siteId]);
   if (items === null) return null;
+  // One site's items, at the top of its Service Details tab: nothing is drawn when it has none.
+  if (siteId && items.length === 0) return null;
   const count = (s) => items.filter(x => x.state === s).length;
   const rows = items.filter(x => state === "all" || x.state === state).slice().sort((a, b) => String(a.siteName || "").localeCompare(String(b.siteName || ""), localeTag()) || PERIODIC_ORDER.indexOf(a.state) - PERIODIC_ORDER.indexOf(b.state) || shownLabel(a).localeCompare(shownLabel(b), localeTag()));
   const late = (x) => x.state === "overdue";
   const cols = [
-    { header: tr("Site"), tdStyle: { minWidth: 130, fontWeight: 600, color: t.text }, render: x => x.siteName || "--" },
+    ...(siteId ? [] : [{ header: tr("Site"), tdStyle: { minWidth: 130, fontWeight: 600, color: t.text }, render: x => x.siteName || "--" }]),
     { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ color: t.text }}>{shownLabel(x)}</span>{shownZone(x) ? <div style={{ fontSize: 11, color: t.textMut }}>{shownZone(x)}</div> : null}</span>) },
     { header: tr("Frequency"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => periodicFrequencyWord(x.frequency) },
     { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => (x.lastDoneAt ? irDay(x.lastDoneAt) : "--") },
@@ -9827,9 +10106,9 @@ function PeriodicWorkPanel({ af, t, onOpenSite }) {
     { header: tr("Due by"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.dueBy ? <span style={{ color: late(x) ? RD : t.textSec, fontWeight: late(x) ? 600 : 400 }}>{keptDay(x.dueBy)}</span> : <span style={{ color: t.textMut }}>--</span>) },
     { header: tr("State"), tdStyle: { whiteSpace: "nowrap" }, render: x => <Bdg l={periodicStateWord(x.state)} c={(PERIODIC_STATES[x.state] || PERIODIC_STATES.due).c} /> },
   ];
-  return (<div data-periodic-work="" style={{ marginBottom: 24 }}>
+  return (<div data-periodic-work={siteId ? undefined : ""} data-site-periodic={siteId ? String(siteId) : undefined} style={{ marginBottom: 24 }}>
     <SecT t={t}>{tr("Periodic work")}</SecT>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{siteId ? tr("The weekly, monthly, quarterly and seasonal work on this site's checklist, and whether it is done this period.") : tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
     <FilterTabs t={t} value={state} onChange={setState} tabs={[{ id: "all", label: tr("All|periodic"), count: items.length }, { id: "overdue", label: tr("Overdue|periodic"), count: count("overdue"), color: RD }, { id: "due", label: tr("Due|periodic"), count: count("due"), color: OR }, { id: "done", label: tr("Done|periodic"), count: count("done"), color: GR }]} />
     <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.siteId) + ":" + String(x.taskId)} onRowClick={onOpenSite ? (x => onOpenSite(x.siteId)) : undefined} empty={items.length ? tr("Nothing matches this filter.") : tr("No periodic work on any checklist yet.")} />
   </div>);
@@ -10587,7 +10866,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <Sel t={t} value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: tr("All Buildings") }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
       <Sel t={t} value={filters.floor_number} onChange={e => updateFilter("floor_number", e.target.value)} options={[{ v: "", l: tr("All Floors") }, ...floors.map(f => ({ v: f, l: tr("Floor {0}", f) }))]} style={{ flex: 1, minWidth: 90 }} />
       <Sel t={t} value={filters.zone} onChange={e => updateFilter("zone", e.target.value)} options={[{ v: "", l: tr("All Zones") }, ...zones.map(z => ({ v: z, l: zoneWord[z] || z }))]} style={{ flex: 1, minWidth: 100 }} />
-      <Sel t={t} value={filters.user_id} onChange={e => updateFilter("user_id", e.target.value)} options={[{ v: "", l: tr("All Staff") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <PersonPick t={t} value={filters.user_id} onChange={e => updateFilter("user_id", e.target.value)} options={[{ v: "", l: tr("All Staff") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
       <Sel t={t} value={filters.status} onChange={e => updateFilter("status", e.target.value)} options={[{ v: "", l: tr("All Status") }, { v: "pending", l: tr("Pending") }, { v: "in_progress", l: tr("In Progress") }, { v: "resolved", l: tr("Resolved") }, { v: "unable_to_resolve", l: tr("Unable to Resolve") }]} style={{ flex: 1, minWidth: 110 }} />
       {hasFilters && <button onClick={clearFilters} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>{tr("View All")}</button>}
     </div>
@@ -10626,7 +10905,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
     {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><Sel t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><PersonPick t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
@@ -10635,7 +10914,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder={tr("e.g. 1")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder={tr("e.g. Offices")} /></div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Assign To *")}</Lbl><Sel t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder={tr("Step-by-step instructions or notes...")} rows={3} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video (optional)")}</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
@@ -11271,7 +11550,7 @@ function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, on
 
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-      <Sel t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("All people") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <PersonPick t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("All people") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
       <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
       <div style={{ display: "flex", gap: 6 }}>{statusBtn("active", "Active|pattern")}{statusBtn("ended", "Ended|pattern")}{statusBtn("all", "All|patterns")}</div>
     </div>
@@ -11304,6 +11583,11 @@ const timeOffMoment = (iso) => iso ? new Date(iso).toLocaleString(localeTag(), {
 // The key carries the noun the Spanish word has to agree with, a request, so the table can give
 // the right ending for each one.
 const TIME_OFF_STATUS_LABELS = { requested: "Requested|request", approved: "Approved|request", denied: "Denied|request", cancelled: "Cancelled|request" };
+// A request's type as a word (Step 291): the API's leave types, PTO among them since its Step 289
+// (STEP289_CONTRACT.md section 1.5), each in the screen's language. A type with no word here reads the
+// label the API sent, or its code.
+const LEAVE_TYPE_WORDS = { paid_sick: "Paid sick leave", unpaid: "Unpaid time off", bereavement_personal: "Bereavement and personal", jury_duty: "Jury duty", military: "Military leave", pto: "PTO (paid time off)" };
+const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_WORDS[r.leaveType]) : (r && (r.leaveTypeLabel || r.leaveType)) || "");
 const timeOffStatus = (s) => tr(TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || ""));
 const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), tr("{0} to {1}", patternTime(sh.startTime), patternTime(sh.endTime)), sh.siteName].filter(Boolean).join(", ");
 const TIME_OFF_LIMIT = 200;
@@ -11369,7 +11653,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
     </div>
     <div style={{ marginBottom: 14 }}>
       {row("Person", req.userName)}
-      {row("Type", req.leaveTypeLabel)}
+      {row("Type", <span data-time-off-type={req.leaveType || ""}>{timeOffType(req)}</span>)}
       {row("Dates", timeOffDates(req.startsOn, req.endsOn))}
       {req.partDay ? row("Time", timeOffTimes(req)) : null}
       {row("Hours", timeOffHours(req.hours))}
@@ -11429,7 +11713,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
 
   const columns = [
     { header: tr("Person"), render: r => <span style={{ color: t.text }}>{r.userName}</span> },
-    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => r.leaveTypeLabel },
+    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => <span data-time-off-type={r.leaveType || ""}>{timeOffType(r)}</span> },
     { header: tr("Dates"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffDates(r.startsOn, r.endsOn) },
     { header: tr("Time"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffTimes(r) },
     { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffHours(r.hours) },
@@ -11443,7 +11727,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{statusBtn("requested", "Requested|request")}{statusBtn("approved", "Approved|request")}{statusBtn("denied", "Denied|request")}{statusBtn("cancelled", "Cancelled|request")}{statusBtn("all", "All|requests")}</div>
-      <Sel t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("Everyone") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <PersonPick t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("Everyone") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
     </div>
     {status === "requested" && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr(TIME_OFF_ORDER_NOTE)}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading time off...")}</div>}
@@ -11504,7 +11788,6 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   const [inspForm, setInspForm] = useState({ assigned_to: "", scheduled_date: "" });
   const [schedSupervisors, setSchedSupervisors] = useState([]);
   const [pickupDetail, setPickupDetail] = useState(null);
-  const [pickerSearch, setPickerSearch] = useState("");
   const [patternError, setPatternError] = useState("");
   const [patternConflictId, setPatternConflictId] = useState("");
   const [patternSkipped, setPatternSkipped] = useState(null);
@@ -11630,7 +11913,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     if (!needle) return true;
     const first = s.firstName || s.first_name || "";
     const last = s.lastName || s.last_name || "";
-    return [first, last, (first + " " + last).trim(), s.name, s.employeeId || s.employee_id].some(f => String(f || "").toLowerCase().includes(needle));
+    return [first, last, (first + " " + last).trim(), s.name, s.employeeId || s.employee_id, s.badgeNumber || s.badge_number].some(f => String(f || "").toLowerCase().includes(needle));
   };
 
   // An admin's list carries each person's site assignments. A supervisor's comes from the HR summary
@@ -11644,6 +11927,22 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     let list = filterSite ? staffList.filter(s => s.role === "admin" || atSite(s)) : staffList.filter(s => s.role !== "admin");
     if (searchStaff) list = list.filter(s => staffSearchMatch(s, searchStaff));
     return list;
+  })();
+  // Schedule Shift's one picker (Step 291): everyone active, office accounts too, whatever the page's
+  // own search and site filter hold. With a Site picked in the window, the people assigned there come
+  // first under that heading and everyone else below, each with their role. The window's site is read
+  // the way the page's is: from each person's sites, or from the site's record for a list without them.
+  const [windowSitePeople] = useSitePeople(af, createModal && peopleLackSites ? createForm.siteId : "");
+  const assignedTo = (s, sid) => (Array.isArray(s.sites) ? s.sites.some(x => x && String(x.siteId) === String(sid)) : !!(windowSitePeople && windowSitePeople.has(String(s.id))));
+  const shiftPickOptions = (() => {
+    const sid = createForm.siteId;
+    const nameOf = (s) => s.name || ((s.firstName || "") + " " + (s.lastName || "")).trim();
+    const optOf = (s, group) => ({ v: s.id, l: nameOf(s), hint: s.role ? (staffRoleShown[s.role] || roleWord(s.role)) : "", group });
+    const everyone = staffList.filter(s => s && s.id != null && s.role !== "client_contact");
+    const blank = { v: "", l: tr("Select staff...") };
+    if (!sid) return [blank].concat(everyone.map(s => optOf(s)));
+    const here = everyone.filter(s => assignedTo(s, sid));
+    return [blank].concat(here.map(s => optOf(s, tr("Assigned to this site"))), everyone.filter(s => !assignedTo(s, sid)).map(s => optOf(s, tr("Everyone else"))));
   })();
 
   // The week grid draws a row for anybody with something on it over the visible week: the roster
@@ -11675,7 +11974,6 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     const sId = filterSite || "";
     setCreateForm({ userId: userId || "", siteId: sId, startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
     if (sId) loadSiteLocations(sId);
-    setPickerSearch("");
     setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     setCreateModal({ date, userId });
   };
@@ -11918,20 +12216,10 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>{tr("Scheduling for")} {fmtShortDate(createModal.date)}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} aria-label={tr("Site")} data-schedule-shift-site="" value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff Member *")}</Lbl>
-        <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder={tr("Search staff")} style={{ marginBottom: 6, fontSize: 12 }} />
-        {(() => {
-          const matches = staffForSite.filter(s => staffSearchMatch(s, pickerSearch));
-          const picked = createForm.userId ? staffForSite.find(s => String(s.id) === String(createForm.userId)) : null;
-          const opts = picked && !matches.includes(picked) ? [picked, ...matches] : matches;
-          const noMatch = pickerSearch.trim().length > 0 && matches.length === 0;
-          return (<>
-            {(!noMatch || opts.length > 0) && <Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...opts.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} />}
-            {noMatch && <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No staff match that search")}</div>}
-          </>);
-        })()}
+        <PersonPick t={t} aria-label={tr("Staff Member")} data-schedule-shift-staff="" value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={shiftPickOptions} />
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Start Time *")}</Lbl><Inp t={t} type="time" value={createForm.startTime} onChange={e => setCreateForm({ ...createForm, startTime: e.target.value })} /></div>
         <div><Lbl>{tr("End Time *")}</Lbl><Inp t={t} type="time" value={createForm.endTime} onChange={e => setCreateForm({ ...createForm, endTime: e.target.value })} /></div>
@@ -11977,7 +12265,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Start Time")}</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
@@ -12039,7 +12327,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
         <Bdg l={inspStatusWord[inspModal.status || "scheduled"] || inspModal.status} c={inspModal.status === "completed" ? GR : BL} />
       </div>
-      <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+      <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
       <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -12067,7 +12355,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><Sel t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+          <div style={{ flex: 1 }}><PersonPick t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
           <Btn t={t} onClick={async () => {
             if (!pickupDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
             try {
@@ -12155,6 +12443,15 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const [shiftDetail, setShiftDetail] = useState(null);
   const [siteStaff, setSiteStaff] = useState([]);
   const staffName = (s) => s.name || ((s.first_name || s.firstName || "") + " " + (s.last_name || s.lastName || "")).trim() || "Unknown";
+  // Reassign (Step 291): the people the shift's site record lists come first under that heading, and
+  // everyone else active below, admins left out as before, so nobody else is out of reach of the search.
+  const reassignOptions = (() => {
+    const here = new Set(siteStaff.map(st => String(st.id || st.user_id)));
+    const atSite = siteStaff.length > 0 && siteStaff.length < staff.filter(st => st.role !== "admin").length;
+    const rest = staff.filter(st => st.role !== "admin" && !here.has(String(st.id)));
+    if (!atSite) return staff.filter(st => st.role !== "admin").map(st => ({ v: st.id, l: staffName(st) }));
+    return siteStaff.map(st => ({ v: st.id || st.user_id, l: staffName(st), group: tr("Assigned to this site") })).concat(rest.map(st => ({ v: st.id, l: staffName(st), group: tr("Everyone else") })));
+  })();
   const openDetail = async (s) => {
     setShiftDetail({ ...s });
     setSiteStaff([]);
@@ -12750,7 +13047,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: siteStaff.length > 0 ? tr("Staff at this site...") : tr("Select staff member...") }, ...(siteStaff.length > 0 ? siteStaff : staff.filter(s => s.role !== "admin")).map(s => ({ v: s.id || s.user_id, l: staffName(s) }))]} /></div>
+            <div style={{ flex: 1 }}><PersonPick t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }].concat(reassignOptions)} /></div>
             <Btn t={t} onClick={async () => {
               if (!shiftDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
               try {
@@ -13328,7 +13625,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
           <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
             <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -13694,7 +13991,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
           <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -13705,7 +14002,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={scheduleInspection}>{tr("Schedule|verb")}</Btn></div>
       </div></Mdl>}
@@ -15662,6 +15959,13 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     af("/api/holidays?year=" + new Date().getFullYear()).then(d => { if (alive) setHolidays(holidaysOf(d) ? d : null); }).catch(e => { if (alive) setHolidays(null); console.warn("Holidays:", e.message); });
     return () => { alive = false; };
   }, [af, canManageSettings]);
+  // Step 291: App support contact, once GET /api/settings/support-contact answers this person (admins).
+  const [supportContact, setSupportContact] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/settings/support-contact").then(d => { if (alive) setSupportContact(d && typeof d === "object" && !Array.isArray(d) ? d : null); }).catch(e => { if (alive) setSupportContact(null); console.warn("Support contact:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
   const [selCat, setSelCat] = useState(null);
   // Each tab is a capability's: Company, Who gets told and Holidays are manage settings, the two lookups
   // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
@@ -15675,6 +15979,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "quotes", label: tr("Quote defaults"), open: canSetQuoteDefaults && !!quoteDefaults },
     { id: "holidays", label: tr("Holidays"), open: canManageSettings && !!holidays },
     { id: "devices", label: tr("Trusted devices"), open: devicesOn },
+    { id: "support", label: tr("App support contact"), open: !!supportContact },
   ];
   const tabs = TABS.filter(x => x.open);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
@@ -15813,7 +16118,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     <div>
       <SecT t={t}>{tr("Settings")}</SecT>
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
+        {tabs.map(tb => <button key={tb.id} data-settings-tab={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
 
       {tab === "company" && canManageSettings && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
@@ -15833,6 +16138,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "holidays" && canManageSettings && holidays && <HolidaysPanel af={af} t={t} showToast={showToast} initial={holidays} />}
 
       {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
+
+      {tab === "support" && supportContact && <SupportContactPanel af={af} t={t} showToast={showToast} initial={supportContact} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -17266,7 +17573,8 @@ function FormPersonPicker({ t, name, value, onChange, people = [], disabled = fa
   }, [af, capped, needle]);
   const active = remote || people.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active"));
   const searching = capped && !!needle && !(found && found.q === needle);
-  const matches = (capped && needle ? (found && found.q === needle ? found.people : []) : (needle ? active.filter(u => formPersonName(u).toLowerCase().indexOf(needle) !== -1) : active)).slice(0, 12);
+  const find = usePersonFind();
+  const matches = (capped && needle ? (found && found.q === needle ? found.people : []) : (needle ? active.filter(u => find(u, formPersonName(u), needle)) : active)).slice(0, 12);
   const row = { display: "block", width: "100%", minHeight: 44, padding: "10px 12px", textAlign: "left", border: "none", borderBottom: "1px solid " + t.border, background: "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" };
   if (picked && !open) {
     return (<div data-person-picked="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -17275,7 +17583,7 @@ function FormPersonPicker({ t, name, value, onChange, people = [], disabled = fa
     </div>);
   }
   return (<div data-person-picker="">
-    <Inp t={t} aria-label={name} placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} disabled={disabled} style={{ minHeight: 44 }} />
+    <Inp t={t} aria-label={name} placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} disabled={disabled} style={{ minHeight: 44 }} />
     {!disabled && <div role="listbox" aria-label={name} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
       {matches.map(u => <button key={String(u.id)} role="option" aria-selected={false} onClick={() => { onChange({ id: u.id, name: formPersonName(u) }); setOpen(false); setQ(""); }} style={row}
         onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>{formPersonName(u)}{u.role ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{roleWord(u.role)}</span> : null}</button>)}
@@ -18296,7 +18604,7 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
             <button onClick={() => writeRecipients(recipients.filter((x, i) => i !== idx), delivery)} disabled={busy === "recipients"} aria-label={tr("Remove {0}", recipientName(r))} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Remove")}</button>
           </div>))}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-            <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={tr("Add a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Add a person") }, ...staffOptions]} /></div>
+            <div style={{ flex: 1, minWidth: 180 }}><PersonPick t={t} aria-label={tr("Add a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Add a person") }, ...staffOptions]} /></div>
             <Btn t={t} onClick={() => writeRecipients(recipients.concat([{ userId: pick, viaEmail: true, viaInApp: true }]), delivery)} disabled={busy === "recipients" || !pick} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
@@ -21934,6 +22242,75 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
   </Crd>);
 }
 
+// Step 291: a person's HR lives in their HR Records folder alone. What the Staff Management profile's
+// HR Files and Certifications tabs held and the folder did not is drawn here, with every action and
+// for the same people as before.
+// The person's required training (Step 257): each item in its status's words once GET
+// /api/training/gaps/people/:userId answers, and Assign training for an admin once the catalog answers
+// categories (Step 268).
+function FolderTrainingItems({ af, t, userId, sites = [], isAdmin = false, showToast }) {
+  const gapsLive = useTrainingLive(af, "gaps");
+  const assignLive = useTrainingLive(af, "categories");
+  const [items, setItems] = useState(null);
+  const [assigning, setAssigning] = useState(false);
+  const load = useCallback(() => {
+    af("/api/training/gaps/people/" + encodeURIComponent(userId)).then(d => setItems(d && Array.isArray(d.items) ? d.items : [])).catch(e => { console.warn("Training items:", e.message); setItems(null); });
+  }, [af, userId]);
+  useEffect(() => { setItems(null); if (gapsLive) load(); }, [gapsLive, load]);
+  if (!gapsLive || !items) return null;
+  return (<div data-folder-training-items="" style={{ marginBottom: 16 }}><Crd t={t} style={{ padding: 16 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Required training ({0})", items.length)}</div>
+      {isAdmin && assignLive && <Btn t={t} v="ghost" data-assign-training="" onClick={() => setAssigning(true)} style={{ marginLeft: "auto", minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Assign training")}</Btn>}
+    </div>
+    <TrainingItemsList t={t} items={items} compact />
+    {assigning && <AssignTrainingWindow af={af} t={t} sites={sites} presetUserIds={[String(userId)]} showToast={showToast} onClose={() => setAssigning(false)} onDone={load} />}
+  </Crd></div>);
+}
+// The person's certifications, for whoever opens Staff Management (manage_staff, which the profile
+// route and the certification routes ask for): the list from GET /api/users/profile/:id, Add, which
+// posts POST /api/users/:id/certifications, and Remove, DELETE /api/users/:id/certifications/:certId.
+function FolderCertifications({ af, t, userId, getOpts, showToast }) {
+  const [certs, setCerts] = useState(null);
+  const [adding, setAdding] = useState(null);
+  const load = useCallback(() => {
+    af("/api/users/profile/" + encodeURIComponent(userId)).then(d => setCerts(d && Array.isArray(d.certifications) ? d.certifications : [])).catch(e => { console.warn("Certifications:", e.message); setCerts(null); });
+  }, [af, userId]);
+  useEffect(() => { setCerts(null); load(); }, [load]);
+  if (!certs) return null;
+  const remove = async (c) => {
+    if (!window.confirm(tr("Remove this certification?"))) return;
+    try { await af("/api/users/" + encodeURIComponent(userId) + "/certifications/" + encodeURIComponent(c.id), { method: "DELETE" }); showToast(tr("Removed|certification")); load(); }
+    catch (e) { showToast(e.message, "error"); }
+  };
+  const save = async () => {
+    if (!adding.certName) { showToast(tr("Name required"), "error"); return; }
+    try { await af("/api/users/" + encodeURIComponent(userId) + "/certifications", { method: "POST", body: adding }); showToast(tr("Certification added")); setAdding(null); load(); }
+    catch (e) { showToast(e.message, "error"); }
+  };
+  return (<div data-folder-certifications="" style={{ marginBottom: 16 }}><Crd t={t} style={{ padding: 16 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Certifications")}</div>
+      <Btn t={t} v="ghost" data-folder-certification-add="" onClick={() => setAdding({ userId, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Add Certification")}</Btn>
+    </div>
+    {certs.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No certifications on file")}</div>}
+    {certs.map((c, i) => <div key={c.id || i} data-folder-certification={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", background: t.greenSubtle, borderRadius: 6, marginBottom: 4, border: "1px solid " + t.greenBorder }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? (c.issuing_body ? " | " : "") + tr("Exp: {0}", fdLong(c.expiry_date)) : ""}</div></div>
+      <Btn t={t} v="ghost" onClick={() => remove(c)} style={{ minHeight: 44, padding: "4px 10px", fontSize: 11, color: RD }}>{tr("Remove")}</Btn>
+    </div>)}
+    {adding && <Mdl t={t} onClose={() => setAdding(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAdding(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Name *")}</Lbl><Inp t={t} value={adding.certName} onChange={e => setAdding({ ...adding, certName: e.target.value })} placeholder={tr("e.g. Green Cleaning Fundamentals")} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={adding.certType} onChange={e => setAdding({ ...adding, certType: e.target.value })} options={getOpts("certification_types", null, true)} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Issuing Body")}</Lbl><Inp t={t} value={adding.issuingBody} onChange={e => setAdding({ ...adding, issuingBody: e.target.value })} placeholder={tr("e.g. ISSA, OSHA")} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div><Lbl>{tr("Issued Date")}</Lbl><Inp t={t} type="date" value={adding.issuedDate} onChange={e => setAdding({ ...adding, issuedDate: e.target.value })} /></div>
+        <div><Lbl>{tr("Expiry Date")}</Lbl><Inp t={t} type="date" value={adding.expiryDate} onChange={e => setAdding({ ...adding, expiryDate: e.target.value })} /></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAdding(null)}>{tr("Cancel")}</Btn><Btn t={t} data-folder-certification-save="" onClick={save}>{tr("Add Certification")}</Btn></div>
+    </div></Mdl>}
+  </Crd></div>);
+}
 function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, sites = [], focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
@@ -21961,7 +22338,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const trainingTypeMap = lkMap("training_types", true);
   const onbCatMap = lkMap("onboarding_categories", true);
   // What a row's status code says. A code with no word here is drawn as it arrives.
-  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item"), void: tr("Void|status") })[s] || s;
+  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item"), void: tr("Void|status"), failed: tr("failed|training") })[s] || s;
 
   const fmtDate = (d) => d ? fdLong(d) : "";
   const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
@@ -22033,6 +22410,12 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     return <Bdg l={tr("Valid")} c={GR} />;
   };
 
+  // Step 291: the signed acknowledgment page the API files for a person when they sign a document
+  // (STEP289_CONTRACT.md section 1.2), a document of the folder that carries signedPage: { docCode,
+  // docVersion, locale, signedAt }. The contract names no key, so signed_page is read too. Its type
+  // reads Handbook acknowledgment where the document types list has no word for it.
+  const signedPageOf = (it) => { const x = it && it.source === "document" ? (it.signedPage || it.signed_page) : null; return x && typeof x === "object" ? x : null; };
+  const docTypeWord = (v) => docTypeMap[v] || (v === "handbook_acknowledgment" ? tr("Handbook acknowledgment") : v);
   const sourceLabel = (s) => ({
     document: tr("Document"),
     training: tr("Training"),
@@ -22107,6 +22490,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
       <PersonProperty af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
+      <FolderTrainingItems af={af} t={t} userId={userId} sites={sites} isAdmin={isAdmin} showToast={showToast} />
+      {canOpenStaff && <FolderCertifications af={af} t={t} userId={userId} getOpts={getOpts} showToast={showToast} />}
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -22156,13 +22541,14 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                         {sourceLabel(it.source)}
                         {isForm && it.filedBy && it.filedBy.name ? " . " + tr("Filed by {0}", it.filedBy.name) : ""}
                         {it.raw_category_label ? " . " + (
-                          it.source === "document" ? (docTypeMap[it.raw_category_label] || it.raw_category_label) :
+                          it.source === "document" ? docTypeWord(it.raw_category_label) :
                           it.source === "training" ? (trainingTypeMap[it.raw_category_label] || it.raw_category_label) :
                           it.source === "onboarding" ? (onbCatMap[it.raw_category_label] || it.raw_category_label) :
                           tr(HR_CATEGORY_LABEL(it.raw_category_label))
                         ) : ""}
                         {it.submitter_name && !(isForm && it.filedBy && it.filedBy.name) ? " . " + it.submitter_name : ""}
                         {it.administered_by ? " . " + tr("by {0}", it.administered_by) : ""}
+                        {it.score ? " . " + tr("Score: {0}", it.score) : ""}
                         {it.status ? " . " + itemStateOf(it.status) : ""}
                       </div>
                     </div>
@@ -22171,6 +22557,9 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                     </div>
                   </div>
 
+                  {signedPageOf(it) && (() => { const sp = signedPageOf(it); return (<div data-folder-signed-page={String(it.source_id)} data-folder-signed-language={langCode(sp.locale || "")} style={{ fontSize: 12, color: t.text, marginTop: 6 }}>
+                    {[tr("Signed acknowledgment page"), [sp.docCode, sp.docVersion].filter(Boolean).join(" "), sp.locale && trainingLangWord(sp.locale) ? tr("Signed in {0}", trainingLangWord(sp.locale)) : "", sp.signedAt ? irWhen(sp.signedAt) : ""].filter(Boolean).join(" . ")}
+                  </div>); })()}
                   {/* Row footer: badges + actions */}
                   <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
 
@@ -22285,8 +22674,8 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
       <select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={selSt}><option value="">{tr("Every step")}</option>{WARNING_STEPS.map(s => <option key={s} value={s}>{warningStepWord(s, steps.steps)}</option>)}</select>
       <select aria-label={tr("Category")} value={f.category} onChange={e => set("category", e.target.value)} style={selSt}><option value="">{tr("Every category")}</option>{steps.categories.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select>
       <select aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} style={selSt}><option value="">{tr("All sites")}</option>{(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-      <select aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} style={selSt}><option value="">{tr("Everyone")}</option>{people.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>
-      {isAdmin && <select aria-label={tr("Issued by")} value={f.issuedBy} onChange={e => set("issuedBy", e.target.value)} style={selSt}><option value="">{tr("Issued by anyone")}</option>{office.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>}
+      <PersonPick t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Everyone") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={{ width: 200, fontSize: 12 }} />
+      {isAdmin && <PersonPick t={t} aria-label={tr("Issued by")} value={f.issuedBy} onChange={e => set("issuedBy", e.target.value)} options={[{ v: "", l: tr("Issued by anyone") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={{ width: 200, fontSize: 12 }} />}
       <select aria-label={tr("Status")} value={f.status} onChange={e => set("status", e.target.value)} style={selSt}><option value="">{tr("All statuses")}</option>{["open", "closed", "rescinded"].map(s => <option key={s} value={s}>{warningStatusWord(s)}</option>)}</select>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("From")}<Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={e => set("from", e.target.value)} style={{ width: 150 }} /></label>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("To")}<Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={e => set("to", e.target.value)} style={{ width: 150 }} /></label>
@@ -22337,14 +22726,14 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
       <Lbl>{tr("About whom")}</Lbl>
       {f.subjects.map(id => <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: t.text, marginBottom: 4 }}><span style={{ flex: 1, minWidth: 0 }}>{byId(id) ? nameOf(byId(id)) : id}</span><Btn t={t} v="ghost" onClick={() => set("subjects", f.subjects.filter(x => x !== id))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Remove")}</Btn></div>)}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("About whom")} value={f.pick} onChange={e => set("pick", e.target.value)} options={[{ v: "", l: tr("Optional. Choose a person") }].concat(people.filter(p => f.subjects.indexOf(String(p.id)) < 0 && !(me && String(me.id) === String(p.id))).map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("subjectUserIds")} /></div>
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}><PersonPick t={t} aria-label={tr("About whom")} value={f.pick} onChange={e => set("pick", e.target.value)} options={[{ v: "", l: tr("Optional. Choose a person") }].concat(people.filter(p => f.subjects.indexOf(String(p.id)) < 0 && !(me && String(me.id) === String(p.id))).map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("subjectUserIds")} /></div>
         <Btn t={t} v="ghost" onClick={() => { if (f.pick) setF(p => ({ ...p, subjects: p.subjects.concat([p.pick]), pick: "" })); }} disabled={!f.pick} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>
       {under("subjectUserIds")}
     </div>
-    <div style={{ marginBottom: 12 }}><Lbl>{tr("On behalf of")}</Lbl><Sel t={t} aria-label={tr("On behalf of")} value={f.onBehalfOf} onChange={e => set("onBehalfOf", e.target.value)} options={[{ v: "", l: tr("Optional. A staff member who reported it in person") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("onBehalfOf")} />{under("onBehalfOf")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("On behalf of")}</Lbl><PersonPick t={t} aria-label={tr("On behalf of")} value={f.onBehalfOf} onChange={e => set("onBehalfOf", e.target.value)} options={[{ v: "", l: tr("Optional. A staff member who reported it in person") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("onBehalfOf")} />{under("onBehalfOf")}</div>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Is this about someone in management?")}</Lbl><Sel t={t} aria-label={tr("Is this about someone in management?")} value={f.aboutManagement} onChange={e => set("aboutManagement", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} style={box("aboutManagement")} />{under("aboutManagement")}</div>
-    <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned to")}</Lbl><Sel t={t} aria-label={tr("Assigned to")} value={f.assignedTo} onChange={e => set("assignedTo", e.target.value)} options={[{ v: "", l: tr("Nobody yet") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("assignedTo")} />{under("assignedTo")}</div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned to")}</Lbl><PersonPick t={t} aria-label={tr("Assigned to")} value={f.assignedTo} onChange={e => set("assignedTo", e.target.value)} options={[{ v: "", l: tr("Nobody yet") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("assignedTo")} />{under("assignedTo")}</div>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
       <Btn t={t} onClick={send} disabled={busy || !f.summary.trim() || !f.aboutManagement} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Open a case")}</Btn>
@@ -22490,7 +22879,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         </div>
         <div style={{ marginTop: 12 }}><Lbl>{tr("Hand to")}</Lbl>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <Sel t={t} aria-label={tr("Hand to")} value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
+            <PersonPick t={t} aria-label={tr("Hand to")} value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
             <Btn t={t} onClick={() => handChosen && holdSave(handChosen.id)} disabled={holdBusy || !handChosen} style={{ whiteSpace: "nowrap" }}>{tr("Hand over")}</Btn>
           </div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("They will get an email. The email carries no case text.")}</div>
@@ -22507,7 +22896,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved|case")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.resolvedAt ? ff(detail.resolvedAt) : "-"}</div></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={CASE_STATUSES.map(v => ({ v, l: statusLabel[v] }))} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><Sel t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><PersonPick t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Resolution notes")}</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>{tr("Close")}</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : tr("Save changes")}</Btn></div>
       <div><Lbl>{tr("Access log")}</Lbl>
@@ -22630,7 +23019,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // The Employee field of either window: the folder's person, held, or the picker.
   const employeeField = (opts) => (fixedUser && String(form.user_id) === String(fixedUser.id)
     ? <Inp t={t} readOnly aria-label={tr("Employee")} data-fixed-employee="" value={fixedUser.label} />
-    : <Sel options={[{ v: "", l: tr("Select employee...") }, ...opts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} />);
+    : <PersonPick options={[{ v: "", l: tr("Select employee...") }, ...opts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} />);
   // Each of these shows a choice or picks one by its code, so each reads the choice's displayLabel.
   const docTypeMap = lkMap("document_types", true);
   const trainingTypeMap = lkMap("training_types", true);
@@ -22794,7 +23183,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         ))}
         {tab !== "employees" && tab !== "signatures" && !(tab === "training" && trCur !== "records") && (
           <div style={{ marginLeft: "auto", minWidth: 200 }}>
-            <Sel options={staffOpts} value={selUser} onChange={e => setSelUser(e.target.value)} t={t} />
+            <PersonPick options={staffOpts} value={selUser} onChange={e => setSelUser(e.target.value)} t={t} />
           </div>
         )}
       </div>
@@ -23219,7 +23608,9 @@ const trainingGivenIn = (rows) => (rows || []).map((r) => trainingLanguageOf(r.n
 
 // A person as the HR routes send one, which a supervisor may read, in the shape the staff list's
 // readers know: id, first and last name, the two joined, role and status.
-const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", lastName: e.last_name || "", name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role, status: e.status });
+// Step 291: the badge number and employee ID ride along, so a picker built from this list finds a
+// person by either.
+const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", lastName: e.last_name || "", name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role, status: e.status, employeeId: e.employee_id || "", badgeNumber: e.badge_number || "" });
 // The people GET /api/users answers, for whoever is signed in. The route is an admin's (manage_staff).
 // When the API refuses it, a 403 and nothing else, the active people are read from the HR employees
 // summary, which a supervisor may call, each mapped through hrPerson and kept to what the query asked
@@ -23347,7 +23738,8 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
   };
   const needle = q.trim().toLowerCase();
   // A site's people are held to the active list as well, which leaves out anyone the list leaves out.
-  const listed = (people || []).filter((p) => (!siteId || (atSite && atSite.has(p.id))) && (!needle || p.name.toLowerCase().indexOf(needle) >= 0));
+  const find = usePersonFind();
+  const listed = (people || []).filter((p) => (!siteId || (atSite && atSite.has(p.id))) && find(p, p.name, needle));
   const allListedPicked = listed.length > 0 && listed.every((p) => picked.has(p.id));
   const toggle = (id) => setPicked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const pickListed = () => setPicked((prev) => { const next = new Set(prev); listed.forEach((p) => next.add(p.id)); return next; });
@@ -23460,7 +23852,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
           <div data-session-field="day"><div style={field}>{tr("Completed Date")}</div>
             <Inp t={t} type="date" aria-label={tr("Completed Date")} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={tall} />{badLine("day")}</div>
           {topicsLive ? <div data-session-field="trainerId"><div style={field}>{tr("Trainer")}</div>
-            <Sel t={t} aria-label={tr("Trainer")} options={[{ v: "", l: tr("Type a name") }].concat((people || []).map((p) => ({ v: p.id, l: p.name })))} value={trainerId} onChange={(e) => setTrainerId(e.target.value)} style={tall} />
+            <PersonPick t={t} aria-label={tr("Trainer")} options={[{ v: "", l: tr("Type a name") }].concat((people || []).map((p) => ({ v: p.id, l: p.name })))} value={trainerId} onChange={(e) => setTrainerId(e.target.value)} style={tall} />
             {!trainerId && <Inp t={t} aria-label={tr("Trainer's name")} placeholder={tr("Trainer's name")} value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} style={{ ...tall, marginTop: 8 }} />}
             {badLine("trainerId")}{badLine("administeredBy")}
           </div> : <div><div style={field}>{tr("Administered By")}</div>
@@ -23473,7 +23865,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
         <div data-session-field="people"><div style={field}>{tr("Who attended")}</div>
           <Sel t={t} aria-label={tr("Who attended")} options={[{ v: "", l: tr("Everyone active") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={tall} />
           {badLine("siteId")}
-          <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
+          <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" onClick={pickListed} style={tall}>{tr("Select all")}</Btn>}
             {picked.size > 0 && <Btn t={t} v="ghost" onClick={() => setPicked(new Set())} style={tall}>{tr("Clear selection")}</Btn>}
@@ -23481,7 +23873,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
           </div>
           <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden" }}>
             {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
-              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
+              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : siteId ? tr("No staff assigned") : tr("No one is on this list.")}</div>
               : listed.map((p) => <label key={p.id} data-session-person={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, cursor: "pointer" }}>
                 <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
                 <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
@@ -24087,7 +24479,7 @@ function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
       {bad("person:" + p.id) && <div role="alert" data-who-refusal="" style={{ fontSize: 12, color: RD }}>{bad("person:" + p.id)}</div>}
     </div>)}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><PersonPick t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
       <Btn t={t} v="ghost" disabled={!pick} onClick={addPerson}>{tr("Add|person")}</Btn>
     </div>
     <div role="status" style={{ fontSize: 12, color: count > 30 ? RD : t.textMut, marginTop: 10 }}>{tr("{0} of 30 rows", count)}</div>
@@ -25265,7 +25657,8 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
     return cats.map(c => ({ key: c.key, name: c.name, topics: list.filter(tp => topicCategoryKey(tp) === c.key).slice().sort(byTopicOrder) })).filter(g => g.topics.length > 0);
   }, [topics, cats]);
   const needle = q.trim().toLowerCase();
-  const listed = (people || []).filter(p => (!siteId || (atSite && atSite.has(p.id))) && (!role || p.role === role) && (!needle || p.name.toLowerCase().indexOf(needle) >= 0));
+  const find = usePersonFind();
+  const listed = (people || []).filter(p => (!siteId || (atSite && atSite.has(p.id))) && (!role || p.role === role) && find(p, p.name, needle));
   const allListedPicked = listed.length > 0 && listed.every(p => picked.has(p.id));
   const toggleIn = (set, id) => (prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-assign-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
@@ -25318,7 +25711,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
             <Sel t={t} aria-label={tr("Site")} data-assign-site="" options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} value={siteId} onChange={e => setSiteId(e.target.value)} style={tall} />
             <Sel t={t} aria-label={tr("Role")} data-assign-role="" options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} value={role} onChange={e => setRole(e.target.value)} style={tall} />
-            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
+            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" data-assign-select-all="" onClick={() => setPicked(prev => { const next = new Set(prev); listed.forEach(p => next.add(p.id)); return next; })} style={tall}>{tr("Select all")}</Btn>}
@@ -25327,7 +25720,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
           </div>
           <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 280, overflowY: "auto" }}>
             {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
-              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
+              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : siteId ? tr("No staff assigned") : role ? tr("No one matches these filters.") : tr("No one is on this list.")}</div>
               : listed.map(p => <label key={p.id} data-assign-person={p.id} style={rowStyle}>
                 <input type="checkbox" checked={picked.has(p.id)} onChange={() => setPicked(toggleIn(picked, p.id))} style={tickStyle} />
                 <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{p.name}</span>
@@ -25879,7 +26272,9 @@ function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], is
     return (<div key={p.id} data-doc-person={p.id} data-doc-state={st} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: "1px solid " + t.border, flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 180px", minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.name}</div>
-        <div style={{ fontSize: 12, color: t.textSec }}>{[roleWord(p.role), p.signedVersion != null && p.signedVersion !== "" ? tr("Version {0}", p.signedVersion) : "", p.signedAt ? irWhen(p.signedAt) : "", p.locale ? trainingLangWord(p.locale) : ""].filter(Boolean).join(" . ")}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{[roleWord(p.role), p.signedVersion != null && p.signedVersion !== "" ? tr("Version {0}", p.signedVersion) : "", p.signedAt ? irWhen(p.signedAt) : ""].filter(Boolean).join(" . ")}
+          {/* Step 291: the language the person signed in, which the API records with each signature. */}
+          {p.signedAt && p.locale && trainingLangWord(p.locale) ? <span data-doc-signed-language={langCode(p.locale)} style={{ color: t.text, fontWeight: 600 }}>{" . " + tr("Signed in {0}", trainingLangWord(p.locale))}</span> : null}</div>
       </div>
       <Bdg l={docStateWord(p)} c={DOC_STATE[st].c} />
       {ack && <button data-doc-signature={ack} onClick={() => openSig(ack)} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the signature")}</button>}
@@ -25986,7 +26381,7 @@ function DocumentWhoMustSign({ af, t, doc, reqs, isAdmin = false, people = [], o
       {bad("person:" + p.id)}
     </div>)}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><PersonPick t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
       <Btn t={t} v="ghost" disabled={!pick} onClick={addPerson}>{tr("Add|person")}</Btn>
     </div>
     <div role="status" style={{ fontSize: 12, color: count > 30 ? RD : t.textMut, marginTop: 10 }}>{tr("{0} of 30 rows", count)}</div>

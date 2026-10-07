@@ -90,7 +90,37 @@ const choose = async (c, words) => {
     const at = (await sel.locator("option").allTextContents()).findIndex((l) => l.indexOf(words) >= 0);
     if (at >= 0) { await sel.selectOption({ index: at }); await wait(200); return; }
   }
+  // Since Step 291 a person is chosen in a searchable picker: each one in sight is opened, searched
+  // for the words and closed again when it does not offer them.
+  const picks = ((await c.page.locator(MODAL).count()) ? inModal(c) : c.page).locator("[data-person-pick]");
+  for (let i = 0; i < (await picks.count()); i += 1) {
+    const box = picks.nth(i);
+    if (!(await box.isVisible())) continue;
+    await box.locator("[data-person-pick-field]").click();
+    await box.locator("[data-person-pick-search]").fill(words);
+    const opt = box.locator("[data-person-pick-option]").filter({ hasText: words }).first();
+    if (await opt.count()) { await opt.click(); await wait(200); return; }
+    await c.page.keyboard.press("Escape");
+  }
   throw new Error("no picker offers " + words);
+};
+// A person picked in the searchable picker inside within (Step 291), found by what is typed (a name,
+// a badge number or an employee ID, the person's id when nothing is given) and picked by their id.
+const pickIn = async (c, within, id, typed) => {
+  const box = c.page.locator(within).locator("[data-person-pick]").first();
+  await box.locator("[data-person-pick-field]").click();
+  if (typed) await box.locator("[data-person-pick-search]").fill(typed);
+  await box.locator('[data-person-pick-option="' + id + '"]').click();
+  await wait(150);
+};
+// The same, for the picker whose field carries the label, in the open window or on the page.
+const pickByLabel = async (c, label, id, typed) => {
+  const field = c.page.locator('button[data-person-pick-field][aria-label="' + c.say(label) + '"]').last();
+  await field.click();
+  const box = field.locator("xpath=..");
+  if (typed) await box.locator("[data-person-pick-search]").fill(typed);
+  await box.locator('[data-person-pick-option="' + id + '"]').click();
+  await wait(150);
 };
 // A date or time field keeps its part picked in blue while it has the focus, so the picture is
 // taken with nothing focused.
@@ -269,7 +299,7 @@ const SHOTS = [
       await press(c, "Log training for several people");
       await c.page.locator('[data-session-field="topicId"] select option[value="tp-1"]').waitFor({ state: "attached" });
       await c.page.locator('[data-session-field="topicId"] select').selectOption("tp-1");
-      await c.page.locator('[data-session-field="trainerId"] select').selectOption(seed.PEOPLE.supervisor.id);
+      await pickIn(c, '[data-session-field="trainerId"]', seed.PEOPLE.supervisor.id);
       for (const id of ["u-staff-5", "u-staff-6", "u-staff-7"]) await c.page.locator('[data-session-person="' + id + '"] input').check();
       await show(c, '[data-session-field="topicId"]');
     } },
@@ -330,7 +360,7 @@ const SHOTS = [
     open: "hr", ready: '[data-hr-tab="onboarding"]',
     act: async (c) => {
       await click(c, '[data-hr-tab="onboarding"]');
-      await c.page.locator('select:has(option[value="' + PROPERTY_PERSON + '"])').first().selectOption(PROPERTY_PERSON);
+      await pickIn(c, "body", PROPERTY_PERSON, "Tomasz");
       await until(c, 'button:has-text("' + c.say("+ Custom Step") + '")');
     } },
   { name: "staff-add-window", entry: "Add a staff member",
@@ -402,9 +432,10 @@ const SHOTS = [
     open: "settings", ready: SHELL,
     act: async (c) => {
       await press(c, "Who gets told");
-      const sel = c.page.locator("select[aria-label^='" + c.say("Add a person to {0}").split("{0}")[0] + "']").first();
-      await sel.waitFor();
-      await sel.selectOption({ index: await optionIndex(sel, "Priya Raghunathan") });
+      const field = c.page.locator("button[data-person-pick-field][aria-label^='" + c.say("Add a person to {0}").split("{0}")[0] + "']").first();
+      await field.waitFor();
+      await field.click();
+      await field.locator("xpath=..").locator('[data-person-pick-option="' + seed.PEOPLE.capability.id + '"]').click();
     } },
   { name: "staff-pending", entry: "Approve a new employee's registration",
     open: "staff", ready: "table tbody tr",
@@ -424,10 +455,11 @@ const SHOTS = [
   { name: "staff-assignments", entry: "Assign a staff member to a site",
     open: "staff/u-staff-6/assign", ready: "text=Ngozi Okonkwo",
     act: async (c) => { await wait(400); await exact(c, "Assign").click(); await until(c, MODAL); await choose(c, seed.SITES[2].name); } },
-  { name: "staff-add-certification", entry: "Add a certification to a staff member",
-    open: "staff/u-staff-6", ready: "text=Ngozi Okonkwo",
+  // Step 291: Certifications live in the person's HR Records folder.
+  { name: "hr-folder-add-certification", entry: "Add a certification to a staff member",
+    open: "hr/u-staff-6", ready: "[data-folder-certifications]",
     act: async (c) => {
-      await press(c, "Certifications"); await wait(300); await exact(c, "Add").click(); await until(c, MODAL);
+      await click(c, "[data-folder-certification-add]"); await until(c, MODAL);
       await inModal(c).locator("input").first().fill(c.lang === "es" ? "Cuidado de pisos" : "Floor care basics");
     } },
   { name: "cases-case-window", entry: "Respond to a Speak Up case",
@@ -598,7 +630,8 @@ const SHOTS = [
     open: "schedule", ready: "text=Tomasz Wisniewski",
     act: async (c) => {
       await press(c, "Time off"); await until(c, "table tbody tr");
-      await row(c, "table tbody tr", "Tomasz Wisniewski"); await until(c, MODAL);
+      // Step 291: the PTO request the API's Step 289 brings.
+      await row(c, "table tbody tr", "Bertrand Lefevre"); await until(c, MODAL);
     } },
   { name: "time-off-all", entry: "See past time off requests",
     open: "schedule", ready: "text=Tomasz Wisniewski",
@@ -954,7 +987,7 @@ const SHOTS = [
       await wait(1200);
     } },
   { name: "sites-workload-plans", entry: "See which sites have a workload plan",
-    open: "sites", ready: "[data-workload-plans] table tbody tr" },
+    open: "sites", ready: "[data-site-plan]" },
   { name: "inspection-completed-photos", entry: "Read a completed inspection, its photos and its signature",
     open: "inspections", ready: "button",
     act: async (c) => {
@@ -1076,9 +1109,9 @@ const SHOTS = [
       await press(c, "Open a case");
       await until(c, "[data-open-case]");
       await typeIn(c, "[data-open-case] textarea", "A staff member said a coworker keeps taking their assigned floor.", "Un empleado dijo que un compa\u00f1ero sigue qued\u00e1ndose con el piso que le asignaron.");
-      await pickLabeled(c, "About whom", "u-staff-6");
+      await pickByLabel(c, "About whom", "u-staff-6", "4115");
       await press(c, "Add", "[data-open-case]");
-      await pickLabeled(c, "On behalf of", "u-staff-7");
+      await pickByLabel(c, "On behalf of", "u-staff-7", "EMP-1007");
       await pickLabeled(c, "Is this about someone in management?", "no");
     } },
   { name: "warning-add-past-window", entry: "Add an old form's warning to the record",
@@ -1210,7 +1243,7 @@ const SHOTS = [
   { name: "equipment-return-to-service", entry: "Tag out a piece of equipment, and return it to service",
     open: "equipment/eq-2", ready: "[data-equipment-item] [data-equipment-event]" },
   { name: "periodic-work", entry: "See periodic work across every site",
-    open: "sites", ready: "[data-periodic-work] table tbody tr" },
+    open: "periodic", ready: "[data-periodic-work] table tbody tr" },
   { name: "touchpoint-task-window", entry: "Mark a checklist item as a touchpoint",
     open: "sites/s-1/tasks", ready: "[data-nav-item]",
     act: async (c) => {
@@ -1416,6 +1449,54 @@ const SHOTS = [
       await c.page.locator("[data-owner-period]").selectOption(quarter);
       await c.page.waitForFunction((q) => !!document.querySelector("[data-owner-section]") && (document.querySelector("[data-owner-period]") || {}).value === q, quarter);
     } },
+  // Step 291: Sites opens on the sites, each site's periodic work, HR in HR Records alone, the picker
+  // that finds a badge number, App support, the language a document was signed in and the signed page.
+  { name: "site-periodic-work", entry: "See periodic work across every site",
+    open: "sites/s-1/tasks", ready: "[data-site-periodic] table tbody tr" },
+  { name: "training-document-signed-language", entry: "See who signed a document, and say who must sign it",
+    open: "training/documents", ready: "[data-training-documents] table tbody tr",
+    act: async (c) => {
+      await click(c, "[data-training-documents] table tbody tr");
+      await until(c, "[data-doc-signed-language]");
+      await top(c, "[data-doc-signed-language]", 260);
+    } },
+  { name: "schedule-shift-picker", entry: "Pick a person by name, badge number or employee ID",
+    open: "schedule", ready: "text=Tomasz Wisniewski",
+    act: async (c) => {
+      await press(c, "Schedule Shift"); await until(c, MODAL);
+      await c.page.locator("[data-schedule-shift-site]").selectOption(seed.SITES[1].id);
+      await click(c, "[data-schedule-shift-staff] [data-person-pick-field]");
+      await until(c, "[data-person-pick-group]");
+    } },
+  { name: "staff-open-hr-file", entry: "Open a person's HR file from Staff Management",
+    open: "staff/" + ACTIVE, ready: "[data-open-hr-file]" },
+  { name: "tickets-inbox", entry: "Read and answer app support tickets",
+    open: "tickets", ready: "[data-ticket-state]" },
+  { name: "tickets-ticket-window", entry: "Read and answer app support tickets",
+    open: "tickets", ready: '[data-ticket-state="new"]',
+    act: async (c) => {
+      await click(c, '[data-ticket-state="new"]');
+      await until(c, "[data-ticket-window]");
+      await click(c, '[data-ticket-status-choice="done"]');
+      await typeIn(c, "[data-ticket-note]", "Fixed in today's portal update.", "Se arregl\u00f3 en la actualizaci\u00f3n de hoy del portal.");
+      await blur(c);
+    } },
+  { name: "tickets-export", entry: "Copy app support tickets into a chat",
+    open: "tickets", ready: "[data-tickets-export-open]",
+    act: async (c) => { await click(c, "[data-tickets-export-open]"); await until(c, "[data-tickets-export-text]"); } },
+  { name: "settings-support-contact", entry: "Set the app support contact",
+    open: "settings", ready: '[data-settings-tab="support"]',
+    act: async (c) => { await click(c, '[data-settings-tab="support"]'); await until(c, "[data-support-contact]"); } },
+  { name: "help-ticket-card", entry: "Send a ticket to app support from Help",
+    open: "help", ready: 'button[aria-label]',
+    act: async (c) => {
+      await typeIn(c, "textarea", "The schedule page is not working when I add a shift.", "La p\u00e1gina del horario no funciona cuando agrego un turno.");
+      await c.page.locator('button[aria-label="' + c.say("Send") + '"]').first().click();
+      await until(c, "[data-help-ticket]");
+    } },
+  { name: "hr-folder-signed-page", entry: "Find a person's signed acknowledgment page",
+    open: "hr/" + ACTIVE, ready: "[data-folder-signed-page]",
+    act: async (c) => { await top(c, "[data-folder-signed-page]", 300); } },
 ];
 
 
@@ -1479,7 +1560,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

@@ -8,8 +8,8 @@ Who can do this: admins and supervisors
 4. When the dashboard asks for a code, see the entry on signing in with a code on a new device.
 5. While you still have the PIN the office gave you, the dashboard shows only **Choose your PIN** (**Elija su PIN**). Type a PIN of your own in **New PIN (4 digits)** (**PIN nuevo (4 dígitos)**) and again in **New PIN again** (**PIN nuevo otra vez**), and click **Save** (**Guardar**). Until then nothing else opens, even after a reload; **Sign Out** (**Cerrar sesión**) leaves.
 6. Forgot your PIN? Type your badge number, phone or email, then click **Forgot your PIN?** (**¿Olvidó su PIN?**). The card says what happens next.
-If it does not work: a wrong badge number, phone, email or PIN shows the reason in red on the card. From the third wrong try in a row the card adds **After too many wrong tries, sign-in stops for a while. Ask the office for help.** (**Después de demasiados intentos equivocados, el inicio de sesión se detiene por un tiempo. Pida ayuda a la oficina.**) After five, the card says how many minutes to wait, and an admin can unlock you sooner; see the entry on whether a person can sign in. When the dashboard signs you out by itself, the card says why. The dashboard is only for admins and supervisors. Staff use the staff portal.
-Words people use for this: log in, sign in, badge number, forgot my pin, locked out, too many tries, choose a pin, new pin, iniciar sesión.
+If it does not work: a wrong badge number, phone, email or PIN shows the reason in red on the card. From the third wrong try in a row the card adds **After too many wrong tries, sign-in stops for a while. Ask the office for help.** (**Después de demasiados intentos equivocados, el inicio de sesión se detiene por un tiempo. Pida ayuda a la oficina.**) After five, the card says how many minutes to wait, and an admin can unlock you sooner; see the entry on whether a person can sign in. When the dashboard signs you out by itself, the card says why. Once App support's contact is set, the card says **Can't sign in? Email {0}** (**¿No puede iniciar sesión? Escriba a {0}**) with their address; write to it. The dashboard is only for admins and supervisors. Staff use the staff portal.
+Words people use for this: log in, sign in, cannot sign in, who do i email, badge number, forgot my pin, locked out, too many tries, choose a pin, new pin, iniciar sesión.
 Picture: sign-in-card
 Picture: choose-your-pin
 Last checked: 2026-10-07
@@ -71,14 +71,14 @@ Who can do this: admins
 1. Click **Settings** in the menu.
 2. Click the **Who gets told** tab.
 3. Find the kind of report, such as a problem, a supply request or a form. Forms have an **Every form** list and a list per form.
-4. Click **Add a person**, choose them, and click **Add**. Every kind except the two Speak Up kinds also allows **Add an email address**, for someone outside the company.
+4. Click **Add a person** (**Agregar una persona**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to find them, pick them, and click **Add** (**Agregar**). Every kind except the two Speak Up kinds also allows **Add an email address**, for someone outside the company.
 5. Turn **Email** and **In app** on or off for each person. At least one stays on.
 6. To take someone off, click **Remove** and confirm.
 7. Each form's own list also chooses what its email carries: **Link to the app**, which every form starts on, or **Attach the filled report as a PDF**. With the PDF chosen, every email about that form carries everything the report says, to every person and address on its lists. **Every form** has no choice of its own.
 If it does not work: when nobody is set for a kind, every admin gets a notice in the app.
 Words people use for this: notifications, who gets the email, alerts, stop getting notices, send to an outside email, email the report as a pdf, attach the report, pdf delivery.
 Picture: settings-who-gets-told
-Last checked: 2026-09-21
+Last checked: 2026-10-07
 
 ## Add a staff member (admin dashboard)
 Who can do this: admins
@@ -105,9 +105,10 @@ Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
 3. Change what is needed and click **Save Changes** (**Guardar los cambios**).
-4. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
+4. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**).
+5. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
 Picture: staff-profile-edit
-Last checked: 2026-10-02
+Last checked: 2026-10-07
 
 ## Reset a staff member's PIN (admin dashboard)
 Who can do this: admins
@@ -129,118 +130,122 @@ Who can do this: admins
 4. Their records stay in the system either way.
 Words people use for this: someone quit, terminate, fire, let go, turn off an account, bring someone back, deactivate, rehire, leave of absence.
 Picture: staff-employment-card
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Assign a staff member to a site (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** and open the person's profile.
-2. Click the **Assignments** tab.
+2. Click the **Assignments** (**Asignaciones**) tab.
 3. Click **Assign**.
 4. Choose the site, and the role, shift and times if you know them.
 5. Click **Assign** to save.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Picture: staff-assignments
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Add a certification to a staff member (admin dashboard)
-Who can do this: admins
-1. Click **Staff Management** and open the person's profile.
-2. Click the **Certifications** tab.
-3. Click **Add**, fill in the name, issuer and dates, and click **Add Certification**.
-Picture: staff-add-certification
-Last checked: 2026-09-16
-
+Who can do this: admins, and anyone else who can open Staff Management
+1. Click **HR Records** (**Expedientes de personal**) and click the person on the **Employees** (**Personal**) tab. From **Staff Management** (**Gestión de personal**), open the person's profile and click **Open HR file** (**Abrir el expediente de personal**).
+2. In the folder, under **Certifications** (**Certificaciones**), click **Add Certification** (**Agregar certificación**).
+3. Fill in the name, the type, the issuer and the dates, and click **Add Certification** (**Agregar certificación**).
+4. To take one off, click **Remove** (**Quitar**) beside it and confirm.
+Words people use for this: add a certificate, add a license, certification on file, remove a certification, certificaciones.
+Picture: hr-folder-add-certification
+Last checked: 2026-10-07
 ## Respond to a Speak Up case (admin dashboard)
 Who can do this: admins, except anyone the case is about
 1. Click **Cases**. It opens on **Needs response**, with the most urgent first.
 2. Click a case to open it.
-3. Click **Take this case** to hold it yourself, or choose someone under **Hand to** and click **Hand over**.
+3. Click **Take this case** to hold it yourself, or click **Hand to** (**Entregar a**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick the person and click **Hand over** (**Entregar**).
 4. Change the status, add resolution notes, and click **Save changes**. The first save counts as the team's response.
 5. To give it back to the team, click **Release**.
 6. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
 If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left.
 Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up.
 Picture: cases-case-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Add an HR document for an employee (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**).
 2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Document** (**+ Agregar documento**). The person is filled in as the **Employee** (**Persona**) and stays there.
-3. Or click the **Documents** (**Documentos**) tab, then **+ Add Document** (**+ Agregar documento**), and choose the **Employee** (**Persona**). The list shows active people first, then inactive and terminated people, each with its status after the name.
+3. Or click the **Documents** (**Documentos**) tab, then **+ Add Document** (**+ Agregar documento**), and choose the **Employee** (**Persona**): type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them. The list shows active people first, then inactive and terminated people, each with its status after the name.
 4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one. Warnings and termination letters go under **Disciplinary** (**Disciplinario**).
 5. Click **Add** (**Agregar**).
 Words people use for this: upload a document, add a file to someone's folder, document for someone who left, termination letter, subir un documento.
 Picture: hr-folder-add-document
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Add a training record (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**).
 2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Training** (**+ Agregar capacitación**). The person is filled in as the **Employee** (**Persona**) and stays there.
-3. Or click the **Training** (**Capacitación**) tab, then **+ Add Training** (**+ Agregar capacitación**), and choose the **Employee** (**Persona**). The list shows active people first, then inactive and terminated people, each with its status after the name.
+3. Or click the **Training** (**Capacitación**) tab, then **+ Add Training** (**+ Agregar capacitación**), and choose the **Employee** (**Persona**): type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them. The list shows active people first, then inactive and terminated people, each with its status after the name.
 4. Type the **Training Name** (**Nombre de la capacitación**), choose the **Training Type** (**Tipo de capacitación**), and fill in the **Completed Date** (**Fecha de finalización**), the **Expiry Date** (**Fecha de vencimiento**) and the **Score** (**Puntaje**).
 5. Click **Add** (**Agregar**).
 Words people use for this: log a training, add a certificate of training, training for someone who left, registrar una capacitación.
 Picture: hr-folder-add-training
-Last checked: 2026-09-30
+Last checked: 2026-10-07
 
 ## Set up and check off an onboarding checklist (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**).
-2. Click the **Onboarding** (**Incorporación**) tab and choose the employee at the top right. The list shows active people first, then inactive and terminated people, each with its status after the name.
+2. Click the **Onboarding** (**Incorporación**) tab and choose the employee at the top right: type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them. The list shows active people first, then inactive and terminated people, each with its status after the name.
 3. If they have no checklist, click **Initialize Onboarding** (**Iniciar la incorporación**).
 4. Tick each step as it is done. Click **+ Custom Step** (**+ Paso personalizado**) to add one.
 Picture: hr-onboarding
-Last checked: 2026-09-30
+Last checked: 2026-10-07
 
 ## Review a reported problem and assign it (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Issues** (**Incidencias**). Once client requests are on, the page opens on **Staff issues** (**Incidencias del personal**); the **Client requests** (**Solicitudes de clientes**) tab is beside it.
 2. Click the issue to open it.
 3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words.
-4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person, and click **Assign Task**. It appears on their **Assigned** tab in the portal.
+4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person under **Assign To *** (**Asignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and click **Assign Task** (**Asignar la tarea**). It appears on their **Assigned** tab in the portal.
 5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
 6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
 Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, incidencias.
 Picture: issues-issue-window
 Picture: issues-assign-task
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Create a task for a staff member (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Assigned Tasks**.
 2. Click **Create Task**.
-3. Choose the site, describe the task, set the zone, and choose who it is assigned to.
+3. Choose the site, describe the task, set the zone, and choose who it is assigned to under **Assign To *** (**Asignar a ***): type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them.
 4. Add instructions, a photo or video, and a due date if needed.
 5. Click **Create and Assign**.
 Picture: tasks-create
-Last checked: 2026-09-16
+Last checked: 2026-10-07
 
 ## Reassign a task (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Assigned Tasks** and click the task.
 2. Click **Reassign**.
-3. Choose the new person and give the reason.
+3. Choose the new person under **Reassign To *** (**Reasignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and give the reason.
 4. Click **Reassign** to save.
 Picture: tasks-reassign
-Last checked: 2026-09-16
+Last checked: 2026-10-07
 
 ## Schedule a shift (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Schedule**.
 2. Click **Schedule Shift**, or click an empty day in a person's row.
-3. Choose the staff member and the site, and set the start and end times.
-4. Add the building, floor, service or notes if needed.
-5. Click **Schedule Shift** at the bottom of the window to save it.
-If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+3. Pick the **Site *** (**Sitio ***) first.
+4. Click **Staff Member *** (**Persona ***). With a site picked, the people assigned there come first under **Assigned to this site** (**Asignados a este sitio**), each with their role, and everyone else follows under **Everyone else** (**Todos los demás**), office accounts too. Type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to narrow the list, and pick the person. The list is the same whatever the Schedule page itself is filtered to.
+5. Set the start and end times.
+6. Add the building, floor, service or notes if needed.
+7. Click **Schedule Shift** (**Programar turno**) at the bottom of the window to save it.
+If it does not work: when nobody matches what you typed, the list says **No one matches.** (**Nadie coincide.**); check the spelling or the number. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Words people use for this: schedule someone, add a shift, put someone on the schedule, find a person by badge number, office staff on the schedule.
 Picture: schedule-shift-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Schedule a shift that repeats (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Schedule**, then **Schedule Shift**.
-2. Fill in the person, the site and the times.
+2. Pick the site, then the person, the way Schedule a shift says, and the times.
 3. Turn on **Repeat this shift**, and click the days under **Repeat on**.
 4. Choose how long it repeats. **No end date** keeps it going until someone ends it. **Until** stops on a date you pick. **For** adds a set number of weeks.
 5. Save with the button at the bottom of the window.
@@ -248,7 +253,7 @@ Who can do this: admins and supervisors
 If it does not work: for a shift that runs past midnight, pick the day it starts. If the person is already scheduled at that time on some dates, those dates are skipped and listed. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Words people use for this: weekly schedule, recurring shift, same shift every week, standing schedule, set up a pattern.
 Picture: schedule-repeat
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## See or change a weekly pattern (admin dashboard)
 Who can do this: admins and supervisors
@@ -271,13 +276,13 @@ Last checked: 2026-09-16
 ## Change or cancel a scheduled shift (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Schedule**, and in **Week** view click the shift.
-2. Change the times, site, status or notes and click **Save**.
+2. Change the times, site, status or notes and click **Save**. To give it to someone else, pick them under **Staff**; you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**).
 3. To take it off the schedule, click **Cancel shift** (**Cancelar turno**) and confirm. The shift is kept as cancelled; nothing is deleted.
 4. To post it for someone else to take, click **Pickup**, give a reason, and click **Confirm Convert**.
 5. A shift marked **Repeats** comes from a weekly pattern. Changing it changes that date only, and its button reads **Cancel this date** (**Cancelar esta fecha**), which cancels that one date.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Picture: schedule-edit-shift
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Approve or deny a request to drop a shift (admin dashboard)
 Who can do this: admins and supervisors
@@ -340,10 +345,10 @@ Who can do this: admins and supervisors
 1. Click **Inspections**.
 2. Click the **Scheduled** tab.
 3. Click **Schedule Inspection**.
-4. Choose the template, the site, the supervisor and the date.
+4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date.
 5. Click **Schedule**.
 Picture: inspections-schedule
-Last checked: 2026-09-16
+Last checked: 2026-10-07
 
 ## Create an inspection template (admin dashboard)
 Who can do this: admins and supervisors
@@ -386,12 +391,13 @@ Who can do this: admins and supervisors
 4. Under the answer, a line says what it is based on: **Based on the app guide** for steps in the staff portal or the admin dashboard, **Based on the ADP guide** for the ADP time clock, **Based on general cleaning guidance** for general cleaning answers, and an OCSA document by its name.
 5. An answer that says how to do something on the dashboard or the staff portal can show up to two pictures of the screen under it, drawn in the language the dashboard is shown in. A picture of the staff portal shows a phone screen, so you can show someone what they will see. Click a picture to see it full screen, with the name of its guide entry under it; **Close** (**Cerrar**) puts it away.
 6. If Help is filling in a report with you and it cannot be sent yet, **Still needed before you can submit:** (**Falta esto antes de poder enviarlo:**) lists the questions left to answer, worded the way the form asks them.
-7. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
+7. When you say something is not working, ask for a change, find wrong information or Help cannot answer, Help offers a ticket for App support and drafts it on a card above the conversation; see Send a ticket to app support from Help.
+8. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
 If it does not work: if **The connection dropped. Your answer is saved.** (**Se perdió la conexión. La respuesta quedó guardada.**) shows under the answer, click **Try again** (**Intentar de nuevo**) to read the saved answer back. If **This question is still being answered. The answer will show here.** (**Esta pregunta todavía se está respondiendo. La respuesta aparecerá aquí.**) shows, the question was already sent and Help is still writing its answer. The answer shows there by itself when it is ready, looked for every few seconds for two minutes; to look at once, or after the two minutes, click **Try again** (**Intentar de nuevo**). If a question reads Not sent, click **Retry** (**Reintentar**). Retry sends the same question again, and Help answers it once.
 Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer, still being answered, picture of the screen, show me the screen, screenshot.
 Picture: help-answer
 Picture: help-picture-open
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Run a report (admin dashboard)
 Who can do this: admins and supervisors
@@ -406,7 +412,7 @@ Last checked: 2026-09-28
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
-1. Click **Sites** (**Sitios**).
+1. Click **Sites** (**Sitios**). The page opens on the list of sites, with **Add Site** (**Agregar sitio**) above it and **Search site, address, contract** (**Buscar sitio, dirección o contrato**) over it.
 2. To add one, click **Add Site** (**Agregar sitio**), fill in the name and address, and click **Create** (**Crear**).
 3. To change one, click the site. On **General Info** (**Información general**), click **Edit Details** (**Editar los detalles**) under **Contract Details** (**Detalles del contrato**).
 4. Under **Contract reference** (**Referencia del contrato**), type the contract's number or name as the client's paperwork gives it, up to 120 characters.
@@ -416,7 +422,7 @@ If it does not work: when a service line or the contract reference is refused, t
 Words people use for this: edit a site, site details, contract number, contract reference, service lines, services at a site, what we do at a site.
 Picture: sites-add-site
 Picture: sites-edit-details
-Last checked: 2026-09-30
+Last checked: 2026-10-07
 
 ## Give one person a permission (admin dashboard)
 Who can do this: admins, and anyone given the manage permissions permission
@@ -427,7 +433,7 @@ Who can do this: admins, and anyone given the manage permissions permission
 5. Click **Save changes**.
 Words people use for this: give access, let someone approve, permissions, change what someone can do.
 Picture: settings-permissions-person
-Last checked: 2026-09-20
+Last checked: 2026-10-07
 
 ## See what each role can do, or print it (admin dashboard)
 Who can do this: admins, and anyone given the manage permissions permission
@@ -437,7 +443,7 @@ Who can do this: admins, and anyone given the manage permissions permission
 4. Click **Export PDF** to print it or save it.
 Words people use for this: role chart, who can do what, access list, permissions list, print the roles.
 Picture: settings-role-reference
-Last checked: 2026-09-20
+Last checked: 2026-10-07
 
 ## Switch between light and dark (admin dashboard)
 Who can do this: anyone signed in
@@ -447,7 +453,7 @@ Who can do this: anyone signed in
 4. In light mode, the colors that mark a status, such as green, orange and red, are darker so they read on white.
 Words people use for this: dark mode, light mode, turn on dark mode, turn off dark mode, the screen is too bright, change the colors, hard to read colors.
 Picture: theme-button
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Move around the dashboard with the keyboard (admin dashboard)
 Who can do this: anyone signed in
@@ -460,39 +466,39 @@ Last checked: 2026-09-21
 Who can do this: anyone allowed to approve and deny time off
 1. Click **Schedule** in the menu on the left.
 2. Click **Time off** beside **Week**, **Month** and **Patterns**. The number beside it is how many are waiting for a decision.
-3. Click a row to open the request. It shows the person, the type, the dates, the hours, their reason, and the shifts they have on those days.
+3. Click a row to open the request. It shows the person, the type in the dashboard's language, such as **PTO (paid time off)** (**PTO (tiempo libre pagado)**), the dates, the hours, their reason, and the shifts they have on those days.
 4. Type a **Note**. A note is optional when approving and required when denying.
 5. Click **Approve**, or **Deny**.
 6. The person gets a notice in the app carrying the dates, and reads your note in the app.
-Words people use for this: approve time off, deny a day off, decide a leave request, sign off on vacation, time off queue.
+Words people use for this: approve time off, approve pto, paid time off, deny a day off, decide a leave request, sign off on vacation, time off queue.
 If it does not work: nobody decides their own request. Deciding a request leaves the schedule as it is, so change or cover those shifts yourself. If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet.
 Picture: time-off-request
-Last checked: 2026-09-28
+Last checked: 2026-10-07
 
 ## See past time off requests (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
 1. Click **Schedule**, then **Time off**.
 2. Click **Requested**, **Approved**, **Denied**, **Cancelled** or **All**.
-3. Choose a person beside the buttons to narrow the list, or leave it on **Everyone**.
+3. Choose a person beside the buttons to narrow the list (type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**)), or leave it on **Everyone** (**Todos**). Each row's **Type** (**Tipo**) reads the kind of leave, **PTO (paid time off)** (**PTO (tiempo libre pagado)**) among them.
 4. Click a row to see who decided it, when, and the note they left.
 Words people use for this: who is off next week, time off history, past leave requests, who asked for a day off.
 Picture: time-off-all
-Last checked: 2026-09-17
+Last checked: 2026-10-07
 
 ## Log training for several people at once (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**) in the menu, then the **Training** (**Capacitación**) tab, and on **Records** (**Registros**) click **Log training for several people** (**Registrar capacitación de varias personas**).
 2. Pick the **Topic** (**Tema**) from the training catalog. The line under it names the topic's document and section and how often it is taken. The **Completed Date** (**Fecha de finalización**) is today; change it if the session was on another day.
-3. Pick the **Trainer** (**Instructor**), or leave **Type a name** (**Escribir un nombre**) and type who gave it.
+3. Pick the **Trainer** (**Instructor**), finding them by name, badge number or employee ID, or leave **Type a name** (**Escribir un nombre**) and type who gave it.
 4. Under **Language it was given in** (**Idioma en que se impartió**), click **English** (**Inglés**), **Spanish** (**Español**) or **French** (**Francés**).
-5. Under **Who attended** (**Quiénes asistieron**), pick the site the session was given at to list its people, or keep **Everyone active** (**Todas las personas activas**) and use **Search by name** (**Buscar por nombre**). Tick each person who attended, or click **Select all** (**Seleccionar todo**). People ticked stay ticked when you switch sites, and the site picked is saved with each record.
+5. Under **Who attended** (**Quiénes asistieron**), pick the site the session was given at to list its people, or keep **Everyone active** (**Todas las personas activas**) and use **Search by name** (**Buscar por nombre**), which also finds a badge number or an employee ID. Tick each person who attended, or click **Select all** (**Seleccionar todo**). People ticked stay ticked when you switch sites, and the site picked is saved with each record.
 6. Add **Notes (optional)** (**Notas (opcional)**) if you like, and click **Save** (**Guardar**). The whole session is saved in one go.
 7. The window then lists who it was saved for, and under **Already had it that day** (**Ya la tenía ese día**) anyone who already had the topic on that day. Nobody is logged twice.
 8. **Print attendance sheet** (**Imprimir la hoja de asistencia**) prints the training attendance roster: the session, with **Related Document No.** (**Número de documento relacionado**) filled in with the topic's document and section, every person with a line to sign and a box for **Understood** (**Entendido**), and the trainer's attestation.
 If it does not work: a refusal is shown under the field it names. Before the training catalog is in, the window asks for a typed **Training Name** (**Nombre de la capacitación**) and a **Training Type** (**Tipo de capacitación**) in place of the topic and saves one person after another; anyone under **Not saved** (**Sin guardar**) is sent again with **Try again** (**Intentar de nuevo**).
 Words people use for this: log training, training attendance, sign in sheet, log a session, record who attended, orientation, skills sign-off, training session.
 Picture: training-log-session
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## See who has no record of a training (admin dashboard)
 Who can do this: admins and supervisors
@@ -531,13 +537,13 @@ Last checked: 2026-10-02
 ## Find a staff member's badge number (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**).
-2. The **Badge** (**Número de empleado**) column sits right after the name. Type the person's name in the search box to find them faster.
+2. The **Badge** (**Número de empleado**) column sits right after the name. Type the person's name in the search box to find them faster. Every list that picks a person finds them by their badge number too.
 3. Or open the person's profile: under **Contact Information** (**Datos de contacto**), the **Badge number** (**Número de empleado**) line shows it, or **Not set** (**Sin indicar**) if the account has none.
 4. The badge number is what the person types to sign in on the staff portal, and it is on their temporary PIN slip. It comes from ADP or from the invite. When it shows **Not set** (**Sin indicar**), an admin can click **Generate badge number** (**Generar número de empleado**) on the profile.
 Words people use for this: badge number, employee number, what number do they sign in with, lost their slip, credencial, número de empleado.
 Picture: staff-badge-column
 Picture: staff-badge-not-set
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Verify and sign a safety inspection (admin dashboard)
 Who can do this: any supervisor or admin other than the person who did the inspection
@@ -851,12 +857,12 @@ Last checked: 2026-09-28
 ## Tag someone in a chat (admin dashboard)
 Who can do this: anyone who can read the chat
 1. In **Messages** (**Mensajes**), open the general chat, a site's chat or a project's chat. In a project's chat the list holds the project's members.
-2. Type @ at the start of a word, or click the @ button beside the message box. **Tag someone** (**Etiquetar a alguien**) lists the people who can read that chat; type part of a name to narrow it and click the person.
+2. Type @ at the start of a word, or click the @ button beside the message box. **Tag someone** (**Etiquetar a alguien**) lists the people who can read that chat; type part of a name, a badge number or an employee ID to narrow it and click the person.
 3. Their name goes into the message. Send it; they get an alert that the message is for them, and their name shows highlighted.
 To untag someone, delete their name from the message before sending. A private conversation or a direct message has no tag button, since everyone who reads it already gets an alert for every message.
 Words people use for this: tag someone, mention someone, @ someone, etiquetar.
 Picture: chat-tag-someone
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## See what people ask Help (admin dashboard)
 Who can do this: admins, and anyone an admin gives See Help insights
@@ -877,7 +883,7 @@ Who can do this: anyone who can edit checklist items or pick lists
 3. Click Save. **Saved. People see this wording from now on.** (**Guardado. El personal ve este texto desde ahora.**) Your wording stays until someone changes it; the automatic translation never writes over it.
 Words people use for this: fix the spanish, wrong translation, change the spanish wording, corregir el español, traducción.
 Picture: task-spanish-wording
-Last checked: 2026-09-28
+Last checked: 2026-10-07
 
 ## Make a new form with the builder (admin dashboard)
 Who can do this: admins, and anyone an admin gives Make and change forms. Only an admin publishes.
@@ -912,7 +918,7 @@ Who can do this: admins only
 Words people use for this: publish a form, approve a form, make a form live, retire a form, stop using a form, version history, publicar un formulario.
 Picture: form-builder-publish
 Picture: form-builder-retire
-Last checked: 2026-09-28
+Last checked: 2026-10-07
 
 ## See how clients rated a site (admin dashboard)
 Who can do this: anyone who can see reports
@@ -1074,7 +1080,7 @@ Who can do this: admins given Build quotes
 If it does not work: a value outside its range is named under its box, a row's bad quantity or unit cost under that box, and the step holding it gets a red dot. When the tab is not there, your account is not an admin with **Build quotes** (**Preparar cotizaciones**). The lists show once the server starts quotes with no equipment or supplies of its own.
 Words people use for this: quote defaults, default wage, default margin, burden rates, quote terms, terms and conditions, how long a quote is valid, starting equipment, starting supplies, valores iniciales.
 Picture: settings-quote-defaults
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Start a message to anyone (admin dashboard)
 Who can do this: admins and supervisors
@@ -1108,7 +1114,7 @@ If it does not work: a date in the future is refused, and the line under the dat
 Words people use for this: school clearances, act 34, act 151, fbi fingerprints, child abuse clearance, act 168, renew a clearance, autorizaciones escolares.
 Picture: clearances-person
 Picture: clearances-add-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Correct a clearance date entered wrongly (admin dashboard)
 Who can do this: admins and supervisors
@@ -1170,7 +1176,7 @@ Last checked: 2026-10-01
 
 ## Read a site's workload plan (admin dashboard)
 Who can do this: anyone who can open Sites
-1. Click **Sites** (**Sitios**) in the side panel and click the site, or click its row under **Workload plans** (**Planes de carga de trabajo**).
+1. Click **Sites** (**Sitios**) in the side panel and click the site, or click its plan in the **Workload plan** (**Plan de carga de trabajo**) column of the site list.
 2. Click the **Workload plan** (**Plan de carga de trabajo**) tab, beside **Scope of Work** (**Alcance del trabajo**).
 3. The tiles show **Hours a month** (**Horas al mes**), **Hours a service day** (**Horas por día de servicio**), **Staff recommended** (**Personal recomendado**), **Staff minimum** (**Personal mínimo**) and **Cleaners assigned** (**Limpiadores asignados**), the cleaners with an active assignment at the site today. A figure the plan does not hold reads --.
 4. The line under the tiles names the quote the plan came from, its revision, the day it was taken and who took it, and the note. **Figures** (**Cifras**) lists the building's square feet, rooms and fixtures and the hours and staffing worked from them, and **Tasks** (**Tareas**) lists each task with its quantity, its rate, how often it is done and its hours. The plan shows no price.
@@ -1178,7 +1184,7 @@ Who can do this: anyone who can open Sites
 If it does not work: **No workload plan yet.** (**Todavía no hay plan de carga de trabajo.**) means the site has none; see Make a site's workload plan. An orange line, **The quote changed after this plan took it. Use the quote again to update the plan.** (**La cotización cambió después de que este plan la tomó. Vuelva a usar la cotización para actualizar el plan.**), means the plan still holds the quote as it was; see Update or end a site's workload plan. When the tab is not there, the server does not offer workload plans yet.
 Words people use for this: staffing plan, workload plan, hours for a building, how many cleaners, how many people a site needs, labor hours, plan de carga de trabajo.
 Picture: site-plan-read
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Make a site's workload plan (admin dashboard)
 Who can do this: people given Build quotes, admins by default
@@ -1229,14 +1235,13 @@ Last checked: 2026-10-01
 
 ## See which sites have a workload plan (admin dashboard)
 Who can do this: anyone who can open Sites
-1. Click **Sites** (**Sitios**) in the side panel.
-2. **Workload plans** (**Planes de carga de trabajo**), above the site list, shows every active site: the quote and revision its plan came from, or **No plan yet** (**Todavía sin plan**), and the **Hours a month** (**Horas al mes**), **Staff recommended** (**Personal recomendado**) and **Cleaners assigned** (**Limpiadores asignados**). **Changed since** (**Cambió desde entonces**) marks a plan whose quote was saved after the plan took it.
-3. Click a row to open that site on its Workload plan tab.
-If it does not work: the table is not there until the server offers workload plans.
+1. Click **Sites** (**Sitios**) in the side panel. The list of sites comes first.
+2. The **Workload plan** (**Plan de carga de trabajo**) column on each site's row reads the quote and revision its plan came from, as **Quote {0}, revision {1}** (**Cotización {0}, revisión {1}**), or **No plan yet** (**Todavía sin plan**). **Changed since** (**Cambió desde entonces**) marks a plan whose quote was saved after the plan took it.
+3. Click the plan to open that site on its **Workload plan** (**Plan de carga de trabajo**) tab, with the hours and staffing.
+If it does not work: the column is not there until the server offers workload plans.
 Words people use for this: which sites have a plan, staffing plans, hours by site, how many cleaners each site has, planes de carga de trabajo.
 Picture: sites-workload-plans
-Last checked: 2026-10-01
-
+Last checked: 2026-10-07
 ## Read a completed inspection, its photos and its signature (admin dashboard)
 Who can do this: anyone who can open Inspections
 1. Click **Inspections** (**Inspecciones**), then the **Completed** (**Completadas**) tab, and click the inspection.
@@ -1277,7 +1282,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 6. The **Employment** (**Empleo**) card reads **On leave** (**En licencia**) with the reason and the expected return, and the staff list shows **On leave** (**En licencia**).
 Words people use for this: leave of absence, medical leave, family leave, time away, deactivate, licencia.
 Picture: staff-put-on-leave-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## End someone's employment (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -1290,7 +1295,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 7. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
 Words people use for this: terminate, fire, let go, quit, resigned, dismiss, last day, deactivate, end employment, collect uniform, return keys, despedir.
 Picture: staff-end-employment-window
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Bring someone back from leave (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -1301,7 +1306,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 5. The card's **History ({0})** (**Historial ({0})**) lists the leave and the return.
 Words people use for this: back from leave, return to work, end the leave, reactivate, leave of absence.
 Picture: staff-return-from-leave-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Rehire someone (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -1314,7 +1319,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 If it does not work: a school site is refused while their clearances are missing, and the reason is shown under that site. Untick it, or put their clearances on file first, then click **Rehire** (**Recontratar**) again. Nothing is changed until the rehire goes through.
 Words people use for this: rehire, hire back, bring someone back, came back to work, give them their sites back, restore sites, recontratar.
 Picture: staff-rehire-window
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Record why someone is inactive or left (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -1325,7 +1330,7 @@ Who can do this: admins who manage staff, for anyone but themselves
 If it does not work: an inactive person gets a leave reason here. For someone inactive who in fact left, use **End employment** (**Terminar el empleo**), which ends their sites.
 Words people use for this: why did they leave, reason for leaving, record a reason, deactivated with no reason, inactive, terminate, quit.
 Picture: staff-record-reason-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Sign an inspection's review line (admin dashboard)
 Who can do this: admins and supervisors other than the person who did the inspection; the executive line, when the score is below 80, is an admin's
@@ -1362,7 +1367,7 @@ Who can do this: admins and supervisors
 9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
 Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
 Picture: warning-verbal-window
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Issue a written or final written warning (admin dashboard)
 Who can do this: admins and supervisors for a written warning; admins for a final written warning
@@ -1391,7 +1396,7 @@ Who can do this: admins
 6. Send the letter to the person; see the entry on sending a warning.
 Words people use for this: fire, terminate, termination letter, let go, dismiss, final step, discipline, despido.
 Picture: warning-termination-window
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Send a warning to the person (admin dashboard)
 Who can do this: admins and supervisors
@@ -1403,7 +1408,7 @@ Who can do this: admins and supervisors
 If it does not work: a person with no email on file gets the warning by hand or by mail. Choose another way and click Send.
 Words people use for this: send a warning, email a warning, print a warning, give the employee a copy, write-up, enviar la advertencia.
 Picture: warning-send-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## When a person declines to sign a warning (admin dashboard)
 Who can do this: admins and supervisors
@@ -1431,27 +1436,27 @@ Last checked: 2026-10-01
 Who can do this: admins see every warning; supervisors see the warnings they issued
 1. Click **Discipline** (**Disciplina**) in the menu on the left.
 2. The counts at the top add up each step for the warnings the filters show.
-3. Narrow the table with **Every step** (**Todos los pasos**), **Every category** (**Todas las categorías**), **All sites** (**Todos los sitios**), **Everyone** (**Todos**), **All statuses** (**Todos los estados**), **From** (**Desde**) and **To** (**Hasta**). Admins also have **Issued by anyone** (**Emitida por cualquiera**).
+3. Narrow the table with **Every step** (**Todos los pasos**), **Every category** (**Todas las categorías**), **All sites** (**Todos los sitios**), **Everyone** (**Todos**), **All statuses** (**Todos los estados**), **From** (**Desde**) and **To** (**Hasta**). Admins also have **Issued by anyone** (**Emitida por cualquiera**). In **Everyone** (**Todos**) and **Issued by anyone** (**Emitida por cualquiera**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to find a person.
 4. Click a row to open the warning.
 5. **Export** (**Exportar**) saves the rows shown as a spreadsheet file.
 If it does not work: the page shows once the server keeps warnings.
 Words people use for this: discipline, warnings, write-ups, who has been written up, final warning, discipline report, disciplina.
 Picture: discipline-page
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Open a case (admin dashboard)
 Who can do this: anyone who can open Cases
 1. Click **Cases** (**Casos**), then **Open a case** (**Abrir un caso**).
 2. Fill in **What happened** (**Qué pasó**).
-3. Under **About whom** (**Sobre quién**), add each person it is about, or none.
-4. When a staff member reported it to you in person, choose them under **On behalf of** (**En nombre de**).
+3. Under **About whom** (**Sobre quién**), add each person it is about, or none: type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick them and click **Add** (**Agregar**).
+4. When a staff member reported it to you in person, choose them under **On behalf of** (**En nombre de**), found the same way.
 5. Answer **Is this about someone in management?** (**¿Se trata de alguien de la gerencia?**)
 6. Choose who holds it under **Assigned to** (**Asignado a**), or leave it at **Nobody yet** (**Nadie todavía**).
 7. Click **Open a case** (**Abrir un caso**).
 8. To warn the person later, open the case and click **Issue a warning** (**Emitir una advertencia**).
 Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, abrir un caso.
 Picture: case-open-window
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Add an old form's warning to the record (admin dashboard)
 Who can do this: admins
@@ -1494,7 +1499,7 @@ Who can do this: admins and supervisors
 1. Click **Workspace** (**Espacio de trabajo**) in the menu on the left.
 2. Click **New project** (**Nuevo proyecto**).
 3. Fill in the **Name** (**Nombre**), a **Description** (**Descripción**) if you like, and pick a **Color** (**Color**).
-4. Under **Members** (**Miembros**), tick the office people who work on it. You are its owner.
+4. Under **Members** (**Miembros**), tick the office people who work on it; the box over the list finds them by name, badge number or employee ID. You are its owner.
 5. Click **Start the project** (**Iniciar el proyecto**). The project's page opens with its four tools: **Message Board** (**Tablero de mensajes**), **To-dos** (**Pendientes**), **Chat** (**Chat**) and **Docs and Files** (**Documentos y archivos**), and **Activity** (**Actividad**) under them.
 6. Later, an owner or an admin clicks **Members** (**Miembros**) on the project's page to add or take out people, and ticks **Owner** (**Propietario**) for anyone else who runs it. A project needs at least one owner.
 7. **Edit** (**Editar**) changes the project's name, description and color.
@@ -1531,7 +1536,7 @@ Last checked: 2026-10-01
 Who can do this: the project's members
 1. Open the project from **Workspace** (**Espacio de trabajo**) and click the **To-dos** (**Pendientes**) card.
 2. Click **New list** (**Nueva lista**), give the list a **Name** (**Nombre**), and click **Add the list** (**Agregar la lista**).
-3. On a list, click **Add a to-do** (**Agregar un pendiente**). Fill in the **To-do** (**Pendiente**), any **Notes** (**Notas**), who it is **Assigned to** (**Asignado a**) and when it is **Due** (**Vence**), then click **Add the to-do** (**Agregar el pendiente**).
+3. On a list, click **Add a to-do** (**Agregar un pendiente**). Fill in the **To-do** (**Pendiente**), any **Notes** (**Notas**), who it is **Assigned to** (**Asignado a**), found by name, badge number or employee ID, and when it is **Due** (**Vence**), then click **Add the to-do** (**Agregar el pendiente**).
 4. Tick the box beside a to-do when it is done. It shows who did it and when, and moves to the done ones under the list, which **{0} done** (**{0} completados**) opens. Untick it to open it again.
 5. Click a to-do to read it, **Edit** (**Editar**) it, or comment on it.
 6. A to-do past its due day reads in red.
@@ -1539,7 +1544,7 @@ If it does not work: a to-do can only be assigned to the project's members.
 Words people use for this: to-do list, task list, checklist, assign a task, due date, mark done, basecamp to-dos, pendientes.
 Picture: ws-todos
 Picture: ws-add-todo
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## See what is assigned to you across projects (admin dashboard)
 Who can do this: admins and supervisors
@@ -1593,7 +1598,7 @@ Last checked: 2026-10-01
 Who can do this: the super admin, and anyone given the chat records permission. Nobody else sees this screen.
 1. Click **Chat records** (**Registros del chat**) under **Settings** (**Configuración**) in the menu on the left.
 2. **Every search here is recorded.** (**Cada búsqueda aquí queda registrada.**) Each search and each PDF is logged with who ran it, the filters and how many messages it found.
-3. Under **People** (**Personas**), search for and pick one or more people. Choose a **Channel** (**Canal**) if you need one, set **From** (**Desde**) and **To** (**Hasta**), and type any **Words** (**Palabras**).
+3. Under **People** (**Personas**), search for one or more people by name, badge number or employee ID and pick them; **No one matches.** (**Nadie coincide.**) says when nobody does. Choose a **Channel** (**Canal**) if you need one, set **From** (**Desde**) and **To** (**Hasta**), and type any **Words** (**Palabras**).
 4. Click **Search** (**Buscar**). The messages show oldest first, with **When** (**Cuándo**), **Sender** (**Remitente**), **Channel** (**Canal**) and the **Message** (**Mensaje**).
 5. **Download PDF** (**Descargar el PDF**) saves the same search as a PDF.
 6. **Searches recorded** (**Búsquedas registradas**) under the results lists every search and PDF.
@@ -1678,7 +1683,7 @@ Last checked: 2026-10-05
 Who can do this: admins and supervisors
 1. Open the person's folder in **HR Records** (**Expedientes de personal**), or open the site in **Sites** (**Sitios**) and click the **Supplies** (**Suministros**) tab.
 2. Under **PPE issued** (**EPP entregado**), click **Issue PPE** (**Entregar EPP**).
-3. From a person's folder, pick the **Site** (**Sitio**); from a site, pick the **Person** (**Persona**).
+3. From a person's folder, pick the **Site** (**Sitio**); from a site, pick the **Person** (**Persona**): the site's people, found by name, badge number or employee ID.
 4. Pick the **Item** (**Elemento**) from the site's PPE stock, or **Something else, typed** (**Otra cosa, escrita**) and type what was issued.
 5. Fill in **Size** (**Talla**) and **Quantity** (**Cantidad**), and answer **Fits well?** (**¿Le queda bien?**) with **Yes** (**Sí**) or **No** (**No**). Add a **Note** (**Nota**) if there is one.
 6. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen. Click **Send to sign** (**Enviar a firmar**): the person is told on their phone and signs there, and the issue reads **Waiting for signature** (**A la espera de firma**) until they do.
@@ -1687,7 +1692,7 @@ Who can do this: admins and supervisors
 If it does not work: the button waits until there is a site, an item, a quantity of 1 or more, an answer to **Fits well?** (**¿Le queda bien?**) and, under **Sign here now** (**Firmar aquí ahora**), a signature. A box the server refuses is marked in red with the reason under it. **Who signs** (**Quién firma**) shows once the system answers the signature requests.
 Words people use for this: issue ppe, hand out gloves, safety glasses, ppe sign off, ppe records, entregar epp.
 Picture: ppe-issue-window
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Keep the equipment register (admin dashboard)
 Who can do this: admins and supervisors
@@ -1726,25 +1731,27 @@ Last checked: 2026-10-02
 
 ## See periodic work across every site (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Sites** (**Sitios**) in the menu on the left. **Periodic work** (**Trabajo periódico**) is at the top of the page.
+1. Click **Periodic work** (**Trabajo periódico**) under **Quality** (**Calidad**) in the menu on the left.
 2. Every site's weekly, every two weeks, monthly, quarterly and seasonal checklist items are listed with **Last done** (**Última vez**), **By** (**Por**), and whether each is **Overdue** (**Vencido**), **Due** (**Pendiente**) or **Done** (**Hecho**) this period. The tabs above narrow the list.
 3. **Next due** (**Próximo vencimiento**) is the first day of the period an item next owes work in, and **Due by** (**Fecha límite**) the last day of it, red once it has passed. A week runs Monday to Sunday, and a month and a quarter are the calendar's.
-4. Click a row to open that site's checklist.
-5. A notice that periodic work is overdue opens the checklist of its site.
+4. Click a row to open that site's checklist, its **Service Details** (**Detalles del servicio**) tab.
+5. One site's periodic work is also at the top of its **Service Details** (**Detalles del servicio**) tab, above its tasks: open the site in **Sites** (**Sitios**) and click the tab.
+6. A notice that periodic work is overdue opens the checklist of its site.
+If it does not work: **Periodic work** (**Trabajo periódico**) is in the menu once the server answers it. A site with no periodic items shows none on its tab.
 Words people use for this: strip and wax schedule, periodic cleaning, deep cleaning, monthly tasks, quarterly tasks, overdue work, trabajo periodico.
 Picture: periodic-work
-Last checked: 2026-10-02
-
+Picture: site-periodic-work
+Last checked: 2026-10-07
 ## Mark a checklist item as a touchpoint (admin dashboard)
 Who can do this: anyone who can change a site's tasks
-1. Click **Sites** (**Sitios**), open the site, and click the **Service Details** (**Detalles del servicio**) tab.
+1. Click **Sites** (**Sitios**), open the site, and click the **Service Details** (**Detalles del servicio**) tab. The site's periodic work is at the top; the tasks are under it.
 2. Click a task to edit it, or click **Add Task** (**Agregar tarea**) to add one.
 3. Tick **Touchpoint** (**Punto de contacto frecuente**): a high-touch surface disinfected on schedule, such as a door handle or a rail.
 4. For a surface touched most, tick **Critical** (**Crítico**) under it. A critical touchpoint is treated twice a day at Level 2 and on every round at Level 3. Unticking **Touchpoint** (**Punto de contacto frecuente**) unticks **Critical** (**Crítico**) too.
 5. Click **Save Changes** (**Guardar los cambios**), or **Create** (**Crear**) for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and **Critical** (**Crítico**) beside it when ticked. It prints on the disinfection coverage log, a critical one under Critical Touchpoints.
 Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, critical touchpoint, critical surfaces, punto de contacto frecuente, punto de contacto crítico.
 Picture: touchpoint-task-window
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Make a site's concern link, so a client can report a problem (admin dashboard)
 Who can do this: admins who can change settings
@@ -1812,7 +1819,7 @@ If it does not work: the reason is shown under the field it is about, such as a 
 Words people use for this: holiday, holidays, eid, eid al-fitr, eid al-adha, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
 Picture: holidays-year
 Picture: holidays-add-window
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Make a request QR, so anyone in the building can ask for help (admin dashboard)
 Who can do this: admins who can change settings
@@ -1866,13 +1873,13 @@ Last checked: 2026-10-05
 Who can do this: admins, and supervisors of the request's site
 Every request waits for approval. The first to approve and assign takes it.
 1. Open the request on the **Client requests** (**Solicitudes de clientes**) tab of **Issues** (**Incidencias**).
-2. Click **Approve and assign** (**Aprobar y asignar**). Under **Assign to** (**Asignar a**), pick who will do it: the people assigned to the site and the site's approvers, those on shift first and marked **On shift** (**En turno**). You may pick yourself.
+2. Click **Approve and assign** (**Aprobar y asignar**). Under **Assign to** (**Asignar a**), pick who will do it: the people assigned to the site and the site's approvers, those on shift first and marked **On shift** (**En turno**). Type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to find someone. You may pick yourself.
 3. Click **Approve and assign** (**Aprobar y asignar**) again. The request becomes **Open** (**Abierta**), the person is told, and the person who asked gets an email saying it is assigned, if they left one.
 4. The assignee, or an approver, clicks **Start** when on it, **Done** (**Hecha**) when finished, with a note if they like, or **Needs someone else** (**Necesita a otra persona**) with a note saying why, which tells the approvers and the Field Lead.
 If it does not work: when the line reads that someone already approved or declined it, another approver got there first; the window shows the request as they left it. A person who is not assigned to the site cannot be picked.
 Words people use for this: approve a request, assign a request, take a request, who is on shift, first to approve, aprobar la solicitud, asignar.
 Picture: client-request-approve
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Decline a client request (admin dashboard)
 Who can do this: admins, and supervisors of the request's site
@@ -1982,13 +1989,13 @@ Who can do this: admins
 1. Open the topic from **Catalog** (**Catálogo**) and click **Who needs it** (**Quién la necesita**). It lists the roles, with the service lines a role is narrowed to, and the people named.
 2. Click **Edit who needs it** (**Editar quién la necesita**).
 3. Tick each role that needs the topic. Under a role, tick service lines to ask for it only at sites with those lines, such as schools; with none ticked, the role needs it at every site.
-4. To name one person, pick them in **Name a person...** (**Nombrar a una persona...**) and click **Add** (**Agregar**).
+4. To name one person, click **Name a person...** (**Nombrar a una persona...**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick them and click **Add** (**Agregar**).
 5. Click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and **Gaps** (**Brechas**) counts from it.
 6. A person marked **From a key on file** (**Por una llave registrada**) is on the keys and access topic because a key, a badge or a fob was issued to them. The row has no **Remove** (**Quitar**); it goes by itself when every key, badge and fob of theirs is marked returned.
 If it does not work: a refusal is shown under the role or the person it names.
 Words people use for this: who needs this training, training by role, required for a role, assign training to a role, training requirement, quién necesita la capacitación.
 Picture: training-who-needs-it
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## See training gaps by role and site (admin dashboard)
 Who can do this: admins and supervisors
@@ -1998,12 +2005,12 @@ Who can do this: admins and supervisors
 4. Below the table, the people with the most open items come first, each item a chip in its status's words. An online lesson with no tries left reads **Needs an in-person session** (**Necesita una sesión en persona**).
 5. Click a person to open their own list: each item with when it was done, when it expires and its course link, the tries a lesson has used, and each attempt with its **Print** (**Imprimir**). An item a checklist signs off reads **Covered by** (**Cubierto por**) and the checklist's name. An item whose record holds a certificate has **Open the certificate** (**Abrir el certificado**), and **Upload a certificate** (**Subir un certificado**) adds one. An admin can **Void** (**Anular**) an attempt, with the reason; the record it wrote is removed with it. A notice that a person's training is expiring opens their list here.
 6. **Print** (**Imprimir**) at the top gives a page per site. Admins also have **Assign training** (**Asignar capacitación**) there, to name topics for people the roles do not cover.
-7. The same items show in **Staff Management** (**Gestión de personal**), on a person's **HR Files** (**Archivos de personal**) tab.
+7. The same items show in the person's folder in **HR Records** (**Expedientes de personal**), under **Required training ({0})** (**Capacitación requerida ({0})**).
 If it does not work: Gaps shows once the system answers it; until then **Who has no record** (**Quién no tiene registro**) stays.
 Words people use for this: training gaps, who needs training, who is missing training, expired training, training due soon, training by site, brechas de capacitación.
 Picture: training-gaps
 Picture: training-gaps-person
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Write and publish a training lesson (admin dashboard)
 Who can do this: admins write and publish; admins and supervisors read the versions
@@ -2078,14 +2085,15 @@ Last checked: 2026-10-06
 Who can do this: admins and supervisors read it; admins change who must sign
 1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Documents to sign** (**Documentos por firmar**). Each document shows its version, how many **Must sign** (**Deben firmar**), how many **Signed** (**Firmado**) its current version, and how many have **Not signed** (**Sin firmar**).
 2. Click a document. **Who must sign** (**Quién debe firmar**) lists the people the system holds as of that moment: **Everyone** (**Todos**), the roles and the people named.
-3. Below it, the people are listed by site, the ones who have not signed the current version first, each with the version they signed, when and in what language. **Signed an older version** (**Firmó una versión anterior**) means they must sign the new one. Narrow the list with **All sites** (**Todos los sitios**) and **All roles** (**Todos los roles**).
+3. Below it, the people are listed by site, the ones who have not signed the current version first, each with the version they signed and when, and **Signed in {0}** (**Idioma de la firma: {0}**) with the language they signed in. **Signed an older version** (**Firmó una versión anterior**) means they must sign the new one. Narrow the list with **All sites** (**Todos los sitios**) and **All roles** (**Todos los roles**).
 4. **Open the signature** (**Abrir la firma**) shows the signature a person drew.
 5. **Print for the assessor** (**Imprimir para el auditor**) prints a page per site.
-6. Admins: click **Change who must sign** (**Cambiar quién debe firmar**). The list opens with what is in force already ticked. Tick or untick **Everyone** (**Todos**) or the roles, name people with **Name a person...** (**Nombrar a una persona...**) and **Add** (**Agregar**), and click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and each person added is told once. Nothing left ticked is dropped.
+6. Admins: click **Change who must sign** (**Cambiar quién debe firmar**). The list opens with what is in force already ticked. Tick or untick **Everyone** (**Todos**) or the roles, name people with **Name a person...** (**Nombrar a una persona...**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and **Add** (**Agregar**), and click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and each person added is told once. Nothing left ticked is dropped.
 If it does not work: the tab shows once the system answers it. While the system does not send who must sign, the page says **The list in force is not sent with this document yet.** (**La lista vigente todavía no se envía con este documento.**) and the list cannot be changed. A refusal is shown under the row it names.
 Words people use for this: documents to sign, handbook, acknowledgment, who signed, read and sign, signature list, firmar documentos.
 Picture: training-documents
-Last checked: 2026-10-06
+Picture: training-document-signed-language
+Last checked: 2026-10-07
 
 ## Issue company property and mark it returned (admin dashboard)
 Who can do this: admins and supervisors
@@ -2100,7 +2108,7 @@ If it does not work: a refusal is shown under the field it names. The block show
 Words people use for this: uniform, shirt, keys, badge, fob, company property, return a uniform, hand out keys, entregar uniforme.
 Picture: property-list
 Picture: property-issue-window
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Find training on the dashboard (admin dashboard)
 Who can do this: admins and supervisors
@@ -2110,7 +2118,7 @@ Who can do this: admins and supervisors
 If it does not work: an account that cannot open HR Records cannot open Training either.
 Words people use for this: where is training, training menu, training page, find the catalog, training tab, capacitación en el panel.
 Picture: training-area
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Order the training catalog (admin dashboard)
 Who can do this: admins
@@ -2159,14 +2167,14 @@ Last checked: 2026-10-06
 ## Assign training to people (admin dashboard)
 Who can do this: admins
 Every topic reaches the roles under **Who needs it** (**Quién la necesita**) on its own; this is for anyone else.
-1. Click **Training** (**Capacitación**) on the side panel, then **Catalog** (**Catálogo**) or **Gaps** (**Brechas**), and click **Assign training** (**Asignar capacitación**). From **Staff Management** (**Gestión de personal**), on a person's **HR Files** (**Archivos de personal**) tab, the same button opens the window with that person already ticked.
+1. Click **Training** (**Capacitación**) on the side panel, then **Catalog** (**Catálogo**) or **Gaps** (**Brechas**), and click **Assign training** (**Asignar capacitación**). In a person's folder in **HR Records** (**Expedientes de personal**), under **Required training ({0})** (**Capacitación requerida ({0})**), the same button opens the window with that person already ticked.
 2. Under **Topics** (**Temas**), tick one or more topics, listed by category.
-3. Under **People** (**Personas**), find people with **Search by name** (**Buscar por nombre**), narrow them by **Site** (**Sitio**) and **Role** (**Rol**), and tick them one by one or with **Select all** (**Seleccionar todo**).
+3. Under **People** (**Personas**), find people with **Search by name** (**Buscar por nombre**), which also finds a badge number or an employee ID, narrow them by **Site** (**Sitio**) and **Role** (**Rol**), and tick them one by one or with **Select all** (**Seleccionar todo**).
 4. Click **Assign** (**Asignar**). The topics and the people are sent once, and the window says how many were added and how many were already assigned.
 If it does not work: a refusal is shown under the topics or the people. The button shows once the system answers the catalog's categories.
 Words people use for this: assign training, assign a topic to a person, training for one person, extra training, who gets this training, asignar capacitación.
 Picture: training-assign
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Send something to a person's phone to sign (admin dashboard)
 Who can do this: admins and supervisors
@@ -2252,4 +2260,83 @@ Who can do this: admins
 If it does not work: these lines show once the system sends them.
 Words people use for this: locked out, unlock, too many tries, cannot sign in, never signed in, last login, sign-in, desbloquear.
 Picture: staff-sign-in
+Last checked: 2026-10-07
+
+## Pick a person by name, badge number or employee ID (admin dashboard)
+Who can do this: anyone signed in
+1. Wherever the dashboard asks for a person, such as **Staff Member *** (**Persona ***) in **Schedule Shift** (**Programar turno**), **Assign To *** (**Asignar a ***) on a task, **Hand to** (**Entregar a**) on a case or **Person** (**Persona**) on time off, click the field.
+2. A box opens with **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) over the list, at most twelve people at a time. Type part of a name, a badge number or an employee ID. A person found by a number shows **Badge {0}** (**Número de empleado {0}**) or **Employee ID {0}** (**ID de la persona {0}**) beside the name.
+3. Click the person. The box opens empty again the next time.
+4. A list's first row, such as **Everyone** (**Todos**) or **Unassigned** (**Sin asignar**), puts the field back to it.
+5. In **Schedule Shift** (**Programar turno**), with a site picked, the people assigned there come first under **Assigned to this site** (**Asignados a este sitio**) and everyone else under **Everyone else** (**Todos los demás**).
+If it does not work: **No one matches.** (**Nadie coincide.**) means nobody on that list matches what you typed. **No one is on this list.** (**No hay nadie en esta lista.**) means the list is empty, and **{0} more. Type to narrow the list.** (**{0} más. Escriba para acotar la lista.**) means more people are on it than it shows. Press Escape to close the box without picking.
+Words people use for this: find a person, search by badge, badge number, employee id, staff picker, pick a person, buscar a una persona.
+Picture: schedule-shift-picker
+Last checked: 2026-10-07
+
+## Open a person's HR file from Staff Management (admin dashboard)
+Who can do this: admins, and anyone else who can open Staff Management
+1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
+2. Click **Open HR file** (**Abrir el expediente de personal**) in the banner.
+3. The person's folder opens in **HR Records** (**Expedientes de personal**): their employment, clearances, warnings, PPE and company property, **Required training ({0})** (**Capacitación requerida ({0})**) with **Assign training** (**Asignar capacitación**), **Certifications** (**Certificaciones**) with **Add Certification** (**Agregar certificación**), and every document, training record, onboarding step and filed form, each with its actions.
+4. **Back to Employees** (**Volver al personal**) goes back to everyone's folders.
+If it does not work: the profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**) only. What its HR Files and Certifications tabs held is in the folder.
+Words people use for this: hr file, personnel file, employee file, hr files tab, certifications tab, where did hr files go, expediente de personal.
+Picture: staff-open-hr-file
+Last checked: 2026-10-07
+
+## Read and answer app support tickets (admin dashboard)
+Who can do this: admins, and the app support contact
+1. Click **Tickets** (**Tickets**) in the menu on the left.
+2. The tabs are **New** (**Nuevo**), **Working on it** (**En proceso**), **Done** (**Hecho**), **Won't do** (**No se hará**) and **All** (**Todos**), each with how many. Narrow the list with **All kinds** (**Todos los tipos**) and **Both apps** (**Las dos aplicaciones**).
+3. Each row is a ticket someone sent from App support in the staff portal or from Help: when it was sent, its **Kind of ticket** (**Tipo de ticket**), who sent it, where, what they wrote and its status.
+4. Click a row to open it. It shows every detail the app sent on its own: the **Screen** (**Pantalla**), the **App version** (**Versión de la aplicación**), the **Device** (**Dispositivo**), the language, and the screenshot when there is one.
+5. Click a status, type a **Note to the person who sent it** (**Nota para la persona que lo envió**) if you like, and click **Save** (**Guardar**). When the status changes, the person is told in the app, in their language, with your note.
+If it does not work: a refusal shows over **Save** (**Guardar**) in the system's words. A bug and a sign-in problem are emailed to the support contact the moment they are sent; the other kinds go in one summary each working morning at 7:00 AM.
+Words people use for this: tickets, app support, bug report, the app is broken, feature request, help could not answer, wrong information, cannot sign in, tickets de soporte.
+Picture: tickets-inbox
+Picture: tickets-ticket-window
+Last checked: 2026-10-07
+
+## Copy app support tickets into a chat (admin dashboard)
+Who can do this: admins, and the app support contact
+1. On **Tickets** (**Tickets**), pick the tab and the filters for the tickets you want.
+2. Click **Export** (**Exportar**). A window holds the tickets shown as plain text: the count and the day, then each ticket's details and what the person wrote.
+3. Click **Copy** (**Copiar**) and paste it into a chat or an email.
+If it does not work: where the browser does not allow copying, select the text in the box and copy it yourself.
+Words people use for this: export tickets, copy tickets, share tickets, paste into a chat, send the tickets to someone, exportar tickets.
+Picture: tickets-export
+Last checked: 2026-10-07
+
+## Set the app support contact (admin dashboard)
+Who can do this: admins
+1. Click **Settings** (**Configuración**), then the **App support contact** (**Contacto de soporte de la aplicación**) tab.
+2. Type the **Name** (**Nombre**) and the **Email** (**Correo**) of the person who looks after app support.
+3. Click **Save** (**Guardar**).
+4. Help names this person when it offers a ticket, the sign-in screens of the dashboard and the staff portal say **Can't sign in? Email {0}** (**¿No puede iniciar sesión? Escriba a {0}**) with the email, and a bug or a sign-in problem is emailed to them at once. The person named here also sees **Tickets** (**Tickets**).
+If it does not work: an address that is not an email is refused under **Email** (**Correo**). The tab shows once the server keeps the contact.
+Words people use for this: app support contact, who gets the tickets, support email, change the support person, contacto de soporte.
+Picture: settings-support-contact
+Last checked: 2026-10-07
+
+## Send a ticket to app support from Help (admin dashboard)
+Who can do this: admins and supervisors
+1. In **Help** (**Ayuda**), say what is wrong: something is not working, an idea, wrong information, or a question Help could not answer.
+2. Help says who App support is and drafts a ticket on the **Ticket for app support** (**Ticket para el soporte de la aplicación**) card above the conversation.
+3. Check the **Kind of ticket** (**Tipo de ticket**) and change what the ticket says if you like.
+4. Click **Send ticket** (**Enviar ticket**). Nothing is sent before that. The screen, the dashboard's version, your browser and your language go with it, and **Ticket sent.** (**Ticket enviado.**) confirms it. **Not now** (**Ahora no**) puts the card away.
+If it does not work: a refusal shows on the card in the system's words. A change to your own phone, address or emergency contact is not a ticket; Help says where to make it.
+Words people use for this: report a bug, the app is not working, suggest a feature, help did not know, send a ticket, enviar un ticket.
+Picture: help-ticket-card
+Last checked: 2026-10-07
+
+## Find a person's signed acknowledgment page (admin dashboard)
+Who can do this: admins and supervisors
+1. Open the person's folder in **HR Records** (**Expedientes de personal**).
+2. When a person signs a document such as the handbook in the staff portal, the system files the signed page for them as an HR document. Its row says **Signed acknowledgment page** (**Página de acuse de recibo firmada**), the document's number and version, **Signed in {0}** (**Idioma de la firma: {0}**) with the language they signed in, and when. Its type reads **Handbook acknowledgment** (**Acuse de recibo del manual**).
+3. Click **Open file** (**Abrir el archivo**) to read the page: the section in the language signed, the details filled in and the signature.
+4. **Documents to sign** (**Documentos por firmar**), under **Training** (**Capacitación**), shows who has signed and the language each signed in.
+If it does not work: the row shows once the system files signed pages.
+Words people use for this: signed handbook page, acknowledgment page, proof they signed, handbook signature, acuse de recibo.
+Picture: hr-folder-signed-page
 Last checked: 2026-10-07

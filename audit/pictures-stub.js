@@ -121,6 +121,8 @@ function schedulePart(ctx) {
     bereavement_personal: ["Bereavement and personal", "Duelo y asuntos personales"],
     jury_duty: ["Jury duty", "Servicio como jurado"],
     military: ["Military leave", "Licencia militar"],
+    // Step 291: PTO, which the API's Step 289 adds (STEP289_CONTRACT.md section 1.5).
+    pto: ["PTO (paid time off)", "PTO (tiempo libre pagado)"],
   };
   const LEAVE_OF = { vacation: "unpaid", sick: "paid_sick" };
   const leaveView = (r, lang) => {
