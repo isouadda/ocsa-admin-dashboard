@@ -1195,7 +1195,7 @@ export default function AdminDashboard() {
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} />}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} sites={sites} />}
-        {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
+        {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -4472,6 +4472,7 @@ function SupplyOrderSign({ t, af, r, sites = [], onSigned }) {
     <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Sign and order")}</div>
     <Lbl>{tr("Vendor")}</Lbl>
     {vendors === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+      : vendors.length === 0 ? <div data-order-no-vendor="" style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5 }}>{tr("Add a vendor under Vendors and set it to approved first.")}</div>
       : <Sel t={t} aria-label={tr("Vendor")} data-order-vendor="" value={vendorId} onChange={e => { setVendorId(e.target.value); setRefusal({ text: "", field: "" }); }} options={[{ v: "", l: tr("Choose a vendor...") }].concat(vendors.map(x => ({ v: String(x.id), l: x.name })))} />}
     {said("vendorId")}
     {v && <div data-order-vendor-details={String(v.id)} style={{ marginTop: 8, padding: "10px 12px", borderRadius: R.sm, background: t.hover, border: "1px solid " + t.border }}>
@@ -11389,7 +11390,9 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   </div>);
 }
 
-function VendorsPage({ af, showToast, canManageVendors = false, t }) {
+// A vendor's editor holds every field the add form does, the ones a supply order uses among them.
+const vendorEditForm = (v) => ({ id: v.id, name: v.name, contactName: v.contact_name || "", contactPhone: v.contact_phone || "", contactEmail: v.contact_email || "", website: v.website || "", addressLine1: v.address_line1 || "", city: v.city || "", state: v.state || "", zipCode: v.zip_code || "", productsServices: v.products_services || "", certificationStatus: v.certification_status || "", contractTerms: v.contract_terms || "", approvalStatus: v.approval_status, lastReviewDate: v.last_review_date ? String(v.last_review_date).slice(0, 10) : "" });
+function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], onRoute }) {
   const [vendors, setVendors] = useState([]);
   const [supplies, setSupplies] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -11405,8 +11408,16 @@ function VendorsPage({ af, showToast, canManageVendors = false, t }) {
   useEffect(() => { load(); af("/api/supplies").then(setSupplies).catch(e => console.warn(e.message)); }, []);
 
   const loadDetail = async id => {
-    try { const d = await af("/api/vendors/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); }
+    try { const d = await af("/api/vendors/" + id); setDetail(d); return d; } catch (e) { showToast(e.message, "error"); return null; }
   };
+  // Step 309: #vendors/<id> opens that vendor, and its editor for a holder of manage_vendors, which is
+  // where a supply order's Edit this vendor lands. Closing the vendor goes back to #vendors.
+  const routeId = route[0] ? decodeURIComponent(route[0]) : "";
+  useEffect(() => {
+    if (!routeId) return;
+    loadDetail(routeId).then(d => { if (d && d.vendor && canManageVendors) setEditForm(vendorEditForm(d.vendor)); });
+  }, [routeId]);
+  const leaveRoute = () => { if (routeId && onRoute) onRoute([]); };
 
   const filtered = filter === "all" ? vendors : vendors.filter(v => v.approval_status === filter);
 
@@ -11457,6 +11468,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t }) {
   const emptyForm = { name: "", contactName: "", contactPhone: "", contactEmail: "", website: "", addressLine1: "", city: "", state: "", zipCode: "", productsServices: "", certificationStatus: "", contractTerms: "", approvalStatus: "pending", lastReviewDate: "" };
 
   const renderFormFields = (form, setForm) => (<>
+    <div data-vendor-order-fields="" style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A supply order fills in the vendor's name, contact, phone, email and address from here, and offers only an approved vendor.")}</div>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Vendor Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. {0}", "Supply Co")} /></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
       <div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })} /></div>
@@ -11525,11 +11537,11 @@ function VendorsPage({ af, showToast, canManageVendors = false, t }) {
       </div>
     </Mdl>}
 
-    {detail && <Mdl t={t} onClose={() => setDetail(null)}>
+    {detail && <Mdl t={t} onClose={() => { setDetail(null); leaveRoute(); }}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
           <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={statusWord[detail.vendor.approval_status] || detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
-          <button onClick={() => setDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+          <button onClick={() => { setDetail(null); leaveRoute(); }} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
           {detail.vendor.contact_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Contact")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_name}</div></div>}
@@ -11575,7 +11587,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t }) {
         </div>
 
         {canManageVendors && <div style={{ display: "flex", gap: 8 }}>
-          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.vendor.id, name: detail.vendor.name, contactName: detail.vendor.contact_name || "", contactPhone: detail.vendor.contact_phone || "", contactEmail: detail.vendor.contact_email || "", website: detail.vendor.website || "", addressLine1: detail.vendor.address_line1 || "", city: detail.vendor.city || "", state: detail.vendor.state || "", zipCode: detail.vendor.zip_code || "", productsServices: detail.vendor.products_services || "", certificationStatus: detail.vendor.certification_status || "", contractTerms: detail.vendor.contract_terms || "", approvalStatus: detail.vendor.approval_status, lastReviewDate: detail.vendor.last_review_date ? detail.vendor.last_review_date.slice(0, 10) : "" })}>{tr("Edit")}</Btn>
+          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm(vendorEditForm(detail.vendor))}>{tr("Edit")}</Btn>
           <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this vendor?"))) deactivate(detail.vendor.id); }}>{tr("Remove")}</Btn>
         </div>}
       </div>
