@@ -1869,12 +1869,25 @@ function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, relo
 // signed in. Nothing is drawn for an answer without signIn.
 const signInOf = (p) => (p && p.signIn && typeof p.signIn === "object" ? p.signIn : null);
 const signInWhen = (v) => { const d = new Date(v); return isNaN(d.getTime()) ? "" : d.toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
-function SignInState({ t, si }) {
+// The welcome email (Step 293, STEP292_CONTRACT.md 1.4 and 2): every staff answer that carries signIn
+// adds welcome { sentAt, status, reason }, the latest try, or null when none was ever tried; undefined
+// means the API does not answer it yet, and nothing new is drawn. It is read beside signIn, or inside
+// it. A try that did not go reads its reason, or a line of the table's own when it gives none.
+const welcomeOf = (p) => {
+  if (!p) return undefined;
+  if (p.welcome !== undefined) return p.welcome;
+  const si = signInOf(p);
+  return si && si.welcome !== undefined ? si.welcome : undefined;
+};
+const welcomeWent = (w) => !!(w && w.status === "sent");
+const welcomeWhy = (w) => (w && typeof w.reason === "string" && w.reason.trim() ? w.reason.trim() : tr("no reason was given"));
+function SignInState({ t, si, welcome }) {
   const lines = [];
   if (si.lockedUntil) lines.push({ k: "locked", text: tr("Locked until {0}", signInWhen(si.lockedUntil)), c: RD, strong: true });
   if (si.mustSetPin === true) lines.push({ k: "given", text: tr("On a given PIN"), c: OR, strong: true });
   if (si.emailDeliverable === false) lines.push({ k: "email", text: tr("No working email"), c: OR, strong: true });
   lines.push(si.lastSignInAt ? { k: "last", text: tr("Last signed in {0}", signInWhen(si.lastSignInAt)), c: t.textSec } : { k: "never", text: tr("Never signed in"), c: t.textSec });
+  if (!si.lastSignInAt && welcome) lines.push(welcomeWent(welcome) ? { k: "welcome", text: tr("Welcome email sent {0}", signInWhen(welcome.sentAt)), c: t.textSec } : { k: "welcome-not-sent", text: tr("Welcome email not sent: {0}", welcomeWhy(welcome)), c: OR });
   return <span data-sign-in-state={lines.map(x => x.k).join(" ")} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, lineHeight: 1.4, minWidth: 0 }}>{lines.map(x => <span key={x.k} style={{ color: x.c, fontWeight: x.strong ? 600 : 400 }}>{x.text}</span>)}</span>;
 }
 function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute, devicesOn = false }) {
@@ -1969,7 +1982,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
   const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(tr("Approved")); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
+  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), email: made.email || addForm.email || "", tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false, welcome: d && d.welcome !== undefined ? d.welcome : undefined }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
   const openProfile = async (id, tab) => {
@@ -2175,8 +2188,24 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // The invite, the reset link and the badge number the API hands out (Step 176 routes). An invite or a
   // link that did not go answers 422 or 502 with a reason and no error (helpers/invites.js), and the
   // reason is what is drawn (Step 284).
-  const notSent = (e) => (e && e.body && !e.body.error && typeof e.body.reason === "string" && e.body.reason ? tr("Not sent: {0}", e.body.reason) : (e && e.message) || tr("Request failed"));
-  const sendInvite = async (userId) => { setAddedBusy(true); try { await af("/api/users/" + userId + "/invite", { method: "POST" }); showToast(tr("Invite sent.")); } catch (e) { showToast(notSent(e), "error"); } setAddedBusy(false); };
+  const notSent = (e, welcome) => (e && e.body && !e.body.error && typeof e.body.reason === "string" && e.body.reason ? (welcome ? tr("Welcome email not sent: {0}", e.body.reason) : tr("Not sent: {0}", e.body.reason)) : (e && e.message) || tr("Request failed"));
+  // Step 293: once the API answers welcome, POST /api/users/:id/invite sends the welcome email and
+  // answers { welcome }, which the toast reads. A second send asks first, since it stops the last
+  // link working. The open window, the open profile and the list are brought up to date after.
+  const sendInvite = async (userId, welcome) => {
+    if (welcomeWent(welcome) && !window.confirm(tr("Send a new welcome email? The last link stops working."))) return;
+    setAddedBusy(true);
+    try {
+      const d = await af("/api/users/" + userId + "/invite", { method: "POST" });
+      if (d && d.welcome !== undefined) {
+        const w = d.welcome;
+        showToast(welcomeWent(w) ? tr("Welcome email sent.") : tr("Welcome email not sent: {0}", welcomeWhy(w)), welcomeWent(w) ? undefined : "error");
+        setAdded(prev => (prev && String(prev.id) === String(userId) ? { ...prev, welcome: w } : prev));
+        if (profile && profile.user && String(profile.user.id) === String(userId)) refreshProfile(userId); else load();
+      } else showToast(tr("Invite sent."));
+    } catch (e) { showToast(notSent(e, welcome !== undefined), "error"); }
+    setAddedBusy(false);
+  };
   const sendResetLink = async (userId) => { try { await af("/api/users/" + userId + "/send-reset", { method: "POST" }); showToast(tr("Reset link sent.")); } catch (e) { showToast(notSent(e), "error"); } };
   // Unlock (Step 284): POST /api/users/:id/unlock clears the person's failed sign-ins, offered where
   // their signIn says lockedUntil; the list and the open profile are read again after.
@@ -2261,14 +2290,16 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // list as well as from a profile, and it is there when the save comes back, wherever that is.
   const addedWindow = added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14 }}>{added.name}</div>
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: added.welcome ? 6 : 14 }}>{added.name}</div>
+      {added.welcome ? <div data-added-welcome={welcomeWent(added.welcome) ? "sent" : "not-sent"} role="status" style={{ fontSize: 13, color: welcomeWent(added.welcome) ? GR : OR, fontWeight: 600, lineHeight: 1.5, marginBottom: 14 }}>{welcomeWent(added.welcome) ? tr("Welcome email sent to {0}.", added.email) : tr("Welcome email not sent: {0}", welcomeWhy(added.welcome))}</div> : null}
+      {added.welcome !== undefined && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("If the email does not reach them, give them this PIN.")}</div>}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         <div ref={pinRef} style={{ flex: 1, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 20, letterSpacing: "8px", textAlign: "center", fontFamily: "monospace", minHeight: 44, boxSizing: "border-box", userSelect: "text" }}>{added.show ? added.tempPin : added.tempPin.replace(/./g, "\u2022")}</div>
         <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => setAdded({ ...added, show: !added.show })}>{added.show ? tr("Hide") : tr("Show")}</Btn>
         <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => copyText(added.tempPin)}>{tr("Copy")}</Btn>
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-        {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} onClick={() => sendInvite(added.id)}>{tr("Send activation invite")}</Btn>}
+        {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} data-added-send-welcome="" onClick={() => sendInvite(added.id, added.welcome)}>{added.welcome === undefined ? tr("Send activation invite") : welcomeWent(added.welcome) ? tr("Send it again") : tr("Send welcome email")}</Btn>}
         <Btn t={t} style={{ minHeight: 44 }} onClick={() => setAdded(null)}>{tr("Done")}</Btn>
       </div>
   </div></Mdl>;
@@ -2296,14 +2327,18 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         name={u.firstName + " " + u.lastName}
         idCode={u.employeeId}
         subtitle={roleOf(u.role) + (u.employmentType ? " (" + employmentOf(u.employmentType) + ")" : "")}
-        badges={<><Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />{signInOf(u) ? <span style={{ flexBasis: "100%", marginTop: 4 }}><SignInState t={t} si={signInOf(u)} /></span> : null}</>}
+        badges={<><Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />{signInOf(u) ? <span style={{ flexBasis: "100%", marginTop: 4 }}><SignInState t={t} si={signInOf(u)} welcome={welcomeOf(u)} /></span> : null}</>}
         actions={<>
           <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>
           {canChange(u) && signInOf(u) && signInOf(u).lockedUntil && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-staff-unlock={u.id} disabled={!!unlocking} onClick={() => unlock(u.id)}>{tr("Unlock")}</Btn>}
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendResetLink(u.id)}>{tr("Send a PIN reset link")}</Btn>}
-          {canChange(u) && u.status === "pending" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendInvite(u.id)}>{tr("Send activation invite")}</Btn>}
+          {canChange(u) && welcomeOf(u) === undefined && u.status === "pending" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendInvite(u.id)}>{tr("Send activation invite")}</Btn>}
+          {canChange(u) && welcomeOf(u) !== undefined && u.status === "active" && signInOf(u) && !signInOf(u).lastSignInAt && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} data-welcome-send={u.id} disabled={addedBusy || signInOf(u).emailDeliverable === false} onClick={() => sendInvite(u.id, welcomeOf(u))}>{welcomeWent(welcomeOf(u)) ? tr("Send it again") : tr("Send welcome email")}</Btn>
+            {signInOf(u).emailDeliverable === false && <span data-welcome-no-email="" style={{ fontSize: 11, color: OR, fontWeight: 600 }}>{tr("No working email")}</span>}
+          </span>}
           {canChange(u) && !u.badgeNumber && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => generateBadge(u.id)}>{tr("Generate badge number")}</Btn>}
           {!employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
           {!employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
@@ -2555,7 +2590,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Phone"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "-" },
         // Step 284: each person's sign-in under their status once the API's answer carries it, with Unlock
         // where locked; in the Status column, so the list stays inside its card at 1280.
-        { header: tr("Status"), tdStyle: { minWidth: 110 }, render: s => { const si = signInOf(s); const badge = onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />; return si ? <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><span>{badge}</span><SignInState t={t} si={si} />{si.lockedUntil && canChange(s) ? <button onClick={e => { e.stopPropagation(); unlock(s.id); }} disabled={!!unlocking} data-staff-unlock={s.id} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Unlock")}</button> : null}</div> : badge; } },
+        { header: tr("Status"), tdStyle: { minWidth: 110 }, render: s => { const si = signInOf(s); const badge = onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />; return si ? <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><span>{badge}</span><SignInState t={t} si={si} welcome={welcomeOf(s)} />{si.lockedUntil && canChange(s) ? <button onClick={e => { e.stopPropagation(); unlock(s.id); }} disabled={!!unlocking} data-staff-unlock={s.id} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Unlock")}</button> : null}</div> : badge; } },
         { header: tr("Role"), tdStyle: { color: t.textSec }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
