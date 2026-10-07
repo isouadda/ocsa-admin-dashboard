@@ -4399,23 +4399,157 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
 const requestLinesOf = (r) => (r && Array.isArray(r.items) && r.items.length ? r.items : null);
 // What a box holds as a quantity to approve: a whole number from 1 to the quantity asked for, or null.
 const approveQtyOf = (v, max) => { const s = String(v == null ? "" : v).trim(); if (!/^[0-9]+$/.test(s)) return null; const n = Number(s); return n >= 1 && n <= Number(max) ? n : null; };
+// Supply orders (Step 309, STEP308_CONTRACT.md section 2). Once the API's Step 308 answers, every request
+// carries canDecide for the person reading it: true for a holder of approve_supplies who did not ask for
+// it, false for everyone else, who reads the request with no decision controls and a line saying why.
+// A request answered with no canDecide is decided as it always was. The rest of the order rides on the
+// same answer: approvedBy, approvedAt and signed once a holder signs it, vendor (id, name, contactName,
+// contactPhone, contactEmail, address), deliverTo, poNumber, poPdfUrl, orderedAt and orderedToEmail.
+const supplyCanDecide = (r) => !(r && r.canDecide === false);
+const supplyOrderOf = (r) => ({
+  signed: !!(r && (r.signed === true || r.poNumber)),
+  vendor: r && r.vendor && typeof r.vendor === "object" ? r.vendor : null,
+  po: r && r.poNumber ? String(r.poNumber) : "",
+  pdf: r && typeof r.poPdfUrl === "string" && /^\/api\//.test(r.poPdfUrl) ? r.poPdfUrl : (r && r.poNumber ? "/api/supplies/requests/" + encodeURIComponent(r.id) + "/po.pdf" : ""),
+  orderedAt: r && r.orderedAt ? r.orderedAt : null,
+  orderedTo: r && r.orderedToEmail ? String(r.orderedToEmail) : "",
+  by: r && r.approvedBy && r.approvedBy.name ? String(r.approvedBy.name) : "",
+  at: r && r.approvedAt ? r.approvedAt : null,
+});
+// A site's address on one line, read from the columns live answers (address_line1, address_line2,
+// zip_code) or the older ones (address, zip).
+const siteAddressLine = (s) => {
+  if (!s) return "";
+  const street = [s.address_line1 || s.addressLine1 || s.address, s.address_line2 || s.addressLine2].filter(Boolean).join(", ");
+  const place = [s.city, [s.state, s.zip_code || s.zipCode || s.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  return [street, place].filter(Boolean).join(", ");
+};
+// A vendor's address on one line, from the vendor list's columns.
+const vendorAddressLine = (v) => [v.address_line1, v.city, [v.state, v.zip_code].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+// The approved vendors for the dropdown: GET /api/vendors?approved=true, each kept only when it is
+// approved and active, whatever the route did with the filter.
+const approvedVendorsOf = (d) => (Array.isArray(d) ? d : d && Array.isArray(d.vendors) ? d.vendors : []).filter(v => v && v.approval_status === "approved" && v.is_active !== false);
+// Which field a refusal of the sign or send names, by its keys.
+const orderRefusalField = (e) => {
+  const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+  return ["vendorId", "deliverTo", "signature", "to"].find(k => keys.indexOf(k) >= 0) || "";
+};
+
+// Sign and order, once every item is decided and one is approved: the vendor, picked from the approved
+// ones with its details filled in under it and Edit this vendor opening it under Vendors; Deliver to,
+// the site's address to start; the signature box the warnings use; and Sign, POST
+// /api/supplies/requests/:id/sign { signature, vendorId, deliverTo }.
+function SupplyOrderSign({ t, af, r, sites = [], onSigned }) {
+  const [vendors, setVendors] = useState(null);
+  const [vendorId, setVendorId] = useState("");
+  const site = sites.find(s => String(s.id) === String(r.site_id));
+  // The site's address fills Deliver to once, as soon as the sites have answered; after that the box is
+  // the person's, emptied or not.
+  const siteLine = siteAddressLine(site);
+  const [deliverTo, setDeliverTo] = useState(siteLine);
+  const filled = useRef(!!siteLine);
+  useEffect(() => { if (siteLine && !filled.current) { filled.current = true; setDeliverTo(d => d || siteLine); } }, [siteLine]);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  useEffect(() => {
+    let alive = true;
+    af("/api/vendors?approved=true").then(d => { if (alive) setVendors(approvedVendorsOf(d)); }).catch(e => { if (alive) { setVendors([]); setRefusal({ text: e.message || tr("Request failed"), field: "vendorId" }); } });
+    return () => { alive = false; };
+  }, [af]);
+  const v = (vendors || []).find(x => String(x.id) === vendorId) || null;
+  const sign = async (png) => {
+    if (busy || !v) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      const d = await af("/api/supplies/requests/" + encodeURIComponent(r.id) + "/sign", { method: "POST", body: { signature: png, vendorId: v.id, deliverTo: deliverTo.trim() } });
+      await onSigned(d);
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: orderRefusalField(e) }); }
+    setBusy(false);
+  };
+  const said = (field) => (refusal.text && refusal.field === field ? <div role="alert" data-order-refusal={field} style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal.text}</div> : null);
+  const fact = (label, value) => (value ? <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}><span style={{ color: t.textMut }}>{label}: </span>{value}</div> : null);
+  return (<div data-order-sign="" style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Sign and order")}</div>
+    <Lbl>{tr("Vendor")}</Lbl>
+    {vendors === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+      : <Sel t={t} aria-label={tr("Vendor")} data-order-vendor="" value={vendorId} onChange={e => { setVendorId(e.target.value); setRefusal({ text: "", field: "" }); }} options={[{ v: "", l: tr("Choose a vendor...") }].concat(vendors.map(x => ({ v: String(x.id), l: x.name })))} />}
+    {said("vendorId")}
+    {v && <div data-order-vendor-details={String(v.id)} style={{ marginTop: 8, padding: "10px 12px", borderRadius: R.sm, background: t.hover, border: "1px solid " + t.border }}>
+      {fact(tr("Contact"), v.contact_name)}
+      {fact(tr("Phone"), v.contact_phone)}
+      {fact(tr("Email"), v.contact_email)}
+      {fact(tr("Address"), vendorAddressLine(v))}
+      <button onClick={() => { window.location.hash = "vendors/" + encodeURIComponent(String(v.id)); }} data-order-edit-vendor="" style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Edit this vendor")}</button>
+    </div>}
+    <div style={{ marginTop: 12 }}><Lbl>{tr("Deliver to")}</Lbl><TArea t={t} rows={2} maxLength={500} aria-label={tr("Deliver to")} data-order-deliver-to="" value={deliverTo} onChange={e => setDeliverTo(e.target.value)} /></div>
+    {said("deliverTo")}
+    <SignatureBox t={t} label={tr("Your signature")} busy={busy} refusal={refusal.field === "signature" || (refusal.text && !refusal.field) ? refusal.text : ""} onSign={sign} signWord={tr("Sign")} busyWord={tr("Signing...")} blocked={!v || !deliverTo.trim()} />
+  </div>);
+}
+
+// The signed order: who signed and when, the PO number, the vendor and where it goes, Open the purchase
+// order (GET /api/supplies/requests/:id/po.pdf behind the token, for anyone who reads the request), and
+// for a holder Send to the vendor's email, or an address typed in its place, POST
+// /api/supplies/requests/:id/send { to }. Once sent: "Ordered {date}, sent to {email}" and Send again.
+function SupplyOrderSigned({ t, af, token, r, mayDecide, onSent }) {
+  const o = supplyOrderOf(r);
+  const [to, setTo] = useState(() => o.orderedTo || (o.vendor && o.vendor.contactEmail) || "");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const [pdf, setPdf] = useState(false);
+  const send = async () => {
+    if (busy || !to.trim()) return;
+    setBusy(true); setRefusal("");
+    try { const d = await af("/api/supplies/requests/" + encodeURIComponent(r.id) + "/send", { method: "POST", body: { to: to.trim() } }); await onSent(d); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const vendorLines = o.vendor ? [o.vendor.contactName, o.vendor.contactPhone, o.vendor.contactEmail, o.vendor.address].filter(Boolean) : [];
+  return (<div data-order-signed={o.po} style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Purchase order")} <span data-order-po="" style={{ color: t.goldText }}>{o.po}</span></div>
+      {o.by && <div style={{ fontSize: 12, color: t.textSec }}>{o.at ? tr("Signed by {0}, {1}", o.by, irWhen(o.at)) : tr("Signed by {0}", o.by)}</div>}
+    </div>
+    {o.vendor && <div style={{ marginTop: 8, fontSize: 13, color: t.text, lineHeight: 1.5 }}><span style={{ fontWeight: 600 }}>{o.vendor.name}</span>{vendorLines.length ? <div style={{ fontSize: 12, color: t.textSec }}>{vendorLines.join(" | ")}</div> : null}</div>}
+    {r.deliverTo && <div style={{ marginTop: 6, fontSize: 12, color: t.textSec, lineHeight: 1.5 }}><span style={{ color: t.textMut }}>{tr("Deliver to")}: </span>{r.deliverTo}</div>}
+    {o.orderedAt && <div data-order-ordered="" style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: GR }}>{tr("Ordered {0}, sent to {1}", irWhen(o.orderedAt), o.orderedTo || "--")}</div>}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10 }}>
+      {o.pdf && <Btn t={t} v="ghost" data-order-open-po="" onClick={() => setPdf(true)}>{tr("Open the purchase order")}</Btn>}
+    </div>
+    {mayDecide && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10 }}>
+      <div style={{ flex: "1 1 220px", minWidth: 0 }}><Lbl>{tr("Send to")}</Lbl><Inp t={t} type="email" aria-label={tr("Send to")} data-order-send-to="" value={to} onChange={e => { setTo(e.target.value); setRefusal(""); }} /></div>
+      {o.orderedAt
+        ? <Btn t={t} v="ghost" data-order-send-again="" disabled={busy || !to.trim()} onClick={send}>{busy ? tr("Sending...") : tr("Send again")}</Btn>
+        : <Btn t={t} data-order-send="" disabled={busy || !to.trim()} onClick={send}>{busy ? tr("Sending...") : tr("Send to {0}", to.trim() || "--")}</Btn>}
+    </div>}
+    {refusal && <div role="alert" data-order-send-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+    {pdf && <PdfWindow token={token} t={t} onClose={() => setPdf(false)} boxProps={{ "data-order-pdf": o.po }} title={tr("Purchase order")} sub={o.po} pathFor={() => o.pdf} fallbackName={(o.po || "purchase-order") + ".pdf"} oneLanguage />}
+  </div>);
+}
+
 // A request's window: every line with its name, quantity and note. An undecided line takes Approve,
 // its quantity editable from the quantity asked for down to 1, or Deny with an optional note; Approve
 // all and Deny all decide every undecided line at once, at the quantity and with the note in each
 // line's boxes. A decided line says its decision and, until the request is fulfilled, Change opens
 // its boxes again. Each decision is POST /api/supplies/requests/:id/decide with the lines it decides,
 // and the API sets the request approved or denied once every line is decided. A refusal is drawn in
-// the API's words over the buttons.
-function SupplyRequestWindow({ t, af, r, onClose, onDecided, stateWord, stateColor, typeWord, urgencyWord, unitOf }) {
+// the API's words over the buttons. Since Step 309 the boxes and buttons are drawn only when the request
+// says canDecide, Change stays until the request is ordered, and under the lines come Sign and order
+// and then the signed order.
+function SupplyRequestWindow({ t, af, token, r, sites = [], onClose, onDecided, stateWord, stateColor, typeWord, urgencyWord, unitOf }) {
   const lines = requestLinesOf(r) || [];
-  const fulfilled = r.status === "fulfilled";
+  const mayDecide = supplyCanDecide(r);
+  const order = supplyOrderOf(r);
+  // Nothing is decided or changed once the request is fulfilled or ordered, or by someone it does not
+  // let decide.
+  const locked = r.status === "fulfilled" || !!order.orderedAt || !mayDecide;
   const [edits, setEdits] = useState({});
   const [busy, setBusy] = useState("");
   const [refusal, setRefusal] = useState("");
   const editOf = (it) => edits[it.id] || { qty: String(it.decision === "approved" && it.approvedQuantity ? it.approvedQuantity : it.quantity), note: it.decision === "denied" && it.decisionNote ? it.decisionNote : "", changing: false };
   const setEdit = (it, patch) => setEdits(e => ({ ...e, [it.id]: { ...editOf(it), ...patch } }));
-  const isOpen = (it) => !fulfilled && (!it.decision || editOf(it).changing);
-  const undecided = fulfilled ? [] : lines.filter(it => !it.decision);
+  const isOpen = (it) => !locked && (!it.decision || editOf(it).changing);
+  const undecided = locked ? [] : lines.filter(it => !it.decision);
   const approval = (it) => ({ id: it.id, decision: "approved", approvedQuantity: approveQtyOf(editOf(it).qty, it.quantity) });
   const denial = (it) => { const note = editOf(it).note.trim(); return note ? { id: it.id, decision: "denied", note } : { id: it.id, decision: "denied" }; };
   const decide = async (key, items) => {
@@ -4460,7 +4594,7 @@ function SupplyRequestWindow({ t, af, r, onClose, onDecided, stateWord, stateCol
             {it.decision === "denied" && it.decisionNote ? <span data-request-line-said-note="" style={{ color: t.textSec }}>{": " + it.decisionNote}</span> : null}
             {it.decidedBy && it.decidedBy.name ? <span style={{ color: t.textMut, fontSize: 12 }}>{" | " + it.decidedBy.name + (it.decidedAt ? ", " + fd(it.decidedAt) : "")}</span> : null}
           </div>
-          {!fulfilled ? <button onClick={() => setEdit(it, { changing: true })} disabled={!!busy} data-request-line-change="" style={{ ...lineBtn(t.textSec), borderColor: t.border }}>{tr("Change")}</button> : null}
+          {!locked ? <button onClick={() => setEdit(it, { changing: true })} disabled={!!busy} data-request-line-change="" style={{ ...lineBtn(t.textSec), borderColor: t.border }}>{tr("Change")}</button> : null}
         </div> : null}
         {isOpen(it) ? <div style={{ marginTop: 10 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -4477,6 +4611,10 @@ function SupplyRequestWindow({ t, af, r, onClose, onDecided, stateWord, stateCol
       </div>);
     })}
     {refusal ? <div role="alert" data-request-refusal="" style={{ fontSize: 13, color: RD, margin: "8px 0", lineHeight: 1.5 }}>{refusal}</div> : null}
+    {!mayDecide ? <div data-request-read-only="" style={{ fontSize: 13, color: t.textSec, margin: "8px 0", lineHeight: 1.5 }}>{tr("Only the people who approve supply requests can decide this.")}</div> : null}
+    {order.signed ? <SupplyOrderSigned key={order.po + "|" + (order.orderedAt || "")} t={t} af={af} token={token} r={r} mayDecide={r.canDecide === true} onSent={onDecided} />
+      : r.canDecide === true && r.status !== "fulfilled" && lines.length > 0 && lines.every(it => it.decision) && lines.some(it => it.decision === "approved") ? <SupplyOrderSign t={t} af={af} r={r} sites={sites} onSigned={onDecided} />
+      : null}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginTop: 12 }}>
       {undecided.length > 0 ? <Btn t={t} v="ghost" data-request-deny-all="" disabled={!!busy} onClick={() => decide("all", undecided.map(denial))}>{tr("Deny all")}</Btn> : null}
       {undecided.length > 0 ? <Btn t={t} data-request-approve-all="" disabled={!!busy || !allQtyOk} onClick={() => allQtyOk && decide("all", undecided.map(approval))} style={{ opacity: busy || !allQtyOk ? 0.6 : 1 }}>{busy === "all" ? tr("Saving...") : tr("Approve all")}</Btn> : null}
@@ -4631,11 +4769,11 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
       {!orderingOk ? <div role="alert" data-ordering-range="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{tr("Choose a To date on or after the From date.")}</div> : null}
       {ordering.error ? <div role="alert" data-ordering-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8, lineHeight: 1.5 }}>{ordering.error}</div> : null}
     </div></Crd>}
-    {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
+    {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}{r.poNumber ? <span data-request-po={r.poNumber} style={{ color: t.goldText, fontWeight: 600 }}>{" | " + r.poNumber}</span> : null}{r.orderedAt ? <span data-request-ordered="" style={{ color: GR, fontWeight: 600 }}>{" | " + tr("Ordered {0}", fd(r.orderedAt))}</span> : null}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && supplyCanDecide(r) && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
-    {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} r={openReq} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
+    {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} token={token} r={openReq} sites={sites} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
     {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }
@@ -15081,8 +15219,10 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
 // A PDF the API draws, in a window: the language picked, which starts as startLang when the caller
 // names one the screen offers and as the screen's otherwise, Download PDF, and the page itself.
 // pathFor gives the route for a language. The quote's two PDFs, a site's workload plan and a warning
-// (in the language it is written in) open in it.
-function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, boxProps, onClose, startLang = "" }) {
+// (in the language it is written in) open in it, and a document's designed version (Step 306); a
+// supply order's purchase order, which is written in English only, opens in it with oneLanguage, which
+// leaves the language buttons out (Step 309).
+function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, boxProps, onClose, startLang = "", oneLanguage = false }) {
   const [lang, setLang] = useState(() => (startLang && LANGUAGES.some(x => x.id === startLang) ? startLang : getLang()));
   const [pdf, setPdf] = useState({ url: "", filename: "", loading: true, error: "" });
   const [again, setAgain] = useState(0);
@@ -15112,7 +15252,7 @@ function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, bo
     {help ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{help}</div> : null}
     {note ? <div style={{ fontSize: 12, color: OR, marginBottom: 10 }}>{note}</div> : null}
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-      <span style={{ fontSize: 12, color: t.textMut, marginRight: 4 }}>{tr("Language")}</span>{LANGUAGES.map(langBtn)}
+      {!oneLanguage && <><span style={{ fontSize: 12, color: t.textMut, marginRight: 4 }}>{tr("Language")}</span>{LANGUAGES.map(langBtn)}</>}
       <div style={{ flex: 1 }} />
       {pdf.url && <a href={pdf.url} download={pdf.filename || fallbackName} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a>}
     </div>
