@@ -3,12 +3,16 @@
 ## Sign in to the admin dashboard (admin dashboard)
 Who can do this: admins and supervisors
 1. Open the admin dashboard.
-2. Type your phone number or email, and your 4 digit PIN.
-3. Click **Sign In** (**Iniciar sesión**).
+2. Type your badge number, phone or email in **Badge Number, Phone or Email** (**Número de empleado, teléfono o correo**), and your 4 digit PIN in **PIN** (**PIN**).
+3. Click **Sign In** (**Iniciar sesión**), or press Enter. Pressing it again does not send a second sign-in.
 4. When the dashboard asks for a code, see the entry on signing in with a code on a new device.
-If it does not work: a wrong phone number, email or PIN brings a red message at the top of the screen with the reason. Check them and try again. The dashboard is only for admins and supervisors. Staff use the staff portal.
+5. While you still have the PIN the office gave you, the dashboard shows only **Choose your PIN** (**Elija su PIN**). Type a PIN of your own in **New PIN (4 digits)** (**PIN nuevo (4 dígitos)**) and again in **New PIN again** (**PIN nuevo otra vez**), and click **Save** (**Guardar**). Until then nothing else opens, even after a reload; **Sign Out** (**Cerrar sesión**) leaves.
+6. Forgot your PIN? Type your badge number, phone or email, then click **Forgot your PIN?** (**¿Olvidó su PIN?**). The card says what happens next.
+If it does not work: a wrong badge number, phone, email or PIN shows the reason in red on the card. From the third wrong try in a row the card adds **After too many wrong tries, sign-in stops for a while. Ask the office for help.** (**Después de demasiados intentos equivocados, el inicio de sesión se detiene por un tiempo. Pida ayuda a la oficina.**) After five, the card says how many minutes to wait, and an admin can unlock you sooner; see the entry on whether a person can sign in. When the dashboard signs you out by itself, the card says why. The dashboard is only for admins and supervisors. Staff use the staff portal.
+Words people use for this: log in, sign in, badge number, forgot my pin, locked out, too many tries, choose a pin, new pin, iniciar sesión.
 Picture: sign-in-card
-Last checked: 2026-10-06
+Picture: choose-your-pin
+Last checked: 2026-10-07
 
 ## Sign out of the dashboard (admin dashboard)
 Who can do this: anyone signed in
@@ -107,14 +111,15 @@ Last checked: 2026-10-02
 
 ## Reset a staff member's PIN (admin dashboard)
 Who can do this: admins
-1. Click **Staff Management** and open the person's profile.
-2. Click **Reset PIN** (**Restablecer el PIN**).
+1. Click **Staff Management** (**Gestión de personal**) and open the person's profile.
+2. Click **Reset PIN** (**Restablecer el PIN**). Once the profile shows the person's sign-in, the window also says **Reset PIN also unlocks their sign-in and signs them out everywhere. They choose their own PIN at their next sign-in.** (**Restablecer el PIN también desbloquea su inicio de sesión y cierra su sesión en todas partes. La persona elige su propio PIN la próxima vez que inicie sesión.**)
 3. Type a new 4 digit PIN (it stays hidden as you type) and click **Reset PIN** (**Restablecer el PIN**) to save. **PIN reset for {0}** (**PIN restablecido para {0}**) confirms it with the person's name.
-4. Tell the person their new PIN privately. The next time they sign in, the staff app asks them to choose their own PIN.
+4. Tell the person their new PIN privately. The next time they sign in, the staff app or the dashboard asks them to choose their own PIN.
 Or, if the person has an email, click **Send a PIN reset link** (**Enviar un enlace para restablecer el PIN**) on their profile; they get a link and choose a PIN themselves. **Reset link sent.** (**Enlace enviado.**) confirms it.
+If it does not work: a link or an invite that did not go says **Not sent: {0}** (**No se envió: {0}**) with the reason, such as an email address no mail can reach. Fix the email on the profile and send it again.
 Words people use for this: someone forgot their pin, they are locked out, reset a password, too many tries, send a reset link.
 Picture: staff-reset-pin
-Last checked: 2026-09-28
+Last checked: 2026-10-07
 
 ## Deactivate or reactivate a staff member (admin dashboard)
 Who can do this: admins
@@ -555,11 +560,11 @@ Who can do this: any supervisor or admin other than the person who raised it
 4. **Sign** (**Firmar**) beside **Closed** (**Cerrada**) appears only when every required question is answered; pressed early, the answer names what is still empty. It signs once.
 5. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 6. **Linked findings** (**Hallazgos vinculados**) lists the inspection findings this action covers, and **Tell the client** (**Informar al cliente**) sends the client what was done once the verification is answered; see the entries on linking findings to a corrective action and on telling the client what was done.
-The tables **What was completed** (**Qué se concluyó**) and **Actions confirmed in place** (**Acciones confirmadas en su lugar**) take rows with **Add row** (**Agregar fila**), one per action, and **Remove row** (**Quitar fila**) takes one out; the five parts of the section sit under their own headings, **Approval** (**Aprobación**), **Completion** (**Conclusión**), **Verification** (**Verificación**), **Effectiveness check** (**Comprobación de eficacia**) and **Closure** (**Cierre**).
+The table **What was completed** (**Qué se concluyó**) takes rows with **Add row** (**Agregar fila**), one per action, and **Remove row** (**Quitar fila**) takes one out. **Actions confirmed in place** (**Acciones confirmadas en su lugar**) is a choice of one: **Yes** (**Sí**), **Partly** (**En parte**) or **No** (**No**). The five parts of the section sit under their own headings, **Approval** (**Aprobación**), **Completion** (**Conclusión**), **Verification** (**Verificación**), **Effectiveness check** (**Comprobación de eficacia**) and **Closure** (**Cierre**).
 If it does not work: the person who raised the action is refused both the section and the sign-off.
 Words people use for this: close a corrective action, approve a corrective action, effectiveness check, verify an action, cerrar la acción correctiva, comprobación de eficacia.
 Picture: corrective-action-desk
-Last checked: 2026-10-05
+Last checked: 2026-10-06
 
 ## Verify and sign an environmental audit (admin dashboard)
 Who can do this: any supervisor or admin other than the person who performed the audit
@@ -655,12 +660,12 @@ Last checked: 2026-09-28
 ## Sync the forms and their submissions from Jotform (admin dashboard)
 Who can do this: admins
 1. Click **Forms** (**Formularios**), then the **Jotform** tab, then **Maintenance** (**Mantenimiento**).
-2. Under **API Connection** (**Conexión con la API**): **Sync Form Catalog** (**Sincronizar el catálogo de formularios**) pulls the list of forms, **Sync All Submissions** (**Sincronizar todos los envíos**) pulls new and updated submissions, and **Full Refresh** (**Actualización completa**) pulls every submission again after a warning.
+2. In the **Sync Actions** (**Acciones de sincronización**) card, under **API Connection** (**Conexión con la API**): **Sync Form Catalog** (**Sincronizar el catálogo de formularios**) pulls the list of forms, **Sync All Submissions** (**Sincronizar todos los envíos**) pulls new and updated submissions, and **Full Refresh** (**Actualización completa**) pulls every submission again after a warning.
 3. One form's submissions come in with **Pull** (**Traer**) on its row under **Forms** (**Formularios**) inside the Jotform tab.
 4. **Recent Sync Log** (**Registro de sincronizaciones recientes**) sits under the buttons.
 Words people use for this: jotform, sync forms, pull submissions, applications from jotform, onboarding paperwork, full refresh.
 Picture: jotform-maintenance
-Last checked: 2026-09-28
+Last checked: 2026-10-06
 
 ## Find the Jotform tools (admin dashboard)
 Who can do this: admins
@@ -824,14 +829,14 @@ Last checked: 2026-09-28
 
 ## Send an announcement to staff phones (admin dashboard)
 Who can do this: admins, and anyone given the announcements permission
-1. Click **Announcements** (**Anuncios**) in the side panel, then **New announcement** (**Nuevo anuncio**).
+1. Click **Announcements** (**Anuncios**) in the side panel. The **New announcement** (**Nuevo anuncio**) card is at the top of the page.
 2. Write the **Title** (**Título**), up to 60 characters, and the **Message** (**Mensaje**), up to 500. Write it once, in English or Spanish; each person gets it in their own language.
 3. Under **Send to** (**Enviar a**), choose **Everyone** (**Todos**), **One site's people** (**El personal de un sitio**) with a site, **A role** (**Un rol**) with a role, or **Chosen people** (**Personas elegidas**).
 4. The line under it says how many people it reaches and how many have phone alerts on. Click **Send announcement** (**Enviar anuncio**).
 5. It lands in each person's bell and on every phone they turned alerts on. The list under **Sent** (**Enviados**) keeps each one with who sent it, when, and the counts. An announcement cannot be edited or taken back once sent.
 Words people use for this: send a message to everyone, push notification, announcement, alert all staff, tell a site, enviar un anuncio.
 Picture: announcement-new
-Last checked: 2026-09-28
+Last checked: 2026-10-06
 
 ## Choose what alerts your phone (admin dashboard)
 Who can do this: anyone signed in
@@ -1186,7 +1191,7 @@ If it does not work: the button is off and says **Save first** (**Guarde primero
 Words people use for this: make a staffing plan, plan a building, workload for a site, hours for a building, how many cleaners, hacer un plan de carga de trabajo.
 Picture: site-plan-none
 Picture: site-plan-new-quote
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Use a saved quote as a site's workload plan (admin dashboard)
 Who can do this: people given Build quotes, admins by default
@@ -1198,7 +1203,7 @@ Who can do this: people given Build quotes, admins by default
 If it does not work: a quote for another site, or for none, is refused, and the line under the button says so; set its site to this one, save it, and try again. Draft, sent and accepted quotes can all be used.
 Words people use for this: staffing plan from a quote, use a quote as the plan, which estimate is the plan, set the site's plan, hours for a building, usar la cotización.
 Picture: site-plan-use-saved
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Update or end a site's workload plan (admin dashboard)
 Who can do this: people given Build quotes, admins by default
@@ -1348,7 +1353,7 @@ Last checked: 2026-10-01
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**), then the person on the **Employees** (**Personal**) tab.
 2. On the **Disciplinary** (**Disciplinario**) card, click **Issue a warning** (**Emitir una advertencia**). From a case about the person, open it on **Cases** (**Casos**) and click **Issue a warning** (**Emitir una advertencia**) there.
-3. Choose **Verbal warning** (**Advertencia verbal**) under **Step** (**Paso**). The step shown first follows the person's record, and any step can be chosen.
+3. Choose **Verbal warning** (**Amonestación verbal**) under **Step** (**Paso**). The step shown first follows the person's record, and any step can be chosen.
 4. Choose the **Category** (**Categoría**), and fill in the **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**). **Leave out any medical detail.** (**No incluya ningún detalle médico.**)
 5. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**) A Yes needs the date in **Discussed with the Controller on** (**Consultado con el Contralor el**).
 6. Choose the **Language of the warning** (**Idioma de la advertencia**), the language the person reads.
@@ -1357,12 +1362,12 @@ Who can do this: admins and supervisors
 9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
 Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
 Picture: warning-verbal-window
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## Issue a written or final written warning (admin dashboard)
 Who can do this: admins and supervisors for a written warning; admins for a final written warning
 1. Click **HR Records** (**Expedientes de personal**), open the person, and click **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
-2. Choose **Written warning** (**Advertencia por escrito**) or **Final written warning** (**Advertencia final por escrito**) under **Step** (**Paso**).
+2. Choose **Written warning** (**Amonestación por escrito**) or **Final written warning** (**Amonestación final por escrito**) under **Step** (**Paso**).
 3. Choose the **Category** (**Categoría**), and fill in the **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**). **Leave out any medical detail.** (**No incluya ningún detalle médico.**)
 4. Fill in **Policy** (**Política**) if a handbook section applies, **What must change** (**Qué debe cambiar**) and **By when** (**Para cuándo**).
 5. For a final written warning with a suspension, fill in **Suspension from** (**Suspensión desde**) and **Suspension to** (**Suspensión hasta**).
@@ -1379,14 +1384,14 @@ Last checked: 2026-10-06
 ## Issue a termination (admin dashboard)
 Who can do this: admins
 1. Click **HR Records** (**Expedientes de personal**), open the person, and click **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
-2. Choose **Termination** (**Despido**) under **Step** (**Paso**), and fill in the **Category** (**Categoría**), **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**).
+2. Choose **Termination** (**Terminación del empleo**) under **Step** (**Paso**), and fill in the **Category** (**Categoría**), **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**).
 3. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**), choose the **Language of the warning** (**Idioma de la advertencia**), and click **Save as draft** (**Guardar como borrador**).
 4. Under **Issue** (**Emitir**), draw your signature in **The issuer signs** (**Firma quien la emite**), click **Sign** (**Firmar**), then click **Issue** (**Emitir**).
 5. The **End employment** (**Terminar el empleo**) window opens with the reason let go. Fill in the **Last day** (**Último día**) and **Eligible for rehire?** (**¿Elegible para recontratación?**), and click **End employment** (**Terminar el empleo**).
 6. Send the letter to the person; see the entry on sending a warning.
 Words people use for this: fire, terminate, termination letter, let go, dismiss, final step, discipline, despido.
 Picture: warning-termination-window
-Last checked: 2026-10-01
+Last checked: 2026-10-06
 
 ## Send a warning to the person (admin dashboard)
 Who can do this: admins and supervisors
@@ -1465,24 +1470,24 @@ Who can do this: admins and supervisors
 1. Sign in with your phone number or email and your PIN. On a computer or phone where you have not entered a code in the last 30 days, the dashboard asks for one.
 2. The screen reads **Enter the code we emailed to {0}** (**Escriba el código que enviamos a {0}**) with the start of your work email. Open that email for the 6 digit code. It lasts 10 minutes.
 3. Type the 6 digits in **Code** (**Código**). The code goes by itself once all 6 are in, or click **Verify** (**Verificar**). On a phone, the keyboard may offer the code from the email.
-4. Leave **Remember this device for 30 days** (**Recordar este dispositivo por 30 días**) ticked on your own computer or phone. Untick it on a shared one.
+4. Leave **Remember this device for 30 days** (**Recordar este dispositivo por 30 días**) ticked on your own computer or phone. Untick it on a shared one: the dashboard then keeps nothing of you once the browser closes, and asks for a code next time.
 5. No email? Click **Send a new code** (**Enviar un código nuevo**) once it stops counting down. The newest code is the one that works.
 6. **Back** (**Volver**) returns to the PIN.
 If it does not work: a wrong code says how many tries are left. After 5 wrong tries, or once the code is 10 minutes old, the dashboard goes back to the PIN; sign in again for a new code.
 Words people use for this: code, verification, verification code, two step, two-step, new phone, new computer, sign-in code, email code, código.
 Picture: sign-in-code
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## See or forget the devices you are remembered on (admin dashboard)
 Who can do this: admins and supervisors; the super admin also for another admin or supervisor
 1. Click your name at the top right, then **Settings** (**Configuración**), then the **Trusted devices** (**Dispositivos de confianza**) tab. On a phone, tap **More** (**Más**) first.
-2. Each row is a browser where you entered a sign-in code in the last 30 days, with **First seen** (**Visto por primera vez**), **Last seen** (**Visto por última vez**) and **Remembered until** (**Recordado hasta**).
+2. Each row is a browser where you entered a sign-in code in the last 30 days, named the way the system reads it, such as Chrome on Windows, with **First seen** (**Visto por primera vez**), **Last seen** (**Visto por última vez**) and **Remembered until** (**Recordado hasta**).
 3. After losing a phone, or signing in on a shared computer, click **Forget all my devices** (**Olvidar todos mis dispositivos**) and say yes. Each device, this one too, asks for a code at its next sign-in.
 4. The super admin can do the same for another admin or supervisor: **Staff Management** (**Gestión de personal**), open their profile, and click **Forget this person's devices** (**Olvidar los dispositivos de esta persona**).
 If it does not work: the tab shows once the server keeps trusted devices.
 Words people use for this: trusted devices, remembered devices, lost my phone, forget this computer, stop remembering a device, code, two step, new phone.
 Picture: settings-trusted-devices
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Start a project and choose its members (admin dashboard)
 Who can do this: admins and supervisors
@@ -1496,7 +1501,7 @@ Who can do this: admins and supervisors
 If it does not work: Workspace shows once the server keeps projects. A supervisor sees the projects they are a member of; an admin sees every project.
 Words people use for this: project, start a project, new project, basecamp, add people to a project, project members, team project, proyecto.
 Picture: ws-new-project
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Post on a project's message board (admin dashboard)
 Who can do this: the project's members
@@ -1595,7 +1600,7 @@ Who can do this: the super admin, and anyone given the chat records permission. 
 If it does not work: a date range that runs backward is refused. A search shows at most 2,000 messages; narrow it to see the rest.
 Words people use for this: chat records, search messages, chat history, find a message, chat export, registros del chat.
 Picture: chat-records-search
-Last checked: 2026-10-01
+Last checked: 2026-10-07
 
 ## Print a site's zone cleaning checklists (admin dashboard)
 Who can do this: admins and supervisors
@@ -1688,14 +1693,14 @@ Last checked: 2026-10-06
 Who can do this: admins and supervisors
 1. Click **Equipment** (**Equipo**) under **Supplies** (**Suministros**) in the menu on the left.
 2. Each item shows its **Site** (**Sitio**), its **Status** (**Estado**), its **Next service** (**Próximo servicio**), red once due, and its **Latest event** (**Último evento**). Narrow the list by site, by status, or with **Service due** (**Servicio pendiente**). **All but retired** (**Todos menos los dados de baja**) leaves the retired items out; pick **Retired** (**Dado de baja**) under status to see them.
-3. To add one, click **Add equipment** (**Agregar equipo**). Fill in the **Name** (**Nombre**) and the **Site** (**Sitio**), and any of **Type** (**Tipo**), **Make** (**Marca**), **Model** (**Modelo**), **Serial number** (**Número de serie**), **Bought on** (**Comprado el**), **Service every (days)** (**Servicio cada (días)**), **Last serviced on** (**Último servicio el**) and **Notes** (**Notas**). Click **Save** (**Guardar**), and the item's page opens.
+3. To add one, click **Add equipment** (**Agregar equipo**). Fill in the **Name** (**Nombre**) and the **Site** (**Sitio**), and any of **Type** (**Tipo**), picked from the list, **Make** (**Marca**), **Model** (**Modelo**), **Serial number** (**Número de serie**), **Bought on** (**Comprado el**), **Service every (days)** (**Servicio cada (días)**), **Last serviced on** (**Último servicio el**) and **Notes** (**Notas**). Click **Save** (**Guardar**), and the item's page opens.
 4. On an item's page, **Record service** (**Registrar servicio**) records a service and moves **Next service** (**Próximo servicio**) on by its days; **Repair** (**Reparar**) records a repair; **Move** (**Trasladar**) moves it to another site; **Edit** (**Editar**) changes its details.
 5. **Retire** (**Dar de baja**) asks first. A retired item stays on the register, and nothing more can be recorded against it.
 6. A notice that an item's service is due opens the item.
 Words people use for this: equipment list, machines, floor machines, asset list, scrubbers, service schedule, equipment register, equipo.
 Picture: equipment-register
 Picture: equipment-item
-Last checked: 2026-10-02
+Last checked: 2026-10-07
 
 ## Print equipment labels (admin dashboard)
 Who can do this: admins and supervisors
@@ -1917,12 +1922,12 @@ Every deficient item of a completed inspection opens a ticket with an owner and 
 1. Click **Issues** (**Incidencias**). Pick **Inspection** (**Inspección**) at the right of the filters to see the findings alone. Each row shows its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**).
 2. Click the finding. **From an inspection** (**De una inspección**) names the inspection, its score and band, and the item with its score. **Corrective action** (**Acción correctiva**) says whether it is linked to one; **Open the corrective action** (**Abrir la acción correctiva**) opens that report.
 3. On a finding marked fixed by someone else, **Verify** (**Verificar**) is offered. Check the fix in person, write a **Note** (**Nota**) if you like, and click **Verify** (**Verificar**). The finding closes and the window says who verified it and when.
-4. A finding's notice in the bell opens the finding here.
+4. A finding's notice in the bell, or its address, opens the finding here, with **Verify** (**Verificar**) when it is offered.
 If it does not work: a finding that is not fixed yet, or one you fixed yourself, is refused with the reason under the button: **Someone other than the person who fixed it checks it.** (**Alguien distinto de quien lo corrigió lo revisa.**). An inspection finding cannot be closed from the status picker; only **Verify** (**Verificar**) closes it.
 Words people use for this: verify a finding, check a fix, close a finding, inspection ticket, second person check, verificar un hallazgo.
 Picture: findings-list
 Picture: finding-verify
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Read an inspection's findings and band (admin dashboard)
 Who can do this: anyone who can open Inspections
@@ -2228,11 +2233,23 @@ Last checked: 2026-10-06
 Who can do this: admins see everyone; supervisors see the people at their own sites
 1. Click **Training** (**Capacitación**) on the side panel, then **Matrix** (**Matriz**).
 2. Narrow it with **All sites** (**Todos los sitios**), **All roles** (**Todos los roles**) and **All categories** (**Todas las categorías**). A supervisor's site list reads **All my sites** (**Todos mis sitios**) and holds only their own sites.
-3. People run down the side and the topics across the top, under their categories. Each cell reads its status and day: **Done** (**Hecha**) in green, **Expires soon** (**Vence pronto**) and **Refresher due** (**Repaso pendiente**) in amber, **Missing** (**Falta**) and **Expired** (**Vencida**) in red, **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**) in blue. A refresher coming due for the first time reads the day it is first due. A blank cell is a topic the person does not need. The legend over the grid says the same.
+3. People run down the side and the topics across the top, under their categories. Each cell reads its status and day, in the words Gaps uses: **Current** (**Vigente**) in green, **Due soon** (**Vence pronto**) and **Refresher due** (**Repaso pendiente**) in amber, **Missing** (**Falta**) and **Expired** (**Vencida**) in red, **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**) in blue. A refresher coming due for the first time reads the day it is first due. A blank cell is a topic the person does not need. The legend over the grid says the same.
 4. Tap a cell to see **How it was done** (**Cómo se hizo**), its days, and for a topic taken **At each site** (**En cada sitio**), each site's status.
 5. Click **Print** (**Imprimir**) for the assessor: a table per category on landscape letter paper, with the day it was printed. **Download CSV** (**Descargar CSV**) saves the grid as a spreadsheet.
 If it does not work: allow pop-ups for the dashboard in the browser to print. A wide grid scrolls sideways inside its card. The tab shows once the system answers it.
 Words people use for this: training matrix, who is trained, assessor, proof of training, training by person, matriz de capacitación.
 Picture: training-matrix
 Picture: training-matrix-cell
-Last checked: 2026-10-06
+Last checked: 2026-10-07
+
+## See whether a person can sign in, and unlock them (admin dashboard)
+Who can do this: admins
+1. Click **Staff Management** (**Gestión de personal**). Under each person's **Status** (**Estado**), and on their profile, a line says how their sign-in stands.
+2. **Locked until {0}** (**Bloqueado hasta {0}**) means too many wrong tries, with the time sign-in opens again. **On a given PIN** (**Con un PIN asignado**) means they still have the PIN the office gave and choose their own at their next sign-in. **No working email** (**Sin un correo que funcione**) means no sign-in code or reset link can reach their email; fix the email on their profile.
+3. The last line reads **Last signed in {0}** (**Último inicio de sesión: {0}**) with the day and time, or **Never signed in** (**Nunca ha iniciado sesión**).
+4. To let a locked person try again now, click **Unlock** (**Desbloquear**) under their status or on their profile. **Sign-in unlocked.** (**Inicio de sesión desbloqueado.**) confirms it.
+5. **Reset PIN** (**Restablecer el PIN**) also unlocks the person and signs them out everywhere; see the entry on resetting a staff member's PIN.
+If it does not work: these lines show once the system sends them.
+Words people use for this: locked out, unlock, too many tries, cannot sign in, never signed in, last login, sign-in, desbloquear.
+Picture: staff-sign-in
+Last checked: 2026-10-07

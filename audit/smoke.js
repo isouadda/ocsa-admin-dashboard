@@ -6,10 +6,20 @@
 // what a broken build breaks first:
 //   - at 1280 in English and in Spanish, and at 390 in English, an admin signs in (the Spanish pass
 //     with the stub answering secondStep, so the code screen is on the way in);
-//   - at 1280 in English and in Spanish, first, a wrong PIN on the sign-in card reads the words the
-//     API sent with its 401, never Session expired, the card stays and nothing fires
-//     ocsa-session-expired; the Spanish pass then types a wrong code on the code screen, which reads
-//     the API's words and the tries left under the box the same way;
+//   - at 1280 in English and in Spanish and at 390 in English, first, a wrong PIN on the sign-in card
+//     reads the words the API sent with its 401, never Session expired, the card stays and nothing
+//     fires ocsa-session-expired; the Spanish pass then types a wrong code on the code screen, which
+//     reads the API's words and the tries left under the box the same way;
+//   - against the stub's answers for the API's Step 283 (Step 284), in those three passes: a text that
+//     matches nobody is refused five times and the sixth try reads the lock's words with its minutes
+//     and the line that sign-in stops for a while; Enter pressed twice sends one sign-in; through the
+//     code screen with Remember this device off nothing is left in localStorage; a 403
+//     auth.mustSetPin from a screen draws Choose your PIN alone, through a reload, refuses two
+//     different PINs and the given one in the API's words, and sends a PIN of the person's own once;
+//     Unlock posts and the list reads the person unlocked; and, with Step 278's answers, the chat
+//     records search reads its count and its log, a project's Message Board card names its latest
+//     post, a quote's Workload plan card lists its current plan, and the matrix reads Current and Due
+//     soon;
 //   - every side panel item opens with no page error, no crash and no sideways scroll;
 //   - Reports opens one card of each group, a filed form opens, and Customer links opens;
 //   - Help opens and answers the stub;
@@ -157,9 +167,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -195,11 +205,11 @@ function armSecondStep(stubs) {
     }
     if (path === "/api/auth/second-step" && req.method === "POST") {
       if (!held) return { status: 401, json: { error: "No sign-in to finish" } };
-      // Any code but the one signIn types is a wrong one, a 401 in the screen's language with the
-      // tries left, the way the API answers it.
+      // Any code but the one signIn types is a wrong one, a 400 auth.codeWrong in the screen's language
+      // with the tries left, the way helpers/secondStep.js answers it.
       if (!req.body || req.body.code !== SMOKE_CODE) {
         const es = ((req.headers && req.headers["accept-language"]) || "") === "es";
-        return { status: 401, json: { error: es ? "El c\u00f3digo no es correcto." : "That code is not right.", code: "auth.codeWrong", attemptsLeft: 4 } };
+        return { status: 400, json: { error: es ? "Ese c\u00f3digo no es correcto. Revise el correo m\u00e1s reciente e intente de nuevo." : "That code is not right. Check the latest email and try again.", code: "auth.codeWrong", attemptsLeft: 4 } };
       }
       return held;
     }
@@ -209,19 +219,23 @@ function armSecondStep(stubs) {
 
 // The two sign-in calls whose 401 is the person's answer turned down rather than a session that has
 // ended, and what the stub answered each, kept as it was sent so a check reads the screen against the
-// API's own words.
+// API's own words. Every sign-in answer is kept in order as well, so a check can count them.
 const SIGN_IN_PATHS = ["/api/auth/login", "/api/auth/second-step"];
 function keepSignIn(stubs) {
   const orig = stubs.handle;
-  const kept = {};
+  const kept = { logins: [] };
   stubs.handle = (req) => {
     const a = orig(req);
     const path = new URL(req.url).pathname;
     if (req.method === "POST" && SIGN_IN_PATHS.indexOf(path) >= 0) kept[path] = a;
+    if (req.method === "POST" && path === "/api/auth/login") kept.logins.push(a);
     return a;
   };
   return kept;
 }
+const stubs283Calls = (kept) => kept.logins;
+// A badge number nobody holds, which the lock line types (Step 284).
+const NOBODY_283 = "7777";
 
 // A wrong PIN on the sign-in card reads the words the API sent with its 401, never Session expired, in
 // the screen's language; the card stays and nothing fires ocsa-session-expired. With the code screen
@@ -231,7 +245,7 @@ async function wrongSignIn(d, p, kept) {
   const who = seed.PEOPLE[p.who];
   const expired = [d.say("Session expired"), "Session expired"];
   const fired = () => d.page.evaluate(() => window.__smokeExpired || 0);
-  const sent = (path) => { const a = kept[path]; return a && a.status === 401 && a.json && a.json.error ? a.json.error : null; };
+  const sent = (path) => { const a = kept[path]; return a && (a.status === 401 || a.status === 400) && a.json && a.json.error ? a.json.error : null; };
   await d.page.locator("input").nth(1).waitFor({ timeout: 20000 });
   await d.page.evaluate(() => { window.__smokeExpired = 0; window.addEventListener("ocsa-session-expired", () => { window.__smokeExpired += 1; }); });
   const signInButton = () => d.page.getByRole("button", { name: d.say("Sign In") }).or(d.page.getByRole("button", { name: "Sign In" })).first();
@@ -243,8 +257,9 @@ async function wrongSignIn(d, p, kept) {
       await inputs.nth(0).fill(who.login.phone);
       await inputs.nth(1).fill(who.login.pin === "9999" ? "9998" : "9999");
       await signInButton().click();
-      let shown = null;
-      for (let i = 0; i < 50 && !shown; i++) { await wait(100); shown = await d.toast(); }
+      // Since Step 284 the card draws a refusal itself, in place of a toast.
+      await until(d, "[data-signin-notice]");
+      const shown = ((await d.page.locator("[data-signin-notice]").first().innerText()) || "").trim();
       const words = sent("/api/auth/login");
       why = !words ? "the stub did not answer 401"
         : !shown ? "nothing was drawn"
@@ -255,6 +270,38 @@ async function wrongSignIn(d, p, kept) {
         : await trouble(d, mark);
     } catch (e) { why = e.message.split("\n")[0]; }
     say(!why, p.name, "a wrong PIN reads the API's words", why);
+  }
+  // Step 284, against the API's Step 283: a typed text that matches nobody is refused five times, the
+  // card adds that sign-in stops for a while from the third, and the sixth try reads the lock's words
+  // with its minutes. Nobody the run signs in as is locked by it.
+  if (p.step283) {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try {
+      const inputs = d.page.locator("input");
+      // Each try waits for the card to read that try's own answer.
+      const reads = (w) => d.page.waitForFunction((x) => { const el = document.querySelector("[data-signin-notice]"); return !!el && el.innerText.trim() === x; }, w, { timeout: 4000 }).then(() => true, () => false);
+      let drawn = true;
+      for (let i = 0; i < 6 && drawn; i++) {
+        const before = stubs283Calls(kept).length;
+        await inputs.nth(0).fill(NOBODY_283);
+        await inputs.nth(1).fill("9999");
+        await signInButton().click();
+        for (let w = 0; w < 80 && stubs283Calls(kept).length === before; w++) await wait(50);
+        const a = stubs283Calls(kept)[before];
+        drawn = !!(a && a.json && a.json.error) && (await reads(a.json.error));
+      }
+      const last = kept["/api/auth/login"];
+      const words = ((await d.page.locator("[data-signin-notice]").first().innerText()) || "").trim();
+      why = !drawn ? "a try did not read the API's words: " + words
+        : !last || last.status !== 429 || !last.json ? "the sixth try was not refused as locked"
+        : words !== last.json.error ? "reads " + words + ", the API sent " + last.json.error
+        : !/\d/.test(words) ? "the lock's words carry no minutes"
+        : (await d.page.locator("[data-signin-lock-hint]").count()) === 0 ? "no line that sign-in stops for a while"
+        : (await fired()) ? "fired ocsa-session-expired"
+        : await trouble(d, mark);
+    } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, "a lock reads the API's words, with the line that sign-in stops", why);
   }
   if (!p.secondStep) return;
   {
@@ -270,7 +317,7 @@ async function wrongSignIn(d, p, kept) {
       await until(d, "[data-second-say]");
       const shown = ((await d.page.locator("[data-second-say]").first().innerText()) || "").trim();
       const words = sent("/api/auth/second-step");
-      why = !words ? "the stub did not answer 401"
+      why = !words ? "the stub did not refuse the code"
         : expired.some((w) => shown.indexOf(w) >= 0) ? "reads " + shown
         : shown.split("\n")[0].trim() !== words ? "reads " + shown.split("\n")[0] + ", the API sent " + words
         : (await d.page.locator("[data-second-left]").count()) === 0 ? "no tries left under the box"
@@ -294,18 +341,22 @@ async function trouble(d, mark) {
   return "";
 }
 
-async function signIn(d, who) {
+// opts.enter presses Enter twice in the PIN box in place of the button (Step 284), and
+// opts.rememberOff unticks Remember this device on the code screen before the code is typed.
+async function signIn(d, who, opts = {}) {
   const p = seed.PEOPLE[who];
   await d.page.locator("input").nth(1).waitFor({ timeout: 20000 });
   const inputs = d.page.locator("input");
   await inputs.nth(0).fill(p.login.phone);
   await inputs.nth(1).fill(p.login.pin);
-  await d.page.getByRole("button", { name: d.say("Sign In") }).or(d.page.getByRole("button", { name: "Sign In" })).first().click();
+  if (opts.enter) { await inputs.nth(1).focus(); await d.page.keyboard.press("Enter"); await d.page.keyboard.press("Enter"); }
+  else await d.page.getByRole("button", { name: d.say("Sign In") }).or(d.page.getByRole("button", { name: "Sign In" })).first().click();
   let sawCode = false;
   for (let i = 0; i < 80; i++) {
     if (!(await d.signedOut())) return { sawCode };
     if (!sawCode && (await d.page.locator("[data-second-code]").count()) > 0) {
       sawCode = true;
+      if (opts.rememberOff) await d.page.locator('[data-second-step] input[type="checkbox"]').uncheck();
       await d.page.fill("[data-second-code]", SMOKE_CODE);
     }
     await wait(250);
@@ -1239,6 +1290,106 @@ async function step269(d, origin, p, stubs) {
   });
 }
 
+// Step 284's sign-in lines once signed in, against the stub armed with setStep283 (audit/stubs.js): a
+// 403 auth.mustSetPin from a screen draws Choose your PIN and nothing else, a reload lands back on it,
+// two different PINs and the PIN the office gave are refused, the second in the API's words, and a
+// PIN of the person's own is sent once as newPin and opens the dashboard; and, for the admin, Unlock
+// on a locked person posts and the list reads them unlocked.
+const LOCKED_283 = "u-staff-5";
+const CHOSEN_PIN_283 = "4826";
+async function step283(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const pinCalls = () => stubs.calls.filter((c) => c.path === "/api/auth/change-pin" && c.method === "POST");
+  const fillPins = async (a, b) => { await d.page.locator("[data-choose-pin-new]").fill(a); await d.page.locator("[data-choose-pin-again]").fill(b); await d.page.locator("[data-choose-pin-save]").click(); };
+  const refusalReads = (w) => d.page.waitForFunction((x) => { const el = document.querySelector("[data-choose-pin-refusal]"); return !!el && el.innerText.trim() === x; }, w, { timeout: 4000 }).then(() => true, () => false);
+  await check("a 403 auth.mustSetPin lands on Choose your PIN, alone, through a reload, until a PIN of their own is saved", async () => {
+    stubs.setMustSetPin(p.who, true);
+    try {
+      await go(d, "sites");
+      await until(d, "[data-choose-pin]");
+      if (!(await d.signedOut())) return "the dashboard is still drawn beside Choose your PIN";
+      await d.page.reload({ waitUntil: "domcontentloaded" });
+      await until(d, "[data-choose-pin]");
+      if (!(await d.signedOut())) return "after a reload the dashboard is drawn beside Choose your PIN";
+      const before = pinCalls().length;
+      await fillPins(CHOSEN_PIN_283, "4862");
+      if (!(await refusalReads(d.say("Type the same PIN twice.")))) return "two different PINs are not refused";
+      if (pinCalls().length !== before) return "two different PINs were sent";
+      await fillPins(seed.PEOPLE[p.who].login.pin, seed.PEOPLE[p.who].login.pin);
+      for (let w = 0; w < 40 && pinCalls().length === before; w++) await wait(50);
+      const given = pinCalls()[before];
+      if (!given || given.status !== 400 || !(await refusalReads(given.json.error))) return "the PIN the office gave is not refused in the API's words";
+      await fillPins(CHOSEN_PIN_283, CHOSEN_PIN_283);
+      for (let w = 0; w < 80 && (await d.signedOut()); w++) await wait(100);
+      if (await d.signedOut()) return "the dashboard did not open after Save";
+      const sent = pinCalls()[before + 1];
+      if (!sent || pinCalls().length !== before + 2 || JSON.stringify(sent.body) !== JSON.stringify({ newPin: CHOSEN_PIN_283 })) return "the PIN was sent as " + JSON.stringify(sent && sent.body);
+      return (await d.page.locator("[data-choose-pin]").count()) === 0 ? "" : "Choose your PIN is still drawn";
+    } finally { stubs.setMustSetPin(p.who, false); }
+  });
+  if (p.who === "admin") await check("Unlock on a locked person posts and the list reads them unlocked", async () => {
+    await go(d, "staff", null, '[data-staff-unlock="' + LOCKED_283 + '"]');
+    await d.page.locator('[data-staff-unlock="' + LOCKED_283 + '"]').first().click();
+    await d.page.locator('[data-staff-unlock="' + LOCKED_283 + '"]').first().waitFor({ state: "detached" });
+    const call = stubs.calls.filter((c) => c.path === "/api/users/" + LOCKED_283 + "/unlock" && c.method === "POST").pop();
+    if (!call || call.status !== 200) return "the unlock was not sent";
+    return (await d.page.locator('[data-sign-in-state~="locked"]').count()) === 0 ? "" : "someone still reads Locked until";
+  });
+}
+
+// Step 284's screens that Step 278 found broken, against the stub's Step 278 answers, which the API
+// gives (audit/pictures-stub.js), armed with a reload so the capabilities they ask for are read: the
+// chat records search reads its count and its record of searches, a project's Message Board card
+// names its latest post, a quote's Workload plan card lists its current plan, and the training matrix
+// reads Current and Due soon as Gaps does.
+async function step284Screens(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  stubs.setStep278(true);
+  await d.page.reload({ waitUntil: "domcontentloaded" });
+  for (let i = 0; i < 80 && (await d.signedOut()); i++) await wait(250);
+  await check("the chat records search reads its count and the searches recorded", async () => {
+    await go(d, "chat-records", null, "[data-records-search]");
+    await d.page.locator("[data-records-search]").click();
+    await until(d, "[data-records-count]");
+    const call = stubs.calls.filter((c) => c.path === "/api/chat/records").pop();
+    const shown = await d.page.locator("[data-records-count]").getAttribute("data-records-count");
+    if (!call || !call.json || String(call.json.count) !== shown || !call.json.count) return "the count reads " + shown;
+    if ((await d.page.locator("[data-records-result] table tbody tr").count()) !== call.json.count) return "the table does not hold every record";
+    await until(d, "[data-records-log] > div");
+    return stubs.calls.some((c) => c.path === "/api/chat/records/log") ? "" : "the searches were not read from their log";
+  });
+  await check("a project's Message Board card names its latest post", async () => {
+    await go(d, "workspace", ["wp-1"], '[data-tool-card="posts"]');
+    const call = stubs.calls.filter((c) => c.path === "/api/workspace/projects/wp-1").pop();
+    const post = call && call.json && call.json.project && call.json.project.latest && call.json.project.latest.post;
+    if (!post) return "the project's answer carries no latest post";
+    const text = (await d.page.locator('[data-tool-card="posts"]').innerText()) || "";
+    return text.indexOf(post.title) >= 0 ? "" : "the card does not name " + post.title;
+  });
+  await check("a quote's Workload plan card lists its current plan", async () => {
+    await go(d, "quotes", ["qt-9"], '[data-quote-plans] [data-quote-plan="current"]');
+    return "";
+  });
+  await check("the matrix reads Current and Due soon, as Gaps does", async () => {
+    await go(d, "training", ["matrix"], '[data-matrix-legend-item="current"]');
+    const cur = ((await d.page.locator('[data-matrix-legend-item="current"]').innerText()) || "").trim();
+    const soon = ((await d.page.locator('[data-matrix-legend-item="dueSoon"]').innerText()) || "").trim();
+    return cur === d.say("Current|training") && soon === d.say("Due soon|training") ? "" : "the legend reads " + cur + " and " + soon;
+  });
+}
+
 // Step 282's supply requests with many items, against the stub armed with setStep280 (audit/stubs.js):
 // the stub lists a three-line refill first, the list says how many items it holds and names the
 // first, one line is approved at 3 of 5, one denied with a note and the third by Approve all, each
@@ -1461,6 +1612,8 @@ async function runPass(browser, origin, p) {
   if (p.step275) stubs.setStep275(true);
   // Step 280's answers are laid over whichever of those the pass arms.
   if (p.step280) stubs.setStep280(true);
+  // Step 283's sign-in answers are laid over everything else.
+  if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
   const kept = keepSignIn(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
@@ -1470,8 +1623,16 @@ async function runPass(browser, origin, p) {
     await d.page.goto(origin + "/#overview", { waitUntil: "domcontentloaded" });
     if (p.wrongSignIn) await wrongSignIn(d, p, kept);
     try {
-      const r = await signIn(d, p.who);
+      // Step 284: Enter pressed twice sends one sign-in, and through the code screen Remember this
+      // device off keeps the session out of localStorage.
+      const before = kept.logins.length;
+      const r = await signIn(d, p.who, p.step283 ? { enter: true, rememberOff: !!p.secondStep } : {});
       say(!p.secondStep || r.sawCode, p.name, p.secondStep ? "signs in through the code screen" : "signs in", p.secondStep && !r.sawCode ? "no code screen" : "");
+      if (p.step283) say(kept.logins.length - before === 1, p.name, "Enter pressed twice sends one sign-in", kept.logins.length - before === 1 ? "" : (kept.logins.length - before) + " sign-ins were sent");
+      if (p.step283 && p.secondStep) {
+        const kept2 = await d.page.evaluate(() => ({ local: localStorage.getItem("ocsa_auth"), session: sessionStorage.getItem("ocsa_auth") }));
+        say(kept2.local === null && !!kept2.session, p.name, "Remember this device off leaves nothing in localStorage", kept2.local !== null ? "the session is in localStorage" : !kept2.session ? "the session is nowhere" : "");
+      }
     } catch (e) { say(false, p.name, "signs in", e.message); return; }
 
     const items = await navItems(d);
@@ -1549,6 +1710,7 @@ async function runPass(browser, origin, p) {
     if (p.step269) await step269(d, origin, p, stubs);
     if (p.step275) await step275(d, origin, p, stubs);
     if (p.step280) await step280(d, origin, p, stubs);
+    if (p.step283) await step283(d, origin, p, stubs);
 
     // Help, asked one question.
     {
@@ -1568,6 +1730,8 @@ async function runPass(browser, origin, p) {
     }
     // Step 278's answers are laid over the rest once Help has answered as it always has.
     if (p.step278) { stubs.setStep278(true); await step278(d, origin, p, stubs); }
+    // Step 284's screens read the answers Step 278's pictures are taken from.
+    if (p.step283) await step284Screens(d, origin, p, stubs);
   } finally {
     await d.close();
   }

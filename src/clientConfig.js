@@ -22,10 +22,11 @@ const clientConfig = {
     blueDeep: '#0D2C93',
     panelLight: '#15558F',
   },
-  // The staff portal's address, the one the API builds its QR codes and join links from
-  // (STAFF_PORTAL_URL, whose default this is). Help reads the portal's pictures of the screen from it.
+  // The staff portal's address, the one every portal link the API sends is built on (STAFF_PORTAL_URL
+  // as live sets it; Step 284). Help reads the portal's pictures of the screen from it.
+  // REACT_APP_PORTAL_URL still overrides it.
   portal: {
-    url: process.env.REACT_APP_PORTAL_URL || 'https://staff.ocsaco.com',
+    url: process.env.REACT_APP_PORTAL_URL || 'https://ocsa-staff-portal.vercel.app',
   },
   employee: {
     idPrefix: 'OCSA',

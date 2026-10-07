@@ -20,6 +20,27 @@ function withLocale(url) {
 function apiRequest(url, init = {}) {
   return fetch(withLocale(url), { ...init, headers: { ...init.headers, "Accept-Language": getLang() } });
 }
+// What a refusal means for the whole session (Step 284, STEP283_CONTRACT.md section 2), read by every
+// helper below. A 401, and a 403 auth.accountNotActive or auth.inactive, end it: ocsa-session-expired
+// carries the API's words, which the sign-in card shows, and they are the error thrown. A 403
+// auth.mustSetPin fires ocsa-must-set-pin, which draws Choose your PIN and nothing else. The 401 that
+// POST /api/auth/login answers for a wrong phone or PIN and POST /api/auth/second-step for a wrong or
+// expired code are the person's answer refused, and so is change-pin's 401 PIN_INCORRECT for a wrong
+// current PIN: those fire nothing.
+const SIGN_IN_PATHS = ["/api/auth/login", "/api/auth/second-step"];
+const SESSION_ENDS_403 = ["auth.accountNotActive", "auth.inactive"];
+const announce = (name, detail) => { try { window.dispatchEvent(new CustomEvent(name, { detail })); } catch (x) { window.dispatchEvent(new Event(name)); } };
+function sessionRefusal(path, status, e) {
+  const code = e && e.code;
+  if (SIGN_IN_PATHS.indexOf(String(path).split("?")[0]) >= 0) return null;
+  if ((status === 401 && code !== "PIN_INCORRECT") || (status === 403 && SESSION_ENDS_403.indexOf(code) >= 0)) {
+    const words = (e && typeof e.error === "string" && e.error) || tr("Session expired");
+    announce("ocsa-session-expired", { words });
+    return words;
+  }
+  if (status === 403 && code === "auth.mustSetPin") announce("ocsa-must-set-pin", { words: (e && e.error) || "" });
+  return null;
+}
 async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
   const res = await apiRequest(API + "/api/uploads?bucket=" + encodeURIComponent(bucket) + "&ext=" + encodeURIComponent(ext), {
@@ -27,8 +48,7 @@ async function apiUpload(file, bucket, token) {
     headers: { "Authorization": "Bearer " + token, "Content-Type": file.type },
     body: file,
   });
-  if (res.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || tr("Upload failed")); }
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(sessionRefusal("/api/uploads", res.status, e) || e.error || tr("Upload failed")); }
   return res.json();
 }
 // attachment; filename="<code>-<id>.pdf" -> <code>-<id>.pdf. Anything unreadable falls back.
@@ -42,8 +62,7 @@ const filenameFrom = (header, fallback) => {
 // 401 signs out and a refusal arrives with the words the API sent and its status.
 async function apiDownload(path, token, fallbackName) {
   const r = await apiRequest(API + path, { headers: { "Authorization": "Bearer " + token } });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
 // A file the API makes, fetched through apiDownload and handed to the browser to save under the name
@@ -62,24 +81,18 @@ async function saveDownload(path, token, fallbackName, name) {
 // sent, its status and its code.
 async function apiMultipart(path, token, formData) {
   const r = await apiRequest(API + path, { method: "POST", headers: { "Authorization": "Bearer " + token }, body: formData });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
 }
 // A 409 schedule.clearanceMissing (Step 211) is announced as well as thrown, whichever screen sent the
 // call, and the shell draws it with the person's name and a way to their clearances by the userId the
-// refusal carries. A 401 ends the session, except from the two sign-in calls in SIGN_IN_PATHS.
-// POST /api/auth/login answers 401 for a wrong phone or PIN, and POST /api/auth/second-step for a
-// wrong or expired code. Each of those is thrown like any other refusal, with the words the API sent,
-// its status and its code, and fires nothing.
-const SIGN_IN_PATHS = ["/api/auth/login", "/api/auth/second-step"];
+// refusal carries. What a refusal means for the session is sessionRefusal's to say.
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  if (r.status === 401 && SIGN_IN_PATHS.indexOf(path) < 0) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
   if (!r.ok) {
-    const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
+    const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
     if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, userId: e.userId == null ? null : e.userId, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
     throw err;
   }
@@ -96,8 +109,7 @@ async function apiStream(path, opts = {}, onEvent) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const refusal = (status, e) => {
-    if (status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; return err; }
-    const err = new Error((e && e.error) || tr("Request failed")); err.status = status; err.code = e && e.code; err.body = e; return err;
+    const err = new Error(sessionRefusal(path, status, e) || (e && e.error) || tr("Request failed")); err.status = status; err.code = e && e.code; err.body = e; return err;
   };
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
   if (!r.ok) throw refusal(r.status, await r.json().catch(() => ({})));
@@ -129,10 +141,18 @@ async function apiStream(path, opts = {}, onEvent) {
 }
 // The signed-in session, persisted so a refresh or a restored tab does not land on the login card.
 // A stored token is never trusted on its own: AdminDashboard verifies it with GET /api/auth/me first.
+// A sign-in with Remember this device off (Step 284) is kept in sessionStorage, which the browser ends
+// with itself, and nothing of it in localStorage; every other sign-in is kept in localStorage. remember
+// says which one a stored session came from.
 const AUTH_KEY = "ocsa_auth";
-const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!raw) return null; const d = JSON.parse(raw); return d && typeof d.token === "string" && d.token ? d : null; } catch { return null; } };
-const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
-const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
+const readAuthFrom = (store) => { try { const raw = store.getItem(AUTH_KEY); if (!raw) return null; const d = JSON.parse(raw); return d && typeof d.token === "string" && d.token ? d : null; } catch { return null; } };
+const readAuth = () => { const kept = readAuthFrom(window.localStorage); if (kept) return { ...kept, remember: true }; const brief = (() => { try { return readAuthFrom(window.sessionStorage); } catch { return null; } })(); return brief ? { ...brief, remember: false } : null; };
+const writeAuth = (token, user, remember = true) => {
+  const keep = remember !== false;
+  try { (keep ? localStorage : sessionStorage).setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {}
+  try { (keep ? sessionStorage : localStorage).removeItem(AUTH_KEY); } catch {}
+};
+const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} try { sessionStorage.removeItem(AUTH_KEY); } catch {} };
 // The device id every sign-in sends for the second sign-in step (Step 232, Part C; STEP225_CONTRACT.md):
 // made once with crypto.randomUUID() and kept as ocsa-device-id. A browser that refuses storage makes a
 // new one at each sign-in and is simply asked for a code each time. It names the browser and nothing
@@ -748,9 +768,18 @@ export default function AdminDashboard() {
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
   const lkHasOther = useCallback((slug, val) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return false; const v = (cat.values || []).find(x => x.value === val); return v?.show_other_input || false; }, [lookups]);
   // One sign-out path, used by every sign-out control and by an expired session: the stored session,
-  // the token, the person, the bell's unread count and its open panel all go together.
-  const signOut = useCallback(() => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); }, []);
-  useEffect(() => { const h = () => signOut(); window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, [signOut]);
+  // the token, the person, the bell's unread count and its open panel all go together. A session the
+  // API ended (Step 284) passes the API's words, which the sign-in card shows; a sign-out control passes
+  // none. Choose your PIN goes with the session.
+  const [signedOutWords, setSignedOutWords] = useState("");
+  const [mustSetPin, setMustSetPin] = useState(false);
+  const signOut = useCallback((words) => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
+  useEffect(() => { const h = (ev) => signOut(ev && ev.detail && ev.detail.words); window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, [signOut]);
+  // A 403 auth.mustSetPin from any route draws Choose your PIN and nothing else (STEP283_CONTRACT.md
+  // section 1.1), for the person signed in.
+  useEffect(() => { const h = () => setMustSetPin(true); window.addEventListener("ocsa-must-set-pin", h); return () => window.removeEventListener("ocsa-must-set-pin", h); }, []);
+  // Where the session is kept: localStorage, or sessionStorage for a sign-in with Remember this device off.
+  const rememberRef = useRef(true);
   // The active page rides in the URL hash, nothing else does. A refresh reopens the same page and
   // the browser back and forward buttons move between pages. The hash is validated against PAGE_IDS
   // and is not a permission: a page shows exactly what it showed the role before.
@@ -773,13 +802,17 @@ export default function AdminDashboard() {
     (async () => {
       try {
         const r = await apiRequest(API + "/api/auth/me", { headers: { "Authorization": "Bearer " + stored.token } });
-        if (r.status === 401 || r.status === 403) { clearAuth(); return; }
+        // A stored session the API no longer takes lands on the sign-in card with the API's words.
+        if (r.status === 401 || r.status === 403) { const e = await r.json().catch(() => ({})); clearAuth(); if (alive && e && typeof e.error === "string") setSignedOutWords(e.error); return; }
         if (!r.ok) return;
         const d = await r.json();
         const u = d && d.user;
         if (!u || (u.role !== "admin" && u.role !== "supervisor")) { clearAuth(); return; }
         if (!alive) return;
-        writeAuth(stored.token, u);
+        rememberRef.current = stored.remember !== false;
+        writeAuth(stored.token, u, rememberRef.current);
+        // mustSetPin sits beside user on the answer, so a reload lands back on Choose your PIN.
+        setMustSetPin(d.mustSetPin === true);
         setToken(stored.token); setUser(u);
       } catch (e) { console.warn("Session check failed:", e.message); }
       finally { if (alive) setAuthChecking(false); }
@@ -792,23 +825,54 @@ export default function AdminDashboard() {
   // signs in the same way. Until the API sends secondStep, sign-in is what it was. The PIN and the code
   // live only in the form's own fields and are never stored or logged.
   const [second, setSecond] = useState(null);
-  const signedIn = (d) => { if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast(tr("Admin access required"), "error"); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast(tr("Welcome, {0}", d.user.firstName)); };
-  const handleLogin = async (phone, pin) => {
-    setLoading(true);
+  // Sign-in (Step 284, STEP283_CONTRACT.md section 2): the badge number, phone or email goes as
+  // identifier, one sign-in at a time however often Enter is pressed, and every refusal is drawn on the
+  // card in the API's words. From the third wrong try in a row the card adds that sign-in stops for a
+  // while. The login, second-step and /me answers carry mustSetPin beside user; true draws Choose your
+  // PIN. A sign-in through the code screen with Remember this device off is kept in sessionStorage.
+  const signingIn = useRef(false);
+  const [cardSay, setCardSay] = useState(null);
+  const [wrongTries, setWrongTries] = useState(0);
+  const signedIn = (d, remember) => { if (d.user.role !== "admin" && d.user.role !== "supervisor") { setCardSay({ text: tr("Admin access required"), bad: true }); return; } rememberRef.current = remember !== false; writeAuth(d.token, d.user, rememberRef.current); setWrongTries(0); setCardSay(null); setSignedOutWords(""); setMustSetPin(d.mustSetPin === true); setToken(d.token); setUser(d.user); showToast(tr("Welcome, {0}", d.user.firstName)); };
+  const handleLogin = async (identifier, pin) => {
+    if (signingIn.current) return;
+    signingIn.current = true;
+    setLoading(true); setCardSay(null); setSignedOutWords("");
     const deviceId = signInDeviceId();
     try {
-      const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin, deviceId } });
+      const d = await apiFetch("/api/auth/login", { method: "POST", body: { identifier, pin, deviceId } });
+      setWrongTries(0);
       if (d && d.secondStep && d.challengeId) setSecond({ challengeId: d.challengeId, emailHint: d.emailHint ? String(d.emailHint) : "", deviceId, sentAt: Date.now() });
-      else signedIn(d);
-    } catch (e) { showToast(e.message, "error"); }
+      else signedIn(d, true);
+    } catch (e) {
+      if (e.status === 401) setWrongTries(n => n + 1);
+      setCardSay({ text: e.message || tr("Request failed"), bad: true });
+    }
+    signingIn.current = false;
     setLoading(false);
   };
+  // Forgot your PIN? on the card: POST /api/auth/reset/request with what is typed in the first box, and
+  // the API's answer drawn on the card, which reads the same whether or not an account matched.
+  const asking = useRef(false);
+  const forgotPin = async (identifier) => {
+    if (asking.current) return;
+    const v = String(identifier || "").trim();
+    if (!v) { setCardSay({ text: tr("Type your badge number, phone or email first."), bad: true }); return; }
+    asking.current = true; setCardSay(null);
+    try { const d = await apiFetch("/api/auth/reset/request", { method: "POST", body: { identifier: v } }); setCardSay({ text: (d && d.message) || tr("Request sent."), bad: false }); }
+    catch (e) { setCardSay({ text: e.message || tr("Request failed"), bad: true }); }
+    asking.current = false;
+  };
+  // Choose your PIN saved: the new token when the answer carries one (Step 283 ends the other
+  // sessions), and the dashboard goes on.
+  const pinChosen = (d) => { const tok = d && typeof d.token === "string" && d.token ? d.token : token; const u = d && d.user && typeof d.user === "object" ? { ...user, ...d.user } : user; writeAuth(tok, u, rememberRef.current); setToken(tok); setUser(u); setMustSetPin(false); showToast((d && d.message) || tr("Your PIN is saved.")); };
   if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>);
-  if (!token) return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
+  // The card the signed-out screens and Choose your PIN are drawn on.
+  const authCard = (inner) => (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>{tr("Admin Dashboard")}</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />{tr("Connected to Live API")}</div></div>
-        <LoginForm onLogin={handleLogin} loading={loading} t={t} second={second} onSecondDone={d => { setSecond(null); signedIn(d); }} onSecondBack={() => setSecond(null)} />
+        {inner}
       </div>
       <div style={{ marginTop: 18, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{textSizeChoice()}</div>
       <div style={{ marginTop: 14, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{languageChoice()}</div>
@@ -816,7 +880,11 @@ export default function AdminDashboard() {
     </div>
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></ThemeCtx.Provider>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
+  </div></ThemeCtx.Provider>);
+  if (!token) return authCard(<LoginForm onLogin={handleLogin} onForgot={forgotPin} say={cardSay || (signedOutWords ? { text: signedOutWords, bad: true } : null)} wrongTries={wrongTries} loading={loading} t={t} second={second} onSecondDone={(d, remember) => { setSecond(null); signedIn(d, remember); }} onSecondBack={() => setSecond(null)} />);
+  // While the API says mustSetPin, Choose your PIN is all there is, whatever the address names.
+  if (mustSetPin) return authCard(<ChoosePinForm t={t} token={token} onDone={pinChosen} onSignOut={() => signOut()} />);
+  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
   const HsI = p => <Ic d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8" {...p} />;
@@ -1136,18 +1204,56 @@ export default function AdminDashboard() {
   </div></ThemeCtx.Provider>);
 }
 
-function LoginForm({ onLogin, loading, t, second = null, onSecondDone, onSecondBack }) {
+function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
   // The words the code screen came back with (an expired code, too many tries), shown over the PIN.
   const [notice, setNotice] = useState("");
   // The PIN is let go once the code screen opens, so Back asks for it again.
   useEffect(() => { if (second) setPn(""); }, [second]);
-  const go = () => { setNotice(""); onLogin(ph, pn); };
+  // One sign-in at a time: Enter and the button both wait for the one in flight (Step 284).
+  const go = () => { if (loading) return; setNotice(""); onLogin(ph, pn); };
   if (second) return <SecondStepForm t={t} second={second} onDone={onSecondDone} onBack={(words) => { setNotice(words || ""); onSecondBack(); }} />;
-  return (<>{notice ? <div data-signin-notice="" role="alert" style={{ fontSize: 13, color: RD, marginBottom: 16, lineHeight: 1.5 }}>{notice}</div> : null}<div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("Phone or email address")} onKeyDown={e => e.key === "Enter" && go()} /></div>
-    <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && go()} /></div>
-    <button onClick={go} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
+  // What the card says: the code screen's words, or the shell's (a refusal in the API's words, the
+  // reason a session ended, or the answer to Forgot your PIN?).
+  const shown = notice ? { text: notice, bad: true } : say && say.text ? say : null;
+  return (<>{shown ? <div data-signin-notice="" role={shown.bad ? "alert" : "status"} style={{ fontSize: 13, color: shown.bad ? RD : t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{shown.text}</div> : null}<div style={{ marginBottom: 16 }}><Lbl>{tr("Badge Number, Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("9001, 2155550101 or name@email.com")} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} data-signin-identifier="" onKeyDown={e => e.key === "Enter" && go()} /></div>
+    <div style={{ marginBottom: 8 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" inputMode="numeric" autoComplete="current-password" maxLength={4} placeholder={tr("4-digit PIN")} data-signin-pin="" style={{ letterSpacing: pn ? "8px" : "normal", textAlign: "center", fontSize: pn ? 20 : 14 }} onKeyDown={e => e.key === "Enter" && go()} /></div>
+    <div style={{ textAlign: "right", marginBottom: 16 }}><button type="button" onClick={() => onForgot && onForgot(ph)} data-signin-forgot="" style={{ background: "none", border: "none", minHeight: 44, padding: "0 4px", color: t.textSec, fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: FONT_BODY }}>{tr("Forgot your PIN?")}</button></div>
+    {wrongTries >= 3 ? <div data-signin-lock-hint="" style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("After too many wrong tries, sign-in stops for a while. Ask the office for help.")}</div> : null}
+    <button onClick={go} disabled={loading} data-signin-submit="" style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
+
+// Choose your PIN (Step 284, STEP283_CONTRACT.md section 2): drawn in place of everything else while
+// the API says mustSetPin, on the sign-in, second-step or /me answer or a 403 auth.mustSetPin from any
+// route. The new PIN twice, Save and Sign Out. POST /api/auth/change-pin { newPin } asks for no current
+// PIN on a given one; a refusal is drawn in the API's words under the box, and the answer, with the new
+// token when it carries one, is handed to onDone.
+function ChoosePinForm({ t, token, onDone, onSignOut }) {
+  const [pin, setPin] = useState("");
+  const [again, setAgain] = useState("");
+  const [say, setSay] = useState("");
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const save = async () => {
+    if (busyRef.current) return;
+    if (!/^[0-9]{4}$/.test(pin)) { setSay(tr("PIN must be 4 digits")); return; }
+    if (again !== pin) { setSay(tr("Type the same PIN twice.")); return; }
+    busyRef.current = true; setBusy(true); setSay("");
+    try { const d = await apiFetch("/api/auth/change-pin", { method: "POST", token, body: { newPin: pin } }); busyRef.current = false; onDone(d); return; }
+    catch (e) { setSay(e.message || tr("Request failed")); }
+    busyRef.current = false; setBusy(false);
+  };
+  const box = { letterSpacing: "8px", textAlign: "center", fontSize: 20 };
+  return (<div data-choose-pin="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, textAlign: "center", marginBottom: 8 }}>{tr("Choose your PIN")}</div>
+    <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, textAlign: "center", marginBottom: 18 }}>{tr("The PIN you were given is known to the office. Choose your own 4-digit PIN to go on.")}</div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("New PIN (4 digits)")}</Lbl><Inp t={t} autoFocus type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/[^0-9]/g, ""))} aria-label={tr("New PIN (4 digits)")} data-choose-pin-new="" style={box} onKeyDown={e => e.key === "Enter" && save()} /></div>
+    <div style={{ marginBottom: 8 }}><Lbl>{tr("New PIN again")}</Lbl><Inp t={t} type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={again} onChange={e => setAgain(e.target.value.replace(/[^0-9]/g, ""))} aria-label={tr("New PIN again")} data-choose-pin-again="" style={box} onKeyDown={e => e.key === "Enter" && save()} /></div>
+    {say ? <div role="alert" data-choose-pin-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 8, lineHeight: 1.5 }}>{say}</div> : null}
+    <button onClick={save} disabled={busy} data-choose-pin-save="" style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY, marginTop: 10 }}>{busy ? tr("Saving...") : tr("Save")}</button>
+    <div style={{ textAlign: "center", marginTop: 12 }}><button onClick={onSignOut} disabled={busy} data-choose-pin-sign-out="" style={{ background: "none", border: "none", minHeight: 44, padding: "0 8px", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontFamily: FONT_BODY }}>{tr("Sign Out")}</button></div>
+  </div>);
+}
 
 // The code screen of the second sign-in step (STEP225_CONTRACT.md): the six digits emailed to the
 // account, sent by themselves once all six are typed, or with Verify. Send a new code waits 30 seconds
@@ -1174,7 +1280,7 @@ function SecondStepForm({ t, second, onDone, onBack }) {
     busyRef.current = true; setBusy(true); setSay({ text: "", bad: false, left: null });
     try {
       const d = await apiFetch("/api/auth/second-step", { method: "POST", body: { challengeId: second.challengeId, code: c, deviceId: second.deviceId, rememberDevice: remember } });
-      busyRef.current = false; onDone(d); return;
+      busyRef.current = false; onDone(d, remember); return;
     } catch (e) {
       busyRef.current = false;
       if (backToPin(e)) { onBack(e.message); return; }
@@ -1214,7 +1320,9 @@ function SecondStepForm({ t, second, onDone, onBack }) {
 
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
-const DataTable = ({ columns, rows, rowKey, onRowClick, empty = tr("No records found."), footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
+// A table wider than its card scrolls inside the card. Its headers wrap between words when the room
+// runs short, so a long Spanish header does not hold its column wider than what it heads (Step 284).
+const DataTable = ({ columns, rows, rowKey, onRowClick, empty = tr("No records found."), footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "normal", verticalAlign: "bottom", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
 
 const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Showing {0} to {1} of {2}", from, to, total)}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>{tr("Prev")}</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>{tr("Page {0} / {1}", cur, totalPages)}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>{tr("Next")}</button></div></div>; };
 
@@ -1637,6 +1745,20 @@ function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, relo
   </div>);
 }
 
+// A person's sign-in, as every staff answer carries it once the API's Step 283 is live
+// (STEP283_CONTRACT.md section 1.5): signIn { lastSignInAt, mustSetPin, lockedUntil, emailDeliverable }.
+// Locked until a time, On a given PIN and No working email when they hold, then Last signed in or Never
+// signed in. Nothing is drawn for an answer without signIn.
+const signInOf = (p) => (p && p.signIn && typeof p.signIn === "object" ? p.signIn : null);
+const signInWhen = (v) => { const d = new Date(v); return isNaN(d.getTime()) ? "" : d.toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+function SignInState({ t, si }) {
+  const lines = [];
+  if (si.lockedUntil) lines.push({ k: "locked", text: tr("Locked until {0}", signInWhen(si.lockedUntil)), c: RD, strong: true });
+  if (si.mustSetPin === true) lines.push({ k: "given", text: tr("On a given PIN"), c: OR, strong: true });
+  if (si.emailDeliverable === false) lines.push({ k: "email", text: tr("No working email"), c: OR, strong: true });
+  lines.push(si.lastSignInAt ? { k: "last", text: tr("Last signed in {0}", signInWhen(si.lastSignInAt)), c: t.textSec } : { k: "never", text: tr("Never signed in"), c: t.textSec });
+  return <span data-sign-in-state={lines.map(x => x.k).join(" ")} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, lineHeight: 1.4, minWidth: 0 }}>{lines.map(x => <span key={x.k} style={{ color: x.c, fontWeight: x.strong ? 600 : 400 }}>{x.text}</span>)}</span>;
+}
 function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute, devicesOn = false }) {
   // The super admin forgets another office account's trusted devices (Step 232, Part C), once the
   // trusted devices routes answer. The flag is the account's own, as the API sends it.
@@ -1989,9 +2111,22 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const unassign = async (uid, sid) => { if (!window.confirm(tr("Remove this site assignment?"))) return; try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast(tr("Removed|assignment")); openProfile(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const nameOf = (userId) => { const row = staff.find(x => x.id === userId); if (row && row.name) return row.name; if (profile && profile.user && profile.user.id === userId) return (profile.user.firstName || "") + " " + (profile.user.lastName || ""); return ""; };
   const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast(tr("PIN must be 4 digits"), "error"); return; } try { await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(tr("PIN reset for {0}", nameOf(userId).trim())); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
-  // The invite, the reset link and the badge number the API hands out (Step 176 routes).
-  const sendInvite = async (userId) => { setAddedBusy(true); try { await af("/api/users/" + userId + "/invite", { method: "POST" }); showToast(tr("Invite sent.")); } catch (e) { showToast(e.message, "error"); } setAddedBusy(false); };
-  const sendResetLink = async (userId) => { try { await af("/api/users/" + userId + "/send-reset", { method: "POST" }); showToast(tr("Reset link sent.")); } catch (e) { showToast(e.message, "error"); } };
+  // The invite, the reset link and the badge number the API hands out (Step 176 routes). An invite or a
+  // link that did not go answers 422 or 502 with a reason and no error (helpers/invites.js), and the
+  // reason is what is drawn (Step 284).
+  const notSent = (e) => (e && e.body && !e.body.error && typeof e.body.reason === "string" && e.body.reason ? tr("Not sent: {0}", e.body.reason) : (e && e.message) || tr("Request failed"));
+  const sendInvite = async (userId) => { setAddedBusy(true); try { await af("/api/users/" + userId + "/invite", { method: "POST" }); showToast(tr("Invite sent.")); } catch (e) { showToast(notSent(e), "error"); } setAddedBusy(false); };
+  const sendResetLink = async (userId) => { try { await af("/api/users/" + userId + "/send-reset", { method: "POST" }); showToast(tr("Reset link sent.")); } catch (e) { showToast(notSent(e), "error"); } };
+  // Unlock (Step 284): POST /api/users/:id/unlock clears the person's failed sign-ins, offered where
+  // their signIn says lockedUntil; the list and the open profile are read again after.
+  const [unlocking, setUnlocking] = useState("");
+  const unlock = async (userId) => {
+    if (unlocking) return;
+    setUnlocking(String(userId));
+    try { await af("/api/users/" + encodeURIComponent(userId) + "/unlock", { method: "POST", body: {} }); showToast(tr("Sign-in unlocked.")); load(); if (profile && profile.user && String(profile.user.id) === String(userId)) openProfile(userId, profileTab); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setUnlocking("");
+  };
   const generateBadge = async (userId) => { try { await af("/api/users/" + userId + "/badge/generate", { method: "POST" }); openProfile(userId); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   // Copy, and where the browser refuses the clipboard, the PIN shown and selected so it can be
   // copied by hand, with a line of the table's own in place of the browser's.
@@ -2100,8 +2235,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         name={u.firstName + " " + u.lastName}
         idCode={u.employeeId}
         subtitle={roleOf(u.role) + (u.employmentType ? " (" + employmentOf(u.employmentType) + ")" : "")}
-        badges={<Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />}
+        badges={<><Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />{signInOf(u) ? <span style={{ flexBasis: "100%", marginTop: 4 }}><SignInState t={t} si={signInOf(u)} /></span> : null}</>}
         actions={<>
+          {canChange(u) && signInOf(u) && signInOf(u).lockedUntil && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-staff-unlock={u.id} disabled={!!unlocking} onClick={() => unlock(u.id)}>{tr("Unlock")}</Btn>}
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendResetLink(u.id)}>{tr("Send a PIN reset link")}</Btn>}
@@ -2380,6 +2516,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Reset PIN")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Enter a new 4-digit PIN for this staff member.")}</div>
+        {signInOf(profile && profile.user && String(profile.user.id) === String(resetPin) ? profile.user : staff.find(x => String(x.id) === String(resetPin))) ? <div data-reset-pin-also="" style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Reset PIN also unlocks their sign-in and signs them out everywhere. They choose their own PIN at their next sign-in.")}</div> : null}
         <div style={{ marginBottom: 16 }}><Lbl>{tr("New PIN (4 digits)")}</Lbl><Inp t={t} type="password" inputMode="numeric" autoComplete="off" value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setResetPin(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={() => submitResetPin(resetPin)}>{tr("Reset PIN")}</Btn></div>
       </div></Mdl>}
@@ -2438,9 +2575,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
         { header: tr("Phone"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "-" },
-        { header: tr("Status"), render: s => (onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />) },
-        { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleOf(s.role) },
-        { header: tr("Employment"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
+        // Step 284: each person's sign-in under their status once the API's answer carries it, with Unlock
+        // where locked; in the Status column, so the list stays inside its card at 1280.
+        { header: tr("Status"), tdStyle: { minWidth: 110 }, render: s => { const si = signInOf(s); const badge = onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />; return si ? <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><span>{badge}</span><SignInState t={t} si={si} />{si.lockedUntil && canChange(s) ? <button onClick={e => { e.stopPropagation(); unlock(s.id); }} disabled={!!unlocking} data-staff-unlock={s.id} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Unlock")}</button> : null}</div> : badge; } },
+        { header: tr("Role"), tdStyle: { color: t.textSec }, render: s => roleOf(s.role) },
+        { header: tr("Employment"), tdStyle: { color: t.textSec }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
         { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
@@ -3143,8 +3282,10 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>
       </Crd>
 
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
-        {tabs.map(tab => <button key={tab.k} onClick={() => setSiteTab(tab.k)} style={{ padding: "7px 14px", borderRadius: 8, border: siteTab === tab.k ? "1px solid " + GO : "1px solid transparent", background: siteTab === tab.k ? t.goldBg : "transparent", color: siteTab === tab.k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tab.l}</button>)}
+      {/* Each tab keeps its words whole and the strip wraps onto a second row, so a long Spanish tab
+          never runs over its neighbor or past the window (Step 284). */}
+      <div data-site-tabs="" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
+        {tabs.map(tab => <button key={tab.k} onClick={() => setSiteTab(tab.k)} data-site-tab={tab.k} style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 8, border: siteTab === tab.k ? "1px solid " + GO : "1px solid transparent", background: siteTab === tab.k ? t.goldBg : "transparent", color: siteTab === tab.k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tab.l}</button>)}
       </div>
 
       {/* GENERAL INFO TAB */}
@@ -3643,7 +3784,8 @@ function requestClock(state, at, doneWord) {
   if (state === "onTime") return { text: irWhen(at), color: null, state };
   return { text: at ? irWhen(at) : tr("No target"), color: null, state: state || "none" };
 }
-const ClockCell = ({ t, cell, name }) => <span data-request-clock={name} data-due-state={cell.state} style={{ color: cell.color || t.textSec, fontWeight: cell.color ? 600 : 400, whiteSpace: "nowrap" }}>{cell.text}</span>;
+// A clock's words wrap between words, so Client requests stays inside its card at 1280 (Step 284).
+const ClockCell = ({ t, cell, name }) => <span data-request-clock={name} data-due-state={cell.state} style={{ display: "inline-block", minWidth: 96, color: cell.color || t.textSec, fontWeight: cell.color ? 600 : 400 }}>{cell.text}</span>;
 const requestRespond = (r) => requestClock(r.respondState, r.respondBy, tr("Responded|request"));
 const requestDue = (r) => requestClock(r.dueState, r.dueAt, tr("Done|request"));
 const requestWhere = (r) => [r.categoryTitle || r.category, r.area].filter(Boolean).join(", ");
@@ -3912,7 +4054,7 @@ function ClientRequestsTab({ af, t, sites = [], canViewReports = false, route = 
   const columns = [
     { header: tr("Respond"), render: r => <ClockCell t={t} cell={requestRespond(r)} name="respond" /> },
     { header: tr("Due"), render: r => <ClockCell t={t} cell={requestDue(r)} name="due" /> },
-    { header: tr("Request"), tdStyle: { minWidth: 220 }, render: r => <span style={{ fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{requestWhere(r)}</span> },
+    { header: tr("Request"), tdStyle: { minWidth: 170 }, render: r => <span style={{ fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{requestWhere(r)}</span> },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || "--" },
     { header: tr("Status"), render: r => <Bdg l={requestStatusWord(r.status)} c={requestStatusColor(r.status, t)} /> },
     { header: tr("Reports|requests"), align: "right", tdStyle: { color: t.textSec }, render: r => (Number(r.reportsCount) > 1 ? Number(r.reportsCount) : "") },
@@ -4066,6 +4208,17 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
     openedRouteRef.current = routeId;
     openIssue(row || { id: routeId, status: "" });
   }, [routeId, issues, findingsOn]);
+  // On a fresh load the list can answer before the findings probe does, and a ticket opened from its
+  // address then has no view to offer Verify from. It is read whole once the probe answers (Step 284).
+  const selRef = useRef(null); selRef.current = sel;
+  useEffect(() => {
+    if (!findingsOn) return undefined;
+    const cur = selRef.current;
+    if (!cur || cur.id == null) return undefined;
+    let alive = true;
+    af("/api/issues/" + encodeURIComponent(cur.id)).then(d => { if (alive && d && d.issue && selRef.current && String(selRef.current.id) === String(cur.id)) { setView(d.issue); setStatusDraft(d.issue.status || ""); } }).catch(e => console.warn("Issue:", e.message));
+    return () => { alive = false; };
+  }, [findingsOn]);
   const doVerify = async () => {
     if (verifyRef.current || !sel) return;
     verifyRef.current = true; setVerify(v => ({ ...v, busy: true, refusal: "" }));
@@ -4587,14 +4740,16 @@ const wsProjectOf = (p) => {
     role: m.role === "owner" ? "owner" : "member", emailCopies: wsAt(m, "emailCopies", "email_copies") == null ? null : wsAt(m, "emailCopies", "email_copies") !== false,
   })).filter(m => m.id);
   const own = wsAt(p, "emailCopies", "email_copies") != null ? wsAt(p, "emailCopies", "email_copies") : (p.me && typeof p.me === "object" ? wsAt(p.me, "emailCopies", "email_copies") : null);
+  // The API's latest is { post, todo, file }, each the newest one or null (helpers/workspace.js; Step 284).
   const latest = p.latest && typeof p.latest === "object" ? p.latest : {};
   const arr = (...vs) => { for (const v of vs) { if (Array.isArray(v)) return v; } return []; };
+  const one = (v) => (v && typeof v === "object" ? [v] : null);
   return {
     id: String(p.id), name: String(p.name || ""), description: String(p.description || ""), color: wsColor(p.color),
     archived: p.status === "archived" || !!wsAt(p, "archivedAt", "archived_at"),
     members,
     counts: p.counts && typeof p.counts === "object" ? p.counts : {},
-    latest: { posts: arr(latest.posts, p.latestPosts), todos: arr(latest.todos, p.latestTodos), files: arr(latest.files, p.latestFiles), messages: arr(latest.messages, latest.chat, p.latestMessages) },
+    latest: { posts: one(latest.post) || arr(latest.posts, p.latestPosts), todos: one(latest.todo) || arr(latest.todos, p.latestTodos), files: one(latest.file) || arr(latest.files, p.latestFiles), messages: arr(latest.messages, latest.chat, p.latestMessages) },
     // Step 234 v2's project answer carries no latest items, so the cards read them from the tools.
     hasLatest: !!(p.latest || p.latestPosts || p.latestTodos || p.latestFiles),
     myCopies: own == null ? null : own !== false,
@@ -5302,8 +5457,7 @@ const WS_FILE_MAX = 25 * 1024 * 1024;
 // thrown with the API's words, the way apiFetch throws one.
 const wsFetchFile = async (token, f, save) => {
   const r = await apiRequest(API + "/api/workspace/files/" + encodeURIComponent(f.id), { headers: { "Authorization": "Bearer " + (token || "") } });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal("/api/workspace/files", r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; throw err; }
   if ((r.headers.get("Content-Type") || "").indexOf("application/json") >= 0) {
     const d = await r.json().catch(() => ({}));
     const url = d && (d.url || d.signedUrl || d.signed_url);
@@ -5503,7 +5657,7 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
     <Crd t={t} style={{ padding: activity && activity.length ? "4px 16px" : 16 }}>
       {activity === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Activity did not load.")}</div>
         : activity.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing has happened here yet.")}</div>
-        : <div data-project-activity="">{activity.map((a, i) => { const who = wsPerson(wsAt(a, "actor", "user", "actorName", "actor_name"), p.members); return (
+        : <div data-project-activity="">{activity.map((a, i) => { const named = wsAt(a, "actorName", "actor_name"); const who = named ? { id: String(wsAt(a, "actorId", "actor_id") || ""), name: String(named) } : wsPerson(wsAt(a, "actor", "user"), p.members); return (
           <div key={a.id || i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
             <Ini name={(who && who.name) || "?"} sz={28} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -5550,10 +5704,10 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
 // /api/users/me/permissions to name the capability, which no role holds by default. A search by people,
 // a channel, a date range and words reads GET /api/chat/records, every matching message from every
 // kind of channel, oldest first, up to 2,000; Download PDF reads /api/chat/records/pdf with the same
-// filters. Every search and every PDF is recorded, and the screen says so above the search. The
-// contract names no route for that log: the records answer's log is read when it carries one, and
-// otherwise GET /api/activity's chat_records_read and chat_records_pdf rows, which the API lets an
-// admin read.
+// filters. Every search and every PDF is recorded, and the screen says so above the search. The API
+// answers { records, count, more, limit } (helpers/chatRecords.js), and the record of searches is GET
+// /api/chat/records/log, { log: [{ actorName, action, filters, count, createdAt }] }, newest first
+// (Step 284; the activity log it was read from before is an admin's alone).
 const recWhen = (v) => { if (!v) return ""; const d = new Date(v); return isNaN(d.getTime()) ? "" : d.toLocaleString(localeTag(), { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
 const recQuery = (f) => {
   const sp = new URLSearchParams();
@@ -5579,13 +5733,10 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
   useEffect(() => { af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.id != null))).catch(e => console.warn("Channels:", e.message)); }, [af]);
   const people = useMemo(() => (Array.isArray(allStaff) ? allStaff : []).filter(p => p && p.id != null).map(p => ({ id: String(p.id), name: ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || String(p.name || "") })).filter(p => p.name).sort((a, b) => a.name.localeCompare(b.name)), [allStaff]);
   const nameOf = (id) => ((people.find(p => p.id === String(id)) || {}).name) || String(id);
-  const loadLog = useCallback(async (fromAnswer) => {
-    if (Array.isArray(fromAnswer)) { setLog(fromAnswer); setLogFailed(false); return; }
+  const loadLog = useCallback(async () => {
     try {
-      const [a, b] = await Promise.all([af("/api/activity?action_type=chat_records_read&limit=50"), af("/api/activity?action_type=chat_records_pdf&limit=50")]);
-      const rows = [].concat(a && Array.isArray(a.results) ? a.results : [], b && Array.isArray(b.results) ? b.results : []);
-      rows.sort((x, y) => String(wsAt(y, "created_at", "createdAt", "at") || "").localeCompare(String(wsAt(x, "created_at", "createdAt", "at") || "")));
-      setLog(rows.slice(0, 50)); setLogFailed(false);
+      const d = await af("/api/chat/records/log?limit=50");
+      setLog(d && Array.isArray(d.log) ? d.log : []); setLogFailed(false);
     } catch (e) { setLog(null); setLogFailed(true); console.warn("Chat records log:", e.message); }
   }, [af]);
   useEffect(() => { loadLog(); }, [loadLog]);
@@ -5595,9 +5746,9 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
     const qs = recQuery(f);
     try {
       const d = await af("/api/chat/records" + qs);
-      setResult({ messages: wsList(d, "messages") || [], more: !!(d && (d.more || d.truncated)), total: d && d.total != null ? Number(d.total) : null });
+      setResult({ messages: d && Array.isArray(d.records) ? d.records : [], more: !!(d && d.more), total: d && d.count != null ? Number(d.count) : null });
       setRan(qs);
-      loadLog(d && Array.isArray(d.log) ? d.log : undefined);
+      loadLog();
     } catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
@@ -5645,7 +5796,7 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
       </div>
     </Crd>
     {result && <div data-records-result="" style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{trn("{0} messages|count", result.total != null ? result.total : result.messages.length)}</div>
+      <div data-records-count={result.total != null ? result.total : result.messages.length} style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{trn("{0} messages|count", result.total != null ? result.total : result.messages.length)}</div>
       {result.more && <div style={{ fontSize: 12, color: OR, marginBottom: 8 }}>{tr("Only the first 2,000 are shown. Narrow the search to see the rest.")}</div>}
       <DataTable t={t} columns={cols} rows={result.messages} rowKey={m => String(m.id)} empty={tr("No messages match.")} />
     </div>}
@@ -5654,11 +5805,11 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
       {logFailed ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("The record of searches did not load.")}</div>
         : log === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
         : log.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No searches yet.")}</div>
-        : <div data-records-log="">{log.map((r, i) => { const det = r.details || r.metadata || r.meta || {}; const pdfRow = /pdf/.test(String(wsAt(r, "action_type", "actionType", "action") || "")); const cnt = det.count != null ? Number(det.count) : null; return (
+        : <div data-records-log="">{log.map((r, i) => { const pdfRow = /pdf/.test(String(r.action || "")); const cnt = r.count != null ? Number(r.count) : null; return (
           <div key={r.id || i} style={{ padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
-            <div style={{ fontSize: 13, color: t.text }}><span style={{ fontWeight: 600 }}>{String(wsAt(r, "actor_name", "actorName") || wsNameOf(r.actor) || "")}</span> {pdfRow ? tr("downloaded a PDF") : tr("searched")}{cnt != null ? ", " + trn("{0} messages|count", cnt) : ""}</div>
-            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{filtersLine(det.filters || det)}</div>
-            <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{recWhen(wsAt(r, "created_at", "createdAt", "at"))}</div>
+            <div style={{ fontSize: 13, color: t.text }}><span style={{ fontWeight: 600 }}>{String(r.actorName || "")}</span> {pdfRow ? tr("downloaded a PDF") : tr("searched")}{cnt != null ? ", " + trn("{0} messages|count", cnt) : ""}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{filtersLine(r.filters)}</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{recWhen(r.createdAt)}</div>
           </div>); })}</div>}
     </Crd>
   </div>);
@@ -9434,7 +9585,7 @@ function EquipmentRegister({ af, token, t, sites = [], showToast }) {
   const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
   const cols = [
     { header: "", tdStyle: { width: 44 }, render: x => (x.status === "retired" ? null : <label onClick={e => e.stopPropagation()} style={{ ...chkWrap, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><input type="checkbox" aria-label={tr("Tick {0} for labels", x.name || "")} checked={ticked.has(String(x.id))} onChange={() => tick(String(x.id))} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></label>) },
-    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ fontWeight: 600, color: t.text }}>{x.name}</span>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).length ? <div style={{ fontSize: 11, color: t.textMut }}>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div> : null}</span>) },
+    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => { const under = [equipmentCategoryWord(x.category), [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean); return (<span><span style={{ fontWeight: 600, color: t.text }}>{x.name}</span>{under.length ? <div data-equipment-category={x.category || ""} style={{ fontSize: 11, color: t.textMut }}>{under.join(", ")}</div> : null}</span>); } },
     { header: tr("Site"), tdStyle: { color: t.textSec, minWidth: 120 }, render: x => x.siteName || siteName(x.siteId) || "--" },
     { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: x => <EquipmentChip status={x.status} /> },
     { header: tr("Next service"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.nextServiceOn ? <span style={{ color: equipmentDue(x, today) ? RD : t.textSec, fontWeight: equipmentDue(x, today) ? 600 : 400 }}>{keptDay(x.nextServiceOn)}</span> : <span style={{ color: t.textMut }}>--</span>) },
@@ -9468,6 +9619,11 @@ function EquipmentRegister({ af, token, t, sites = [], showToast }) {
 // Add an item, or change one. A refusal is drawn under the box its keys name, and one without keys at
 // the top.
 const EQUIPMENT_FIELDS = ["siteId", "name", "category", "make", "model", "serial", "purchasedOn", "serviceEveryDays", "lastServiceOn", "notes"];
+// An item's type is one of the API's category codes (helpers/equipment.js), which the API sends with no
+// words of its own; anything else it refuses (Step 284). A new item with none is filed as other.
+const EQUIPMENT_CATEGORIES = ["vacuum", "carpet_extractor", "autoscrubber", "floor_machine", "blower_grounds", "pressure_washer", "other"];
+const EQUIPMENT_CATEGORY_WORDS = { vacuum: "Vacuum", carpet_extractor: "Carpet extractor", autoscrubber: "Auto scrubber", floor_machine: "Floor machine", blower_grounds: "Blower or grounds equipment", pressure_washer: "Pressure washer", other: "Other|equipment" };
+const equipmentCategoryWord = (c) => (c && EQUIPMENT_CATEGORY_WORDS[c] ? tr(EQUIPMENT_CATEGORY_WORDS[c]) : c ? String(c) : "");
 function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
   const [f, setF] = useState(() => {
     const x = item || {};
@@ -9485,7 +9641,7 @@ function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
   const save = async () => {
     if (busy || !ready) return;
     setBusy(true); setRefusal({ text: "", keys: [] });
-    const body = { name: f.name.trim(), category: f.category.trim() || null, make: f.make.trim() || null, model: f.model.trim() || null, serial: f.serial.trim() || null, purchasedOn: f.purchasedOn || null, serviceEveryDays: every ? Number(every) : null, notes: f.notes.trim() || null };
+    const body = { name: f.name.trim(), category: f.category || null, make: f.make.trim() || null, model: f.model.trim() || null, serial: f.serial.trim() || null, purchasedOn: f.purchasedOn || null, serviceEveryDays: every ? Number(every) : null, notes: f.notes.trim() || null };
     if (!item) { body.siteId = f.siteId; body.lastServiceOn = f.lastServiceOn || null; }
     try {
       const d = await af("/api/equipment" + (item ? "/" + encodeURIComponent(item.id) : ""), { method: item ? "PATCH" : "POST", body });
@@ -9508,7 +9664,7 @@ function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
     <div style={{ marginBottom: 12 }}>{field("name", tr("Name"), { maxLength: 120, placeholder: tr("e.g. {0}", tr("Floor scrubber 2")) })}</div>
     {!item && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={grid}>
-      {field("category", tr("Type"), { maxLength: 80, placeholder: tr("e.g. {0}", tr("Auto scrubber")) })}
+      <div><Lbl>{tr("Type")}</Lbl><Sel t={t} aria-label={tr("Type")} data-equipment-type="" value={f.category} onChange={e => set("category", e.target.value)} options={(f.category && EQUIPMENT_CATEGORIES.indexOf(f.category) < 0 ? [{ v: f.category, l: f.category }] : []).concat([{ v: "", l: tr("Select...") }], EQUIPMENT_CATEGORIES.map(c => ({ v: c, l: equipmentCategoryWord(c) })))} style={box("category")} />{under("category")}</div>
       {field("make", tr("Make"), { maxLength: 80 })}
       {field("model", tr("Model"), { maxLength: 80 })}
       {field("serial", tr("Serial number"), { maxLength: 80 })}
@@ -9564,7 +9720,7 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
         {x.status !== "retired" && <Btn t={t} v="ghost" onClick={() => setEditing(true)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
-        {fact(tr("Type"), x.category)}
+        {fact(tr("Type"), equipmentCategoryWord(x.category))}
         {fact(tr("Make"), x.make)}
         {fact(tr("Model"), x.model)}
         {fact(tr("Serial number"), x.serial)}
@@ -14048,6 +14204,8 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
   estRef.current = est;
   const calcSeq = useRef(0);
   // The plans taken from this quote, from GET /api/quotes/:id, or null while the answer carries none.
+  // The API answers { quote, plans }, plans beside the quote (routes/quotes.js; Step 284).
+  const plansOf = (d) => (d && Array.isArray(d.plans) ? d.plans : d && d.quote && Array.isArray(d.quote.plans) ? d.quote.plans : null);
   const [plans, setPlans] = useState(null);
   const [planNote, setPlanNote] = useState("");
   const [planBusy, setPlanBusy] = useState(false);
@@ -14055,7 +14213,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
   const [planSame, setPlanSame] = useState(false);
   const planBusyRef = useRef(false);
   const readPlans = useCallback((quoteId) => {
-    af("/api/quotes/" + encodeURIComponent(quoteId)).then(d => { if (d && d.quote && Array.isArray(d.quote.plans)) setPlans(d.quote.plans); }).catch(e => console.warn("Quote plans:", e.message));
+    af("/api/quotes/" + encodeURIComponent(quoteId)).then(d => { const got = plansOf(d); if (got) setPlans(got); }).catch(e => console.warn("Quote plans:", e.message));
   }, [af]);
   // A new quote opened from a site's Workload plan tab starts with that site picked; the client, the
   // site name and the address fill from it on save, as they do for any site picked.
@@ -14083,7 +14241,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
         const q = d && d.quote;
         if (!q) throw new Error(tr("This did not load."));
         setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs));
-        setPlans(Array.isArray(q.plans) ? q.plans : null);
+        setPlans(plansOf(d));
         setCalc({ inputs: q.inputs, results: q.results || {}, taskHours: q.taskHours || {}, checks: q.checks || [], taskDetail: null });
         // The saved quote carries no task detail, so the figures are worked once for the quantities
         // and the counts the Workload step shows.
@@ -14145,7 +14303,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
       if (showToast) showToast(tr("Quote saved."));
       if (isNew) { setQid(q.id); if (onCreated) onCreated(q.id); }
       // A save makes a current plan taken from the quote stale, and the plans are read again.
-      if (Array.isArray(q.plans)) setPlans(q.plans); else readPlans(q.id);
+      if (plansOf(r)) setPlans(plansOf(r)); else readPlans(q.id);
     } catch (e) {
       const keys = quoteKeysOf(e);
       setRefusal({ text: e.message || tr("Request failed"), keys, code: e.code });
@@ -14561,7 +14719,7 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
           <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{tr("Quote defaults")}</div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The starting values every new quote takes. A box left empty takes the model's own value, shown greyed. A quote already made keeps its own values.")}</div>
           {listsOn && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The equipment, supplies and other direct costs lists start every new quote with the rows set here, or with none.")}</div>}
-          {held && held.updatedAt && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{who ? tr("Last saved by {0} on {1}.", who, irWhen(held.updatedAt)) : tr("Last saved on {0}.", irWhen(held.updatedAt))}</div>}
+          {held && held.updatedAt && <div data-quote-defaults-saved="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{oneStop(who ? tr("Last saved by {0} on {1}.", who, irWhen(held.updatedAt)) : tr("Last saved on {0}.", irWhen(held.updatedAt)))}</div>}
         </div>
         <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
       </div>
@@ -15299,19 +15457,20 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
 
 // Trusted devices (Step 232, Part C; STEP225_CONTRACT.md): the browsers this office account entered a
 // code on in the last 30 days, each with when it was first and last seen and what browser it is, and
-// Forget all my devices, after which each one asks for a code at its next sign-in. The contract names
-// the route and its table and gives no answer shape, so the list is read as { devices: [...] }, the
-// shape the API's other lists take, with each device's fields in camel or snake case. Any other
-// answer, a bare list included, is no answer, so nothing shows until the route is the one built.
+// Forget all my devices, after which each one asks for a code at its next sign-in. The API answers
+// { devices: [{ id, browser, firstSeenAt, lastSeenAt, expiresAt }] } (helpers/secondStep.js), browser
+// being its own reading of the browser, such as Chrome on Windows (Step 284). A row with no browser
+// and a user agent is read from the agent. Any other answer, a bare list included, is no answer.
 const trustedDevicesOf = (d) => {
   const list = d && !Array.isArray(d) && Array.isArray(d.devices) ? d.devices : null;
   if (!list) return null;
   return list.filter(x => x && typeof x === "object").map((x, i) => ({
     id: x.id != null ? String(x.id) : "device-" + i,
-    firstSeen: x.trustedAt || x.trusted_at || x.firstSeen || x.first_seen || null,
-    lastSeen: x.lastSeenAt || x.last_seen_at || x.lastSeen || x.last_seen || null,
+    firstSeen: x.firstSeenAt || x.first_seen_at || x.trustedAt || x.trusted_at || null,
+    lastSeen: x.lastSeenAt || x.last_seen_at || null,
     until: x.expiresAt || x.expires_at || null,
-    agent: String(x.userAgent || x.user_agent || x.browser || ""),
+    browser: typeof x.browser === "string" && x.browser.trim() ? x.browser.trim() : "",
+    agent: String(x.userAgent || x.user_agent || ""),
   }));
 };
 // A browser's own description, read down to its name and what it runs on: Chrome on Android.
@@ -15340,7 +15499,7 @@ function TrustedDevices({ af, t, showToast }) {
   };
   const day = (v) => (v ? irDay(v) : "--");
   const cols = [
-    { header: tr("Browser"), tdStyle: { minWidth: 140, fontWeight: 600, color: t.text }, render: x => browserOf(x.agent) },
+    { header: tr("Browser"), tdStyle: { minWidth: 140, fontWeight: 600, color: t.text }, render: x => x.browser || browserOf(x.agent) },
     { header: tr("First seen"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.firstSeen) },
     { header: tr("Last seen"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.lastSeen) },
     { header: tr("Remembered until"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.until) },
@@ -15996,6 +16155,9 @@ const irSentLine = (d) => tr("Sent again: {0} and {1}, {2}.",
   (d && d.attached) ? tr("with the PDF attached") : tr("with a link to the app"));
 const irWhen = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
+// A sentence that ends on a time or a short month ends in one period: a Spanish time ends in p.m.
+// and a Spanish short month in a period of its own, so the sentence's period would make two (Step 284).
+const oneStop = (x) => String(x).replace(/\.{2,}$/, ".");
 
 // ===== PHOTOS ON A FORM (Step 165) =====
 // A photos question carries the photos the API holds for it, [{ id, name, bytes, uploadedAt }], and
@@ -19730,8 +19892,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         body: fd,
       });
       if (resp.status === 401) {
-        window.dispatchEvent(new Event("ocsa-session-expired"));
-        throw new Error(tr("Session expired"));
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(sessionRefusal("/api/jotform/pdf-bulk-upload", 401, e) || tr("Session expired"));
       }
       if (!resp.ok) {
         const errBody = await resp.json().catch(() => ({}));
@@ -19898,7 +20060,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     const url = API +
       "/api/jotform/submissions/" + submissionId + "/pdf?action=" + action;
     const r = await apiRequest(url, { headers: { "Authorization": "Bearer " + token } });
-    if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
+    if (r.status === 401) { const e = await r.json().catch(() => ({})); throw new Error(sessionRefusal("/api/jotform/submissions", 401, e) || tr("Session expired")); }
     // Session 24: 202 means PDF not yet captured by email ingestion (still pending)
     if (r.status === 202) {
       const body = await r.json().catch(() => ({}));
@@ -23619,7 +23781,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
     { header: tr("Per site"), tdStyle: { color: t.textSec }, render: tp => (tp.perSite ? tr("Yes") : "") },
     { header: tr("Safety critical"), render: tp => (tp.safetyCritical ? <Bdg l={tr("Safety critical")} c={RD} /> : null) },
     { header: tr("Course link"), render: tp => (courseLinkOf(tp.linkUrl) ? <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a> : null) },
-    { header: tr("Who it is for"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 160 }, render: tp => topicWhoLine(tp) || <span style={{ color: t.textMut }}>{tr("Nobody yet")}</span> },
+    { header: tr("Who it is for"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: tp => topicWhoLine(tp) || <span style={{ color: t.textMut }}>{tr("Nobody yet")}</span> },
   ];
   const arrow = { minHeight: 44, minWidth: 44, padding: "0 10px", background: "none", border: "1px solid " + t.border, borderRadius: R.sm, color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
   const orderColumn = (g) => ({ header: tr("Order|topic"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: tp => {
@@ -24188,8 +24350,9 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
 // cell. Download CSV saves format=csv; Print gives the grid on landscape letter paper with the day.
 // Management reads it; a supervisor is held to their own sites, which the Site choice lists from the
 // assignments GET /api/auth/me answers.
+// The same words Gaps reads for the same codes (Step 284).
 const MATRIX_STATUSES = [
-  { v: "current", l: "Done|training" }, { v: "dueSoon", l: "Expires soon" }, { v: "refresherDue", l: "Refresher due" },
+  { v: "current", l: "Current|training" }, { v: "dueSoon", l: "Due soon|training" }, { v: "refresherDue", l: "Refresher due" },
   { v: "missing", l: "Missing|training" }, { v: "expired", l: "Expired|training" }, { v: "inProgress", l: "In progress|training" }, { v: "awaitingTrainer", l: "Waiting for trainer" },
 ];
 const matrixStatusWord = (s) => { const x = MATRIX_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };
