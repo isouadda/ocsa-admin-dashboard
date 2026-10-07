@@ -973,7 +973,7 @@ export default function AdminDashboard() {
   // A row of the More menu, the row the user menu draws.
   const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
 
-  return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
     {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
         closed again by a pick, by its own close button and by Escape. */}
@@ -1208,7 +1208,7 @@ export default function AdminDashboard() {
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} />}
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></ThemeCtx.Provider>);
+  </div></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
@@ -1325,6 +1325,106 @@ function SecondStepForm({ t, second, onDone, onBack }) {
   </div>);
 }
 
+// ===== PERSON PICKER (Step 291) =====
+// Everywhere a person is chosen, one control with the forms' Search by name behavior (Step 187). Closed,
+// it is a field the height of a select drawing the choice. Pressed, it opens a box that searches by
+// name, badge number or employee ID over a list of 44 pixel rows, at most twelve at a time, narrowed as
+// the person types, and it opens empty every time. The list's row with no person (All Staff,
+// Unassigned, Nobody yet) is its first row until something is typed. With nobody on the list it says
+// so, with nobody matching what is typed it says that, and with more than twelve it says how many more
+// typing narrows. It takes the options a Sel took, { v, l }, and calls onChange the way a select does,
+// with { target: { value } }, so a screen sends exactly what it always sent. An option may carry hint,
+// drawn after the name, and group, drawn as a heading over its rows. A person's badge number and
+// employee ID are read from the option (badge, employeeId) or else from the shell's people, PeopleCtx,
+// by the option's id. Escape, a press outside and a pick close it.
+const PeopleCtx = createContext([]);
+const personKeysOf = (p) => ({ badge: String((p && (p.badgeNumber || p.badge_number || p.badge)) || ""), employeeId: String((p && (p.employeeId || p.employee_id)) || "") });
+const PICK_ROWS = 12;
+function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", ...rest }) {
+  const { borderColor, fontSize, ...wrapStyle } = style || {};
+  const known = useContext(PeopleCtx);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const boxRef = useRef(null);
+  const fieldRef = useRef(null);
+  const keys = useMemo(() => { const m = {}; [].concat(known || [], people || []).forEach(p => { if (p && p.id != null) m[String(p.id)] = personKeysOf(p); }); return m; }, [known, people]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("touchstart", away);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("touchstart", away); };
+  }, [open]);
+  const aria = rest["aria-label"] || placeholder || tr("Choose a person");
+  const blank = options.find(o => String(o.v) === "");
+  const rows = options.filter(o => String(o.v) !== "");
+  const want = value == null ? "" : String(value);
+  const current = options.find(o => String(o.v) === want);
+  const needle = q.trim().toLowerCase();
+  const keyOf = (o) => (o.badge != null || o.employeeId != null ? { badge: String(o.badge || ""), employeeId: String(o.employeeId || "") } : (keys[String(o.v)] || { badge: "", employeeId: "" }));
+  const hitOf = (o) => {
+    if (!needle || String(o.l || "").toLowerCase().indexOf(needle) >= 0) return "name";
+    const k = keyOf(o);
+    if (k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) return "badge";
+    if (k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0) return "id";
+    return "";
+  };
+  const found = rows.map(o => ({ o, hit: hitOf(o) })).filter(x => x.hit);
+  const shown = found.slice(0, PICK_ROWS);
+  const pick = (v) => { setOpen(false); setQ(""); if (onChange) onChange({ target: { value: v } }); setTimeout(() => { if (fieldRef.current) fieldRef.current.focus(); }, 0); };
+  const onKey = (e) => {
+    if (e.key === "Escape") { e.stopPropagation(); setOpen(false); if (fieldRef.current) fieldRef.current.focus(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (shown.length > 0) pick(shown[0].o.v); }
+  };
+  const row = { display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 44, padding: "8px 12px", textAlign: "left", border: "none", borderBottom: "1px solid " + t.border, background: "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" };
+  const note = { padding: "10px 12px", fontSize: 12, color: t.textMut };
+  const label = current ? current.l : (placeholder || (blank ? blank.l : tr("Choose a person")));
+  const { "aria-label": _a, ...attrs } = rest;
+  let group = null;
+  return (<div ref={boxRef} data-person-pick="" {...attrs} style={{ position: "relative", width: "100%", ...wrapStyle }} onKeyDown={open ? onKey : undefined}>
+    <button ref={fieldRef} type="button" data-person-pick-field="" aria-label={aria} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => (open ? setOpen(false) : (setQ(""), setOpen(true)))}
+      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + (borderColor || (open ? GO : t.inputBorder)), background: t.inputBg, color: current && String(current.v) !== "" ? t.text : t.textSec, fontSize: fontSize || 13, fontFamily: FONT_BODY, textAlign: "left", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.6 : 1 }}>
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      <Ic d="M6 9l6 6 6-6" sz={14} c={t.textMut} />
+    </button>
+    {open && <div data-person-pick-box="" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: 0, zIndex: 60, background: t.card, border: "1px solid " + t.border, borderRadius: 10, boxShadow: t.popShadow, padding: 8 }}>
+      <Inp t={t} autoFocus aria-label={aria} data-person-pick-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={{ minHeight: 44, fontSize: 13 }} />
+      <div role="listbox" aria-label={aria} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
+        {blank && !needle && <button type="button" role="option" aria-selected={want === ""} data-person-pick-option="" onClick={() => pick("")} style={{ ...row, color: t.textSec }}>{blank.l}</button>}
+        {shown.map(({ o, hit }) => {
+          const k = hit === "badge" || hit === "id" ? keyOf(o) : null;
+          const head = o.group && o.group !== group ? o.group : null;
+          if (o.group) group = o.group;
+          return (<Fragment key={String(o.v)}>
+            {head && <div data-person-pick-group="" style={{ padding: "8px 12px 4px", fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", background: t.cardAlt }}>{head}</div>}
+            <button type="button" role="option" aria-selected={String(o.v) === want} data-person-pick-option={String(o.v)} onClick={() => pick(o.v)} style={{ ...row, fontWeight: String(o.v) === want ? 600 : 400 }}
+              onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+              <span style={{ flex: 1, minWidth: 0 }}>{o.l}{k ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{hit === "badge" ? tr("Badge {0}", k.badge) : tr("Employee ID {0}", k.employeeId)}</span> : null}</span>
+              {o.hint ? <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{o.hint}</span> : null}
+            </button>
+          </Fragment>);
+        })}
+        {rows.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one is on this list.")}</div>}
+        {rows.length > 0 && needle && found.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one matches.")}</div>}
+        {found.length > shown.length && <div data-person-pick-more="" style={note}>{tr("{0} more. Type to narrow the list.", found.length - shown.length)}</div>}
+      </div>
+    </div>}
+  </div>);
+}
+// The same search for a list a screen draws itself (Step 291): a person matches what is typed by name,
+// or by badge number or employee ID, read from the person or else from the shell's people by id.
+function usePersonFind() {
+  const known = useContext(PeopleCtx);
+  const keys = useMemo(() => { const m = {}; (known || []).forEach(p => { if (p && p.id != null) m[String(p.id)] = personKeysOf(p); }); return m; }, [known]);
+  return useCallback((p, name, q) => {
+    const needle = String(q || "").trim().toLowerCase();
+    if (!needle || String(name || "").toLowerCase().indexOf(needle) >= 0) return true;
+    const own = personKeysOf(p);
+    const id = p && (p.id != null ? p.id : p.userId);
+    const k = own.badge || own.employeeId ? own : (keys[String(id)] || own);
+    return (!!k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) || (!!k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0);
+  }, [keys]);
+}
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
 // A table wider than its card scrolls inside the card. Its headers wrap between words when the room
@@ -3507,7 +3607,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
         {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v, crit: v ? addTask.crit : false })} />}
         {critLive && addTask.touch && <CriticalToggle t={t} on={addTask.crit} onChange={v => setAddTask({ ...addTask, crit: v })} />}
-        <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><PersonPick t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask}>{tr("Create")}</Btn></div></div></Mdl>}
 
       {/* EDIT TASK MODAL */}
@@ -3816,7 +3916,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
       {under("start")}
       {mode === "approve" && <div data-request-approve-form="" style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 12 }}>
         <Lbl>{tr("Assign to")}</Lbl>
-        <Sel t={t} aria-label={tr("Assign to")} value={assignee} onChange={e => setAssignee(e.target.value)} options={assignees.map(a => ({ v: String(a.id), l: a.name + (a.onShift ? " (" + tr("On shift") + ")" : "") }))} />
+        <PersonPick t={t} aria-label={tr("Assign to")} value={assignee} onChange={e => setAssignee(e.target.value)} options={assignees.map(a => ({ v: String(a.id), l: a.name + (a.onShift ? " (" + tr("On shift") + ")" : "") }))} />
         {assignees.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginTop: 6 }}>{tr("Nobody is assigned to this site yet.")}</div>}
         {under("approve")}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
@@ -4204,7 +4304,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><Sel t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
@@ -4491,13 +4591,14 @@ function TagPicker({ af, t, channelId, onPick, onClose }) {
       .catch(e => { setFailed(true); console.warn("Members:", e.message); });
   }, [af, channelId]);
   useEffect(() => { load(); }, [load]);
-  const shown = (members || []).filter(m => !q.trim() || String(m.name || "").toLowerCase().includes(q.trim().toLowerCase()));
+  const find = usePersonFind();
+  const shown = (members || []).filter(m => find(m, m.name, q));
   return (<div role="dialog" aria-label={tr("Tag someone")} data-tag-picker style={{ position: "absolute", left: 16, right: 16, bottom: 64, maxWidth: 360, maxHeight: 320, display: "flex", flexDirection: "column", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 20 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 8px 8px 14px", borderBottom: "1px solid " + t.border }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, flex: 1 }}>{tr("Tag someone")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={16} c={t.textMut} /></button>
     </div>
-    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
+    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
     <div style={{ overflowY: "auto", padding: "0 6px 6px" }}>
       {failed && <LoadFailed t={t} onRetry={load} />}
       {!failed && members === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
@@ -4559,7 +4660,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose }) {
     <div style={{ maxHeight: "calc(100vh / var(--zoom, 1) - 300px)", minHeight: 160, overflowY: "auto" }}>
       {failed && <LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} />}
       {!failed && list === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
-      {!failed && list !== null && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>}
+      {!failed && list !== null && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>}
       {!failed && groups.map(g => (g.rows.length === 0 ? null : <div key={g.key} data-new-message-group={g.key}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{g.label}</div>
         {g.rows.map(p => (<button key={p.userId} onClick={() => onPick(p)} disabled={!!starting} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: starting ? "default" : "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
@@ -4678,13 +4779,13 @@ function WsAvatars({ t, members = [], max = 5, sz = 26 }) {
 // owner. meId marks the caller.
 function WsPeoplePicker({ t, people, chosen, onToggle, owners = null, onOwner, meId = "" }) {
   const [q, setQ] = useState("");
-  const needle = q.trim().toLowerCase();
-  const shown = (people || []).filter(p => !needle || p.name.toLowerCase().includes(needle));
+  const find = usePersonFind();
+  const shown = (people || []).filter(p => find(p, p.name, q));
   return (<div>
-    <Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search people")} aria-label={tr("Search people")} style={{ marginBottom: 8 }} />
+    <Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search people")} style={{ marginBottom: 8 }} />
     <div data-people-picker="" style={{ maxHeight: 260, overflowY: "auto", border: "1px solid " + t.border, borderRadius: R.md }}>
       {people === null ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
-        : shown.length === 0 ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>
+        : shown.length === 0 ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{people.length === 0 ? tr("No one is on this list.") : tr("No one matches.")}</div>
         : shown.map((p, i) => { const on = chosen.indexOf(p.id) >= 0; return (
           <div key={p.id} style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, padding: "0 8px", borderTop: i ? "1px solid " + t.border : "none" }}>
             <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, flex: 1, minWidth: 0, minHeight: 44, cursor: "pointer" }}>
@@ -5630,7 +5731,8 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
     setBusy("");
   };
   const needle = who.trim().toLowerCase();
-  const matches = needle ? people.filter(p => f.userIds.indexOf(p.id) < 0 && p.name.toLowerCase().includes(needle)).slice(0, 8) : [];
+  const find = usePersonFind();
+  const matches = needle ? people.filter(p => f.userIds.indexOf(p.id) < 0 && find(p, p.name, needle)).slice(0, 8) : [];
   const filtersLine = (x) => {
     const g = x && typeof x === "object" ? x : {};
     const ids = Array.isArray(g.userIds) ? g.userIds : String(g.userIds || "").split(",").filter(Boolean);
@@ -5650,7 +5752,8 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
     <Crd t={t} style={{ marginBottom: 14 }}>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("People")}</Lbl>
         {f.userIds.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>{f.userIds.map(id => <button key={id} onClick={() => set("userIds", f.userIds.filter(x => x !== id))} aria-label={tr("Remove {0}", nameOf(id))} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "4px 12px", borderRadius: R.pill, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.text, fontSize: 12, cursor: "pointer" }}>{nameOf(id)} <XI sz={12} c={t.textMut} /></button>)}</div>}
-        <Inp t={t} value={who} onChange={e => setWho(e.target.value)} placeholder={tr("Search people")} aria-label={tr("Search people")} />
+        <Inp t={t} value={who} onChange={e => setWho(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search people")} />
+        {needle && matches.length === 0 && <div data-records-people-none="" style={{ padding: "10px 4px", fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>}
         {matches.length > 0 && <div data-records-people="" style={{ border: "1px solid " + t.border, borderRadius: R.md, marginTop: 4 }}>{matches.map(p => <button key={p.id} onClick={() => { set("userIds", f.userIds.concat([p.id])); setWho(""); }} style={{ display: "block", width: "100%", minHeight: 44, padding: "6px 12px", textAlign: "left", border: "none", background: "transparent", color: t.text, fontSize: 13, cursor: "pointer" }}>{p.name}</button>)}</div>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
@@ -6025,7 +6128,8 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
     if (a.type === "users") return tr("Chosen people") + " (" + (Array.isArray(a.userIds) ? a.userIds.length : 0) + ")";
     return tr("Everyone");
   };
-  const people = allStaff.filter(p => { const n = ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || ""; return !pq.trim() || n.toLowerCase().includes(pq.trim().toLowerCase()); });
+  const find = usePersonFind();
+  const people = allStaff.filter(p => find(p, ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "", pq));
   const nameOf = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
   const errLine = (k) => (errors[k] ? <div style={{ fontSize: 12, color: RD, marginTop: 4 }}>{errors[k]}</div> : null);
   const choice = (v, l) => (<button key={v} onClick={() => setAud(v)} aria-pressed={aud === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (aud === v ? GO : t.border), background: aud === v ? t.goldBg : "transparent", color: aud === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
@@ -6055,13 +6159,13 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
           {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ minHeight: 44 }} />}
           {aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
           {aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
-            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
+            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
             <div style={{ maxHeight: 220, overflowY: "auto" }}>
               {people.map(p => { const on = userIds.indexOf(p.id) >= 0; return (<label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 6px", cursor: "pointer", fontSize: 13, color: t.text }}>
                 <input type="checkbox" checked={on} onChange={() => setUserIds(ids => (on ? ids.filter(x => x !== p.id) : [...ids, p.id]))} style={{ width: 18, height: 18 }} />
                 <span style={{ flex: 1 }}>{nameOf(p)}</span>{p.role && <span style={{ fontSize: 11, color: t.textMut }}>{roleOf(p.role)}</span>}
               </label>); })}
-              {people.length === 0 && <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{tr("No staff match that search")}</div>}
+              {people.length === 0 && <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{allStaff.length === 0 ? tr("No one is on this list.") : tr("No staff match that search")}</div>}
             </div>
           </div>}
           {errLine("audience")}
@@ -6968,7 +7072,7 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [], lkMap }) {
         </div>
       </div>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={tr("Add a person to {0}", ariaName)} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: tr("Add a person") }, ...opts]} /></div>
+        <div style={{ flex: 1, minWidth: 180 }}><PersonPick t={t} aria-label={tr("Add a person to {0}", ariaName)} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: tr("Add a person") }, ...opts]} /></div>
         <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>
       {allowEmail && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
@@ -9376,7 +9480,7 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
     </div>
     {refusal.text && known.length === 0 && <div role="alert" data-ppe-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     {!userId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
-      <Sel t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((people || []).map(p => ({ v: String(p.id), l: ppePersonName(p) })))} style={box("userId")} />{under("userId")}</div>}
+      <PersonPick t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((people || []).map(p => ({ v: String(p.id), l: ppePersonName(p) })))} style={box("userId")} />{under("userId")}</div>}
     {!siteId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
       <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF(p => ({ ...p, siteId: e.target.value, supplyId: p.supplyId === PPE_TYPED ? PPE_TYPED : "" }))} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Item")}</Lbl>
@@ -10462,7 +10566,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <Sel t={t} value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: tr("All Buildings") }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
       <Sel t={t} value={filters.floor_number} onChange={e => updateFilter("floor_number", e.target.value)} options={[{ v: "", l: tr("All Floors") }, ...floors.map(f => ({ v: f, l: tr("Floor {0}", f) }))]} style={{ flex: 1, minWidth: 90 }} />
       <Sel t={t} value={filters.zone} onChange={e => updateFilter("zone", e.target.value)} options={[{ v: "", l: tr("All Zones") }, ...zones.map(z => ({ v: z, l: zoneWord[z] || z }))]} style={{ flex: 1, minWidth: 100 }} />
-      <Sel t={t} value={filters.user_id} onChange={e => updateFilter("user_id", e.target.value)} options={[{ v: "", l: tr("All Staff") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <PersonPick t={t} value={filters.user_id} onChange={e => updateFilter("user_id", e.target.value)} options={[{ v: "", l: tr("All Staff") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
       <Sel t={t} value={filters.status} onChange={e => updateFilter("status", e.target.value)} options={[{ v: "", l: tr("All Status") }, { v: "pending", l: tr("Pending") }, { v: "in_progress", l: tr("In Progress") }, { v: "resolved", l: tr("Resolved") }, { v: "unable_to_resolve", l: tr("Unable to Resolve") }]} style={{ flex: 1, minWidth: 110 }} />
       {hasFilters && <button onClick={clearFilters} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>{tr("View All")}</button>}
     </div>
@@ -10501,7 +10605,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
     {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><Sel t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><PersonPick t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
@@ -10510,7 +10614,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder={tr("e.g. 1")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder={tr("e.g. Offices")} /></div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Assign To *")}</Lbl><Sel t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder={tr("Step-by-step instructions or notes...")} rows={3} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video (optional)")}</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
@@ -11146,7 +11250,7 @@ function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, on
 
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-      <Sel t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("All people") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <PersonPick t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("All people") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
       <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
       <div style={{ display: "flex", gap: 6 }}>{statusBtn("active", "Active|pattern")}{statusBtn("ended", "Ended|pattern")}{statusBtn("all", "All|patterns")}</div>
     </div>
@@ -11318,7 +11422,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{statusBtn("requested", "Requested|request")}{statusBtn("approved", "Approved|request")}{statusBtn("denied", "Denied|request")}{statusBtn("cancelled", "Cancelled|request")}{statusBtn("all", "All|requests")}</div>
-      <Sel t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("Everyone") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <PersonPick t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("Everyone") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
     </div>
     {status === "requested" && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr(TIME_OFF_ORDER_NOTE)}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading time off...")}</div>}
@@ -11379,7 +11483,6 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   const [inspForm, setInspForm] = useState({ assigned_to: "", scheduled_date: "" });
   const [schedSupervisors, setSchedSupervisors] = useState([]);
   const [pickupDetail, setPickupDetail] = useState(null);
-  const [pickerSearch, setPickerSearch] = useState("");
   const [patternError, setPatternError] = useState("");
   const [patternConflictId, setPatternConflictId] = useState("");
   const [patternSkipped, setPatternSkipped] = useState(null);
@@ -11505,7 +11608,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     if (!needle) return true;
     const first = s.firstName || s.first_name || "";
     const last = s.lastName || s.last_name || "";
-    return [first, last, (first + " " + last).trim(), s.name, s.employeeId || s.employee_id].some(f => String(f || "").toLowerCase().includes(needle));
+    return [first, last, (first + " " + last).trim(), s.name, s.employeeId || s.employee_id, s.badgeNumber || s.badge_number].some(f => String(f || "").toLowerCase().includes(needle));
   };
 
   // An admin's list carries each person's site assignments. A supervisor's comes from the HR summary
@@ -11519,6 +11622,22 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     let list = filterSite ? staffList.filter(s => s.role === "admin" || atSite(s)) : staffList.filter(s => s.role !== "admin");
     if (searchStaff) list = list.filter(s => staffSearchMatch(s, searchStaff));
     return list;
+  })();
+  // Schedule Shift's one picker (Step 291): everyone active, office accounts too, whatever the page's
+  // own search and site filter hold. With a Site picked in the window, the people assigned there come
+  // first under that heading and everyone else below, each with their role. The window's site is read
+  // the way the page's is: from each person's sites, or from the site's record for a list without them.
+  const [windowSitePeople] = useSitePeople(af, createModal && peopleLackSites ? createForm.siteId : "");
+  const assignedTo = (s, sid) => (Array.isArray(s.sites) ? s.sites.some(x => x && String(x.siteId) === String(sid)) : !!(windowSitePeople && windowSitePeople.has(String(s.id))));
+  const shiftPickOptions = (() => {
+    const sid = createForm.siteId;
+    const nameOf = (s) => s.name || ((s.firstName || "") + " " + (s.lastName || "")).trim();
+    const optOf = (s, group) => ({ v: s.id, l: nameOf(s), hint: s.role ? (staffRoleShown[s.role] || roleWord(s.role)) : "", group });
+    const everyone = staffList.filter(s => s && s.id != null && s.role !== "client_contact");
+    const blank = { v: "", l: tr("Select staff...") };
+    if (!sid) return [blank].concat(everyone.map(s => optOf(s)));
+    const here = everyone.filter(s => assignedTo(s, sid));
+    return [blank].concat(here.map(s => optOf(s, tr("Assigned to this site"))), everyone.filter(s => !assignedTo(s, sid)).map(s => optOf(s, tr("Everyone else"))));
   })();
 
   // The week grid draws a row for anybody with something on it over the visible week: the roster
@@ -11550,7 +11669,6 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     const sId = filterSite || "";
     setCreateForm({ userId: userId || "", siteId: sId, startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
     if (sId) loadSiteLocations(sId);
-    setPickerSearch("");
     setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     setCreateModal({ date, userId });
   };
@@ -11793,20 +11911,10 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>{tr("Scheduling for")} {fmtShortDate(createModal.date)}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} aria-label={tr("Site")} data-schedule-shift-site="" value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff Member *")}</Lbl>
-        <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder={tr("Search staff")} style={{ marginBottom: 6, fontSize: 12 }} />
-        {(() => {
-          const matches = staffForSite.filter(s => staffSearchMatch(s, pickerSearch));
-          const picked = createForm.userId ? staffForSite.find(s => String(s.id) === String(createForm.userId)) : null;
-          const opts = picked && !matches.includes(picked) ? [picked, ...matches] : matches;
-          const noMatch = pickerSearch.trim().length > 0 && matches.length === 0;
-          return (<>
-            {(!noMatch || opts.length > 0) && <Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...opts.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} />}
-            {noMatch && <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No staff match that search")}</div>}
-          </>);
-        })()}
+        <PersonPick t={t} aria-label={tr("Staff Member")} data-schedule-shift-staff="" value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={shiftPickOptions} />
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Start Time *")}</Lbl><Inp t={t} type="time" value={createForm.startTime} onChange={e => setCreateForm({ ...createForm, startTime: e.target.value })} /></div>
         <div><Lbl>{tr("End Time *")}</Lbl><Inp t={t} type="time" value={createForm.endTime} onChange={e => setCreateForm({ ...createForm, endTime: e.target.value })} /></div>
@@ -11852,7 +11960,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Start Time")}</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
@@ -11914,7 +12022,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
         <Bdg l={inspStatusWord[inspModal.status || "scheduled"] || inspModal.status} c={inspModal.status === "completed" ? GR : BL} />
       </div>
-      <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+      <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
       <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -11942,7 +12050,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><Sel t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+          <div style={{ flex: 1 }}><PersonPick t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
           <Btn t={t} onClick={async () => {
             if (!pickupDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
             try {
@@ -12030,6 +12138,15 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const [shiftDetail, setShiftDetail] = useState(null);
   const [siteStaff, setSiteStaff] = useState([]);
   const staffName = (s) => s.name || ((s.first_name || s.firstName || "") + " " + (s.last_name || s.lastName || "")).trim() || "Unknown";
+  // Reassign (Step 291): the people the shift's site record lists come first under that heading, and
+  // everyone else active below, admins left out as before, so nobody else is out of reach of the search.
+  const reassignOptions = (() => {
+    const here = new Set(siteStaff.map(st => String(st.id || st.user_id)));
+    const atSite = siteStaff.length > 0 && siteStaff.length < staff.filter(st => st.role !== "admin").length;
+    const rest = staff.filter(st => st.role !== "admin" && !here.has(String(st.id)));
+    if (!atSite) return staff.filter(st => st.role !== "admin").map(st => ({ v: st.id, l: staffName(st) }));
+    return siteStaff.map(st => ({ v: st.id || st.user_id, l: staffName(st), group: tr("Assigned to this site") })).concat(rest.map(st => ({ v: st.id, l: staffName(st), group: tr("Everyone else") })));
+  })();
   const openDetail = async (s) => {
     setShiftDetail({ ...s });
     setSiteStaff([]);
@@ -12625,7 +12742,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: siteStaff.length > 0 ? tr("Staff at this site...") : tr("Select staff member...") }, ...(siteStaff.length > 0 ? siteStaff : staff.filter(s => s.role !== "admin")).map(s => ({ v: s.id || s.user_id, l: staffName(s) }))]} /></div>
+            <div style={{ flex: 1 }}><PersonPick t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }].concat(reassignOptions)} /></div>
             <Btn t={t} onClick={async () => {
               if (!shiftDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
               try {
@@ -13203,7 +13320,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
           <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
             <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -13569,7 +13686,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
           <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -13580,7 +13697,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={scheduleInspection}>{tr("Schedule|verb")}</Btn></div>
       </div></Mdl>}
@@ -17141,7 +17258,8 @@ function FormPersonPicker({ t, name, value, onChange, people = [], disabled = fa
   }, [af, capped, needle]);
   const active = remote || people.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active"));
   const searching = capped && !!needle && !(found && found.q === needle);
-  const matches = (capped && needle ? (found && found.q === needle ? found.people : []) : (needle ? active.filter(u => formPersonName(u).toLowerCase().indexOf(needle) !== -1) : active)).slice(0, 12);
+  const find = usePersonFind();
+  const matches = (capped && needle ? (found && found.q === needle ? found.people : []) : (needle ? active.filter(u => find(u, formPersonName(u), needle)) : active)).slice(0, 12);
   const row = { display: "block", width: "100%", minHeight: 44, padding: "10px 12px", textAlign: "left", border: "none", borderBottom: "1px solid " + t.border, background: "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" };
   if (picked && !open) {
     return (<div data-person-picked="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -17150,7 +17268,7 @@ function FormPersonPicker({ t, name, value, onChange, people = [], disabled = fa
     </div>);
   }
   return (<div data-person-picker="">
-    <Inp t={t} aria-label={name} placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} disabled={disabled} style={{ minHeight: 44 }} />
+    <Inp t={t} aria-label={name} placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} disabled={disabled} style={{ minHeight: 44 }} />
     {!disabled && <div role="listbox" aria-label={name} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
       {matches.map(u => <button key={String(u.id)} role="option" aria-selected={false} onClick={() => { onChange({ id: u.id, name: formPersonName(u) }); setOpen(false); setQ(""); }} style={row}
         onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>{formPersonName(u)}{u.role ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{roleWord(u.role)}</span> : null}</button>)}
@@ -18171,7 +18289,7 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
             <button onClick={() => writeRecipients(recipients.filter((x, i) => i !== idx), delivery)} disabled={busy === "recipients"} aria-label={tr("Remove {0}", recipientName(r))} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Remove")}</button>
           </div>))}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-            <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={tr("Add a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Add a person") }, ...staffOptions]} /></div>
+            <div style={{ flex: 1, minWidth: 180 }}><PersonPick t={t} aria-label={tr("Add a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Add a person") }, ...staffOptions]} /></div>
             <Btn t={t} onClick={() => writeRecipients(recipients.concat([{ userId: pick, viaEmail: true, viaInApp: true }]), delivery)} disabled={busy === "recipients" || !pick} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
@@ -22232,8 +22350,8 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
       <select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={selSt}><option value="">{tr("Every step")}</option>{WARNING_STEPS.map(s => <option key={s} value={s}>{warningStepWord(s, steps.steps)}</option>)}</select>
       <select aria-label={tr("Category")} value={f.category} onChange={e => set("category", e.target.value)} style={selSt}><option value="">{tr("Every category")}</option>{steps.categories.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select>
       <select aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} style={selSt}><option value="">{tr("All sites")}</option>{(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-      <select aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} style={selSt}><option value="">{tr("Everyone")}</option>{people.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>
-      {isAdmin && <select aria-label={tr("Issued by")} value={f.issuedBy} onChange={e => set("issuedBy", e.target.value)} style={selSt}><option value="">{tr("Issued by anyone")}</option>{office.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>}
+      <PersonPick t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Everyone") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={{ width: 200, fontSize: 12 }} />
+      {isAdmin && <PersonPick t={t} aria-label={tr("Issued by")} value={f.issuedBy} onChange={e => set("issuedBy", e.target.value)} options={[{ v: "", l: tr("Issued by anyone") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={{ width: 200, fontSize: 12 }} />}
       <select aria-label={tr("Status")} value={f.status} onChange={e => set("status", e.target.value)} style={selSt}><option value="">{tr("All statuses")}</option>{["open", "closed", "rescinded"].map(s => <option key={s} value={s}>{warningStatusWord(s)}</option>)}</select>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("From")}<Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={e => set("from", e.target.value)} style={{ width: 150 }} /></label>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("To")}<Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={e => set("to", e.target.value)} style={{ width: 150 }} /></label>
@@ -22284,14 +22402,14 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
       <Lbl>{tr("About whom")}</Lbl>
       {f.subjects.map(id => <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: t.text, marginBottom: 4 }}><span style={{ flex: 1, minWidth: 0 }}>{byId(id) ? nameOf(byId(id)) : id}</span><Btn t={t} v="ghost" onClick={() => set("subjects", f.subjects.filter(x => x !== id))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Remove")}</Btn></div>)}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("About whom")} value={f.pick} onChange={e => set("pick", e.target.value)} options={[{ v: "", l: tr("Optional. Choose a person") }].concat(people.filter(p => f.subjects.indexOf(String(p.id)) < 0 && !(me && String(me.id) === String(p.id))).map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("subjectUserIds")} /></div>
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}><PersonPick t={t} aria-label={tr("About whom")} value={f.pick} onChange={e => set("pick", e.target.value)} options={[{ v: "", l: tr("Optional. Choose a person") }].concat(people.filter(p => f.subjects.indexOf(String(p.id)) < 0 && !(me && String(me.id) === String(p.id))).map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("subjectUserIds")} /></div>
         <Btn t={t} v="ghost" onClick={() => { if (f.pick) setF(p => ({ ...p, subjects: p.subjects.concat([p.pick]), pick: "" })); }} disabled={!f.pick} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>
       {under("subjectUserIds")}
     </div>
-    <div style={{ marginBottom: 12 }}><Lbl>{tr("On behalf of")}</Lbl><Sel t={t} aria-label={tr("On behalf of")} value={f.onBehalfOf} onChange={e => set("onBehalfOf", e.target.value)} options={[{ v: "", l: tr("Optional. A staff member who reported it in person") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("onBehalfOf")} />{under("onBehalfOf")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("On behalf of")}</Lbl><PersonPick t={t} aria-label={tr("On behalf of")} value={f.onBehalfOf} onChange={e => set("onBehalfOf", e.target.value)} options={[{ v: "", l: tr("Optional. A staff member who reported it in person") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("onBehalfOf")} />{under("onBehalfOf")}</div>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Is this about someone in management?")}</Lbl><Sel t={t} aria-label={tr("Is this about someone in management?")} value={f.aboutManagement} onChange={e => set("aboutManagement", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} style={box("aboutManagement")} />{under("aboutManagement")}</div>
-    <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned to")}</Lbl><Sel t={t} aria-label={tr("Assigned to")} value={f.assignedTo} onChange={e => set("assignedTo", e.target.value)} options={[{ v: "", l: tr("Nobody yet") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("assignedTo")} />{under("assignedTo")}</div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned to")}</Lbl><PersonPick t={t} aria-label={tr("Assigned to")} value={f.assignedTo} onChange={e => set("assignedTo", e.target.value)} options={[{ v: "", l: tr("Nobody yet") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("assignedTo")} />{under("assignedTo")}</div>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
       <Btn t={t} onClick={send} disabled={busy || !f.summary.trim() || !f.aboutManagement} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Open a case")}</Btn>
@@ -22437,7 +22555,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         </div>
         <div style={{ marginTop: 12 }}><Lbl>{tr("Hand to")}</Lbl>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <Sel t={t} aria-label={tr("Hand to")} value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
+            <PersonPick t={t} aria-label={tr("Hand to")} value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
             <Btn t={t} onClick={() => handChosen && holdSave(handChosen.id)} disabled={holdBusy || !handChosen} style={{ whiteSpace: "nowrap" }}>{tr("Hand over")}</Btn>
           </div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("They will get an email. The email carries no case text.")}</div>
@@ -22454,7 +22572,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved|case")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.resolvedAt ? ff(detail.resolvedAt) : "-"}</div></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={CASE_STATUSES.map(v => ({ v, l: statusLabel[v] }))} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><Sel t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><PersonPick t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Resolution notes")}</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>{tr("Close")}</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : tr("Save changes")}</Btn></div>
       <div><Lbl>{tr("Access log")}</Lbl>
@@ -22577,7 +22695,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // The Employee field of either window: the folder's person, held, or the picker.
   const employeeField = (opts) => (fixedUser && String(form.user_id) === String(fixedUser.id)
     ? <Inp t={t} readOnly aria-label={tr("Employee")} data-fixed-employee="" value={fixedUser.label} />
-    : <Sel options={[{ v: "", l: tr("Select employee...") }, ...opts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} />);
+    : <PersonPick options={[{ v: "", l: tr("Select employee...") }, ...opts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} />);
   // Each of these shows a choice or picks one by its code, so each reads the choice's displayLabel.
   const docTypeMap = lkMap("document_types", true);
   const trainingTypeMap = lkMap("training_types", true);
@@ -22741,7 +22859,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         ))}
         {tab !== "employees" && tab !== "signatures" && !(tab === "training" && trCur !== "records") && (
           <div style={{ marginLeft: "auto", minWidth: 200 }}>
-            <Sel options={staffOpts} value={selUser} onChange={e => setSelUser(e.target.value)} t={t} />
+            <PersonPick options={staffOpts} value={selUser} onChange={e => setSelUser(e.target.value)} t={t} />
           </div>
         )}
       </div>
@@ -23166,7 +23284,9 @@ const trainingGivenIn = (rows) => (rows || []).map((r) => trainingLanguageOf(r.n
 
 // A person as the HR routes send one, which a supervisor may read, in the shape the staff list's
 // readers know: id, first and last name, the two joined, role and status.
-const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", lastName: e.last_name || "", name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role, status: e.status });
+// Step 291: the badge number and employee ID ride along, so a picker built from this list finds a
+// person by either.
+const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", lastName: e.last_name || "", name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role, status: e.status, employeeId: e.employee_id || "", badgeNumber: e.badge_number || "" });
 // The people GET /api/users answers, for whoever is signed in. The route is an admin's (manage_staff).
 // When the API refuses it, a 403 and nothing else, the active people are read from the HR employees
 // summary, which a supervisor may call, each mapped through hrPerson and kept to what the query asked
@@ -23294,7 +23414,8 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
   };
   const needle = q.trim().toLowerCase();
   // A site's people are held to the active list as well, which leaves out anyone the list leaves out.
-  const listed = (people || []).filter((p) => (!siteId || (atSite && atSite.has(p.id))) && (!needle || p.name.toLowerCase().indexOf(needle) >= 0));
+  const find = usePersonFind();
+  const listed = (people || []).filter((p) => (!siteId || (atSite && atSite.has(p.id))) && find(p, p.name, needle));
   const allListedPicked = listed.length > 0 && listed.every((p) => picked.has(p.id));
   const toggle = (id) => setPicked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const pickListed = () => setPicked((prev) => { const next = new Set(prev); listed.forEach((p) => next.add(p.id)); return next; });
@@ -23407,7 +23528,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
           <div data-session-field="day"><div style={field}>{tr("Completed Date")}</div>
             <Inp t={t} type="date" aria-label={tr("Completed Date")} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={tall} />{badLine("day")}</div>
           {topicsLive ? <div data-session-field="trainerId"><div style={field}>{tr("Trainer")}</div>
-            <Sel t={t} aria-label={tr("Trainer")} options={[{ v: "", l: tr("Type a name") }].concat((people || []).map((p) => ({ v: p.id, l: p.name })))} value={trainerId} onChange={(e) => setTrainerId(e.target.value)} style={tall} />
+            <PersonPick t={t} aria-label={tr("Trainer")} options={[{ v: "", l: tr("Type a name") }].concat((people || []).map((p) => ({ v: p.id, l: p.name })))} value={trainerId} onChange={(e) => setTrainerId(e.target.value)} style={tall} />
             {!trainerId && <Inp t={t} aria-label={tr("Trainer's name")} placeholder={tr("Trainer's name")} value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} style={{ ...tall, marginTop: 8 }} />}
             {badLine("trainerId")}{badLine("administeredBy")}
           </div> : <div><div style={field}>{tr("Administered By")}</div>
@@ -23420,7 +23541,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
         <div data-session-field="people"><div style={field}>{tr("Who attended")}</div>
           <Sel t={t} aria-label={tr("Who attended")} options={[{ v: "", l: tr("Everyone active") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={tall} />
           {badLine("siteId")}
-          <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
+          <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" onClick={pickListed} style={tall}>{tr("Select all")}</Btn>}
             {picked.size > 0 && <Btn t={t} v="ghost" onClick={() => setPicked(new Set())} style={tall}>{tr("Clear selection")}</Btn>}
@@ -23428,7 +23549,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
           </div>
           <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden" }}>
             {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
-              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
+              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : siteId ? tr("No staff assigned") : tr("No one is on this list.")}</div>
               : listed.map((p) => <label key={p.id} data-session-person={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, cursor: "pointer" }}>
                 <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
                 <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
@@ -24034,7 +24155,7 @@ function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
       {bad("person:" + p.id) && <div role="alert" data-who-refusal="" style={{ fontSize: 12, color: RD }}>{bad("person:" + p.id)}</div>}
     </div>)}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><PersonPick t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
       <Btn t={t} v="ghost" disabled={!pick} onClick={addPerson}>{tr("Add|person")}</Btn>
     </div>
     <div role="status" style={{ fontSize: 12, color: count > 30 ? RD : t.textMut, marginTop: 10 }}>{tr("{0} of 30 rows", count)}</div>
@@ -25212,7 +25333,8 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
     return cats.map(c => ({ key: c.key, name: c.name, topics: list.filter(tp => topicCategoryKey(tp) === c.key).slice().sort(byTopicOrder) })).filter(g => g.topics.length > 0);
   }, [topics, cats]);
   const needle = q.trim().toLowerCase();
-  const listed = (people || []).filter(p => (!siteId || (atSite && atSite.has(p.id))) && (!role || p.role === role) && (!needle || p.name.toLowerCase().indexOf(needle) >= 0));
+  const find = usePersonFind();
+  const listed = (people || []).filter(p => (!siteId || (atSite && atSite.has(p.id))) && (!role || p.role === role) && find(p, p.name, needle));
   const allListedPicked = listed.length > 0 && listed.every(p => picked.has(p.id));
   const toggleIn = (set, id) => (prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-assign-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
@@ -25265,7 +25387,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
             <Sel t={t} aria-label={tr("Site")} data-assign-site="" options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} value={siteId} onChange={e => setSiteId(e.target.value)} style={tall} />
             <Sel t={t} aria-label={tr("Role")} data-assign-role="" options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} value={role} onChange={e => setRole(e.target.value)} style={tall} />
-            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
+            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" data-assign-select-all="" onClick={() => setPicked(prev => { const next = new Set(prev); listed.forEach(p => next.add(p.id)); return next; })} style={tall}>{tr("Select all")}</Btn>}
@@ -25274,7 +25396,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
           </div>
           <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, maxHeight: 280, overflowY: "auto" }}>
             {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
-              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
+              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : siteId ? tr("No staff assigned") : role ? tr("No one matches these filters.") : tr("No one is on this list.")}</div>
               : listed.map(p => <label key={p.id} data-assign-person={p.id} style={rowStyle}>
                 <input type="checkbox" checked={picked.has(p.id)} onChange={() => setPicked(toggleIn(picked, p.id))} style={tickStyle} />
                 <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{p.name}</span>
@@ -25933,7 +26055,7 @@ function DocumentWhoMustSign({ af, t, doc, reqs, isAdmin = false, people = [], o
       {bad("person:" + p.id)}
     </div>)}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><PersonPick t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
       <Btn t={t} v="ghost" disabled={!pick} onClick={addPerson}>{tr("Add|person")}</Btn>
     </div>
     <div role="status" style={{ fontSize: 12, color: count > 30 ? RD : t.textMut, marginTop: 10 }}>{tr("{0} of 30 rows", count)}</div>
