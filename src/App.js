@@ -22789,6 +22789,54 @@ const localInputOf = (v) => { const x = new Date(v); const p = (n) => String(n).
 const fileDataUrl = (file) => new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => reject(new Error(tr("This file could not be read."))); fr.readAsDataURL(file); });
 const caseFileWhy = (f) => (CASE_FILE_TYPES.indexOf(f.type) < 0 && !/\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(f.name || "") ? tr("{0} is not a JPEG, PNG, WebP or HEIC picture or a PDF.", f.name) : f.size > CASE_FILE_MAX_BYTES ? tr("{0} is over 10 MB.", f.name) : "");
 
+// Print case (Step 300): the case's details and its whole log on paper, each entry numbered with its
+// kind, who wrote it and when, Happened, who it was with, the correction it is or the one below it, its
+// text, and its files listed by name. The company is named by the settings rule. The window is opened in
+// the press, so a pop-up blocker lets it through; false when the browser would not open it.
+const CASE_PRINT_STYLE = "<style>.entry{border-top:1px solid #ccc;padding:8px 0;page-break-inside:avoid}.eh{display:flex;justify-content:space-between;gap:12px;font-size:12px}"
+  + ".eh span{color:#555}.el{font-size:11px;color:#444;margin:3px 0 0}.eb{white-space:pre-wrap;font-size:12px;line-height:1.5;margin:5px 0 0}.ef{font-size:11px;color:#333;margin:4px 0 0}</style>";
+async function printCase({ af, detail, statusLabel }) {
+  const w = keptWindow();
+  if (!w) return false;
+  const company = await sheetCompanyFor(af);
+  const updates = caseLogUpdates(detail) || [];
+  const numberOf = {};
+  updates.forEach((u, i) => { numberOf[String(u.id)] = i + 1; });
+  const field = (l, v) => "<tr><th>" + keptEsc(l) + "</th><td>" + keptEsc(v) + "</td></tr>";
+  const subjects = (Array.isArray(detail.subjects) ? detail.subjects : []).map(caseLogWho).filter(Boolean).join(", ") || caseLogWho(detail.subject);
+  const line = (text, attr) => '<div class="el"' + (attr || "") + ">" + keptEsc(text) + "</div>";
+  const entry = (u, i) => {
+    const who = caseLogWho(u.createdBy);
+    const withWho = caseLogWith(u);
+    const target = u.kind === "correction" && u.correctsId != null ? updates.find(x => String(x.id) === String(u.correctsId)) : null;
+    const corrected = (Array.isArray(u.correctedBy) ? u.correctedBy : []).map(id => numberOf[String(id)]).filter(Boolean);
+    const detailLine = caseLogDetail(u, statusLabel);
+    const files = (Array.isArray(u.attachments) ? u.attachments : []).map(a => a.name || tr("File|case log"));
+    return '<div class="entry" data-case-print-entry="' + keptEsc(u.id) + '"><div class="eh"><b>' + (i + 1) + ". " + keptEsc(caseKindWord(u.kind) || u.kindName || u.kind) + "</b><span>" + keptEsc([who, irWhen(u.createdAt)].filter(Boolean).join(", ")) + "</span></div>"
+      + (caseLogHappened(u) ? line(tr("Happened {0}", irWhen(u.occurredAt))) : "")
+      + (withWho ? line(tr("With {0}|case log", withWho)) : "")
+      + (u.kind === "correction" ? line((target ? tr("Correction to the entry of {0}", irWhen(caseLogWhenOf(target))) : tr("Correction to an earlier entry")) + (target ? " (" + tr("entry {0}", numberOf[String(target.id)]) + ")" : "")) : "")
+      + (corrected.length ? line(tr("Corrected below") + " (" + corrected.map(n => tr("entry {0}", n)).join(", ") + ")") : "")
+      + (detailLine ? line(detailLine) : "")
+      + (u.body ? '<div class="eb">' + keptEsc(u.body) + "</div>" : "")
+      + (files.length ? '<div class="ef">' + keptEsc(tr("Files: {0}", files.join(", "))) + "</div>" : "")
+      + "</div>";
+  };
+  const html = '<div class="kept"><div class="hd"><div><div class="co">' + keptEsc(company) + '</div><div class="ti">' + keptEsc(tr("Case")) + '</div><div class="code">' + keptEsc(tr("Received {0}", irWhen(detail.createdAt))) + "</div></div>"
+    + '<div class="meta">' + keptEsc(tr("Status")) + ": " + keptEsc(statusLabel[detail.status] || detail.status || "") + "<br>" + keptEsc(tr("Printed on {0}", keptDay(todayISO()))) + "</div></div>"
+    + "<h2>1. " + keptEsc(tr("Details")) + '</h2><table class="f"><tbody>'
+    + field(tr("Held by"), caseLogWho(detail.assignedTo) || tr("Nobody yet")) + field(tr("Reported by"), caseLogWho(detail.reportedBy) || "-") + field(tr("Subject named"), subjects || tr("No"))
+    + field(tr("Escalated to"), caseLogWho(detail.escalatedTo) || "-") + field(tr("Responded|case"), detail.firstResponseAt ? irWhen(detail.firstResponseAt) : "-") + field(tr("Last updated"), detail.updatedAt ? irWhen(detail.updatedAt) : "-")
+    + field(tr("Resolved|case"), detail.resolvedAt ? irWhen(detail.resolvedAt) : "-") + "</tbody></table>"
+    + "<h2>2. " + keptEsc(tr("Summary")) + '</h2><div class="eb">' + keptEsc(detail.summary || "") + "</div>"
+    + "<h2>3. " + keptEsc(tr("Case log")) + "</h2>" + (updates.length ? updates.map(entry).join("") : '<div class="note">' + keptEsc(tr("Nothing has been added yet.")) + "</div>")
+    + '<div class="ft">' + keptEsc([company, tr("Case"), tr("Printed on {0}", keptDay(todayISO()))].join(" . ")) + "</div></div>";
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(tr("Case")) + "</title>" + KEPT_STYLE + CASE_PRINT_STYLE + "</head><body>" + html + "</body></html>");
+  w.document.close();
+  setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
+  return true;
+}
+
 function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, showToast, onAdded }) {
   const byId = {};
   updates.forEach(u => { byId[String(u.id)] = u; });
@@ -23091,7 +23139,10 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Case")}</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Received {0}", ff(detail.createdAt))}</span></div></div>
-        <button onClick={closeCase} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {caseLogUpdates(detail) && <Btn t={t} v="ghost" onClick={async () => { if (!(await printCase({ af, detail, statusLabel }))) showToast(tr("Allow pop-ups to print the case"), "error"); }} data-case-print="" style={{ whiteSpace: "nowrap" }}>{tr("Print case")}</Btn>}
+          <button onClick={closeCase} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+        </div>
       </div>
       {(() => { const k = clockInfo(detail); return (
       <div style={{ marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
