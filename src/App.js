@@ -1656,7 +1656,7 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     try {
       const d = await af("/api/users/" + encodeURIComponent(userId) + "/employment/" + mode, { method: "POST", body });
       const restored = mode === "rehire" && d && Array.isArray(d.restoredSites) ? d.restoredSites.length : 0;
-      if (showToast) showToast(d && d.changed === false ? tr("Reason recorded.") : restored > 0 ? trn("Rehired. {0} sites restored.|count", restored) : tr("Employment updated."));
+      if (showToast) showToast(withWelcome(d && d.changed === false ? tr("Reason recorded.") : restored > 0 ? trn("Rehired. {0} sites restored.|count", restored) : tr("Employment updated."), d));
       onSaved(d);
     } catch (e) { const site = siteOf(e); setRefusal({ text: e.message || tr("Request failed"), field: site ? "" : fieldOf(e), siteId: site }); }
     savingRef.current = false; setSaving(false);
@@ -1881,6 +1881,14 @@ const welcomeOf = (p) => {
 };
 const welcomeWent = (w) => !!(w && w.status === "sent");
 const welcomeWhy = (w) => (w && typeof w.reason === "string" && w.reason.trim() ? w.reason.trim() : tr("no reason was given"));
+// What a control that makes an account active adds to its toast (STEP292_CONTRACT.md 2.3): Welcome
+// email sent. when the answer's welcome went, the reason when it did not, and nothing when the answer
+// carries no welcome.
+const withWelcome = (said, d) => {
+  const w = d && d.welcome;
+  if (!w) return said;
+  return said + " " + (welcomeWent(w) ? tr("Welcome email sent.") : tr("Welcome email not sent: {0}", welcomeWhy(w)));
+};
 function SignInState({ t, si, welcome }) {
   const lines = [];
   if (si.lockedUntil) lines.push({ k: "locked", text: tr("Locked until {0}", signInWhen(si.lockedUntil)), c: RD, strong: true });
@@ -1926,7 +1934,19 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Step 232: the open person's employment, once GET /api/users/:id/employment answers, and the
   // window open on it.
   const [employment, setEmployment] = useState(null); const [empWin, setEmpWin] = useState(null);
-  const loadEmployment = (id) => { af("/api/users/" + encodeURIComponent(id) + "/employment").then(d => setEmployment(employmentAnswerOf(d))).catch(e => { setEmployment(null); console.warn("Employment:", e.message); }); };
+  // Step 293: a read the API refuses says the API's own sentence under Employment, and one that fails
+  // says so with Try again; a 404 (no such route or person) still draws nothing.
+  const [employmentSaid, setEmploymentSaid] = useState(null);
+  const loadEmployment = (id) => {
+    setEmploymentSaid(null);
+    af("/api/users/" + encodeURIComponent(id) + "/employment").then(d => setEmployment(employmentAnswerOf(d))).catch(e => {
+      setEmployment(null); console.warn("Employment:", e.message);
+      const st = e && e.status;
+      if (st === 404) return;
+      if (st >= 400 && st < 500 && e.body && e.body.error) setEmploymentSaid({ id, text: e.message, again: false });
+      else setEmploymentSaid({ id, text: tr("Employment could not be loaded. Try again."), again: true });
+    });
+  };
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
   // Step 243 review: whether the API keeps an account in French, read once from GET /api/languages.
   const frenchKept = useFrenchKept(af);
@@ -1981,7 +2001,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // The employment types a form offers. Each choice sends the code it always sent.
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
-  const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(tr("Approved")); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const approve = async id => { try { const d = await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(withWelcome(tr("Approved"), d)); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), email: made.email || addForm.email || "", tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false, welcome: d && d.welcome !== undefined ? d.welcome : undefined }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
@@ -1993,7 +2013,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       loadEmployment(id);
     } catch (e) { showToast(e.message, "error"); }
   };
-  const closeProfile = () => { setProfile(null); setProfileEdit(null); setEmployment(null); setEmpWin(null); if (onRoute && route[0] && route[0] !== "roster") onRoute([]); };
+  const closeProfile = () => { setProfile(null); setProfileEdit(null); setEmployment(null); setEmploymentSaid(null); setEmpWin(null); if (onRoute && route[0] && route[0] !== "roster") onRoute([]); };
   // Step 232: #staff/<id>, from HR Records' Employment card, opens that person's profile, and
   // #staff/<id>/assign opens it on Assignments.
   const routeId = route[0] && route[0] !== "roster" ? String(route[0]) : "";
@@ -2180,7 +2200,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     setTimeout(() => { w.print(); }, 500);
   };
 
-  const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); closeProfile(); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const updateStatus = async (id, s) => { try { const d = await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast(withWelcome(tr("Updated"), d)); closeProfile(); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const assignSite = async () => { if (!assignForm.siteId) { showToast(tr("Select a site"), "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast(tr("Assigned")); setAssignForm(null); openProfile(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const unassign = async (uid, sid) => { if (!window.confirm(tr("Remove this site assignment?"))) return; try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast(tr("Removed|assignment")); openProfile(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const nameOf = (userId) => { const row = staff.find(x => x.id === userId); if (row && row.name) return row.name; if (profile && profile.user && profile.user.id === userId) return (profile.user.firstName || "") + " " + (profile.user.lastName || ""); return ""; };
@@ -2357,6 +2377,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* INFO TAB */}
       {profileTab === "info" && <div>
+        {!employment && employmentSaid && String(employmentSaid.id) === String(u.id) && <Crd t={t} style={{ marginBottom: 16, padding: 16 }}><div data-employment-said={employmentSaid.again ? "failed" : "refused"}>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Employment")}</div>
+          <div role="alert" style={{ fontSize: 13, color: employmentSaid.again ? RD : t.text, marginTop: 8, lineHeight: 1.5 }}>{employmentSaid.text}{employmentSaid.again ? <button onClick={() => loadEmployment(u.id)} data-employment-again="" style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Try again")}</button> : null}</div>
+        </div></Crd>}
         {employment && <EmploymentCard t={t} data={employment} onRecord={canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -12362,7 +12386,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
         <Bdg l={inspStatusWord[inspModal.status || "scheduled"] || inspModal.status} c={inspModal.status === "completed" ? GR : BL} />
       </div>
-      <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+      <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={supervisorOptions(schedSupervisors, inspForm.assigned_to)} /></div>
       <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -13660,7 +13684,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, editInspForm.assigned_to)} /></div>
           <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
             <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -14026,7 +14050,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, editInspForm.assigned_to)} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
           <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
@@ -14037,7 +14061,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, scheduleForm.assigned_to)} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={scheduleInspection}>{tr("Schedule|verb")}</Btn></div>
       </div></Mdl>}
@@ -23944,6 +23968,17 @@ const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", last
 // is GET /api/users with no status, which already answers everyone; a refused read asks the summary for
 // status=all. Every other caller leaves it off and reads as before.
 const staffListRefused = new WeakMap();
+// The Assigned Supervisor pickers (Step 293): active supervisors only, since GET /api/users?role=supervisor
+// answers every status for an admin (Step 291's picker audit, rows 4 and 6 to 8). An inspection already
+// held by someone no longer active keeps them drawn as its choice, with their status, until another
+// is picked.
+const supervisorOptions = (list, current) => {
+  const all = Array.isArray(list) ? list : [];
+  const name = (s) => ((s.firstName || s.first_name || "") + " " + (s.lastName || s.last_name || "")).trim();
+  const live = all.filter(s => s && (!s.status || s.status === "active"));
+  const held = current ? all.find(s => s && String(s.id) === String(current) && live.indexOf(s) < 0) : null;
+  return [{ v: "", l: tr("Unassigned") }, ...live.map(s => ({ v: s.id, l: name(s) })), ...(held ? [{ v: held.id, l: name(held) + " (" + personStatusWord(held.status) + ")" }] : [])];
+};
 async function loadPeople(af, query, everyone = false) {
   const q = query || "";
   if (!staffListRefused.get(af)) {
