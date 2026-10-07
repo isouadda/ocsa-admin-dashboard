@@ -11581,6 +11581,11 @@ const timeOffMoment = (iso) => iso ? new Date(iso).toLocaleString(localeTag(), {
 // The key carries the noun the Spanish word has to agree with, a request, so the table can give
 // the right ending for each one.
 const TIME_OFF_STATUS_LABELS = { requested: "Requested|request", approved: "Approved|request", denied: "Denied|request", cancelled: "Cancelled|request" };
+// A request's type as a word (Step 291): the API's leave types, PTO among them since its Step 289
+// (STEP289_CONTRACT.md section 1.5), each in the screen's language. A type with no word here reads the
+// label the API sent, or its code.
+const LEAVE_TYPE_WORDS = { paid_sick: "Paid sick leave", unpaid: "Unpaid time off", bereavement_personal: "Bereavement and personal", jury_duty: "Jury duty", military: "Military leave", pto: "PTO (paid time off)" };
+const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_WORDS[r.leaveType]) : (r && (r.leaveTypeLabel || r.leaveType)) || "");
 const timeOffStatus = (s) => tr(TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || ""));
 const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), tr("{0} to {1}", patternTime(sh.startTime), patternTime(sh.endTime)), sh.siteName].filter(Boolean).join(", ");
 const TIME_OFF_LIMIT = 200;
@@ -11646,7 +11651,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
     </div>
     <div style={{ marginBottom: 14 }}>
       {row("Person", req.userName)}
-      {row("Type", req.leaveTypeLabel)}
+      {row("Type", <span data-time-off-type={req.leaveType || ""}>{timeOffType(req)}</span>)}
       {row("Dates", timeOffDates(req.startsOn, req.endsOn))}
       {req.partDay ? row("Time", timeOffTimes(req)) : null}
       {row("Hours", timeOffHours(req.hours))}
@@ -11706,7 +11711,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
 
   const columns = [
     { header: tr("Person"), render: r => <span style={{ color: t.text }}>{r.userName}</span> },
-    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => r.leaveTypeLabel },
+    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => <span data-time-off-type={r.leaveType || ""}>{timeOffType(r)}</span> },
     { header: tr("Dates"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffDates(r.startsOn, r.endsOn) },
     { header: tr("Time"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffTimes(r) },
     { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffHours(r.hours) },
@@ -22403,6 +22408,12 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     return <Bdg l={tr("Valid")} c={GR} />;
   };
 
+  // Step 291: the signed acknowledgment page the API files for a person when they sign a document
+  // (STEP289_CONTRACT.md section 1.2), a document of the folder that carries signedPage: { docCode,
+  // docVersion, locale, signedAt }. The contract names no key, so signed_page is read too. Its type
+  // reads Handbook acknowledgment where the document types list has no word for it.
+  const signedPageOf = (it) => { const x = it && it.source === "document" ? (it.signedPage || it.signed_page) : null; return x && typeof x === "object" ? x : null; };
+  const docTypeWord = (v) => docTypeMap[v] || (v === "handbook_acknowledgment" ? tr("Handbook acknowledgment") : v);
   const sourceLabel = (s) => ({
     document: tr("Document"),
     training: tr("Training"),
@@ -22528,7 +22539,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                         {sourceLabel(it.source)}
                         {isForm && it.filedBy && it.filedBy.name ? " . " + tr("Filed by {0}", it.filedBy.name) : ""}
                         {it.raw_category_label ? " . " + (
-                          it.source === "document" ? (docTypeMap[it.raw_category_label] || it.raw_category_label) :
+                          it.source === "document" ? docTypeWord(it.raw_category_label) :
                           it.source === "training" ? (trainingTypeMap[it.raw_category_label] || it.raw_category_label) :
                           it.source === "onboarding" ? (onbCatMap[it.raw_category_label] || it.raw_category_label) :
                           tr(HR_CATEGORY_LABEL(it.raw_category_label))
@@ -22544,6 +22555,9 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                     </div>
                   </div>
 
+                  {signedPageOf(it) && (() => { const sp = signedPageOf(it); return (<div data-folder-signed-page={String(it.source_id)} data-folder-signed-language={langCode(sp.locale || "")} style={{ fontSize: 12, color: t.text, marginTop: 6 }}>
+                    {[tr("Signed acknowledgment page"), [sp.docCode, sp.docVersion].filter(Boolean).join(" "), sp.locale && trainingLangWord(sp.locale) ? tr("Signed in {0}", trainingLangWord(sp.locale)) : "", sp.signedAt ? irWhen(sp.signedAt) : ""].filter(Boolean).join(" . ")}
+                  </div>); })()}
                   {/* Row footer: badges + actions */}
                   <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
 
@@ -26256,7 +26270,9 @@ function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], is
     return (<div key={p.id} data-doc-person={p.id} data-doc-state={st} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: "1px solid " + t.border, flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 180px", minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.name}</div>
-        <div style={{ fontSize: 12, color: t.textSec }}>{[roleWord(p.role), p.signedVersion != null && p.signedVersion !== "" ? tr("Version {0}", p.signedVersion) : "", p.signedAt ? irWhen(p.signedAt) : "", p.locale ? trainingLangWord(p.locale) : ""].filter(Boolean).join(" . ")}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{[roleWord(p.role), p.signedVersion != null && p.signedVersion !== "" ? tr("Version {0}", p.signedVersion) : "", p.signedAt ? irWhen(p.signedAt) : ""].filter(Boolean).join(" . ")}
+          {/* Step 291: the language the person signed in, which the API records with each signature. */}
+          {p.signedAt && p.locale && trainingLangWord(p.locale) ? <span data-doc-signed-language={langCode(p.locale)} style={{ color: t.text, fontWeight: 600 }}>{" . " + tr("Signed in {0}", trainingLangWord(p.locale))}</span> : null}</div>
       </div>
       <Bdg l={docStateWord(p)} c={DOC_STATE[st].c} />
       {ack && <button data-doc-signature={ack} onClick={() => openSig(ack)} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the signature")}</button>}
