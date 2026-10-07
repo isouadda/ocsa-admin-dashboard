@@ -1577,6 +1577,28 @@ const SHOTS = [
       await c.page.locator('button[aria-label="' + c.say("Send") + '"]').first().click();
       await until(c, "[data-help-open-document]");
     } },
+  // Step 309: a request decided and Sign and order filled in, an order sent, and a vendor's editor
+  // (audit/stubs.js, setStep308).
+  { name: "supplies-order-sign", entry: "Sign a supply order and send it to the vendor",
+    open: "supplies", ready: SHELL,
+    act: async (c) => {
+      await wait(400); await click(c, '[data-supplies-tab="requests"]'); await until(c, '[data-request-open="sr-9"]');
+      await click(c, '[data-request-open="sr-9"]'); await until(c, '[data-request-window="sr-9"]');
+      await click(c, "[data-request-approve-all]"); await until(c, "[data-order-vendor]");
+      await c.page.locator("[data-order-vendor]").selectOption("v-1"); await until(c, "[data-order-vendor-details]");
+      await sign(c); await blur(c);
+      await toTop(c, "[data-order-sign]", 10);
+    } },
+  { name: "supplies-order-sent", entry: "Sign a supply order and send it to the vendor",
+    open: "supplies", ready: SHELL,
+    act: async (c) => {
+      await wait(400); await click(c, '[data-supplies-tab="requests"]'); await until(c, '[data-request-open="sr-8"]');
+      await click(c, '[data-request-open="sr-8"]'); await until(c, "[data-order-ordered]");
+      await toTop(c, '[data-request-window="sr-8"]', 0);
+    } },
+  { name: "vendors-edit", entry: "Add or edit a vendor",
+    open: "vendors/v-1", ready: "[data-vendor-order-fields]",
+    act: async (c) => { await inModal(c).locator("select").last().scrollIntoViewIfNeeded(); await wait(200); } },
 ];
 
 
@@ -1640,7 +1662,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

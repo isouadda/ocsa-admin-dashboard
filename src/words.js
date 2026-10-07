@@ -4850,6 +4850,20 @@ export const WORDS = {
   "Part {0}": { es: "Parte {0}" },
   "Back to the top": { es: "Volver al inicio" },
   "Open {0}|document": { es: "Abrir {0}" },
+  "Only the people who approve supply requests can decide this.": { es: "Solo las personas que aprueban los pedidos de suministros pueden decidir esto." },
+  "Sign and order": { es: "Firmar y pedir" },
+  "Choose a vendor...": { es: "Elija un proveedor..." },
+  "Add a vendor under Vendors and set it to approved first.": { es: "Primero agregue un proveedor en Proveedores y m\u00e1rquelo como aprobado." },
+  "Edit this vendor": { es: "Editar este proveedor" },
+  "Deliver to": { es: "Entregar en" },
+  "Your signature": { es: "Su firma" },
+  "Purchase order": { es: "Orden de compra" },
+  "Signed by {0}": { es: "Firmado por {0}" },
+  "Ordered {0}, sent to {1}": { es: "Pedido el {0}, enviado a {1}" },
+  "Open the purchase order": { es: "Abrir la orden de compra" },
+  "Send to {0}": { es: "Enviar a {0}" },
+  "Ordered {0}": { es: "Pedido el {0}" },
+  "A supply order fills in the vendor's name, contact, phone, email and address from here, and offers only an approved vendor.": { es: "Una orden de suministros toma de aqu\u00ed el nombre, el contacto, el tel\u00e9fono, el correo y la direcci\u00f3n del proveedor, y solo ofrece proveedores aprobados." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

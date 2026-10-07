@@ -6534,6 +6534,137 @@ function createStubs() {
     return base();
   }
 
+  // Supply orders (STEP308_CONTRACT.md sections 1 and 2, the API's Step 308, for the dashboard's Step
+  // 309), answered only once a run arms it with setStep308, over Step 280's requests: every request
+  // answer carries canDecide for the caller (a holder of approve_supplies who did not ask for it; the
+  // signed-in admin holds it unless setStep308Holder(false) takes it away) and the order's keys,
+  // approvedBy, approvedAt, signed, vendor, deliverTo, poNumber, poPdfUrl, orderedAt and orderedToEmail;
+  // two requests of its own, a two-item refill waiting at the second site and one already ordered;
+  // GET /api/vendors?approved=true, which setStep308NoVendors answers empty, GET /api/vendors/:id and
+  // PATCH /api/vendors/:id; POST /api/supplies/requests/:id/sign, GET .../po.pdf behind the token and
+  // POST .../send, each refusing in the routes' style with keys. Every value is invented.
+  let step308 = false;
+  let holder308 = true;
+  let noVendors308 = false;
+  const REQUEST_308 = "sr-9";
+  const ORDERED_308 = "sr-8";
+  const T308 = (lang, en, es) => (lang === "es" ? es : en);
+  const s308 = () => {
+    if (state.s308) return state.s308;
+    const rows = requests280();
+    const by = { name: "Marcus Ferreira" };
+    // Both go after Step 280's requests, so its lines read the list and the ordering CSV they always
+    // read: the ordered one is older than the CSV's thirty days, and the refill waits for a decision.
+    rows.push({ id: REQUEST_308, supply_name: "Glass cleaner, quart", supply_id: "sp-1", item_name: null, quantity: 6, unit: "each", status: "pending", requested_by: "u-staff-7", requested_by_name: "Elena Barbosa",
+      site_name: S[1].name, site_id: S[1].id, notes: "", requested_at: seed.shift(0) + "T13:05:00Z", admin_notes: null, request_type: "refill", urgency: "high",
+      created_at: seed.shift(0) + "T13:05:00Z", description: "For the clinic's entrance glass.",
+      items: [
+        line280(REQUEST_308, 0, { supplyId: "sp-1", name: "Glass cleaner, quart", unit: "each", quantity: 6 }),
+        line280(REQUEST_308, 1, { supplyId: "sp-2", name: "Microfiber cloth pack", unit: "case", quantity: 1, note: "The blue ones." }),
+      ] });
+    rows.push({ id: ORDERED_308, supply_name: "Floor finish, 5 gallon", supply_id: "sp-5", item_name: null, quantity: 2, unit: "each", status: "approved", requested_by: "u-staff-6", requested_by_name: "Ngozi Okonkwo",
+      site_name: S[2].name, site_id: S[2].id, notes: "", requested_at: seed.shift(-40) + "T15:40:00Z", admin_notes: null, request_type: "refill", urgency: "normal",
+      created_at: seed.shift(-40) + "T15:40:00Z", description: "Refinish the dock office floor.",
+      items: [line280(ORDERED_308, 0, { supplyId: "sp-5", name: "Floor finish, 5 gallon", unit: "each", quantity: 2, decision: "approved", decidedAt: seed.shift(-39) + "T09:00:00Z", decidedBy: by.name })] });
+    state.s308 = {
+      seq: 41,
+      sent: [],
+      vendors: clone(VENDORS),
+      orders: {
+        [ORDERED_308]: { approvedBy: { id: "u-sup-1", name: by.name }, approvedAt: seed.shift(-39) + "T09:05:00Z", vendorId: "v-1", deliverTo: "1200 Tannery Lane, Oldmarsh, PA 19061", poNumber: "PO-2026-0040",
+          orderedAt: seed.shift(-39) + "T09:12:00Z", orderedBy: "u-sup-1", orderedToEmail: "orders@tallowridge.example.invalid" },
+      },
+    };
+    return state.s308;
+  };
+  const vendorAddress308 = (v) => [v.address_line1, v.city, [v.state, v.zip_code].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const siteAddress308 = (id) => { const s = S.find((x) => x.id === id) || {}; return [s.address, s.city, [s.state, s.zip].filter(Boolean).join(" ")].filter(Boolean).join(", "); };
+  const order308 = (rq) => {
+    const me = person();
+    const o = s308().orders[rq.id] || null;
+    const v = o ? s308().vendors.find((x) => x.id === o.vendorId) : null;
+    return Object.assign(rq, {
+      canDecide: holder308 && rq.requested_by !== me.id,
+      approvedBy: o ? o.approvedBy : null, approvedAt: o ? o.approvedAt : null, signed: !!o,
+      vendor: v ? { id: v.id, name: v.name, contactName: v.contact_name || null, contactPhone: v.contact_phone || null, contactEmail: v.contact_email || null, address: vendorAddress308(v) } : null,
+      deliverTo: o ? o.deliverTo : null, poNumber: o ? o.poNumber : null, poPdfUrl: o ? "/api/supplies/requests/" + rq.id + "/po.pdf" : null,
+      orderedAt: o ? o.orderedAt || null : null, orderedToEmail: o ? o.orderedToEmail || null : null,
+    });
+  };
+  function step308Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    const me = person();
+    const rows = (s308(), requests280());
+    const find = (id) => rows.find((x) => String(x.id) === decodeURIComponent(id));
+    const refuse = (status, code, keys, en, es) => ({ status, json: Object.assign({ error: T308(lang, en, es), code }, keys ? { keys } : {}) });
+    if (path === "/api/vendors" && method === "GET") {
+      const all = s308().vendors.filter((v) => v.is_active !== false);
+      if (query.get("approved") === "true") return ok(noVendors308 ? [] : all.filter((v) => v.approval_status === "approved"));
+      return ok(all);
+    }
+    const vend = /^\/api\/vendors\/([^/]+)$/.exec(path);
+    if (vend) {
+      const v = s308().vendors.find((x) => x.id === decodeURIComponent(vend[1]));
+      if (!v) return refuse(404, "vendors.notFound", null, "Vendor not found", "No se encontr\u00f3 el proveedor");
+      if (method === "GET") return ok({ vendor: clone(v), linkedSupplies: [], evaluations: [] });
+      if (method === "PATCH") {
+        const map = { name: "name", contactName: "contact_name", contactPhone: "contact_phone", contactEmail: "contact_email", website: "website", addressLine1: "address_line1", city: "city", state: "state", zipCode: "zip_code", productsServices: "products_services", certificationStatus: "certification_status", contractTerms: "contract_terms", approvalStatus: "approval_status", lastReviewDate: "last_review_date" };
+        Object.keys(map).forEach((k) => { if (b[k] !== undefined) v[map[k]] = b[k] === "" ? null : b[k]; });
+        if (v.approval_status) v.status = v.approval_status;
+        return ok(clone(v));
+      }
+    }
+    if (path === "/api/supplies/requests" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((rq) => order308(clone(rq)));
+      return a;
+    }
+    const act = /^\/api\/supplies\/requests\/([^/]+)\/(sign|send|po\.pdf|decide)$/.exec(path);
+    if (act) {
+      const rq = find(act[1]);
+      if (!rq) return refuse(404, "supplies.notFound", null, "That request was not found.", "No se encontr\u00f3 ese pedido.");
+      const view = order308(clone(rq));
+      if (act[2] === "decide" && method === "POST") {
+        if (!view.canDecide) return refuse(403, rq.requested_by === me.id ? "supplies.ownRequest" : "supplies.cannotDecide", null, "Only the people who approve supply requests can decide this.", "Solo las personas que aprueban los pedidos de suministros pueden decidir esto.");
+        const a = base();
+        if (a && a.status === 200 && a.json && a.json.request) a.json.request = order308(clone(a.json.request));
+        return a;
+      }
+      if (act[2] === "po.pdf" && method === "GET") {
+        const o = s308().orders[rq.id];
+        if (!o) return refuse(404, "supplies.noPurchaseOrder", null, "This request has no purchase order yet.", "Este pedido todav\u00eda no tiene orden de compra.");
+        return { status: 200, bytes: PDF_BYTES, contentType: "application/pdf", json: null, headers: { "Content-Disposition": 'inline; filename="' + o.poNumber + '.pdf"' } };
+      }
+      if (act[2] === "sign" && method === "POST") {
+        if (!view.canDecide) return refuse(403, rq.requested_by === me.id ? "supplies.ownRequest" : "supplies.cannotDecide", null, "Only the people who approve supply requests can sign this.", "Solo las personas que aprueban los pedidos de suministros pueden firmar esto.");
+        if (s308().orders[rq.id]) return refuse(409, "supplies.alreadySigned", null, "This request is already signed.", "Este pedido ya est\u00e1 firmado.");
+        if (!rq.items.every((x) => x.decision)) return refuse(409, "supplies.notDecided", null, "Decide every item before you sign.", "Decida cada art\u00edculo antes de firmar.");
+        if (!rq.items.some((x) => x.decision === "approved")) return refuse(409, "supplies.nothingApproved", null, "Approve at least one item before you sign.", "Apruebe al menos un art\u00edculo antes de firmar.");
+        const v = s308().vendors.find((x) => x.id === b.vendorId);
+        if (!v || v.approval_status !== "approved" || v.is_active === false) return refuse(400, "supplies.badVendor", ["vendorId"], "Choose an approved vendor.", "Elija un proveedor aprobado.");
+        if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return refuse(400, "supplies.signatureRequired", ["signature"], "Sign before you send.", "Firme antes de enviar.");
+        const deliverTo = b.deliverTo == null || String(b.deliverTo).trim() === "" ? siteAddress308(rq.site_id) : String(b.deliverTo).trim();
+        if (deliverTo.length > 500) return refuse(400, "supplies.badDetails", ["deliverTo"], "Keep the address to 500 characters.", "No pase de 500 caracteres en la direcci\u00f3n.");
+        s308().seq += 1;
+        s308().orders[rq.id] = { approvedBy: { id: me.id, name: me.firstName + " " + me.lastName }, approvedAt: seed.NOW_ISO, vendorId: v.id, deliverTo, poNumber: "PO-2026-" + String(s308().seq).padStart(4, "0"), signature: "png" };
+        return ok({ request: order308(clone(rq)) });
+      }
+      if (act[2] === "send" && method === "POST") {
+        const o = s308().orders[rq.id];
+        if (!view.canDecide) return refuse(403, "supplies.cannotDecide", null, "Only the people who approve supply requests can send this.", "Solo las personas que aprueban los pedidos de suministros pueden enviar esto.");
+        if (!o) return refuse(409, "supplies.notSigned", null, "Sign the order before you send it.", "Firme la orden antes de enviarla.");
+        const v = s308().vendors.find((x) => x.id === o.vendorId) || {};
+        const to = String(b.to || v.contact_email || "").trim();
+        if (!to) return refuse(400, "supplies.noAddress", ["to"], "There is no address to send this to.", "No hay una direcci\u00f3n a la cual enviar esto.");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return refuse(400, "supplies.badEmail", ["to"], "That is not an email address.", "Esa no es una direcci\u00f3n de correo.");
+        s308().sent.push({ requestId: rq.id, to, at: seed.NOW_ISO, by: me.id });
+        if (!o.orderedAt) Object.assign(o, { orderedAt: seed.NOW_ISO, orderedBy: me.id, orderedToEmail: to });
+        return ok({ request: order308(clone(rq)), sent: { to } });
+      }
+    }
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6591,7 +6722,8 @@ function createStubs() {
     const over299 = () => (step299 ? step299Route(method, path, u.searchParams, body, record.language, over289) : over289());
     const over292 = () => (step292 ? step292Route(method, path, u.searchParams, body, record.language, over299) : over299());
     const over305 = () => (step305 ? step305Route(method, path, u.searchParams, body, record.language, over292) : over292());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over305) : over305();
+    const over308 = () => (step308 ? step308Route(method, path, u.searchParams, body, record.language, over305) : over305());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over308) : over308();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6688,6 +6820,14 @@ function createStubs() {
     // sync's first run.
     setStep305: (v) => { step305 = v !== false; },
     setStep305Empty: (v) => { library305Empty = v !== false; },
+    // The routes and keys of the API's Step 308 contract (the dashboard's Step 309), supply orders, on
+    // or off, laid over Step 280's requests; whether the signed-in admin holds approve_supplies; and the
+    // approved vendors answered empty.
+    setStep308: (v) => { step308 = v !== false; },
+    setStep308Holder: (v) => { holder308 = v !== false; },
+    setStep308NoVendors: (v) => { noVendors308 = v !== false; },
+    // Every purchase order sent since the run armed Step 308, to whom.
+    sent308: () => (state.s308 ? state.s308.sent.slice() : []),
     // Every welcome email tried since the run armed Step 292, with whom and how it went.
     welcomes292: () => (state.s292 ? state.s292.sent.slice() : []),
     // Who a ticket's status change told, in which language, since the run armed Step 289.
@@ -6706,6 +6846,7 @@ function createStubs() {
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null; library305Empty = false;
+      state.s308 = null; holder308 = true; noVendors308 = false;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};

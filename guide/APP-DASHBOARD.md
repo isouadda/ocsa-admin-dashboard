@@ -319,22 +319,22 @@ Picture: pickup-claimed
 Last checked: 2026-10-01
 
 ## Approve or deny a supply request (admin dashboard)
-Who can do this: admins and supervisors
+Who can do this: the people who approve supply requests decide them; every other admin and supervisor reads them and downloads the list for ordering
 1. Click **Inventory** (**Inventario**) in the side panel.
-2. Click the **Requests** (**Solicitudes**) tab. Each request names its first item and how many items it holds.
+2. Click the **Requests** (**Solicitudes**) tab. Each request names its first item and how many items it holds, and once it is signed, its purchase order number and when it was ordered.
 3. Click **Open** (**Abrir**) on the request. The window lists every item with its quantity and any note from the person who asked.
 4. To approve an item, lower **Quantity to approve** (**Cantidad a aprobar**) if you are sending fewer, down to 1, and click **Approve** (**Aprobar**). The item then reads **Approved {0} of {1}** (**Aprobado: {0} de {1}**).
 5. To deny an item, type a **Note (optional)** (**Nota (opcional)**) if the person should know why, and click **Deny** (**Denegar**).
 6. **Approve all** (**Aprobar todo**) and **Deny all** (**Denegar todo**) decide every item not decided yet, at the quantities and with the notes in their boxes.
-7. Until the request is fulfilled, **Change** (**Cambiar**) on a decided item opens its boxes again.
-8. Once every item is decided, the request reads approved when any item was approved and denied when none was. The person who asked gets a notice saying how many items were approved and how many denied.
-9. To order what was approved, choose **From** (**Desde**), **To** (**Hasta**) and a **Site** (**Sitio**) or **All sites** (**Todos los sitios**) above the list, and click **Download for ordering (CSV)** (**Descargar para hacer el pedido (CSV)**). The file lists each approved item of the requests not yet fulfilled, with the quantity approved.
+7. Until the request is ordered, **Change** (**Cambiar**) on a decided item opens its boxes again.
+8. Once every item is decided, the request reads approved when any item was approved and denied when none was. The person who asked gets a notice saying how many items were approved and how many denied. To order what was approved, sign it and send it to the vendor: see Sign a supply order and send it to the vendor.
+9. To download what was approved, choose **From** (**Desde**), **To** (**Hasta**) and a **Site** (**Sitio**) or **All sites** (**Todos los sitios**) above the list, and click **Download for ordering (CSV)** (**Descargar para hacer el pedido (CSV)**). The file lists each approved item of the requests not yet fulfilled, with the quantity approved.
 10. A request that shows **Approve** (**Aprobar**) and **Deny** (**Denegar**) on the request itself, and no **Open** (**Abrir**), is decided whole: click one, add a note if you want, and confirm.
-If it does not work: when a decision or the download is refused, the reason shows in red in the window or under the download button.
-Words people use for this: supply order, someone needs supplies, order request, approve supplies, many items, several items, quantity, approve part of a request, approve fewer, order list, purchase list, csv for ordering.
+If it does not work: a request reads **Only the people who approve supply requests can decide this.** (**Solo las personas que aprueban los pedidos de suministros pueden decidir esto.**) for anyone who does not approve supply requests, and for the person who asked for it: nobody decides their own request. When a decision or the download is refused, the reason shows in red in the window or under the download button.
+Words people use for this: supply order, someone needs supplies, order request, approve supplies, many items, several items, quantity, approve part of a request, approve fewer, order list, purchase list, csv for ordering, who approves supplies.
 Picture: supplies-request-approve
 Picture: supplies-request-list
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Add a supply to the inventory (admin dashboard)
 Who can do this: admins
@@ -2420,4 +2420,32 @@ Who can do this: everyone who signs in to the dashboard
 If it does not work: name the document by its number, as it is written on the document. A question about one part of a document gets that part's text.
 Words people use for this: what is in this document, what does this procedure say, open a document, show me the handbook, qué dice este documento.
 Picture: help-open-document
+Last checked: 2026-10-07
+
+## Sign a supply order and send it to the vendor (admin dashboard)
+Who can do this: the people who approve supply requests, for a request someone else made
+1. Click **Inventory** (**Inventario**), then the **Requests** (**Solicitudes**) tab, and click **Open** (**Abrir**) on the request.
+2. Decide every item. Once every item is decided and at least one is approved, **Sign and order** (**Firmar y pedir**) shows under the items.
+3. Choose the **Vendor** (**Proveedor**). Only approved vendors are offered. The vendor's contact, phone, email and address show under it; **Edit this vendor** (**Editar este proveedor**) opens the vendor under Vendors to correct them.
+4. Check **Deliver to** (**Entregar en**). It starts as the site's address; change it if the supplies go somewhere else.
+5. Sign in the box with the mouse or a finger and click **Sign** (**Firmar**). The window shows the **Purchase order** (**Orden de compra**) with its number, who signed and when.
+6. Click **Open the purchase order** (**Abrir la orden de compra**) to read the PDF: the company, the vendor, where it goes, the approved items and the signature.
+7. Click **Send to {0}** (**Enviar a {0}**), which carries the vendor's email, to email the purchase order to the vendor. To send it to another address, type it in **Send to** (**Enviar a**) first.
+8. The window then reads **Ordered {0}, sent to {1}** (**Pedido el {0}, enviado a {1}**), and the request in the list shows its number and **Ordered {0}** (**Pedido el {0}**). **Send again** (**Enviar de nuevo**) sends it once more.
+If it does not work: **Add a vendor under Vendors and set it to approved first.** (**Primero agregue un proveedor en Proveedores y márquelo como aprobado.**) means no vendor is approved yet; see Add or edit a vendor. Nobody signs their own request. A refused signature or send says why in red under the box or the button.
+Words people use for this: purchase order, po, send the order to the vendor, sign the supply order, order supplies from the vendor, email the vendor, orden de compra.
+Picture: supplies-order-sign
+Picture: supplies-order-sent
+Last checked: 2026-10-07
+
+## Add or edit a vendor (admin dashboard)
+Who can do this: admins
+1. Click **Vendors** (**Proveedores**) in the side panel.
+2. Click **Add Vendor** (**Agregar proveedor**), or click a vendor and then **Edit** (**Editar**).
+3. Fill in **Vendor Name *** (**Nombre del proveedor ***), **Contact Name** (**Nombre del contacto**), **Contact Phone** (**Teléfono del contacto**), **Contact Email** (**Correo del contacto**) and the **Address** (**Dirección**) with the city, state and ZIP. A supply order fills these in, and sends the purchase order to the contact email.
+4. Set **Approval Status** (**Estado de aprobación**). Only a vendor set to approved is offered when a supply order is signed.
+5. Click **Add Vendor** (**Agregar proveedor**) or **Save Changes** (**Guardar los cambios**).
+If it does not work: the vendor name is required. A vendor opened from a supply order's **Edit this vendor** (**Editar este proveedor**) opens straight in its editor.
+Words people use for this: add a vendor, supplier, approved supplier list, vendor email, vendor address, change a vendor, proveedor.
+Picture: vendors-edit
 Last checked: 2026-10-07

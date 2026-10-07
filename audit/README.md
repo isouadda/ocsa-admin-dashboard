@@ -162,6 +162,19 @@ Then it checks, one line a check:
   token; Help's answer about a document draws Open with its number, which opens it in the Library; and,
   with `setStep305Empty`, an empty list says "The library is loading. Check back soon." The stub's six
   documents are invented, one with a Spanish edition and a PDF, in five folders.
+- against the stub's answers for the API's Step 308 contract (Step 309, supply orders), which the smoke
+  check arms with `setStep308` over Step 280's requests: at 1280 in English and in Spanish and at 390 in
+  English, a holder of `approve_supplies` decides a two-item request with Approve all, picks an approved
+  vendor (the dropdown offers the two approved ones and not the pending one) whose email fills in under
+  it, finds Deliver to started at the site's address, signs, and the sign route gets the vendor, the
+  drawing and the address and answers the PO number the window draws; Open the purchase order reads the
+  PDF behind the token; Send to the vendor's email emails it once, the window reads Ordered with where
+  it went and the list the PO number and Ordered, and Send again emails it again and keeps the first
+  ordered date; with `setStep308Holder(false)` an admin reads a request with "Only the people who approve
+  supply requests can decide this." and no decision control, and Download for ordering still saves the
+  CSV; and with `setStep308NoVendors` Sign and order says "Add a vendor under Vendors and set it to
+  approved first." The stub's two requests of its own go after Step 280's, so its lines read what they
+  always read: a refill waiting at the second site and an order sent 39 days ago.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -239,7 +252,11 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-library-doc`, `data-library-spanish`, `data-library-search`, `data-library-search-send`,
 `data-library-match`, `data-library-empty`, `data-library-reader`, `data-library-cover`,
 `data-library-landed`, `data-library-contents`, `data-library-jump`, `data-library-part`, `data-library-section`,
-`data-library-table`, `data-library-designed`, `data-library-pdf` and `data-help-open-document`. Since Step 291 a person
+`data-library-table`, `data-library-designed`, `data-library-pdf` and `data-help-open-document`, and Step 309's by
+`data-order-vendor`, `data-order-vendor-details`, `data-order-deliver-to`, `data-order-sign`,
+`data-order-signed`, `data-order-po`, `data-order-open-po`, `data-order-pdf`, `data-order-send`,
+`data-order-send-again`, `data-order-ordered`, `data-order-no-vendor`, `data-request-read-only`,
+`data-request-po` and `data-request-ordered`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -264,7 +281,7 @@ picture's name with the day it was taken in both languages, which `npm run guide
 entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures current).
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280, Step 283, Step 289, Step 292, Step 299 and Step 305 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283, Step 289, Step 292, Step 299, Step 305 and Step 308 contracts among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and

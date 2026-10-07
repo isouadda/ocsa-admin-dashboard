@@ -131,6 +131,14 @@
 //     draws the cover, Contents by Part, every section and the table, and no signature box; See the
 //     designed version opens the PDF behind the token; Help's answer about a document draws Open, which
 //     opens it in the Library; and an empty list says the library is loading.
+//   - against the stub's answers for the API's Step 308 contract (Step 309, supply orders), which the
+//     smoke check arms with setStep308 over Step 280's requests, at 1280 in English and in Spanish and
+//     at 390 in English: a holder decides a request and signs it with an approved vendor whose details
+//     fill in and the site's address in Deliver to; the purchase order opens behind the token; Send
+//     emails the vendor, the request reads Ordered with its date and the list its PO number and Ordered,
+//     and Send again sends once more and keeps the date; an admin without the capability reads a
+//     request with no decision controls and downloads the ordering CSV; and with no approved vendor,
+//     Sign and order says to add one under Vendors.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -203,9 +211,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -2165,6 +2173,104 @@ async function step306(d, origin, p, stubs) {
   });
 }
 
+// Step 309's supply orders (STEP308_CONTRACT.md section 2), each a line, against the stub armed with
+// setStep308 over Step 280's requests (audit/stubs.js): a holder deciding a request and signing it
+// with a vendor whose details fill in, the purchase order opening behind the token, Send and then
+// Ordered with its date and Send again, an admin without the capability reading a request with no
+// controls and downloading the CSV, and the vendor dropdown's line when no vendor is approved. Every
+// line waits for what it reads.
+const REQUEST_309 = { id: "sr-9", street: "9 Kestrel Way" };
+const VENDOR_309 = { id: "v-1", email: "orders@tallowridge.example.invalid" };
+async function step309(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const openRequest = async (id, ready) => {
+    await go(d, "supplies", null, '[data-supplies-tab="requests"]');
+    await d.page.locator('[data-supplies-tab="requests"]').click();
+    await until(d, '[data-request-open="' + id + '"]');
+    await d.page.locator('[data-request-open="' + id + '"]').click();
+    await until(d, ready || '[data-request-window="' + id + '"]');
+  };
+  const posted = (what) => stubs.calls.filter((c) => c.method === "POST" && c.path === "/api/supplies/requests/" + REQUEST_309.id + "/" + what).pop();
+  await check("a holder decides a request and signs it with an approved vendor whose details fill in", async () => {
+    await openRequest(REQUEST_309.id);
+    await d.page.locator("[data-request-approve-all]").click();
+    await until(d, "[data-order-vendor]");
+    const offered = await d.page.locator("[data-order-vendor] option").evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
+    if (offered.join() !== "v-1,v-2") return "the dropdown offers " + JSON.stringify(offered);
+    await d.page.locator("[data-order-vendor]").selectOption(VENDOR_309.id);
+    await until(d, '[data-order-vendor-details="' + VENDOR_309.id + '"]');
+    if ((await d.page.locator("[data-order-vendor-details]").innerText()).indexOf(VENDOR_309.email) < 0) return "the vendor's email is not filled in";
+    if ((await d.page.locator("[data-order-deliver-to]").inputValue()).indexOf(REQUEST_309.street) !== 0) return "Deliver to does not start as the site's address";
+    if (!(await d.drawSignature())) return "no signature box";
+    await d.page.locator("[data-order-sign] [data-signature-box] button").first().click();
+    await until(d, "[data-order-signed] [data-order-po]");
+    const sign = posted("sign");
+    if (!sign || sign.status !== 200) return "the order was not signed";
+    const b = sign.body || {};
+    if (b.vendorId !== VENDOR_309.id || String(b.signature).indexOf("data:image/png;base64,") !== 0 || String(b.deliverTo).indexOf(REQUEST_309.street) !== 0) return "it sent " + JSON.stringify({ vendorId: b.vendorId, deliverTo: b.deliverTo });
+    const po = (await d.page.locator("[data-order-po]").innerText()).trim();
+    return po === sign.json.request.poNumber ? "" : "the PO number reads " + JSON.stringify(po);
+  });
+  await check("the purchase order opens behind the token", async () => {
+    await openRequest(REQUEST_309.id, "[data-order-open-po]");
+    await d.page.locator("[data-order-open-po]").click();
+    await until(d, "[data-order-pdf] iframe");
+    const got = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/supplies/requests/" + REQUEST_309.id + "/po.pdf").pop();
+    return got && got.status === 200 && got.headers.authorization ? "" : "the PDF was not read behind the token";
+  });
+  await check("Send emails the vendor, then the request reads Ordered with its date, and Send again sends once more", async () => {
+    await openRequest(REQUEST_309.id, "[data-order-send]");
+    const words = (await d.page.locator("[data-order-send]").innerText()).trim();
+    if (words !== d.say("Send to {0}").replace("{0}", VENDOR_309.email)) return "the button reads " + JSON.stringify(words);
+    await d.page.locator("[data-order-send]").click();
+    await until(d, "[data-order-ordered]");
+    const sent = stubs.sent308();
+    if (sent.length !== 1 || sent[0].to !== VENDOR_309.email) return "it was sent to " + JSON.stringify(sent.map((x) => x.to));
+    const first = posted("send").json.request.orderedAt;
+    if ((await d.page.locator("[data-order-ordered]").innerText()).indexOf(VENDOR_309.email) < 0) return "Ordered does not say where it went";
+    await d.page.locator("[data-order-send-again]").click();
+    for (let i = 0; i < 30 && stubs.sent308().length < 2; i++) await wait(100);
+    if (stubs.sent308().length !== 2) return "Send again sent nothing";
+    if (posted("send").json.request.orderedAt !== first) return "Send again moved the ordered date";
+    await d.page.locator('[data-request-window] button[aria-label="' + d.say("Close") + '"]').first().click();
+    await until(d, '[data-request-po="' + posted("sign").json.request.poNumber + '"]');
+    return (await d.page.locator('[data-request-ordered]').count()) >= 2 ? "" : "the list does not say Ordered";
+  });
+  await check("an admin without the capability reads a request with no controls and downloads the CSV", async () => {
+    stubs.setStep308Holder(false);
+    try {
+      await openRequest("sr-4", "[data-request-read-only]");
+      const said = (await d.page.locator("[data-request-read-only]").innerText()).trim();
+      if (said !== d.say("Only the people who approve supply requests can decide this.")) return "the line reads " + JSON.stringify(said);
+      const controls = await d.page.locator("[data-request-approve-all], [data-request-deny-all], [data-request-line-approve], [data-request-line-deny], [data-request-line-change], [data-order-sign]").count();
+      if (controls) return "it still draws " + controls + " decision controls";
+      await d.page.locator('[data-request-window] button[aria-label="' + d.say("Close") + '"]').first().click();
+      await d.page.locator("[data-ordering-download]").click();
+      for (let i = 0; i < 30 && !stubs.calls.some((c) => c.path === "/api/supplies/requests/approved.csv"); i++) await wait(100);
+      const csv = stubs.calls.filter((c) => c.path === "/api/supplies/requests/approved.csv").pop();
+      return csv && csv.status === 200 ? "" : "the CSV was not downloaded";
+    } finally { stubs.setStep308Holder(true); }
+  });
+  await check("with no approved vendor, Sign and order says to add one under Vendors", async () => {
+    stubs.setStep308NoVendors(true);
+    try {
+      await openRequest("sr-4");
+      if ((await d.page.locator("[data-request-approve-all]").count()) > 0) await d.page.locator("[data-request-approve-all]").click();
+      await until(d, "[data-order-no-vendor]");
+      const said = (await d.page.locator("[data-order-no-vendor]").innerText()).trim();
+      if (said !== d.say("Add a vendor under Vendors and set it to approved first.")) return "the line reads " + JSON.stringify(said);
+      return (await d.page.locator("[data-order-vendor]").count()) ? "the empty dropdown is still drawn" : "";
+    } finally { stubs.setStep308NoVendors(false); }
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -2192,6 +2298,8 @@ async function runPass(browser, origin, p) {
   if (p.step293) stubs.setStep292(true);
   // Step 305's answers (the dashboard's Step 306, the Library) are laid over those.
   if (p.step306) stubs.setStep305(true);
+  // Step 308's answers (the dashboard's Step 309, supply orders) are laid over Step 280's requests.
+  if (p.step309) stubs.setStep308(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -2295,6 +2403,7 @@ async function runPass(browser, origin, p) {
     if (p.step300) await step300(d, origin, p, stubs);
     if (p.step293) await step293(d, origin, p, stubs);
     if (p.step306) await step306(d, origin, p, stubs);
+    if (p.step309) await step309(d, origin, p, stubs);
 
     // Help, asked one question.
     {
