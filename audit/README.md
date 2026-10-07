@@ -152,6 +152,16 @@ Then it checks, one line a check:
   inactive. The stub creates a person active, keeps each person's latest welcome, says its reason in
   the screen's language, answers welcome where an account is made active, refuses an invite in the 422
   style of `helpers/invites.js`, and lists a supervisor who has left.
+- against the stub's answers for the API's Step 305 contract (Step 306, the Library), which the smoke
+  check arms with `setStep305` over whichever steps a pass arms: at 1280 in English and in Spanish and at
+  390 in English, the side panel offers Library and the Library lists every document by folder, in the
+  API's order, with Also in Spanish on each document with a Spanish edition; a search by a word in a
+  section's text sends `q`, says the section it matched and opens the document there, read in the
+  screen's language; the reader draws the cover with the title, Contents by Part, every section, every
+  Part's heading and the table, and no signature box; See the designed version opens the PDF behind the
+  token; Help's answer about a document draws Open with its number, which opens it in the Library; and,
+  with `setStep305Empty`, an empty list says "The library is loading. Check back soon." The stub's six
+  documents are invented, one with a Spanish edition and a PDF, in five folders.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -225,7 +235,11 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-case-closing-note`, `data-case-closing-refusal`, `data-case-print` and the printed page's
 `data-case-print-entry`, and Step 293's by `data-added-welcome`, `data-added-send-welcome`,
 `data-welcome-send`, `data-welcome-no-email`, `data-sign-in-state` (with `welcome` or `welcome-not-sent`),
-`data-employment-said` and `data-employment-again`. Since Step 291 a person
+`data-employment-said` and `data-employment-again`, and Step 306's by `data-library`, `data-library-folder`,
+`data-library-doc`, `data-library-spanish`, `data-library-search`, `data-library-search-send`,
+`data-library-match`, `data-library-empty`, `data-library-reader`, `data-library-cover`,
+`data-library-landed`, `data-library-contents`, `data-library-jump`, `data-library-part`, `data-library-section`,
+`data-library-table`, `data-library-designed`, `data-library-pdf` and `data-help-open-document`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -250,7 +264,7 @@ picture's name with the day it was taken in both languages, which `npm run guide
 entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures current).
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280, Step 283, Step 289, Step 292 and Step 299 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283, Step 289, Step 292, Step 299 and Step 305 contracts among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and

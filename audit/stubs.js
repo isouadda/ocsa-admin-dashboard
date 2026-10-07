@@ -6414,6 +6414,126 @@ function createStubs() {
     return a;
   }
 
+  // The Library (STEP305_CONTRACT.md sections 1 and 2, the API's Step 305, for the dashboard's Step
+  // 306), answered only once a run arms it with setStep305, over everything else: GET /api/library with
+  // every document once, sorted by number, its folder from the number's middle part and the folder's
+  // name in the screen's language; ?q= by number, title and words in the sections of the edition the
+  // screen reads, each with the section it matched, best first; GET /api/documents/:docCode/read for
+  // anyone signed in, in the language asked for where an edition exists and else English with
+  // shownInEnglish; GET /api/documents/:docCode/pdf behind the token; and Help's answer to a question
+  // naming a document, which carries openDocument. setStep305Empty answers the list empty, the way live
+  // answers before the library sync's first run. Every document, its title and its text are invented.
+  let step305 = false;
+  let library305Empty = false;
+  const FOLDERS_305 = { QMS: ["Quality", "Calidad"], SVC: ["Services", "Servicios"], HR: ["Human Resources", "Recursos Humanos"], HS: ["Health and Safety", "Salud y Seguridad"],
+    ENV: ["Environmental", "Ambiental"], MGT: ["Management", "Gesti\u00f3n"], PUR: ["Purchasing", "Compras"], CTR: ["Contractors", "Contratistas"], FIN: ["Finance", "Finanzas"], FRM: ["Forms", "Formularios"] };
+  const S305 = (ref, title, content) => ({ ref, title, content });
+  const LIBRARY_305 = [
+    { docCode: "OCSA-QMS-901", version: "2.0", hasPdf: true, ackSectionRef: "4.1",
+      parts: { en: [{ ref: "1", title: "Purpose and scope" }, { ref: "2", title: "How a site is kept clean" }, { ref: "3", title: "Checking the work" }, { ref: "4", title: "Acknowledgment" }],
+        es: [{ ref: "1", title: "Prop\u00f3sito y alcance" }, { ref: "2", title: "C\u00f3mo se mantiene limpio un sitio" }, { ref: "3", title: "Revisi\u00f3n del trabajo" }, { ref: "4", title: "Acuse de recibo" }] },
+      title: { en: "Sample Cleaning Quality Handbook", es: "Manual de muestra de calidad de limpieza" },
+      sections: {
+        en: [
+          S305("0", "Read First", "This handbook is a sample written for the test screens.\nEvery name and number in it is invented."),
+          S305("1", "Purpose and scope", "This handbook says how a site is cleaned and how the work is checked.\nIt covers every crew member and every site supervisor."),
+          S305("2", "How a site is kept clean", "Each site has a written list of tasks for every shift."),
+          S305("2.1", "Restrooms", "Restrooms are cleaned top to bottom and dry to wet.\nBefore you start:\n- Put out the wet floor sign\n- Put on gloves and eye protection\n- Check the supply cart"),
+          S305("2.2", "Glass and mirrors", "Glass is sprayed lightly and dried with a clean squeegee and a lint-free cloth.\nTable columns: Surface | Tool | How often\n- Entrance doors | Squeegee | Every shift\n- Restroom mirrors | Lint-free cloth | Every shift\n- Interior partitions | Squeegee | Weekly"),
+          S305("3", "Checking the work", "A supervisor walks the site every month with the site checklist."),
+          S305("3.1", "When something is missed", "Anything missed is written down with an owner and a due date, and checked again once it is fixed."),
+          S305("4", "Acknowledgment", "The people this handbook is for sign that they read it."),
+          S305("4.1", "Acknowledgment of receipt", "I received this handbook and I read it.\nI know who to ask when something is not clear."),
+        ],
+        es: [
+          S305("0", "Lea primero", "Este manual es una muestra escrita para las pantallas de prueba.\nCada nombre y n\u00famero en \u00e9l es inventado."),
+          S305("1", "Prop\u00f3sito y alcance", "Este manual dice c\u00f3mo se limpia un sitio y c\u00f3mo se revisa el trabajo.\nAplica a cada miembro del equipo y a cada supervisor de sitio."),
+          S305("2", "C\u00f3mo se mantiene limpio un sitio", "Cada sitio tiene una lista escrita de tareas para cada turno."),
+          S305("2.1", "Ba\u00f1os", "Los ba\u00f1os se limpian de arriba hacia abajo y de seco a mojado.\nAntes de empezar:\n- Coloque el letrero de piso mojado\n- P\u00f3ngase guantes y protecci\u00f3n para los ojos\n- Revise el carrito de suministros"),
+          S305("2.2", "Vidrios y espejos", "El vidrio se roc\u00eda ligeramente y se seca con un escurridor limpio y un pa\u00f1o sin pelusa.\nColumnas de la tabla: Superficie | Herramienta | Frecuencia\n- Puertas de entrada | Escurridor | Cada turno\n- Espejos de los ba\u00f1os | Pa\u00f1o sin pelusa | Cada turno\n- Divisiones interiores | Escurridor | Cada semana"),
+          S305("3", "Revisi\u00f3n del trabajo", "Un supervisor recorre el sitio cada mes con la lista del sitio."),
+          S305("3.1", "Cuando algo se pasa por alto", "Lo que se pasa por alto se anota con un responsable y una fecha l\u00edmite, y se revisa de nuevo cuando se corrige."),
+          S305("4", "Acuse de recibo", "Las personas a quienes va dirigido este manual firman que lo leyeron."),
+          S305("4.1", "Acuse de recibo", "Recib\u00ed este manual y lo le\u00ed.\nS\u00e9 a qui\u00e9n preguntar cuando algo no est\u00e9 claro."),
+        ],
+      } },
+    { docCode: "OCSA-QMS-902", version: "1.1", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Keeping documents current" }] },
+      title: { en: "Sample Document Control Procedure" },
+      sections: { en: [S305("1", "Keeping documents current", "Only the current version of a document is used at a site."), S305("1.1", "Old versions", "An old version is kept in the archive and marked as replaced.")] } },
+    { docCode: "OCSA-HS-903", version: "1.0", hasPdf: true, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Using a ladder" }], es: [{ ref: "1", title: "Uso de una escalera" }] },
+      title: { en: "Sample Ladder Safety Procedure", es: "Procedimiento de muestra de seguridad con escaleras" },
+      sections: { en: [S305("1", "Using a ladder", "Check the ladder before each use and keep three points of contact.")], es: [S305("1", "Uso de una escalera", "Revise la escalera antes de cada uso y mantenga tres puntos de contacto.")] } },
+    { docCode: "OCSA-HR-904", version: "3.0", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Asking for time off" }] },
+      title: { en: "Sample Time Off Procedure" },
+      sections: { en: [S305("1", "Asking for time off", "Ask for time off in the app at least two weeks ahead.")] } },
+    { docCode: "OCSA-SVC-905", version: "1.2", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Floors" }], es: [{ ref: "1", title: "Pisos" }] },
+      title: { en: "Sample Floor Care Standard", es: "Est\u00e1ndar de muestra de cuidado de pisos" },
+      sections: { en: [S305("1", "Floors", "Dust mop first, then damp mop with the neutral cleaner.")], es: [S305("1", "Pisos", "Primero el trapeador seco, luego el trapeador h\u00famedo con el limpiador neutro.")] } },
+    { docCode: "OCSA-FRM-906", version: "1.0", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "The checklist" }] },
+      title: { en: "Sample Site Walk Checklist" },
+      sections: { en: [S305("1", "The checklist", "Walk each area and mark it done or not done.")] } },
+  ];
+  const T305 = (lang, en, es) => (lang === "es" ? es : en);
+  const folderOf305 = (code) => String(code).split("-")[1] || "";
+  const editionOf305 = (d, lang) => (lang === "es" && d.sections.es ? "es" : "en");
+  const listRow305 = (d, lang) => {
+    const f = folderOf305(d.docCode);
+    const ed = editionOf305(d, lang);
+    return { docCode: d.docCode, title: d.title[ed] || d.title.en, version: d.version, folder: f, folderName: T305(lang, (FOLDERS_305[f] || [f])[0], (FOLDERS_305[f] || [f, f])[1]), locales: Object.keys(d.sections), hasPdf: d.hasPdf, parts: d.parts[ed] || d.parts.en };
+  };
+  const doc305 = (code) => LIBRARY_305.find((d) => d.docCode.toLowerCase() === String(code || "").toLowerCase());
+  function step305Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    if (path === "/api/library" && method === "GET") {
+      if (library305Empty) return ok({ documents: [] });
+      const q = String(query.get("q") || "").trim().toLowerCase();
+      const all = LIBRARY_305.slice().sort((x, y) => (x.docCode < y.docCode ? -1 : 1));
+      if (!q) return ok({ documents: all.map((d) => listRow305(d, lang)) });
+      const hits = [];
+      all.forEach((d) => {
+        const ed = editionOf305(d, lang);
+        const row = listRow305(d, lang);
+        if (d.docCode.toLowerCase().indexOf(q) >= 0) { hits.push({ rank: 0, row }); return; }
+        if (String(d.title[ed] || d.title.en).toLowerCase().indexOf(q) >= 0) { hits.push({ rank: 1, row }); return; }
+        const sec = d.sections[ed].find((s) => (s.title + "\n" + s.content).toLowerCase().indexOf(q) >= 0);
+        if (sec) hits.push({ rank: 2, row: Object.assign(row, { match: { sectionRef: sec.ref, sectionTitle: sec.title } }) });
+      });
+      return ok({ documents: hits.sort((x, y) => x.rank - y.rank).map((h) => h.row) });
+    }
+    const read = /^\/api\/documents\/([^/]+)\/(read|pdf)$/.exec(path);
+    if (read && method === "GET") {
+      const d = doc305(decodeURIComponent(read[1]));
+      if (!d) return base();
+      const asked = query.get("locale") || lang || "en";
+      const ed = editionOf305(d, asked);
+      if (read[2] === "pdf") {
+        if (!d.hasPdf) return { status: 404, json: { error: T305(lang, "This document has no designed version yet.", "Este documento todav\u00eda no tiene versi\u00f3n dise\u00f1ada."), code: "documents.noPdf" } };
+        return { status: 200, bytes: PDF_BYTES, contentType: "application/pdf", json: null, headers: { "Content-Disposition": 'inline; filename="' + d.docCode + "-" + ed + '.pdf"' } };
+      }
+      return ok({ document: { docCode: d.docCode, title: d.title[ed] || d.title.en, version: d.version, locale: ed, locales: Object.keys(d.sections), shownInEnglish: asked !== "en" && ed === "en",
+        parts: d.parts[ed] || d.parts.en, ackSectionRef: d.ackSectionRef || null, pdfUrl: d.hasPdf ? "/api/documents/" + d.docCode + "/pdf" : null, pdfLocale: d.hasPdf ? ed : null,
+        sections: d.sections[ed].map((s) => Object.assign({ locale: ed }, s)), acknowledgement: { en: "I received and read this document.", es: "Recib\u00ed y le\u00ed este documento.", fr: "J'ai re\u00e7u et lu ce document." } } });
+    }
+    // Help, asked what a document covers or to open one: the document's purpose and its Parts, and
+    // openDocument for the Open button.
+    if (path === "/api/agent/message/stream" && method === "POST" && !agentStream) {
+      const m = /OCSA-[A-Z]+-\d+/i.exec(String(b.text || ""));
+      const d = m ? doc305(m[0]) : null;
+      if (d) {
+        const ed = editionOf305(d, lang);
+        const parts = (d.parts[ed] || d.parts.en).map((p) => p.ref + ". " + p.title).join("\n");
+        agentStream = { pieces: [T305(lang, d.docCode + ", " + (d.title.en) + ", says how a site is cleaned and how the work is checked. Its Parts are:\n", d.docCode + ", " + (d.title[ed] || d.title.en) + ", dice c\u00f3mo se limpia un sitio y c\u00f3mo se revisa el trabajo. Sus partes son:\n"), parts],
+          done: { openDocument: { docCode: d.docCode, title: d.title[ed] || d.title.en }, citedDocs: [d.docCode] } };
+      }
+    }
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6470,7 +6590,8 @@ function createStubs() {
     const over289 = () => (step289 ? step289Route(method, path, u.searchParams, body, record.language, over278) : over278());
     const over299 = () => (step299 ? step299Route(method, path, u.searchParams, body, record.language, over289) : over289());
     const over292 = () => (step292 ? step292Route(method, path, u.searchParams, body, record.language, over299) : over299());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over292) : over292();
+    const over305 = () => (step305 ? step305Route(method, path, u.searchParams, body, record.language, over292) : over292());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over305) : over305();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6562,6 +6683,11 @@ function createStubs() {
     // The routes and keys of the API's Step 292 contract (the dashboard's Step 293), the welcome email,
     // on or off, laid over whichever steps the run arms and under Step 283's sign-in answers.
     setStep292: (v) => { step292 = v !== false; },
+    // The routes and keys of the API's Step 305 contract (the dashboard's Step 306), the Library, on or
+    // off, laid over whichever steps the run arms; and the list answered empty, as before the library
+    // sync's first run.
+    setStep305: (v) => { step305 = v !== false; },
+    setStep305Empty: (v) => { library305Empty = v !== false; },
     // Every welcome email tried since the run armed Step 292, with whom and how it went.
     welcomes292: () => (state.s292 ? state.s292.sent.slice() : []),
     // Who a ticket's status change told, in which language, since the run armed Step 289.
@@ -6579,7 +6705,7 @@ function createStubs() {
       state.sites = clone(seed.SITES);
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
-      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null;
+      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null; library305Empty = false;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};

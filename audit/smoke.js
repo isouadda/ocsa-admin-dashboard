@@ -124,6 +124,13 @@
 //     sends; Send welcome email is disabled with No working email; a rehire's toast says the welcome
 //     email went; and the list says when it went for someone who has never signed in. At 1280 in
 //     English, Schedule inspection's Assigned Supervisor leaves out a supervisor who has left.
+//   - against the stub's answers for the API's Step 305 contract (Step 306, the Library), which the
+//     smoke check arms with setStep305, at 1280 in English and in Spanish and at 390 in English: the
+//     Library lists every document by folder with Also in Spanish on the ones with a Spanish edition; a
+//     search by a word in a section's text sends q and opens the document at that section; the reader
+//     draws the cover, Contents by Part, every section and the table, and no signature box; See the
+//     designed version opens the PDF behind the token; Help's answer about a document draws Open, which
+//     opens it in the Library; and an empty list says the library is loading.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -196,9 +203,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -2068,6 +2075,96 @@ async function step293(d, origin, p, stubs) {
   });
 }
 
+// Step 306's Library (STEP305_CONTRACT.md section 2), each a line, against the stub armed with
+// setStep305 (audit/stubs.js): the Library by folder, a search by a word in a section's text opening
+// the document at that section, the reader with its cover, Contents by Part and every section and no
+// signature box, See the designed version opening the PDF behind the token, Help's Open button, and
+// the empty list's line. Every line waits for what it reads.
+const DOC_306 = "OCSA-QMS-901";
+const WORD_306 = { en: "squeegee", es: "escurridor" };
+const ASK_306 = { en: "What is in OCSA-QMS-901?", es: "\u00bfQu\u00e9 contiene OCSA-QMS-901?" };
+async function step306(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const lang = p.lang === "es" ? "es" : "en";
+  const listRead = () => stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/library" && !/[?&]q=/.test(c.query || "") && c.json && Array.isArray(c.json.documents)).pop();
+  const docRead = () => stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/documents/" + DOC_306 + "/read" && c.json && c.json.document).pop();
+  await check("the Library lists every document by folder, with Also in Spanish", async () => {
+    if ((await d.page.locator('[data-nav-item="library"]').count()) === 0 && p.viewport !== "phone") return "the side panel offers no Library";
+    await go(d, "library", null, "[data-library-folder]");
+    const read = listRead();
+    if (!read) return "the list was not read";
+    const docs = read.json.documents;
+    const drawn = await d.page.locator("[data-library-doc]").evaluateAll((els) => els.map((e) => e.getAttribute("data-library-doc")));
+    if (drawn.join() !== docs.map((x) => x.docCode).join()) return "it draws " + JSON.stringify(drawn);
+    const folders = await d.page.locator("[data-library-folder]").evaluateAll((els) => els.map((e) => e.getAttribute("data-library-folder")));
+    const want = docs.map((x) => x.folder).filter((f, i, all) => all.indexOf(f) === i);
+    if (folders.join() !== want.join()) return "its folders are " + JSON.stringify(folders);
+    const spanish = docs.filter((x) => x.locales.indexOf("es") >= 0).length;
+    if ((await d.page.locator("[data-library-spanish]").count()) !== spanish) return "Also in Spanish is not on the " + spanish + " documents with a Spanish edition";
+    const qms = await d.page.locator('[data-library-folder="QMS"]').innerText();
+    return qms.indexOf(docs.find((x) => x.folder === "QMS").folderName) === 0 ? "" : "the Quality folder reads " + JSON.stringify(qms);
+  });
+  await check("a search by a word in the text opens the document at the section it matched", async () => {
+    await go(d, "library", null, "[data-library-search]");
+    await d.page.locator("[data-library-search]").fill(WORD_306[lang]);
+    await d.page.locator("[data-library-search-send]").click();
+    await until(d, "[data-library-match]");
+    const asked = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/library" && /[?&]q=/.test(c.query || "")).pop();
+    if (!asked || new URLSearchParams(asked.query.slice(1)).get("q") !== WORD_306[lang]) return "the search was not sent with q";
+    const ref = await d.page.locator("[data-library-match]").first().getAttribute("data-library-match");
+    if (ref !== "2.2") return "it matched section " + ref;
+    await d.page.locator('[data-library-doc="' + DOC_306 + '"]').first().click();
+    await until(d, '[data-library-landed="2.2"]');
+    const at = await d.page.locator('[data-library-section="2.2"]').evaluate((e) => e.getBoundingClientRect().top);
+    if (at < -5 || at > 260) return "the section is drawn " + Math.round(at) + " pixels down, not at the top";
+    const read = docRead();
+    return read && read.locale === lang ? "" : "the document was not read in the screen's language";
+  });
+  await check("the reader draws the cover, Contents by Part and every section, and no signature box", async () => {
+    await go(d, "library", [DOC_306], "[data-library-contents]");
+    const doc = docRead().json.document;
+    if ((await d.page.locator("[data-library-cover]").innerText()).indexOf(doc.title) < 0) return "the cover does not carry the title";
+    if ((await d.page.locator("[data-library-section]").count()) !== doc.sections.length) return "it draws " + (await d.page.locator("[data-library-section]").count()) + " sections of " + doc.sections.length;
+    if ((await d.page.locator("[data-library-part]").count()) !== doc.parts.length) return "it draws " + (await d.page.locator("[data-library-part]").count()) + " Parts of " + doc.parts.length;
+    if ((await d.page.locator("[data-library-jump]").count()) !== doc.sections.length) return "the contents do not list every section";
+    if ((await d.page.locator("[data-library-table]").count()) !== 1) return "the table is not drawn as a table";
+    return (await d.page.locator("[data-signature-box], canvas").count()) ? "the reader draws a signature box" : "";
+  });
+  await check("See the designed version opens the PDF behind the token", async () => {
+    await go(d, "library", [DOC_306], "[data-library-designed]");
+    await d.page.locator("[data-library-designed]").click();
+    await until(d, '[data-library-pdf="' + DOC_306 + '"] iframe');
+    const got = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/documents/" + DOC_306 + "/pdf").pop();
+    return got && got.status === 200 && got.headers.authorization ? "" : "the PDF was not read behind the token";
+  });
+  await check("Help's answer about a document draws Open, which opens it in the Library", async () => {
+    await go(d, "help", null, "textarea");
+    await d.page.locator("textarea").first().fill(ASK_306[lang]);
+    await d.page.locator('button[aria-label="' + d.say("Send") + '"]').first().click();
+    await until(d, '[data-help-open-document="' + DOC_306 + '"]');
+    const words = await d.page.locator("[data-help-open-document]").last().innerText();
+    if (words.trim() !== d.say("Open {0}|document").replace("{0}", DOC_306)) return "the button reads " + JSON.stringify(words);
+    await d.page.locator("[data-help-open-document]").last().click();
+    await until(d, '[data-library-reader="' + DOC_306 + '"] [data-library-contents]');
+    return "";
+  });
+  await check("an empty Library says it is loading", async () => {
+    stubs.setStep305Empty(true);
+    try {
+      await go(d, "library", null, "[data-library-empty]");
+      const said = (await d.page.locator("[data-library-empty]").innerText()).trim();
+      return said === d.say("The library is loading. Check back soon.") ? "" : "it says " + JSON.stringify(said);
+    } finally { stubs.setStep305Empty(false); }
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -2093,6 +2190,8 @@ async function runPass(browser, origin, p) {
   if (p.step300) stubs.setStep299(true);
   // Step 292's answers (the dashboard's Step 293, the welcome email) are laid over those.
   if (p.step293) stubs.setStep292(true);
+  // Step 305's answers (the dashboard's Step 306, the Library) are laid over those.
+  if (p.step306) stubs.setStep305(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -2195,6 +2294,7 @@ async function runPass(browser, origin, p) {
     if (p.step291) await step291(d, origin, p, stubs);
     if (p.step300) await step300(d, origin, p, stubs);
     if (p.step293) await step293(d, origin, p, stubs);
+    if (p.step306) await step306(d, origin, p, stubs);
 
     // Help, asked one question.
     {

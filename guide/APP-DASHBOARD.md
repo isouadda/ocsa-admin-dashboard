@@ -2396,3 +2396,28 @@ Words people use for this: welcome email, activation email, resend the invite, s
 Picture: staff-welcome-email
 Picture: staff-welcome-no-email
 Last checked: 2026-10-07
+
+## Find and read a company document (admin dashboard)
+Who can do this: everyone who signs in to the dashboard
+1. Click **Library** (**Biblioteca**) in the side panel.
+2. The documents are listed by folder, each with its number, title and version. A folder's name at the top shows only its documents; **All** (**Todos**) shows every one. **Also in Spanish** (**También en español**) under a document means it has a Spanish edition.
+3. To find a document, type its number, its title or words from its text in the search box and click **Search** (**Buscar**). Each result says where the words were found, such as **Found in {0}** (**Encontrado en {0}**) with the section. Click a result to open the document at that section.
+4. Click a document to read it. It opens with its cover (number, version and language), then **Contents** (**Contenido**) by Part, then every section. Click a line in the contents to go to that section.
+5. Click **See the designed version** (**Ver la versión diseñada**) to open the document's PDF, where it has one.
+6. Click **Back to the Library** (**Volver a la Biblioteca**) to go back to the list.
+If it does not work: **The library is loading. Check back soon.** (**La biblioteca se está cargando. Vuelva a revisar pronto.**) means the documents have not arrived yet. A document opens in the screen's language when it has that edition, and otherwise says **This document is shown in English.** (**Este documento se muestra en inglés.**) Nothing is signed in the Library: the documents a person must sign are under **Documents to sign** (**Documentos por firmar**).
+Words people use for this: library, company documents, procedures, policies, the handbook, find a procedure, read a document, sop, biblioteca, documentos de la empresa.
+Picture: library-list
+Picture: library-reader
+Last checked: 2026-10-07
+
+## Ask Help what a document covers (admin dashboard)
+Who can do this: everyone who signs in to the dashboard
+1. Click **Help** (**Ayuda**) in the side panel.
+2. Ask what a document covers and name it by its number, or ask Help to show or open a document.
+3. Help says what the document is for and lists its Parts.
+4. Under the answer, click **Open {0}** (**Abrir {0}**), which carries the document's number, to read the whole document in the **Library** (**Biblioteca**).
+If it does not work: name the document by its number, as it is written on the document. A question about one part of a document gets that part's text.
+Words people use for this: what is in this document, what does this procedure say, open a document, show me the handbook, qué dice este documento.
+Picture: help-open-document
+Last checked: 2026-10-07
