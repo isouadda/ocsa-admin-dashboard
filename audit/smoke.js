@@ -117,6 +117,13 @@
 //     of the first entry, which then says Corrected below; Resolved asks for the closing note, refuses
 //     to save without it and sends closing_note, which the log draws as the closing entry; and Print
 //     case prints every entry with its text and its files by name.
+//   - against the stub's answers for the API's Step 292 contract (Step 293, the welcome email), which
+//     the smoke check arms with setStep292, at 1280 in English and in Spanish and at 390 in English:
+//     Add Staff says "Welcome email sent to" the address with the PIN still hidden behind Show; a
+//     placeholder address draws the API's reason; the profile's Send it again asks first and then
+//     sends; Send welcome email is disabled with No working email; a rehire's toast says the welcome
+//     email went; and the list says when it went for someone who has never signed in. At 1280 in
+//     English, Schedule inspection's Assigned Supervisor leaves out a supervisor who has left.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -189,9 +196,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -1824,9 +1831,9 @@ async function step291(d, origin, p, stubs) {
 // it reads.
 const CASE_300 = "hc-1";
 const WITH_300 = { id: "u-staff-6", typed: "Okonkwo" };
-const SAID_300 = { en: "Went over the overnight rota with them at the start of the shift.", es: "Revisó con la persona el turno de noche al empezar el turno." };
-const FIXED_300 = { en: "The rota was read on the second day of the week.", es: "El turno se leyó el segundo día de la semana." };
-const CLOSING_300 = { en: "Cover was added to the overnight shift and the reporter was told.", es: "Se agregó cobertura al turno de noche y se le avisó a quien lo reportó." };
+const SAID_300 = { en: "Went over the overnight rota with them at the start of the shift.", es: "Revis\u00f3 con la persona el turno de noche al empezar el turno." };
+const FIXED_300 = { en: "The rota was read on the second day of the week.", es: "El turno se ley\u00f3 el segundo d\u00eda de la semana." };
+const CLOSING_300 = { en: "Cover was added to the overnight shift and the reporter was told.", es: "Se agreg\u00f3 cobertura al turno de noche y se le avis\u00f3 a quien lo report\u00f3." };
 const PDF_300 = { name: "rota-meeting.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n", "latin1") };
 async function step300(d, origin, p, stubs) {
   const check = async (what, fn) => {
@@ -1944,6 +1951,123 @@ async function step300(d, origin, p, stubs) {
   });
 }
 
+// Step 293's welcome email (STEP292_CONTRACT.md section 2), each a line, against the stub armed with
+// setStep292 (audit/stubs.js): Add Staff saying the welcome email went with the PIN still behind Show,
+// a placeholder address drawing the API's reason, the profile's Send it again asking first, the button
+// disabled on No working email, a rehire telling the welcome in its toast, and the welcome line in the
+// list; and at 1280 in English, Schedule inspection's Assigned Supervisor leaving out a supervisor who
+// has left. Every line waits for what it reads.
+const NEW_293 = { first: "Imani", last: "Castellanos", phone: "2155550199", email: "imani.castellanos@example.invalid" };
+const TEMP_293 = { first: "Joaquin", last: "Ferraro", phone: "2155550198", email: "joaquin.ferraro@ocsa.temp" };
+const SENT_293 = "u-staff-6";
+const NO_EMAIL_293 = "u-staff-9";
+async function step293(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const fill = (key, ...v) => v.reduce((t0, x, i) => t0.split("{" + i + "}").join(String(x)), d.say(key));
+  const addStaff = async (who) => {
+    await go(d, "staff", null, "table tbody tr");
+    await d.page.getByRole("button", { name: d.say("Add Staff") }).first().click();
+    const win = d.page.locator("div[style*='z-index: 500']").last();
+    const inputs = win.locator("input");
+    await inputs.nth(0).fill(who.first);
+    await inputs.nth(1).fill(who.last);
+    await inputs.nth(2).fill(who.phone);
+    await inputs.nth(3).fill(who.email);
+    await win.getByRole("button", { name: d.say("Add Staff") }).click();
+    await until(d, "[data-added-welcome]");
+    return d.page.locator("[data-added-welcome]").innerText();
+  };
+  const closeAdded = async () => { await d.page.getByRole("button", { name: d.say("Done") }).click().catch(() => {}); };
+  const toasted = async (words) => { await d.page.getByText(words, { exact: false }).first().waitFor({ timeout: 4000 }).catch(() => {}); return (await d.page.getByText(words, { exact: false }).count()) > 0; };
+  await check("Add Staff says the welcome email went, with the PIN still behind Show", async () => {
+    const said = await addStaff(NEW_293);
+    const post = stubs.calls.filter((c) => c.method === "POST" && c.path === "/api/users").pop();
+    if (!post || !post.json || !post.json.welcome) return "the create answered no welcome";
+    const pin = String(post.json.tempPin || "");
+    const shown = await d.page.locator("div[style*='z-index: 500']").last().innerText();
+    await closeAdded();
+    if (said !== fill("Welcome email sent to {0}.", NEW_293.email)) return "the window reads " + JSON.stringify(said);
+    if (!pin || shown.indexOf(pin) >= 0) return "the PIN is not hidden";
+    return shown.indexOf(d.say("Show")) < 0 ? "Show is not offered" : "";
+  });
+  await check("a placeholder address draws the reason the welcome email did not go", async () => {
+    const said = await addStaff(TEMP_293);
+    const post = stubs.calls.filter((c) => c.method === "POST" && c.path === "/api/users").pop();
+    const reason = post && post.json && post.json.welcome ? post.json.welcome.reason : "";
+    const button = await d.page.locator("[data-added-send-welcome]").innerText();
+    await closeAdded();
+    if (!reason) return "the create answered no reason";
+    if (said !== fill("Welcome email not sent: {0}", reason)) return "the window reads " + JSON.stringify(said);
+    return button === d.say("Send welcome email") ? "" : "the button reads " + JSON.stringify(button);
+  });
+  await check("the profile's Send it again asks first, then sends", async () => {
+    await go(d, "staff", [SENT_293], "[data-welcome-send]");
+    const btn = d.page.locator("[data-welcome-send]");
+    if ((await btn.innerText()) !== d.say("Send it again")) return "the button reads " + JSON.stringify(await btn.innerText());
+    const before = (await d.page.evaluate(() => window.__audit.confirms.length));
+    await btn.click();
+    const asked = await d.page.evaluate((n) => window.__audit.confirms.slice(n), before);
+    if (asked.indexOf(d.say("Send a new welcome email? The last link stops working.")) < 0) return "it asked " + JSON.stringify(asked);
+    for (let i = 0; i < 20 && !stubs.calls.some((c) => c.method === "POST" && c.path === "/api/users/" + SENT_293 + "/invite"); i++) await wait(100);
+    const sent = stubs.calls.filter((c) => c.method === "POST" && c.path === "/api/users/" + SENT_293 + "/invite").pop();
+    if (!sent || sent.status !== 200) return "the invite was not sent";
+    return (await toasted(d.say("Welcome email sent."))) ? "" : "no toast says the welcome email went";
+  });
+  await check("Send welcome email is disabled on No working email", async () => {
+    await go(d, "staff", [NO_EMAIL_293], "[data-welcome-send]");
+    if (!(await d.page.locator("[data-welcome-send]").isDisabled())) return "the button can be pressed";
+    const line = await d.page.locator("[data-welcome-no-email]").innerText();
+    return line === d.say("No working email") ? "" : "the line reads " + JSON.stringify(line);
+  });
+  await check("a rehire says the welcome email went in its toast", async () => {
+    await go(d, "staff", [LEFT_ID], '[data-employment-action="rehire"]');
+    await d.page.locator('[data-employment-action="rehire"]').click();
+    await until(d, "[data-restore-sites] [data-restore-site]");
+    const ticked = d.page.locator("[data-restore-sites] input:checked");
+    while (await ticked.count()) await ticked.first().uncheck();
+    await d.page.locator('[data-employment-window] input[type="date"]').fill(seed.shift(2));
+    await d.page.locator("[data-employment-window] button").filter({ hasText: d.say("Rehire") }).last().click();
+    const said = fill("Welcome email sent.");
+    if (!(await toasted(d.say("Employment updated.") + " " + said))) return "no toast says Employment updated. " + said;
+    return stubs.welcomes292().some((w) => w.id === LEFT_ID && w.status === "sent") ? "" : "the stub tried no welcome";
+  });
+  await check("the list says when the welcome email went for someone who has never signed in", async () => {
+    await go(d, "staff", null, "table tbody tr");
+    const read = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/users" && Array.isArray(c.json)).pop();
+    const w = read && read.json.find((x) => x.id === SENT_293);
+    if (!w || !w.welcome) return "the list answered no welcome";
+    const cell = d.page.locator("table tbody tr").filter({ hasText: "Ngozi Okonkwo" }).locator("[data-sign-in-state]");
+    await cell.first().waitFor();
+    const kinds = (await cell.first().getAttribute("data-sign-in-state")) || "";
+    const text = await cell.first().innerText();
+    if (kinds.split(" ").indexOf("welcome") < 0) return "the cell draws " + kinds;
+    return text.indexOf(d.say("Welcome email sent {0}").split("{0}")[0].trim()) >= 0 ? "" : "the cell reads " + JSON.stringify(text);
+  });
+  if (p.lang !== "en" || d.phone) return;
+  await check("Schedule inspection's Assigned Supervisor offers active supervisors only", async () => {
+    await go(d, "inspections", null, "[data-nav-item]");
+    await d.page.getByRole("button", { name: d.say("Scheduled|inspections") }).first().click();
+    await d.page.getByRole("button", { name: d.say("Schedule Inspection") }).first().click();
+    const win = d.page.locator("div[style*='z-index: 500']").last();
+    await win.locator("[data-person-pick-field]").first().click();
+    await until(d, "[data-person-pick-option]");
+    const offered = await win.locator("[data-person-pick-option]").evaluateAll((els) => els.map((e) => e.getAttribute("data-person-pick-option")));
+    const read = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/users" && /role=supervisor/.test(c.query) && Array.isArray(c.json)).pop();
+    if (!read || !read.json.some((x) => x.status === "inactive")) return "the stub's supervisors hold nobody who left";
+    const left = read.json.filter((x) => x.status === "inactive").map((x) => x.id);
+    const shown = offered.filter((id) => left.indexOf(id) >= 0);
+    if (shown.length) return "it offers " + shown.join(", ") + ", who left";
+    return offered.length ? "" : "it offers nobody";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -1967,6 +2091,8 @@ async function runPass(browser, origin, p) {
   if (p.step291) stubs.setStep289(true);
   // Step 299's answers (the dashboard's Step 300, the case log) are laid over those.
   if (p.step300) stubs.setStep299(true);
+  // Step 292's answers (the dashboard's Step 293, the welcome email) are laid over those.
+  if (p.step293) stubs.setStep292(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -2068,6 +2194,7 @@ async function runPass(browser, origin, p) {
     if (p.step283) await step283(d, origin, p, stubs);
     if (p.step291) await step291(d, origin, p, stubs);
     if (p.step300) await step300(d, origin, p, stubs);
+    if (p.step293) await step293(d, origin, p, stubs);
 
     // Help, asked one question.
     {

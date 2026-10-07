@@ -446,7 +446,23 @@ const SHOTS = [
     } },
   // Step 284: each person's sign-in under their status, one locked with Unlock.
   { name: "staff-sign-in", entry: "See whether a person can sign in, and unlock them",
-    open: "staff", ready: '[data-staff-unlock="u-staff-5"]' },
+    open: "staff", ready: '[data-staff-unlock="u-staff-5"]',
+    act: async (c) => { await until(c, '[data-sign-in-state*="welcome"]'); await top(c, '[data-staff-unlock="u-staff-5"]', 260); } },
+  // Step 293: the welcome email, from Add Staff's window and from a profile.
+  { name: "staff-added-welcome", entry: "Add a staff member",
+    open: "staff", ready: "table tbody tr",
+    act: async (c) => {
+      await press(c, "Add Staff"); await until(c, MODAL);
+      const inputs = inModal(c).locator("input");
+      await inputs.nth(0).fill("Imani"); await inputs.nth(1).fill("Castellanos");
+      await inputs.nth(2).fill("2155550199"); await inputs.nth(3).fill("imani.castellanos@example.invalid");
+      await inModal(c).getByRole("button", { name: c.say("Add Staff") }).click();
+      await until(c, "[data-added-welcome]");
+    } },
+  { name: "staff-welcome-email", entry: "Send a welcome email",
+    open: "staff/u-staff-6", ready: "[data-welcome-send]" },
+  { name: "staff-welcome-no-email", entry: "Send a welcome email",
+    open: "staff/u-staff-9", ready: "[data-welcome-no-email]" },
   { name: "staff-reset-pin", entry: "Reset a staff member's PIN",
     open: "staff/u-staff-6", ready: "text=Ngozi Okonkwo",
     act: async (c) => { await press(c, "Reset PIN"); await until(c, MODAL); await inModal(c).locator("input").first().fill("4827"); } },
@@ -1600,7 +1616,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

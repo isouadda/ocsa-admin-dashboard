@@ -4816,6 +4816,16 @@ export const WORDS = {
   "Print case": { es: "Imprimir el caso" },
   "Required. It goes into the case log as the case's last entry.": { es: "Obligatoria. Queda en el registro del caso como su \u00faltima entrada." },
   "Remove {0}|file": { es: "Quitar {0}" },
+  "Send welcome email": { es: "Enviar el correo de bienvenida" },
+  "Send it again": { es: "Enviarlo de nuevo" },
+  "Send a new welcome email? The last link stops working.": { es: "\u00bfEnviar un nuevo correo de bienvenida? El enlace anterior dejar\u00e1 de funcionar." },
+  "Welcome email sent to {0}.": { es: "Se envi\u00f3 el correo de bienvenida a {0}." },
+  "Welcome email not sent: {0}": { es: "No se envi\u00f3 el correo de bienvenida: {0}" },
+  "Welcome email sent {0}": { es: "Correo de bienvenida enviado el {0}" },
+  "Welcome email sent.": { es: "Se envi\u00f3 el correo de bienvenida." },
+  "no reason was given": { es: "no se dio ning\u00fan motivo" },
+  "If the email does not reach them, give them this PIN.": { es: "Si el correo no le llega, dele este PIN." },
+  "Employment could not be loaded. Try again.": { es: "No se pudo cargar el empleo. Vuelva a intentarlo." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

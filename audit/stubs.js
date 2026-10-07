@@ -6209,8 +6209,8 @@ function createStubs() {
   let step299 = false;
   const PERSON_KINDS_299 = ["note", "conversation", "meeting", "call", "file", "correction"];
   const KIND_WORDS_299 = {
-    note: ["Note", "Nota"], conversation: ["Conversation", "Conversación"], meeting: ["Meeting", "Reunión"], call: ["Phone call", "Llamada"],
-    file: ["File", "Archivo"], correction: ["Correction", "Corrección"], status: ["Status change", "Cambio de estado"], handoff: ["Handoff", "Traspaso"],
+    note: ["Note", "Nota"], conversation: ["Conversation", "Conversaci\u00f3n"], meeting: ["Meeting", "Reuni\u00f3n"], call: ["Phone call", "Llamada"],
+    file: ["File", "Archivo"], correction: ["Correction", "Correcci\u00f3n"], status: ["Status change", "Cambio de estado"], handoff: ["Handoff", "Traspaso"],
     warning: ["Warning", "Advertencia"], closed: ["Closing note", "Nota de cierre"], earlier_notes: ["Notes saved before the case log", "Notas guardadas antes del registro del caso"],
   };
   const FILE_TYPES_299 = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
@@ -6252,7 +6252,7 @@ function createStubs() {
     if (file && method === "GET") {
       const u = (s299().updates[file[1]] || []).find((x) => x.id === file[2]);
       const a = u && (u.attachments || []).find((x) => String(x.n) === file[3]);
-      if (!a) return { status: 404, json: { error: T299(lang, "That file was not found.", "No se encontró ese archivo."), code: "speakUp.fileNotFound" } };
+      if (!a) return { status: 404, json: { error: T299(lang, "That file was not found.", "No se encontr\u00f3 ese archivo."), code: "speakUp.fileNotFound" } };
       return { status: 200, bytes: a.contentType === "application/pdf" ? PDF_BYTES : PNG_BYTES, contentType: a.contentType === "application/pdf" ? "application/pdf" : "image/png", json: null, headers: { "Content-Disposition": 'inline; filename="' + a.name + '"' } };
     }
     const list = /^\/api\/hr-cases\/([^/]+)\/updates$/.exec(path);
@@ -6264,10 +6264,10 @@ function createStubs() {
       const text = typeof b.body === "string" ? b.body.trim() : "";
       if (!text && b.kind !== "file") return bad(["body"], "Write what was said or done.", "Escriba lo que se dijo o se hizo.");
       if (text.length > 8000) return bad(["body"], "Keep it to 8,000 characters.", "No pase de 8,000 caracteres.");
-      if (b.occurredAt && !(new Date(b.occurredAt).getTime() <= new Date(seed.NOW_ISO).getTime())) return bad(["occurredAt"], "When it happened cannot be later than now.", "Cuándo pasó no puede ser después de ahora.");
+      if (b.occurredAt && !(new Date(b.occurredAt).getTime() <= new Date(seed.NOW_ISO).getTime())) return bad(["occurredAt"], "When it happened cannot be later than now.", "Cu\u00e1ndo pas\u00f3 no puede ser despu\u00e9s de ahora.");
       const all = s299().updates[id] || (s299().updates[id] = []);
       if (b.kind === "correction" && !all.some((x) => x.id === b.correctsId)) return bad(["correctsId"], "Choose the entry this corrects.", "Elija la entrada que corrige.");
-      if (b.kind !== "correction" && b.correctsId != null) return bad(["correctsId"], "Only a correction names an entry.", "Solo una corrección nombra una entrada.");
+      if (b.kind !== "correction" && b.correctsId != null) return bad(["correctsId"], "Only a correction names an entry.", "Solo una correcci\u00f3n nombra una entrada.");
       const files = Array.isArray(b.attachments) ? b.attachments : [];
       if (files.length > 5) return bad(["attachments"], "Attach up to 5 files.", "Adjunte hasta 5 archivos.");
       const read = files.map((f) => ({ name: String((f && f.name) || "file"), info: dataUrlOf299(f && f.dataUrl) }));
@@ -6277,7 +6277,7 @@ function createStubs() {
       let withUser = null;
       if (b.withUserId) {
         const p = state.staff.find((s) => s.id === b.withUserId);
-        if (!p) return bad(["withUserId"], "That person is not on the staff list.", "Esa persona no está en la lista del personal.");
+        if (!p) return bad(["withUserId"], "That person is not on the staff list.", "Esa persona no est\u00e1 en la lista del personal.");
         withUser = { id: p.id, name: (p.firstName || "") + " " + (p.lastName || "") };
       }
       s299().seq += 1;
@@ -6322,6 +6322,96 @@ function createStubs() {
       return ok(Object.assign(caseOf(id), { message: "Case updated" }));
     }
     return base();
+  }
+
+  // The welcome email (STEP292_CONTRACT.md sections 1 and 2, the API's Step 292, for the dashboard's
+  // Step 293), answered only once a run arms it with setStep292, over everything else: the staff list
+  // and a profile carry welcome { sentAt, status, reason }, the latest try, or null when none was ever
+  // tried; POST /api/users creates the person active and answers the welcome it tried, sent to a real
+  // address and suppressed with a reason for a placeholder one; PATCH /api/users/:id to active, POST
+  // /api/users/:id/approve and the employment return and rehire answer the welcome they tried, for an
+  // account that has never signed in and has a real address; and POST /api/users/:id/invite answers
+  // { welcome } or refuses in helpers/invites.js's 422 style, { status, reason } and no error, when the
+  // account is not active, has signed in or has no real address. Two people are added to Step 283's
+  // sign-in answers: one who has never signed in and has no real address, and one inactive who has
+  // never signed in. The supervisors' list carries one who has left. Every value is invented.
+  let step292 = false;
+  const WELCOME_292 = () => ({
+    "u-staff-6": { sentAt: seed.shift(-2) + "T15:00:00Z", status: "sent", reason: null },
+    "u-staff-9": { sentAt: seed.shift(-1) + "T09:00:00Z", status: "suppressed", reason: "placeholder" },
+  });
+  const PLACEHOLDER_292 = /@ocsa\.temp$|@placeholder\.invalid$/i;
+  // A supervisor who has left, whom GET /api/users?role=supervisor answers an admin with as live does
+  // (Step 291's picker audit), so the Assigned Supervisor pickers are seen to leave them out.
+  const LEFT_SUPERVISOR_292 = { id: "u-sup-left", first_name: "Wendell", firstName: "Wendell", last_name: "Okafor", lastName: "Okafor", name: "Wendell Okafor", role: "supervisor", status: "inactive", email: "wendell.okafor@example.invalid", employee_id: "EMP-1090", badge_number: "4190" };
+  const s292 = () => {
+    if (!state.s292) state.s292 = { welcome: WELCOME_292(), sent: [] };
+    const si = si283();
+    if (!si.with292) {
+      si.with292 = true;
+      si.people["u-staff-9"] = Object.assign({}, si.people["u-staff-9"], { lastSignInAt: null, emailDeliverable: false });
+      si.people["u-staff-12"] = Object.assign({}, si.people["u-staff-12"], { lastSignInAt: null });
+    }
+    return state.s292;
+  };
+  const W292 = (lang, en, es) => (lang === "es" ? es : en);
+  function step292Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    const st = s292();
+    // A reason is kept as what it is and said in the screen's language, as the API says it.
+    const said = (w) => (w && w.reason === "placeholder" ? Object.assign({}, w, { reason: W292(lang, "The email address is a placeholder, so nothing was sent.", "La direcci\u00f3n de correo es provisional, as\u00ed que no se envi\u00f3 nada.") }) : w);
+    const welcomeFor = (id) => (st.welcome[id] === undefined ? null : said(st.welcome[id]));
+    const neverIn = (id) => !signInFor(id).lastSignInAt;
+    const realEmail = (u) => !!(u && u.email && !PLACEHOLDER_292.test(String(u.email)) && signInFor(u.id).emailDeliverable !== false);
+    // One try, kept as the person's latest, sent to a real address and suppressed otherwise.
+    const tryWelcome = (u) => {
+      const w = realEmail(u)
+        ? { sentAt: seed.NOW_ISO, status: "sent", reason: null }
+        : { sentAt: seed.NOW_ISO, status: "suppressed", reason: "placeholder" };
+      st.welcome[u.id] = w;
+      st.sent.push({ id: u.id, status: w.status });
+      return said(w);
+    };
+    const userOf = (id) => state.staff.find((x) => x.id === id);
+    if (path === "/api/users" && method === "POST") {
+      const a = base();
+      if (!a || a.status !== 201 || !a.json || !a.json.user) return a;
+      const row = userOf(a.json.user.id) || a.json.user;
+      row.status = "active";
+      si283().people[row.id] = { lastSignInAt: null, mustSetPin: true, emailDeliverable: !PLACEHOLDER_292.test(String(row.email || "")) };
+      const w = tryWelcome(row);
+      return { status: 201, json: Object.assign({}, a.json, { user: Object.assign({}, a.json.user, { status: "active" }), welcome: w }) };
+    }
+    const invite = /^\/api\/users\/([^/]+)\/invite$/.exec(path);
+    if (invite && method === "POST") {
+      const u = userOf(decodeURIComponent(invite[1]));
+      if (!u) return { status: 404, json: { error: W292(lang, "User not found", "No se encontr\u00f3 el usuario"), code: "common.userNotFound" } };
+      if (u.status !== "active") return { status: 422, json: { status: "skipped", userId: u.id, reason: W292(lang, "The account is not active.", "La cuenta no est\u00e1 activa.") } };
+      if (!neverIn(u.id)) return { status: 422, json: { status: "skipped", userId: u.id, reason: W292(lang, "They have already signed in.", "Ya inici\u00f3 sesi\u00f3n.") } };
+      if (!realEmail(u)) return { status: 422, json: { status: "suppressed", userId: u.id, reason: W292(lang, "The email address is a placeholder, so nothing was sent.", "La direcci\u00f3n de correo es provisional, as\u00ed que no se envi\u00f3 nada.") } };
+      return ok({ welcome: tryWelcome(u) });
+    }
+    // The paths that make an account active answer the welcome they tried, once.
+    const patch = /^\/api\/users\/([^/]+)$/.exec(path);
+    const approve = /^\/api\/users\/([^/]+)\/approve$/.exec(path);
+    const back = /^\/api\/users\/([^/]+)\/employment\/(return|rehire)$/.exec(path);
+    const made = (patch && (method === "PATCH" || method === "PUT") && b.status === "active") || (approve && method === "POST") || (back && method === "POST");
+    if (made) {
+      const id = decodeURIComponent((patch || approve || back)[1]);
+      const u = userOf(id);
+      const was = u ? u.status : null;
+      const a = base();
+      if (!a || a.status >= 300 || !u) return a;
+      u.status = "active";
+      if (was === "active" || !neverIn(id)) return a;
+      return Object.assign({}, a, { json: Object.assign({}, a.json || {}, { welcome: tryWelcome(u) }) });
+    }
+    const a = base();
+    if (!a || a.status !== 200 || !a.json) return a;
+    if (path === "/api/users" && method === "GET" && Array.isArray(a.json) && query.get("role") === "supervisor") a.json = a.json.concat([clone(LEFT_SUPERVISOR_292)]);
+    if (path === "/api/users" && method === "GET" && Array.isArray(a.json)) a.json = a.json.map((x) => Object.assign({}, x, { welcome: welcomeFor(x.id) }));
+    if (/^\/api\/users\/profile\/[^/]+$/.test(path) && a.json.user) a.json = Object.assign({}, a.json, { user: Object.assign({}, a.json.user, { welcome: welcomeFor(a.json.user.id) }) });
+    return a;
   }
 
   // The single entry point the harness routes every request through.
@@ -6379,7 +6469,8 @@ function createStubs() {
     const over278 = () => (step278 ? step278Route(method, path, u.searchParams, body, record.language, over280) : over280());
     const over289 = () => (step289 ? step289Route(method, path, u.searchParams, body, record.language, over278) : over278());
     const over299 = () => (step299 ? step299Route(method, path, u.searchParams, body, record.language, over289) : over289());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over299) : over299();
+    const over292 = () => (step292 ? step292Route(method, path, u.searchParams, body, record.language, over299) : over299());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over292) : over292();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6468,6 +6559,11 @@ function createStubs() {
     // The routes and keys of the API's Step 299 contract (the dashboard's Step 300), the case log, on or
     // off, laid over whichever steps the run arms.
     setStep299: (v) => { step299 = v !== false; },
+    // The routes and keys of the API's Step 292 contract (the dashboard's Step 293), the welcome email,
+    // on or off, laid over whichever steps the run arms and under Step 283's sign-in answers.
+    setStep292: (v) => { step292 = v !== false; },
+    // Every welcome email tried since the run armed Step 292, with whom and how it went.
+    welcomes292: () => (state.s292 ? state.s292.sent.slice() : []),
     // Who a ticket's status change told, in which language, since the run armed Step 289.
     notified289: () => (state.s289 ? state.s289.notified.slice() : []),
     // Whether a person is on the PIN the office gave, which with Step 283 armed holds every route but
@@ -6483,7 +6579,7 @@ function createStubs() {
       state.sites = clone(seed.SITES);
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
-      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null;
+      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};
