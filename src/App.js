@@ -169,7 +169,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -637,6 +637,9 @@ export default function AdminDashboard() {
   // Whether GET /api/support/tickets answers this person (Step 291): admins, and whoever the support
   // contact setting names, by email. The Tickets page joins the side panel. Read once a session.
   const [ticketsOn, setTicketsOn] = useState(false);
+  // Whether GET /api/library answers a list (Step 306): Library joins the side panel for everyone who
+  // signs in, since everyone reads every document. Read once a session.
+  const [libraryOn, setLibraryOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -665,6 +668,7 @@ export default function AdminDashboard() {
     if (id === "equipment") return equipmentOn;
     if (id === "periodic") return periodicOn;
     if (id === "tickets") return ticketsOn;
+    if (id === "library") return libraryOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -673,7 +677,7 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -703,7 +707,7 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
@@ -711,6 +715,7 @@ export default function AdminDashboard() {
     af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); });
     af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); });
     af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); });
+    af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (alive) setLibraryOn(false); console.warn("Library:", e.message); });
     af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
@@ -905,6 +910,7 @@ export default function AdminDashboard() {
   const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
   const BldI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 18v-6 M9 15h6" {...p} />;
   const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
+  const LibI = p => <Ic d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" {...p} />;
   const TkI = p => <Ic d="M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" {...p} />;
 
   const sidebarGroups = [
@@ -943,10 +949,10 @@ export default function AdminDashboard() {
       ...(canOpenPage("chat-records") ? [{ id: "chat-records", l: tr("Chat records"), i: RecI }] : []),
       ...(canOpenPage("tickets") ? [{ id: "tickets", l: tr("Tickets"), i: TkI }] : []),
     ] }] : []),
-    { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
+    { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1202,6 +1208,8 @@ export default function AdminDashboard() {
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
+        {/* Everyone reads every document (Step 306), so the page is the API's to answer, whoever opens it. */}
+        {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
         {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -7092,6 +7100,85 @@ function HelpPage({ af, sf, uf, showToast, t }) {
     </div>}
   </div>);
 }
+// ===== THE LIBRARY (Step 306, STEP305_CONTRACT.md sections 0 and 2) =====
+// Every company document, for everyone who signs in. GET /api/library answers { documents: [{ docCode,
+// title, version, folder, folderName, locales, hasPdf, parts }] }, sorted by number, and the side panel
+// offers Library once it answers a list; an empty list says the library is loading. ?q= finds documents
+// by number, title and words in their sections, best first, each carrying the section it matched as
+// match: { sectionRef, sectionTitle }, and a result is opened at that section as #library/<docCode>/<ref>.
+const libraryDocsOf = (d) => (d && Array.isArray(d.documents) ? d.documents.filter(x => x && typeof x.docCode === "string" && x.docCode.trim()) : null);
+const libraryMatchOf = (x) => { const m = x && x.match && typeof x.match === "object" ? x.match : null; return m && (m.sectionRef != null || m.sectionTitle) ? { ref: m.sectionRef == null ? "" : String(m.sectionRef), title: m.sectionTitle ? String(m.sectionTitle) : "" } : null; };
+const libraryOpen = (code, ref) => { window.location.hash = ["library", encodeURIComponent(code)].concat(ref ? [encodeURIComponent(ref)] : []).join("/"); };
+function LibraryPage({ af, t }) {
+  return <LibraryList af={af} t={t} />;
+}
+
+function LibraryList({ af, t }) {
+  const [docs, setDocs] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [folder, setFolder] = useState("all");
+  const [typed, setTyped] = useState("");
+  const [found, setFound] = useState(null);
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setFailed("");
+    af("/api/library").then(d => { if (alive) setDocs(libraryDocsOf(d) || []); }).catch(e => { if (alive) { setDocs([]); setFailed(e.message || tr("This did not load.")); } });
+    return () => { alive = false; };
+  }, [af, again]);
+  // A search is read when it is sent, and its words stay in the box with the results under them.
+  const search = async (e) => {
+    if (e) e.preventDefault();
+    const q = typed.trim();
+    if (!q) { setFound(null); return; }
+    setFound({ q, docs: null, failed: "" });
+    try { const d = await af("/api/library?q=" + encodeURIComponent(q)); setFound({ q, docs: libraryDocsOf(d) || [], failed: "" }); }
+    catch (err) { setFound({ q, docs: [], failed: err.message || tr("Request failed") }); }
+  };
+  const folders = [];
+  (docs || []).forEach(x => { const k = String(x.folder || ""); const f = folders.find(y => y.key === k); if (f) f.count += 1; else folders.push({ key: k, name: String(x.folderName || x.folder || ""), count: 1 }); });
+  const row = (x, match) => (<button key={x.docCode + (match ? "|" + match.ref : "")} onClick={() => libraryOpen(x.docCode, match && match.ref)} data-library-doc={x.docCode}
+    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "transparent", border: "none", borderTop: "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY, color: t.text, minHeight: 44 }}>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: t.goldText, whiteSpace: "nowrap" }}>{x.docCode}</span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{x.title || x.docCode}</span>
+    </div>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: t.textMut, marginTop: 3 }}>
+      {x.version != null && String(x.version) !== "" && <span>{tr("Version {0}", x.version)}</span>}
+      {Array.isArray(x.locales) && x.locales.indexOf("es") >= 0 && <span data-library-spanish="" style={{ color: t.textSec }}>{tr("Also in Spanish")}</span>}
+    </div>
+    {match && <div data-library-match={match.ref} style={{ fontSize: 12, color: t.textSec, marginTop: 4, overflowWrap: "anywhere" }}>{tr("Found in {0}", [match.ref ? tr("Section {0}", match.ref) : "", match.title].filter(Boolean).join(", "))}</div>}
+  </button>);
+  const shown = (docs || []).filter(x => folder === "all" || String(x.folder || "") === folder);
+  return (<div data-library="">
+    <SecT t={t}>{tr("Library")}</SecT>
+    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Every company document. Open one to read it.")}</div>
+    {docs === null && <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+    {docs !== null && failed && <Crd t={t}><LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} /></Crd>}
+    {docs !== null && !failed && docs.length === 0 && <Crd t={t}><div data-library-empty="" style={{ fontSize: 13, color: t.textSec, textAlign: "center", padding: 12 }}>{tr("The library is loading. Check back soon.")}</div></Crd>}
+    {docs !== null && !failed && docs.length > 0 && <>
+      <form onSubmit={search} style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 240px", minWidth: 0 }}><Inp t={t} data-library-search="" aria-label={tr("Search the library")} placeholder={tr("Number, title or words in the text")} value={typed} onChange={e => { setTyped(e.target.value); if (!e.target.value.trim()) setFound(null); }} /></div>
+        <Btn t={t} type="submit" data-library-search-send="">{tr("Search")}</Btn>
+        {found && <Btn t={t} v="ghost" type="button" onClick={() => { setTyped(""); setFound(null); }}>{tr("Clear")}</Btn>}
+      </form>
+      {found ? <Crd t={t} style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "12px 14px", fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Results for {0}", found.q)}</div>
+        {found.docs === null && <div style={{ padding: 14, fontSize: 12, color: t.textMut, borderTop: "1px solid " + t.border }}>{tr("Searching...")}</div>}
+        {found.failed && <div style={{ borderTop: "1px solid " + t.border }}><LoadFailed t={t} text={found.failed} onRetry={() => search()} /></div>}
+        {found.docs && !found.failed && found.docs.length === 0 && <div data-library-none="" style={{ padding: 14, fontSize: 13, color: t.textSec, borderTop: "1px solid " + t.border }}>{tr("No document matches that search.")}</div>}
+        {found.docs && found.docs.map(x => row(x, libraryMatchOf(x)))}
+      </Crd> : <>
+        <FilterTabs t={t} value={folder} onChange={setFolder} tabs={[{ id: "all", label: tr("All|documents"), count: docs.length }].concat(folders.map(f => ({ id: f.key, label: f.name, count: f.count })))} />
+        {folders.filter(f => folder === "all" || f.key === folder).map(f => (<Crd key={f.key} t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
+          <div data-library-folder={f.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "12px 14px", fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}><span>{f.name}</span><span style={{ fontSize: 12, color: t.textMut, fontWeight: 500 }}>{trn("{0} documents|library", f.count)}</span></div>
+          {shown.filter(x => String(x.folder || "") === f.key).map(x => row(x, null))}
+        </Crd>))}
+      </>}
+    </>}
+  </div>);
+}
+
 // ===== HELP INSIGHTS: what people ask Help, overall and per person (Step 185) =====
 // Drawn for holders of view_help_insights, from GET /api/help-insights/summary, /misses and
 // /people, each read with the range and the filters (STEP183_CONTRACT.md, section 4). Nothing
