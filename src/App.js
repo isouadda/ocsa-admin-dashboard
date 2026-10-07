@@ -169,7 +169,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -634,6 +634,9 @@ export default function AdminDashboard() {
   // Whether GET /api/periodic-work answers this office account with { items } (Step 291): Quality >
   // Periodic work joins the side panel. Read once a session.
   const [periodicOn, setPeriodicOn] = useState(false);
+  // Whether GET /api/support/tickets answers this person (Step 291): admins, and whoever the support
+  // contact setting names, by email. The Tickets page joins the side panel. Read once a session.
+  const [ticketsOn, setTicketsOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -661,6 +664,7 @@ export default function AdminDashboard() {
     if (id === "workspace") return workspaceOn;
     if (id === "equipment") return equipmentOn;
     if (id === "periodic") return periodicOn;
+    if (id === "tickets") return ticketsOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -669,7 +673,7 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -699,13 +703,14 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
     af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); });
     af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); });
     af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); });
+    af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); });
     af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
@@ -900,6 +905,7 @@ export default function AdminDashboard() {
   const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
   const BldI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 18v-6 M9 15h6" {...p} />;
   const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
+  const TkI = p => <Ic d="M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
@@ -932,14 +938,15 @@ export default function AdminDashboard() {
       ...(canOpenPage("form-builder") ? [{ id: "form-builder", l: tr("Form builder"), i: BldI }] : []),
     ]},
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
-    ...(canOpenPage("settings") || canOpenPage("chat-records") ? [{ label: null, items: [
+    ...(canOpenPage("settings") || canOpenPage("chat-records") || canOpenPage("tickets") ? [{ label: null, items: [
       ...(canOpenPage("settings") ? [{ id: "settings", l: tr("Settings"), i: StgI }] : []),
       ...(canOpenPage("chat-records") ? [{ id: "chat-records", l: tr("Chat records"), i: RecI }] : []),
+      ...(canOpenPage("tickets") ? [{ id: "tickets", l: tr("Tickets"), i: TkI }] : []),
     ] }] : []),
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1189,6 +1196,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
@@ -1213,6 +1221,8 @@ export default function AdminDashboard() {
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
+  // Step 291: Can't sign in? with the support contact's email, once the open route answers one.
+  const contact = useSupportContact();
   // The words the code screen came back with (an expired code, too many tries), shown over the PIN.
   const [notice, setNotice] = useState("");
   // The PIN is let go once the code screen opens, so Back asks for it again.
@@ -1227,6 +1237,7 @@ function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, 
     <div style={{ marginBottom: 8 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" inputMode="numeric" autoComplete="current-password" maxLength={4} placeholder={tr("4-digit PIN")} data-signin-pin="" style={{ letterSpacing: pn ? "8px" : "normal", textAlign: "center", fontSize: pn ? 20 : 14 }} onKeyDown={e => e.key === "Enter" && go()} /></div>
     <div style={{ textAlign: "right", marginBottom: 16 }}><button type="button" onClick={() => onForgot && onForgot(ph)} data-signin-forgot="" style={{ background: "none", border: "none", minHeight: 44, padding: "0 4px", color: t.textSec, fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: FONT_BODY }}>{tr("Forgot your PIN?")}</button></div>
     {wrongTries >= 3 ? <div data-signin-lock-hint="" style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("After too many wrong tries, sign-in stops for a while. Ask the office for help.")}</div> : null}
+    {contact ? <div data-signin-support="" style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5, overflowWrap: "anywhere" }}>{tr("Can't sign in? Email {0}", "\u0000").split("\u0000").map((part, i) => <Fragment key={i}>{i > 0 ? <a href={"mailto:" + contact.email} style={{ color: t.goldText, fontWeight: 600 }}>{contact.email}</a> : null}{part}</Fragment>)}</div> : null}
     <button onClick={go} disabled={loading} data-signin-submit="" style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
 
@@ -6374,8 +6385,291 @@ function HelpPicture({ p, lang, t, onOpen }) {
     <img src={src} alt={p.entry} onError={() => { if (src !== english) setSrc(english); else setGone(true); }} style={{ display: "block", width: "100%", height: "auto" }} />
   </button>);
 }
+// ===== APP SUPPORT (Step 291) =====
+// STEP289_CONTRACT.md sections 1.4 and 3.4. A ticket is a person's report about the apps: what kind,
+// what they wrote, the screen and the details their app sent on its own, and a status the office moves
+// through New, Working on it, Done and Won't do with a note. The API notifies the person who filed it
+// in their language on a status change, and emails the support contact the setting names. Nothing here
+// shows until the API answers it: the Tickets page joins the side panel once GET /api/support/tickets
+// answers this person (admins, and whoever the setting names), Settings gains App support contact once
+// GET /api/settings/support-contact answers, the sign-in card draws its line once the open GET
+// /api/support/contact answers an email, and Help draws its ticket card once an answer carries a draft.
+// The contact is a setting, so no name or address is written here.
+const TICKET_KINDS = [
+  { v: "bug", l: "Something is not working" },
+  { v: "idea", l: "An idea" },
+  { v: "wrong_info", l: "Wrong information" },
+  { v: "help_miss", l: "Help could not answer" },
+  { v: "cant_sign_in", l: "Cannot sign in" },
+];
+const TICKET_STATES = [
+  { v: "new", l: "New|ticket", get c() { return BL; } },
+  { v: "working", l: "Working on it", get c() { return OR; } },
+  { v: "done", l: "Done|ticket", get c() { return GR; } },
+  { v: "wont_do", l: "Won't do", get c() { return PU; } },
+];
+const TICKET_APPS = { portal: "Staff portal", dashboard: "Admin dashboard" };
+const TICKET_SOURCES = { form: "App support form", help: "Help" };
+const TICKET_LANGS = { en: "English", es: "Spanish", fr: "French" };
+const TICKET_NOTE_MAX = 1000;
+const ticketKindWord = (k) => { const x = TICKET_KINDS.find(y => y.v === k); return x ? tr(x.l) : String(k || ""); };
+const ticketStateOf = (s) => TICKET_STATES.find(y => y.v === s) || null;
+const ticketStateWord = (s) => { const x = ticketStateOf(s); return x ? tr(x.l) : String(s || ""); };
+const ticketsOf = (d) => (Array.isArray(d) ? d : d && Array.isArray(d.tickets) ? d.tickets : null);
+const ticketPick = (x, keys) => { for (const k of keys) { if (x && x[k] != null && x[k] !== "") return x[k]; } return null; };
+const ticketNameOf = (v) => (v && typeof v === "object" ? v.name || ((v.firstName || v.first_name || "") + " " + (v.lastName || v.last_name || "")).trim() : "");
+// One ticket in the shape the screens read, whichever case the API writes its keys in.
+const ticketShape = (x) => ({
+  id: String(ticketPick(x, ["id"]) || ""),
+  kind: ticketPick(x, ["kind"]) || "",
+  status: ticketPick(x, ["status"]) || "new",
+  statusNote: ticketPick(x, ["statusNote", "status_note"]) || "",
+  description: ticketPick(x, ["description"]) || "",
+  screen: ticketPick(x, ["screen"]) || "",
+  appVersion: ticketPick(x, ["appVersion", "app_version"]) || "",
+  device: ticketPick(x, ["device"]) || "",
+  locale: ticketPick(x, ["locale"]) || "",
+  app: ticketPick(x, ["app"]) || "",
+  source: ticketPick(x, ["source"]) || "",
+  createdAt: ticketPick(x, ["createdAt", "created_at"]) || "",
+  updatedAt: ticketPick(x, ["updatedAt", "updated_at"]) || "",
+  who: ticketNameOf(ticketPick(x, ["createdBy", "created_by"])) || ticketPick(x, ["createdByName", "created_by_name", "userName"]) || "",
+  handledBy: ticketNameOf(ticketPick(x, ["handledBy", "handled_by"])) || ticketPick(x, ["handledByName", "handled_by_name"]) || "",
+  screenshotUrl: ticketPick(x, ["screenshotUrl", "screenshot_url"]) || "",
+  screenshot: !!ticketPick(x, ["screenshotUrl", "screenshot_url", "screenshotPath", "screenshot_path"]),
+});
+// Each detail a ticket carries, as [label, value], in the order the window and the export draw them.
+const ticketDetails = (x) => [
+  ["Kind of ticket", ticketKindWord(x.kind)],
+  ["Status", ticketStateWord(x.status)],
+  ["Note|ticket", x.statusNote],
+  ["From|ticket", x.who],
+  ["Sent", irWhen(x.createdAt)],
+  ["App", TICKET_APPS[x.app] ? tr(TICKET_APPS[x.app]) : x.app],
+  ["Sent from", TICKET_SOURCES[x.source] ? tr(TICKET_SOURCES[x.source]) : x.source],
+  ["Screen", x.screen],
+  ["App version", x.appVersion],
+  ["Device", x.device],
+  ["Language", TICKET_LANGS[x.locale] ? tr(TICKET_LANGS[x.locale]) : x.locale],
+].filter(r => r[1]);
+// The tickets shown, as plain text to paste into a chat: a heading with the count and the day, then
+// each ticket's details and what the person wrote.
+function ticketsText(rows) {
+  const out = [tr("App support tickets ({0})", rows.length) + ", " + keptDay(todayISO())];
+  rows.forEach((x, i) => {
+    out.push("", "#" + (i + 1));
+    ticketDetails(x).forEach(([l, v]) => out.push(tr(l) + ": " + v));
+    out.push(tr("Description") + ":", x.description || "--");
+  });
+  return out.join("\n");
+}
+// What the dashboard says about itself on a ticket it files: the build it is running, read from the
+// bundle's own name, and the browser.
+const dashboardBuild = () => {
+  try { const src = Array.from(document.scripts || []).map(s => s.src || "").find(u => /\/static\/js\/main\.[0-9a-f]+\.js/.test(u)); const m = src && /main\.([0-9a-f]+)\.js/.exec(src); return m ? "build " + m[1] : "build dev"; }
+  catch (e) { return "build dev"; }
+};
+const dashboardDevice = () => { try { return String(navigator.userAgent || "").slice(0, 200); } catch (e) { return ""; } };
+
+// One ticket, opened from a row: every detail, the screenshot when the API sends its address, and the
+// status with its note, saved with PATCH /api/support/tickets/:id { status, statusNote }. A refusal is
+// drawn over Save in the API's words, and nothing closes.
+function TicketWindow({ af, t, ticket, showToast, onClose, onSaved }) {
+  const [status, setStatus] = useState(ticket.status);
+  const [note, setNote] = useState(ticket.statusNote || "");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const changed = status !== ticket.status || note.trim() !== String(ticket.statusNote || "").trim();
+  const save = async () => {
+    if (busy || !changed) return;
+    setBusy(true); setRefusal("");
+    try {
+      const d = await af("/api/support/tickets/" + encodeURIComponent(ticket.id), { method: "PATCH", body: { status, statusNote: note.trim() || null } });
+      const got = d && (d.ticket || (d.id ? d : null));
+      showToast(status !== ticket.status ? tr("Saved. The person who sent it is told in their language.") : tr("Saved."));
+      onSaved(got ? ticketShape(got) : Object.assign({}, ticket, { status, statusNote: note.trim() }));
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 110, flexShrink: 0, color: t.textMut }}>{tr(label)}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{value}</span></div>;
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ticket-window={ticket.id}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{ticketKindWord(ticket.kind)}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ marginBottom: 12 }}>{ticketDetails(ticket).filter(([l]) => l !== "Kind of ticket" && l !== "Status" && l !== "Note|ticket").map(([l, v]) => row(l, v))}</div>
+    <Lbl>{tr("Description")}</Lbl>
+    <div data-ticket-description="" style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, overflowWrap: "anywhere" }}>{ticket.description || "--"}</div>
+    {ticket.screenshotUrl ? <a href={ticket.screenshotUrl} target="_blank" rel="noopener noreferrer" data-ticket-screenshot="" style={{ display: "block", marginBottom: 12 }}><img src={ticket.screenshotUrl} alt={tr("Screenshot")} style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border }} /></a>
+      : ticket.screenshot ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("A screenshot is attached.")}</div> : null}
+    <Lbl>{tr("Status")}</Lbl>
+    <div role="group" aria-label={tr("Status")} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+      {TICKET_STATES.map(s => <button key={s.v} type="button" aria-pressed={status === s.v} data-ticket-status-choice={s.v} onClick={() => setStatus(s.v)} disabled={busy} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (status === s.v ? GO : t.border), background: status === s.v ? t.goldBg : "transparent", color: status === s.v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr(s.l)}</button>)}
+    </div>
+    <Lbl>{tr("Note to the person who sent it")}</Lbl>
+    <TArea t={t} rows={3} maxLength={TICKET_NOTE_MAX} aria-label={tr("Note to the person who sent it")} data-ticket-note="" value={note} onChange={e => setNote(e.target.value)} placeholder={tr("Optional.")} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 12, lineHeight: 1.5 }}>{tr("When the status changes, the person who sent it is told in the app, in their language, with this note.")}</div>
+    {refusal && <div role="alert" data-ticket-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-ticket-save="" onClick={save} disabled={busy || !changed} style={{ opacity: changed ? 1 : 0.6 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The text Export makes, in a window: Copy puts it on the clipboard, and the box holds it to select by
+// hand where the browser refuses the clipboard.
+function TicketsExportWindow({ t, text, showToast, onClose }) {
+  const boxRef = useRef(null);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); showToast(tr("Copied")); }
+    catch (e) { if (boxRef.current) { boxRef.current.focus(); boxRef.current.select(); } showToast(tr("Select the text and copy it.")); }
+  };
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-tickets-export="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Export")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The tickets shown, as text to paste into a chat.")}</div>
+    <textarea rows={12} readOnly ref={boxRef} aria-label={tr("Export")} data-tickets-export-text="" value={text} style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, resize: "vertical", fontFamily: "monospace" }} />
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Close")}</Btn>
+      <Btn t={t} data-tickets-copy="" onClick={copy}>{tr("Copy")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The Tickets inbox: GET /api/support/tickets?kind= read once per kind and app, the status tabs counted
+// from what it answers, a row opening the ticket, and Export making the rows shown into text.
+function TicketsPage({ af, t, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [state, setState] = useState("new");
+  const [kind, setKind] = useState("");
+  const [app, setApp] = useState("");
+  const [open, setOpen] = useState(null);
+  const [exporting, setExporting] = useState(null);
+  const load = useCallback(() => {
+    setFailed("");
+    const q = [kind ? "kind=" + encodeURIComponent(kind) : "", app ? "app=" + encodeURIComponent(app) : ""].filter(Boolean).join("&");
+    af("/api/support/tickets" + (q ? "?" + q : "")).then(d => setRows((ticketsOf(d) || []).map(ticketShape))).catch(e => { setRows([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, kind, app]);
+  useEffect(() => { load(); }, [load]);
+  const all = (rows || []).filter(x => !app || x.app === app);
+  const shown = all.filter(x => state === "all" || x.status === state).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const count = (s) => all.filter(x => x.status === s).length;
+  const cols = [
+    { header: tr("Sent"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => irWhen(x.createdAt) },
+    { header: tr("Kind of ticket"), tdStyle: { minWidth: 150, color: t.text, fontWeight: 600 }, render: x => ticketKindWord(x.kind) },
+    { header: tr("From|ticket"), tdStyle: { minWidth: 120, color: t.textSec }, render: x => x.who || "--" },
+    { header: tr("Where"), tdStyle: { minWidth: 120, color: t.textSec }, render: x => [TICKET_APPS[x.app] ? tr(TICKET_APPS[x.app]) : x.app, x.screen].filter(Boolean).join(", ") || "--" },
+    { header: tr("Description"), tdStyle: { minWidth: 200, maxWidth: 320, color: t.text }, render: x => <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.description}</span> },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: x => <span data-ticket-state={x.status}><Bdg l={ticketStateWord(x.status)} c={(ticketStateOf(x.status) || TICKET_STATES[0]).c} /></span> },
+  ];
+  return (<div data-tickets="">
+    <SecT t={t}>{tr("Tickets")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("What people report about the apps from App support and from Help. A bug and a sign-in problem are emailed to the support contact at once; the rest go in one summary each working morning.")}</div>
+    <FilterTabs t={t} value={state} onChange={setState} tabs={TICKET_STATES.map(s => ({ id: s.v, label: tr(s.l), count: rows ? count(s.v) : null, color: s.c })).concat([{ id: "all", label: tr("All|tickets"), count: rows ? all.length : null }])} />
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Kind of ticket")} data-tickets-kind="" value={kind} onChange={e => setKind(e.target.value)} options={[{ v: "", l: tr("All kinds") }].concat(TICKET_KINDS.map(k => ({ v: k.v, l: tr(k.l) })))} /></div>
+      <div style={{ minWidth: 180 }}><Sel t={t} aria-label={tr("App")} data-tickets-app="" value={app} onChange={e => setApp(e.target.value)} options={[{ v: "", l: tr("Both apps") }].concat(Object.keys(TICKET_APPS).map(k => ({ v: k, l: tr(TICKET_APPS[k]) })))} /></div>
+      <Btn t={t} v="ghost" data-tickets-export-open="" onClick={() => setExporting(ticketsText(shown))} disabled={!shown.length} style={{ marginLeft: "auto" }}>{tr("Export")}</Btn>
+    </div>
+    {rows === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={shown} rowKey={x => x.id} onRowClick={x => setOpen(x)} empty={all.length ? tr("Nothing matches this filter.") : tr("No tickets yet.")} />}
+    {open && <TicketWindow af={af} t={t} ticket={open} showToast={showToast} onClose={() => setOpen(null)} onSaved={(x) => { setOpen(null); setRows(prev => (prev || []).map(y => (y.id === x.id ? Object.assign({}, y, x) : y))); load(); }} />}
+    {exporting !== null && <TicketsExportWindow t={t} text={exporting} showToast={showToast} onClose={() => setExporting(null)} />}
+  </div>);
+}
+
+// Settings > App support contact: the name and email Help gives and the sign-in card shows, and where
+// the API emails a ticket, from GET /api/settings/support-contact and saved with PUT. A refusal that
+// names a field is drawn under it.
+function SupportContactPanel({ af, t, showToast, initial }) {
+  const [f, setF] = useState({ name: (initial && initial.name) || "", email: (initial && initial.email) || "" });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const fieldOf = (e) => { const keys = (e && e.body && Array.isArray(e.body.keys) ? e.body.keys : []).concat(e && e.body && e.body.field ? [e.body.field] : []); return keys.indexOf("email") >= 0 ? "email" : keys.indexOf("name") >= 0 ? "name" : ""; };
+  const save = async () => {
+    if (busy) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      const d = await af("/api/settings/support-contact", { method: "PUT", body: { name: f.name.trim(), email: f.email.trim() } });
+      if (d && typeof d === "object" && (d.name != null || d.email != null)) setF({ name: d.name || "", email: d.email || "" });
+      showToast(tr("Saved."));
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div role="alert" data-support-contact-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Crd t={t} style={{ maxWidth: 560 }}><div data-support-contact="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("App support contact")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The person tickets go to. Help names them, the sign-in screens show the email, and a bug or a sign-in problem is emailed to them at once.")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} aria-label={tr("Name")} data-support-contact-name="" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} style={refusal.field === "name" ? { borderColor: RD } : undefined} />{under("name")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Email")}</Lbl><Inp t={t} type="email" aria-label={tr("Email")} data-support-contact-email="" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} style={refusal.field === "email" ? { borderColor: RD } : undefined} />{under("email")}</div>
+    {refusal.text && !refusal.field && <div role="alert" data-support-contact-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} data-support-contact-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div></Crd>);
+}
+
+// The contact the open route answers, for the sign-in card, read once a page load: { name, email }, or
+// null until it answers with an email.
+let supportContactRead = null;
+function useSupportContact() {
+  const [c, setC] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    if (!supportContactRead) supportContactRead = apiFetch("/api/support/contact").then(d => (d && typeof d.email === "string" && d.email.trim() ? { name: String(d.name || ""), email: d.email.trim() } : null)).catch(() => { supportContactRead = null; return null; });
+    supportContactRead.then(v => { if (alive) setC(v); });
+    return () => { alive = false; };
+  }, []);
+  return c;
+}
+
+// Help's ticket card: Help drafts a ticket from the conversation, and it is filed only when the person
+// presses Send ticket, with POST /api/support/tickets and the details this app sends on its own. Not
+// now puts it away. A refusal is drawn on the card in the API's words.
+function HelpTicketCard({ af, t, draft, onDone, onDismiss }) {
+  const [kind, setKind] = useState(TICKET_KINDS.some(k => k.v === draft.kind) ? draft.kind : "bug");
+  const [text, setText] = useState(String(draft.description || ""));
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const send = async () => {
+    if (busy || !text.trim()) return;
+    setBusy(true); setRefusal("");
+    try {
+      await af("/api/support/tickets", { method: "POST", body: { kind, description: text.trim(), screen: draft.screen || "help", appVersion: dashboardBuild(), device: dashboardDevice(), locale: getLang(), app: AGENT_APP, source: "help" } });
+      onDone();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<Crd t={t} style={{ marginBottom: 12 }}><div data-help-ticket="">
+    <Lbl>{tr("Ticket for app support")}</Lbl>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Kind of ticket")} data-help-ticket-kind="" value={kind} onChange={e => setKind(e.target.value)} options={TICKET_KINDS.map(k => ({ v: k.v, l: tr(k.l) }))} /></div>
+    </div>
+    <TArea t={t} rows={3} maxLength={4000} aria-label={tr("Description")} data-help-ticket-text="" value={text} onChange={e => setText(e.target.value)} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Nothing is sent until you press Send ticket. The screen, this app's version, your browser and your language go with it.")}</div>
+    {refusal && <div role="alert" data-help-ticket-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onDismiss} disabled={busy}>{tr("Not now")}</Btn>
+      <Btn t={t} data-help-ticket-send="" onClick={send} disabled={busy || !text.trim()}>{busy ? tr("Sending...") : tr("Send ticket")}</Btn>
+    </div>
+  </div></Crd>);
+}
+
+// A ticket Help drafted from the conversation (Step 291, STEP289_CONTRACT.md section 1.4), read from
+// the answer's ticketDraft: { kind, description, screen }. The contract names no key, so ticket_draft
+// and supportTicket are read too.
+const agentTicketDraftOf = (r) => {
+  const x = r && (r.ticketDraft || r.ticket_draft || r.supportTicket);
+  return x && typeof x === "object" && (x.kind || x.description) ? { kind: String(x.kind || ""), description: String(x.description || ""), screen: String(x.screen || "") } : null;
+};
 function HelpPage({ af, sf, uf, showToast, t }) {
   const [drafts, setDrafts] = useState([]);
+  // Step 291: the ticket Help drafted, shown on its card until it is sent or put away.
+  const [ticketDraft, setTicketDraft] = useState(null);
+  const [ticketSent, setTicketSent] = useState(false);
   const [thread, setThread] = useState([]);
   const [conversationId, setConversationId] = useState(null);
   const [formResponse, setFormResponse] = useState(null);
@@ -6545,6 +6839,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
           if (r.conversationId) setConversationId(r.conversationId);
           const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], pictures: agentPicturesFrom(r.pictures), messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
           if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
+          const ticket = agentTicketDraftOf(r);
+          if (ticket) { setTicketDraft(ticket); setTicketSent(false); }
           setThread(p => [...p.filter(m => m.id !== replyId).map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
           setText(cur => cur === body ? "" : cur);
           if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
@@ -6657,6 +6953,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
       {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("Still needed before you can submit:")}</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
     </Crd>}
     {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>{tr("Report submitted.")}</div>}
+    {ticketDraft && <HelpTicketCard key={ticketDraft.kind + "|" + ticketDraft.description} af={af} t={t} draft={ticketDraft} onDone={() => { setTicketDraft(null); setTicketSent(true); }} onDismiss={() => setTicketDraft(null)} />}
+    {ticketSent && <div role="status" data-help-ticket-sent="" style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>{tr("Ticket sent.")}</div>}
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: "1 1 0px", minHeight: "min-content" }}>
       {/* The conversation keeps 120 of the page's own pixels, and the reports list gives up its rows
           first. In a short window with the text large, 420 is what the top bar, the page's margins,
@@ -15654,6 +15952,13 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     af("/api/holidays?year=" + new Date().getFullYear()).then(d => { if (alive) setHolidays(holidaysOf(d) ? d : null); }).catch(e => { if (alive) setHolidays(null); console.warn("Holidays:", e.message); });
     return () => { alive = false; };
   }, [af, canManageSettings]);
+  // Step 291: App support contact, once GET /api/settings/support-contact answers this person (admins).
+  const [supportContact, setSupportContact] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/settings/support-contact").then(d => { if (alive) setSupportContact(d && typeof d === "object" && !Array.isArray(d) ? d : null); }).catch(e => { if (alive) setSupportContact(null); console.warn("Support contact:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
   const [selCat, setSelCat] = useState(null);
   // Each tab is a capability's: Company, Who gets told and Holidays are manage settings, the two lookups
   // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
@@ -15667,6 +15972,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "quotes", label: tr("Quote defaults"), open: canSetQuoteDefaults && !!quoteDefaults },
     { id: "holidays", label: tr("Holidays"), open: canManageSettings && !!holidays },
     { id: "devices", label: tr("Trusted devices"), open: devicesOn },
+    { id: "support", label: tr("App support contact"), open: !!supportContact },
   ];
   const tabs = TABS.filter(x => x.open);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
@@ -15805,7 +16111,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     <div>
       <SecT t={t}>{tr("Settings")}</SecT>
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
+        {tabs.map(tb => <button key={tb.id} data-settings-tab={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
 
       {tab === "company" && canManageSettings && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
@@ -15825,6 +16131,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "holidays" && canManageSettings && holidays && <HolidaysPanel af={af} t={t} showToast={showToast} initial={holidays} />}
 
       {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
+
+      {tab === "support" && supportContact && <SupportContactPanel af={af} t={t} showToast={showToast} initial={supportContact} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
