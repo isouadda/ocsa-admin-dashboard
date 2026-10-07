@@ -22741,6 +22741,204 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
   </div></Mdl>);
 }
 
+// ===== THE CASE LOG (Step 300) =====
+// A case keeps every step as an entry that is never changed (API Step 299, hr_case_updates): what a
+// person adds (a note, a conversation, a meeting, a phone call, a file, a correction) and what the API
+// writes itself in the request that makes the change (a status change, take, release, hand to and
+// escalate, a warning issued from the case, and the closing note). GET /api/hr-cases/:id carries them as
+// updates, oldest first; until it does the case window is as it was. An entry is drawn with its kind,
+// who wrote it and when, Happened when it took place at another time, who it was with, its text and its
+// files, which open behind the token. A correction names the entry it corrects and jumps to it; a
+// corrected entry says so. Notes a case held before the log came in as one entry with no author.
+const CASE_LOG_KINDS = ["note", "conversation", "meeting", "call", "file"];
+const CASE_LOG_CLOSING = ["resolved", "closed"];
+const CASE_FILE_MAX = 5;
+const CASE_FILE_MAX_BYTES = 10 * 1024 * 1024;
+const CASE_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
+const CASE_LOG_BODY_MAX = 8000;
+const caseKindWord = (k) => ({
+  note: tr("Note|case log"), conversation: tr("Conversation"), meeting: tr("Meeting"), call: tr("Phone call"), file: tr("File|case log"),
+  correction: tr("Correction"), status: tr("Status change"), handoff: tr("Handoff"), warning: tr("Warning|case log"), closed: tr("Closing note"),
+  earlier_notes: tr("Notes saved before the case log"),
+})[k] || "";
+const caseLogWho = (p) => (!p ? "" : typeof p === "string" ? p : String(p.name || ""));
+const caseLogWith = (u) => caseLogWho(u && u.withUser) || String((u && u.withName) || "");
+// Happened is drawn when the moment it took place is more than a minute from the moment it was written.
+const caseLogHappened = (u) => !!(u && u.occurredAt && u.createdAt && Math.abs(new Date(u.occurredAt) - new Date(u.createdAt)) > 60000);
+const caseLogWhenOf = (u) => (u && (u.occurredAt || u.createdAt)) || "";
+// What a system entry says beyond its kind: a status change from and to, and who took, released,
+// handed or escalated the case. details carries from and to as names or { id, name }, and which.
+function caseLogDetail(u, statusLabel) {
+  const d = (u && u.details && typeof u.details === "object") ? u.details : {};
+  if (u.kind === "status") {
+    const from = statusLabel[d.from] || d.from || "", to = statusLabel[d.to] || d.to || "";
+    return from && to ? tr("{0} to {1}|status", from, to) : to;
+  }
+  if (u.kind === "handoff") {
+    const which = String(d.which || ""), from = caseLogWho(d.from), to = caseLogWho(d.to);
+    if (/escal/i.test(which)) return to ? tr("Escalated to {0}", to) : "";
+    if (/release/i.test(which)) return from ? tr("Released by {0}. The case went back to the team.", from) : tr("The case went back to the team.");
+    if (/take/i.test(which)) return to ? tr("Taken by {0}", to) : "";
+    return from && to ? tr("Handed from {0} to {1}", from, to) : to ? tr("Handed to {0}", to) : "";
+  }
+  if (u.kind === "warning") return tr("A warning was issued from this case.");
+  return "";
+}
+const caseLogUpdates = (d) => (d && Array.isArray(d.updates) ? d.updates : null);
+const localInputOf = (v) => { const x = new Date(v); const p = (n) => String(n).padStart(2, "0"); return x.getFullYear() + "-" + p(x.getMonth() + 1) + "-" + p(x.getDate()) + "T" + p(x.getHours()) + ":" + p(x.getMinutes()); };
+const fileDataUrl = (file) => new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => reject(new Error(tr("This file could not be read."))); fr.readAsDataURL(file); });
+const caseFileWhy = (f) => (CASE_FILE_TYPES.indexOf(f.type) < 0 && !/\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(f.name || "") ? tr("{0} is not a JPEG, PNG, WebP or HEIC picture or a PDF.", f.name) : f.size > CASE_FILE_MAX_BYTES ? tr("{0} is over 10 MB.", f.name) : "");
+
+function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, showToast, onAdded }) {
+  const byId = {};
+  updates.forEach(u => { byId[String(u.id)] = u; });
+  const [kind, setKind] = useState("note");
+  const [correcting, setCorrecting] = useState(null);
+  const [withUser, setWithUser] = useState("");
+  const [withName, setWithName] = useState("");
+  const [when, setWhen] = useState(() => localInputOf(Date.now()));
+  const [whenTouched, setWhenTouched] = useState(false);
+  const [text, setText] = useState("");
+  const [files, setFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState({ text: "", keys: [] });
+  const [lit, setLit] = useState("");
+  const [opening, setOpening] = useState("");
+  const formRef = useRef(null);
+  const textRef = useRef(null);
+  const people = allStaff.filter(p => p && (!p.status || p.status === "active"));
+  const brand = clientConfig.company.brandTag;
+  const reset = () => { setKind("note"); setCorrecting(null); setWithUser(""); setWithName(""); setWhen(localInputOf(Date.now())); setWhenTouched(false); setText(""); setFiles([]); setSaid({ text: "", keys: [] }); };
+  const jump = (id) => {
+    const el = document.querySelector('[data-case-log-entry="' + String(id).replace(/"/g, "") + '"]');
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    setLit(String(id)); setTimeout(() => setLit(cur => (cur === String(id) ? "" : cur)), 2000);
+  };
+  const correct = (u) => {
+    setCorrecting(u); setSaid({ text: "", keys: [] });
+    setTimeout(() => { if (formRef.current && formRef.current.scrollIntoView) formRef.current.scrollIntoView({ block: "center", behavior: "smooth" }); if (textRef.current) textRef.current.focus(); }, 0);
+  };
+  const pick = (list) => {
+    const next = files.slice();
+    let why = "";
+    Array.from(list || []).forEach(f => { const w = caseFileWhy(f); if (w) { why = why || w; return; } if (next.length >= CASE_FILE_MAX) { why = why || tr("Up to {0} files.", CASE_FILE_MAX); return; } next.push(f); });
+    setFiles(next); setSaid({ text: why, keys: why ? ["attachments"] : [] });
+  };
+  // A file opens in a window opened in the press, so a pop-up blocker lets it through; it is fetched
+  // with the token and handed to that window, or saved when the browser would not open one.
+  const openFile = async (u, a) => {
+    const key = u.id + "/" + a.n;
+    if (opening) return;
+    const w = keptWindow();
+    setOpening(key);
+    try {
+      const f = await apiDownload("/api/hr-cases/" + encodeURIComponent(caseId) + "/updates/" + encodeURIComponent(u.id) + "/files/" + encodeURIComponent(a.n), token, a.name || "file");
+      const url = URL.createObjectURL(f.blob);
+      if (w) { w.location.href = url; }
+      else { const el = document.createElement("a"); el.href = url; el.download = a.name || f.filename; document.body.appendChild(el); el.click(); document.body.removeChild(el); }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { if (w) { try { w.close(); } catch (x) { /* already closed */ } } showToast(e.message || tr("Request failed"), "error"); }
+    setOpening("");
+  };
+  const add = async () => {
+    if (busy) return;
+    const body = text.trim();
+    const sendKind = correcting ? "correction" : kind;
+    if (!body && sendKind !== "file") { setSaid({ text: tr("Write what was said or done."), keys: ["body"] }); return; }
+    if (sendKind === "file" && files.length === 0) { setSaid({ text: tr("Attach at least one file."), keys: ["attachments"] }); return; }
+    if (body.length > CASE_LOG_BODY_MAX) { setSaid({ text: tr("Keep it under {0} characters.", CASE_LOG_BODY_MAX), keys: ["body"] }); return; }
+    let occurredAt = null;
+    if (whenTouched && when) {
+      const at = new Date(when);
+      if (isNaN(at.getTime())) { setSaid({ text: tr("Choose when it happened."), keys: ["occurredAt"] }); return; }
+      if (at.getTime() > Date.now()) { setSaid({ text: tr("When it happened cannot be later than now."), keys: ["occurredAt"] }); return; }
+      occurredAt = at.toISOString();
+    }
+    setBusy(true); setSaid({ text: "", keys: [] });
+    try {
+      const attachments = [];
+      for (const f of files) attachments.push({ name: f.name, dataUrl: await fileDataUrl(f) });
+      const payload = { kind: sendKind };
+      if (body) payload.body = body;
+      if (withUser) payload.withUserId = withUser;
+      else if (withName.trim()) payload.withName = withName.trim();
+      if (occurredAt) payload.occurredAt = occurredAt;
+      if (correcting) payload.correctsId = correcting.id;
+      if (attachments.length) payload.attachments = attachments;
+      const d = await af("/api/hr-cases/" + encodeURIComponent(caseId) + "/updates", { method: "POST", body: payload });
+      reset();
+      showToast(tr("Added to the case log."));
+      if (onAdded) onAdded(d && d.update ? d.update : null);
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setSaid({ text: e.message || tr("Request failed"), keys });
+    }
+    setBusy(false);
+  };
+  const bad = (k) => said.keys.indexOf(k) >= 0;
+  const box = (k) => (bad(k) ? { borderColor: RD } : {});
+  const under = (k) => (bad(k) && said.text ? <div data-case-update-refusal={k} role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{said.text}</div> : null);
+  const loose = said.text && !["kind", "body", "withUserId", "withName", "occurredAt", "attachments", "correctsId"].some(bad);
+  const kindOptions = CASE_LOG_KINDS.map(k => ({ v: k, l: caseKindWord(k) }));
+  return (<div data-case-log="" style={{ marginBottom: 16 }}>
+    <Lbl>{tr("Case log")}</Lbl>
+    {updates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 8 }}>{tr("Nothing has been added yet.")}</div>}
+    {updates.map(u => {
+      const who = caseLogWho(u.createdBy);
+      const withWho = caseLogWith(u);
+      const corrected = Array.isArray(u.correctedBy) && u.correctedBy.length > 0 ? u.correctedBy : [];
+      const target = u.kind === "correction" && u.correctsId != null ? byId[String(u.correctsId)] : null;
+      const detailLine = caseLogDetail(u, statusLabel);
+      const atts = Array.isArray(u.attachments) ? u.attachments : [];
+      const on = lit === String(u.id);
+      return (<div key={u.id} data-case-log-entry={u.id} data-case-log-kind={u.kind} style={{ padding: 10, marginBottom: 8, borderRadius: 8, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : t.cardAlt, transition: "background .3s ease, border-color .3s ease" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{caseKindWord(u.kind) || u.kindName || u.kind}</span>
+          <span data-case-log-by="" style={{ fontSize: 11, color: t.textMut }}>{who ? <span data-case-log-author="">{who}</span> : null}{who ? ", " : ""}<span data-case-log-when="">{irWhen(u.createdAt)}</span></span>
+        </div>
+        {caseLogHappened(u) && <div data-case-log-happened="" style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{tr("Happened {0}", irWhen(u.occurredAt))}</div>}
+        {withWho && <div data-case-log-with="" style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{tr("With {0}|case log", withWho)}</div>}
+        {u.kind === "correction" && u.correctsId != null && <button type="button" data-case-log-correction-of={u.correctsId} onClick={() => jump(u.correctsId)} disabled={!target} style={{ display: "block", background: "none", border: "none", padding: "4px 0", minHeight: 32, color: t.goldText, fontSize: 12, fontWeight: 600, cursor: target ? "pointer" : "default", textAlign: "left", fontFamily: FONT_BODY }}>{target ? tr("Correction to the entry of {0}", irWhen(caseLogWhenOf(target))) : tr("Correction to an earlier entry")}</button>}
+        {detailLine && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{detailLine}</div>}
+        {u.body && <div data-case-log-body="" style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5, marginTop: 6 }}>{u.body}</div>}
+        {atts.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{atts.map(a => (
+          <button key={a.n} type="button" data-case-log-file={a.n} onClick={() => openFile(u, a)} disabled={opening === u.id + "/" + a.n} style={{ minHeight: 32, padding: "4px 10px", borderRadius: R.sm, border: "1px solid " + t.border, background: t.card, color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || tr("File|case log")}</button>))}</div>}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+          {corrected.length > 0 ? <button type="button" data-case-log-corrected="" onClick={() => jump(corrected[corrected.length - 1])} style={{ background: "none", border: "none", padding: 0, minHeight: 32, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Corrected below")}</button> : <span />}
+          <button type="button" data-case-log-correct="" onClick={() => correct(u)} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 32, color: t.textSec, fontSize: 12, cursor: "pointer", fontFamily: FONT_BODY, textDecoration: "underline" }}>{tr("Correct this")}</button>
+        </div>
+      </div>);
+    })}
+    <div ref={formRef} data-case-update="" style={{ marginTop: 12, padding: 12, borderRadius: 8, border: "1px solid " + t.border }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{correcting ? tr("Add a correction") : tr("Add an update")}</div>
+      {correcting ? <div data-case-update-correcting={correcting.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: t.textSec, marginBottom: 10 }}>
+        <span>{tr("Correction to the entry of {0}", irWhen(caseLogWhenOf(correcting)))}</span>
+        <Btn t={t} v="ghost" onClick={() => { setCorrecting(null); setSaid({ text: "", keys: [] }); }} data-case-update-cancel-correction="">{tr("Cancel")}</Btn>
+      </div> : <div style={{ marginBottom: 10 }}><Lbl>{tr("Type|case log")}</Lbl><Sel t={t} value={kind} onChange={e => setKind(e.target.value)} options={kindOptions} data-case-update-kind="" aria-label={tr("Type|case log")} style={box("kind")} />{under("kind")}</div>}
+      <div style={{ marginBottom: 10 }}><Lbl>{tr("With|case log")}</Lbl>
+        <PersonPick t={t} aria-label={tr("With|case log")} data-case-update-with="" value={withUser} onChange={e => { setWithUser(e.target.value); if (e.target.value) setWithName(""); }} options={[{ v: "", l: tr("No one from {0}", brand) }, ...people.map(p => ({ v: String(p.id), l: ((p.firstName || "") + " " + (p.lastName || "")).trim() || p.name || "" }))]} style={box("withUserId")} />
+        {under("withUserId")}
+        <Inp t={t} value={withName} onChange={e => { setWithName(e.target.value); if (e.target.value) setWithUser(""); }} placeholder={tr("Or type the name of someone outside {0}", brand)} aria-label={tr("Someone outside {0}", brand)} data-case-update-with-name="" maxLength={120} style={{ marginTop: 6, ...box("withName") }} />
+        {under("withName")}
+      </div>
+      <div style={{ marginBottom: 10 }}><Lbl>{tr("When it happened")}</Lbl><Inp t={t} type="datetime-local" value={when} max={localInputOf(Date.now())} onChange={e => { setWhen(e.target.value); setWhenTouched(true); }} aria-label={tr("When it happened")} data-case-update-when="" style={box("occurredAt")} />{under("occurredAt")}</div>
+      <div style={{ marginBottom: 10 }}><Lbl>{tr("What was said or done")}</Lbl><textarea ref={textRef} rows={4} value={text} onChange={e => setText(e.target.value)} maxLength={CASE_LOG_BODY_MAX} aria-label={tr("What was said or done")} data-case-update-body="" style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + (bad("body") ? RD : t.inputBorder), background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY }} />{under("body")}</div>
+      <div style={{ marginBottom: 10 }}><Lbl>{tr("Attach files")}</Lbl>
+        <input type="file" multiple data-case-update-files="" aria-label={tr("Attach files")} accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" disabled={busy || files.length >= CASE_FILE_MAX} onChange={e => { const l = e.target.files; pick(l); e.target.value = ""; }} style={{ fontSize: 13, color: t.text, minHeight: 44, maxWidth: "100%" }} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Up to 5 pictures or PDFs, 10 MB each.")}</div>
+        {files.map((f, i) => (<div key={i} data-case-update-file="" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12, color: t.text, padding: "4px 0" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+          <button type="button" onClick={() => setFiles(files.filter((x, j) => j !== i))} aria-label={tr("Remove {0}", f.name)} style={{ ...xBtn, minWidth: 32, minHeight: 32 }}><XI sz={14} c={t.textMut} /></button>
+        </div>))}
+        {under("attachments")}
+      </div>
+      {loose && <div data-case-update-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 8 }}>{said.text}</div>}
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Entries cannot be changed once added. To fix one, add a correction.")}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={add} disabled={busy} data-case-update-add="">{busy ? tr("Adding...") : tr("Add to the case log")}</Btn></div>
+    </div>
+  </div>);
+}
+
 function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
@@ -22754,8 +22952,11 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const [detail, setDetail] = useState(null);
   const [accessLog, setAccessLog] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [form, setForm] = useState({ status: "", escalatedTo: "", resolutionNotes: "" });
+  const [form, setForm] = useState({ status: "", escalatedTo: "", resolutionNotes: "", closingNote: "" });
   const [saving, setSaving] = useState(false);
+  // Step 300: once the case carries its log, Resolved and Closed ask for the closing note, which the
+  // API writes as the log's closing entry; the Resolution notes box goes.
+  const [closingSaid, setClosingSaid] = useState("");
   const [handTo, setHandTo] = useState("");
   const [holdBusy, setHoldBusy] = useState(false);
   const [holdError, setHoldError] = useState("");
@@ -22775,11 +22976,22 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const openCase = async (c) => {
     let d;
     try { d = await af("/api/hr-cases/" + c.id); } catch (e) { showToast(tr("This case is not available."), "error"); return; }
-    setDetail(d); setAccessLog([]); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" }); setHandTo(""); setHoldError("");
+    setDetail(d); setAccessLog([]); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "", closingNote: "" }); setHandTo(""); setHoldError(""); setClosingSaid("");
     loadAccessLog(d.id);
     af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
   };
   const closeCase = () => { setDetail(null); setAccessLog([]); };
+  // The log as it stands after a change the API logged itself: the answer's own updates when it
+  // carries them, else the log read again, the entries in hand drawn meanwhile.
+  const refreshLog = async (id) => {
+    try { const r = await af("/api/hr-cases/" + encodeURIComponent(id) + "/updates"); if (r && Array.isArray(r.updates)) setDetail(cur => (cur && cur.id === id ? { ...cur, updates: r.updates } : cur)); }
+    catch (e) { console.warn("Case log:", e.message); }
+  };
+  const withLog = (d) => {
+    if (!detail || !caseLogUpdates(detail) || caseLogUpdates(d)) return d;
+    refreshLog(d.id);
+    return { ...d, updates: caseLogUpdates(detail) };
+  };
   // Step 232: opening a case from the office, and issuing a warning from an open case, once the API's
   // Step 228 answers; its discipline steps route is the sign.
   const [officeCases, setOfficeCases] = useState(false);
@@ -22793,15 +23005,28 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
     const body = {};
     if (form.status !== detail.status) body.status = form.status;
     if (form.escalatedTo) body.escalated_to = form.escalatedTo;
-    const notes = (form.resolutionNotes || "").trim();
-    if (notes !== (detail.resolutionNotes || "")) body.resolution_notes = notes || null;
+    const logLive = !!caseLogUpdates(detail);
+    if (logLive) {
+      if (body.status && CASE_LOG_CLOSING.indexOf(body.status) >= 0) {
+        const closing = (form.closingNote || "").trim();
+        if (!closing) { setClosingSaid(tr("Write the closing note.")); return; }
+        body.closing_note = closing;
+      }
+    } else {
+      const notes = (form.resolutionNotes || "").trim();
+      if (notes !== (detail.resolutionNotes || "")) body.resolution_notes = notes || null;
+    }
     if (Object.keys(body).length === 0) { showToast(tr("Nothing to update"), "error"); return; }
-    setSaving(true);
+    setSaving(true); setClosingSaid("");
     try {
-      const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body });
-      setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" });
+      const d = withLog(await af("/api/hr-cases/" + detail.id, { method: "PATCH", body }));
+      setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "", closingNote: "" });
       showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      if (keys.indexOf("closing_note") >= 0 || keys.indexOf("closingNote") >= 0) setClosingSaid(e.message || tr("Request failed"));
+      else showToast(e.message, "error");
+    }
     setSaving(false);
   };
   // Take, hand over or release: one PATCH carrying assigned_to alone. Handing to someone else emails
@@ -22810,8 +23035,8 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
     if (!detail || holdBusy) return;
     setHoldBusy(true); setHoldError("");
     try {
-      const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo } });
-      setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" }); setHandTo("");
+      const d = withLog(await af("/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo } }));
+      setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "", closingNote: "" }); setHandTo(""); setClosingSaid("");
       showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) { setHoldError(e.message || tr("Request failed")); }
     setHoldBusy(false);
@@ -22858,7 +23083,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   return (<div>
     <SecT t={t} action={officeCases ? tr("Open a case") : undefined} onAction={officeCases ? () => setOpening(true) : undefined}>{tr("Cases")}</SecT>
     {opening && <OpenCaseWindow af={af} t={t} allStaff={allStaff} me={user} showToast={showToast} onClose={() => setOpening(false)} onOpened={() => { setOpening(false); load(statusFilter); if (onSaved) onSaved(); }} />}
-    {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => {}} />}
+    {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => { if (detail && caseLogUpdates(detail)) refreshLog(detail.id); }} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
@@ -22887,6 +23112,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         {holdError && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{holdError}</div>}
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
+      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter); if (onSaved) onSaved(); }} />}
       {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
@@ -22895,9 +23121,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Last updated")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.updatedAt ? ff(detail.updatedAt) : "-"}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved|case")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.resolvedAt ? ff(detail.resolvedAt) : "-"}</div></div>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={CASE_STATUSES.map(v => ({ v, l: statusLabel[v] }))} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} value={form.status} onChange={e => { setForm({ ...form, status: e.target.value }); setClosingSaid(""); }} options={CASE_STATUSES.map(v => ({ v, l: statusLabel[v] }))} data-case-status="" /></div>
+      {caseLogUpdates(detail) && form.status !== detail.status && CASE_LOG_CLOSING.indexOf(form.status) >= 0 && <div style={{ marginBottom: 12 }}><Lbl>{tr("Closing note")}</Lbl><TArea t={t} rows={4} value={form.closingNote} onChange={e => { setForm({ ...form, closingNote: e.target.value }); setClosingSaid(""); }} aria-label={tr("Closing note")} aria-required="true" data-case-closing-note="" style={closingSaid ? { borderColor: RD } : {}} />
+        {closingSaid ? <div data-case-closing-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{closingSaid}</div> : <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Required. It goes into the case log as the case's last entry.")}</div>}
+      </div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><PersonPick t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
-      <div style={{ marginBottom: 14 }}><Lbl>{tr("Resolution notes")}</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>
+      {!caseLogUpdates(detail) && <div style={{ marginBottom: 14 }}><Lbl>{tr("Resolution notes")}</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>{tr("Close")}</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : tr("Save changes")}</Btn></div>
       <div><Lbl>{tr("Access log")}</Lbl>
         {accessLog.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No entries yet.")}</div>}
