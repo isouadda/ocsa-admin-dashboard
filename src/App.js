@@ -169,7 +169,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -631,6 +631,9 @@ export default function AdminDashboard() {
   // Whether GET /api/equipment answers this office account with { equipment } (Step 239): Equipment
   // joins the side panel. Read once a session.
   const [equipmentOn, setEquipmentOn] = useState(false);
+  // Whether GET /api/periodic-work answers this office account with { items } (Step 291): Quality >
+  // Periodic work joins the side panel. Read once a session.
+  const [periodicOn, setPeriodicOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -657,6 +660,7 @@ export default function AdminDashboard() {
     if (id === "discipline") return disciplineOn;
     if (id === "workspace") return workspaceOn;
     if (id === "equipment") return equipmentOn;
+    if (id === "periodic") return periodicOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -665,7 +669,7 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -695,12 +699,13 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
     af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); });
     af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); });
+    af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); });
     af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
@@ -916,6 +921,7 @@ export default function AdminDashboard() {
       { id: "issues", l: tr("Issues"), i: AlI },
       { id: "assigned", l: tr("Assigned Tasks"), i: WkI },
       { id: "inspections", l: tr("Inspections"), i: ClpI },
+      ...(canOpenPage("periodic") ? [{ id: "periodic", l: tr("Periodic work"), i: HsI }] : []),
     ]},
     { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }, ...(canOpenPage("equipment") ? [{ id: "equipment", l: tr("Equipment"), i: EqI }] : [])] },
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }, ...(canOpenPage("quotes") ? [{ id: "quotes", l: tr("Quotes"), i: DlrI }] : [])] },
@@ -933,7 +939,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1183,6 +1189,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -3373,6 +3380,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
       {/* SERVICE DETAILS TAB (Tasks) */}
       {siteTab === "tasks" && <div>
+        {/* Step 291: this site's periodic work first, once GET /api/periodic-work?siteId= answers. */}
+        <PeriodicWorkPanel key={selectedSite} af={af} t={t} siteId={selectedSite} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Tasks ({0})", st.length)}</div>
           {canManageTasks && <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Task")}</button>}
@@ -3671,22 +3680,22 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   }
 
   // ---- LIST VIEW ----
-  // Step 218: which sites have a workload plan, above the site list. A row opens the site on its
-  // Workload plan tab. The figures are hours and people, with no price.
-  const planCols = [
-    { header: tr("Site"), tdStyle: { minWidth: 140 }, render: r => <span style={{ fontWeight: 600, color: t.text }}>{r.siteName}</span> },
-    { header: tr("Plan"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.plan ? <span>{tr("Quote {0}, revision {1}", r.plan.quoteNumber || "--", r.plan.quoteRevision != null ? r.plan.quoteRevision : "--")}{r.plan.stale ? <div style={{ marginTop: 4 }}><Bdg l={tr("Changed since")} c={OR} /></div> : null}</span> : <span style={{ color: t.textMut }}>{tr("No plan yet")}</span>) },
-    { header: tr("Hours a month"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.monthlyHours) : "--") },
-    { header: tr("Staff recommended"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.recommendedStaff) : "--") },
-    { header: tr("Cleaners assigned"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => workloadNum(r.assigned ? r.assigned.cleaners : null) },
-  ];
+  // Step 291: the list, Add Site and the search come first. Each site's workload plan (Step 218), from
+  // GET /api/workload-plans, is one short column on its row, drawn once the route answers, and opens
+  // the site on its Workload plan tab. Periodic work for every site is Quality > Periodic work, and
+  // each site's own is at the top of its Service Details tab.
+  const planOf = {};
+  (plansAll || []).forEach(r => { if (r && r.siteId != null) planOf[String(r.siteId)] = r; });
+  const planCell = (s) => {
+    const r = planOf[String(s.id)];
+    const p = r && r.plan;
+    if (!p) return <span style={{ color: t.textMut }}>{tr("No plan yet")}</span>;
+    return (<button data-site-plan={s.id} onClick={e => { e.stopPropagation(); openProfile(s.id, "plan"); }} style={{ minHeight: 44, padding: "4px 0", background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", textAlign: "left" }}>
+      {tr("Quote {0}, revision {1}", p.quoteNumber || "--", p.quoteRevision != null ? p.quoteRevision : "--")}
+      {p.stale ? <div style={{ marginTop: 4 }}><Bdg l={tr("Changed since")} c={OR} /></div> : null}
+    </button>);
+  };
   return (<div>
-    {plansAll && <div data-workload-plans="" style={{ marginBottom: 24 }}>
-      <SecT t={t}>{tr("Workload plans")}</SecT>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.")}</div>
-      <DataTable t={t} columns={planCols} rows={plansAll} rowKey={r => r.siteId} onRowClick={r => openProfile(r.siteId, "plan")} empty={tr("No sites found.")} />
-    </div>}
-    <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => openProfile(sid, "tasks")} />
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -3709,6 +3718,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         { header: tr("Tasks"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? trn("{0} task|count", s.task_count) : "-" },
         { header: tr("Contract"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => contractOf(s.contract_type) || "-" },
         { header: tr("Status"), render: s => <Bdg l={siteStateOf(s.status)} c={s.status === "active" ? GR : OR} /> },
+        ...(plansAll ? [{ header: tr("Workload plan"), tdStyle: { maxWidth: 170 }, render: planCell }] : []),
         { header: tr("Actions"), align: "right", render: s => <button title={tr("View site")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No sites found.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
@@ -9796,7 +9806,9 @@ function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSave
 // when it was last done and by whom, the first day of the period it next owes work in (nextDueOn), that
 // period's last day (dueBy), and whether it is done, due or overdue, by the checklist's own week, month
 // and quarter rules, which need no start date. An item reads in the screen's language through its
-// display. The table sits on the Sites list once GET /api/periodic-work answers with { items }.
+// display. Since Step 291 the table for every site is Quality > Periodic work, its own page once GET
+// /api/periodic-work answers with { items }, and each site's Service Details tab draws its own items at
+// the top, read with ?siteId=, with no Site column.
 const PERIODIC_FREQUENCIES = { weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly", quarterly: "Quarterly", seasonal: "Seasonal" };
 const periodicFrequencyWord = (f) => (PERIODIC_FREQUENCIES[f] ? tr(PERIODIC_FREQUENCIES[f]) : String(f || ""));
 const PERIODIC_STATES = { overdue: { l: "Overdue|periodic", get c() { return RD; } }, due: { l: "Due|periodic", get c() { return OR; } }, done: { l: "Done|periodic", get c() { return GR; } } };
@@ -9805,20 +9817,23 @@ const PERIODIC_ORDER = ["overdue", "due", "done"];
 const periodicByOf = (x) => (x.lastDoneBy && typeof x.lastDoneBy === "object" ? x.lastDoneBy.name || "" : x.lastDoneBy || "");
 const shownLabel = (x) => (x && x.display && x.display.label) || (x && x.label) || "";
 const shownZone = (x) => (x && x.display && x.display.zone) || (x && x.zone) || "";
-function PeriodicWorkPanel({ af, t, onOpenSite }) {
+function PeriodicWorkPanel({ af, t, onOpenSite, siteId = "" }) {
   const [items, setItems] = useState(null);
   const [state, setState] = useState("all");
   useEffect(() => {
     let alive = true;
-    af("/api/periodic-work").then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : null); }).catch(e => { if (alive) setItems(null); console.warn("Periodic work:", e.message); });
+    setItems(null);
+    af("/api/periodic-work" + (siteId ? "?siteId=" + encodeURIComponent(siteId) : "")).then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : null); }).catch(e => { if (alive) setItems(null); console.warn("Periodic work:", e.message); });
     return () => { alive = false; };
-  }, [af]);
+  }, [af, siteId]);
   if (items === null) return null;
+  // One site's items, at the top of its Service Details tab: nothing is drawn when it has none.
+  if (siteId && items.length === 0) return null;
   const count = (s) => items.filter(x => x.state === s).length;
   const rows = items.filter(x => state === "all" || x.state === state).slice().sort((a, b) => String(a.siteName || "").localeCompare(String(b.siteName || ""), localeTag()) || PERIODIC_ORDER.indexOf(a.state) - PERIODIC_ORDER.indexOf(b.state) || shownLabel(a).localeCompare(shownLabel(b), localeTag()));
   const late = (x) => x.state === "overdue";
   const cols = [
-    { header: tr("Site"), tdStyle: { minWidth: 130, fontWeight: 600, color: t.text }, render: x => x.siteName || "--" },
+    ...(siteId ? [] : [{ header: tr("Site"), tdStyle: { minWidth: 130, fontWeight: 600, color: t.text }, render: x => x.siteName || "--" }]),
     { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ color: t.text }}>{shownLabel(x)}</span>{shownZone(x) ? <div style={{ fontSize: 11, color: t.textMut }}>{shownZone(x)}</div> : null}</span>) },
     { header: tr("Frequency"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => periodicFrequencyWord(x.frequency) },
     { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => (x.lastDoneAt ? irDay(x.lastDoneAt) : "--") },
@@ -9827,9 +9842,9 @@ function PeriodicWorkPanel({ af, t, onOpenSite }) {
     { header: tr("Due by"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.dueBy ? <span style={{ color: late(x) ? RD : t.textSec, fontWeight: late(x) ? 600 : 400 }}>{keptDay(x.dueBy)}</span> : <span style={{ color: t.textMut }}>--</span>) },
     { header: tr("State"), tdStyle: { whiteSpace: "nowrap" }, render: x => <Bdg l={periodicStateWord(x.state)} c={(PERIODIC_STATES[x.state] || PERIODIC_STATES.due).c} /> },
   ];
-  return (<div data-periodic-work="" style={{ marginBottom: 24 }}>
+  return (<div data-periodic-work={siteId ? undefined : ""} data-site-periodic={siteId ? String(siteId) : undefined} style={{ marginBottom: 24 }}>
     <SecT t={t}>{tr("Periodic work")}</SecT>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{siteId ? tr("The weekly, monthly, quarterly and seasonal work on this site's checklist, and whether it is done this period.") : tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
     <FilterTabs t={t} value={state} onChange={setState} tabs={[{ id: "all", label: tr("All|periodic"), count: items.length }, { id: "overdue", label: tr("Overdue|periodic"), count: count("overdue"), color: RD }, { id: "due", label: tr("Due|periodic"), count: count("due"), color: OR }, { id: "done", label: tr("Done|periodic"), count: count("done"), color: GR }]} />
     <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.siteId) + ":" + String(x.taskId)} onRowClick={onOpenSite ? (x => onOpenSite(x.siteId)) : undefined} empty={items.length ? tr("Nothing matches this filter.") : tr("No periodic work on any checklist yet.")} />
   </div>);
