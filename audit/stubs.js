@@ -4338,6 +4338,109 @@ function createStubs() {
     }
     return base();
   }
+  // Sign-in made simple and closed (STEP283_CONTRACT.md section 1, the API's Step 283), answered only
+  // once a run arms it with setStep283, over everything else: POST /api/auth/login takes a badge
+  // number, a phone (a +1 or a leading 1 read away) or an email as identifier, counts five wrong tries
+  // against the person matched or the text typed and then answers 429 auth.locked with the minutes
+  // left, clears a person's tries when they sign in, and answers mustSetPin beside user, as /me does;
+  // while a person's mustSetPin holds, every signed-in route but /me and change-pin answers 403
+  // auth.mustSetPin; POST /api/auth/change-pin { newPin } refuses the PIN the person was given and a
+  // weak one in the API's words, and answers a new token; Forgot PIN answers its one sentence; the staff
+  // list and a profile carry signIn; POST /api/users/:id/unlock clears a person's tries. A PIN chosen
+  // here leaves the seed's PIN the one that signs in, so a run's later sign-ins still work. Every value
+  // is invented, and the words are in the screen's language.
+  let step283 = false;
+  const LOCK_WINDOW_MS = 15 * 60000;
+  const t283 = (lang, en, es) => (lang === "es" ? es : en);
+  const si283 = () => state.si283 || (state.si283 = {
+    tries: {},
+    mustSetPin: {},
+    noEmail: {},
+    // A person locked, one on the PIN the office gave who has never signed in, one whose email no code
+    // or link can reach; everyone else signed in two days ago.
+    people: {
+      "u-staff-5": { lockedUntil: new Date(Date.parse(seed.NOW_ISO) + 12 * 60000).toISOString() },
+      "u-staff-6": { mustSetPin: true, lastSignInAt: null },
+      "u-staff-7": { emailDeliverable: false },
+    },
+  });
+  const signInFor = (id) => {
+    const own = si283().people[id] || {};
+    return { lastSignInAt: own.lastSignInAt !== undefined ? own.lastSignInAt : seed.shift(-2) + "T13:10:00Z", mustSetPin: own.mustSetPin === true,
+      lockedUntil: own.lockedUntil || null, emailDeliverable: own.emailDeliverable !== false };
+  };
+  const loginKeyOf = (typed) => {
+    const digits = typed.replace(/[^0-9]/g, "");
+    const phone = digits.length === 11 && digits[0] === "1" ? digits.slice(1) : digits;
+    const who = Object.keys(seed.PEOPLE).find((k) => {
+      const pp = seed.PEOPLE[k];
+      return (phone.length >= 10 && pp.login.phone === phone) || (typed.indexOf("@") > 0 && String(pp.email || "").toLowerCase() === typed) || (pp.badgeNumber && pp.badgeNumber === typed);
+    });
+    return { who, key: who ? "person:" + who : "typed:" + typed };
+  };
+  function step283Route(method, path, query, body, lang, signedIn, base) {
+    const b = body || {};
+    const st = si283();
+    if (path === "/api/auth/login" && method === "POST") {
+      const typed = String(b.identifier || b.phone || b.badgeNumber || b.email || "").trim().toLowerCase();
+      if (!typed || !b.pin) return { status: 400, json: { error: t283(lang, "Badge number, phone or email, and PIN are required", "Se requieren el número de empleado, el teléfono o el correo, y el PIN"), code: "auth.identifierAndPinRequired" } };
+      const { who, key } = loginKeyOf(typed);
+      const now = Date.now();
+      const tries = (st.tries[key] || []).filter((x) => now - x < LOCK_WINDOW_MS);
+      st.tries[key] = tries;
+      if (tries.length >= 5) {
+        const minutes = Math.max(1, Math.ceil((tries[0] + LOCK_WINDOW_MS - now) / 60000));
+        return { status: 429, json: { error: t283(lang, "Too many tries. Wait {minutes} minutes, then try again.", "Demasiados intentos. Espere {minutes} minutos y vuelva a intentarlo.").replace("{minutes}", String(minutes)), code: "auth.locked" } };
+      }
+      if (!who || seed.PEOPLE[who].login.pin !== String(b.pin)) {
+        tries.push(now);
+        return { status: 401, json: { error: t283(lang, "That badge number, phone, email or PIN is not right.", "Ese número de empleado, teléfono, correo o PIN no es correcto."), code: "auth.invalidCredentials" } };
+      }
+      st.tries[key] = [];
+      // An office account no code can reach (setNoEmailForCode) is told so, in place of a code.
+      if (st.noEmail[who]) return { status: 409, json: { error: t283(lang, "Your account has no email we can send a code to. Ask the office to fix your email.", "Su cuenta no tiene un correo al que podamos enviar un c\u00f3digo. Pida a la oficina que corrija su correo."), code: "auth.noEmailForCode" } };
+      signedInAs = who;
+      const u = Object.assign({}, seed.PEOPLE[who], { isSuperAdmin: who === "superAdmin" });
+      delete u.login;
+      return ok({ token: "audit-token-" + who, user: u, mustSetPin: st.mustSetPin[who] === true });
+    }
+    if (path === "/api/auth/reset/request" && method === "POST") {
+      if (!String(b.identifier || "").trim()) return { status: 400, json: { error: t283(lang, "identifier is required", "Se requiere el número de empleado, el teléfono o el correo"), code: "auth.identifierRequired" } };
+      return ok({ message: t283(lang, "If your account has an email, a link is on its way. If not, ask your supervisor to reset your PIN.", "Si su cuenta tiene correo, le llegará un enlace. Si no, pida a su supervisor que restablezca su PIN."), code: "auth.resetRequested" });
+    }
+    if (path === "/api/auth/me" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json) a.json = Object.assign({}, a.json, { mustSetPin: st.mustSetPin[signedInAs] === true });
+      return a;
+    }
+    if (path === "/api/auth/change-pin" && method === "POST") {
+      const pin = String(b.newPin || "");
+      const refuse = (code, en, es) => ({ status: 400, json: { error: t283(lang, en, es), code } });
+      if (!/^[0-9]{4}$/.test(pin)) return refuse("PIN_FORMAT", "PIN must be exactly 4 digits", "El PIN debe tener exactamente 4 dígitos");
+      if (st.mustSetPin[signedInAs] && pin === seed.PEOPLE[signedInAs].login.pin) return refuse("PIN_UNCHANGED", "Choose a PIN different from the one you were given", "Elija un PIN distinto del que le dieron");
+      if (/^(\d)\1{3}$/.test(pin) || "0123456789".indexOf(pin) >= 0 || "9876543210".indexOf(pin) >= 0) return refuse("PIN_WEAK", "Choose a PIN that is not repeated digits, a sequence, or your badge number", "Elija un PIN que no sea un mismo dígito repetido, una secuencia ni su número de empleado");
+      st.mustSetPin[signedInAs] = false;
+      return ok({ message: t283(lang, "Your PIN has been changed.", "Su PIN fue cambiado."), code: "auth.pinChanged", mustSetPin: false, token: "audit-token-" + signedInAs + "-chosen" });
+    }
+    // While the person is on a given PIN, the API answers nothing else they ask.
+    if (signedIn && st.mustSetPin[signedInAs] === true && ["/api/auth/me", "/api/auth/change-pin", "/api/languages/status", "/api/push/key"].indexOf(path) < 0) {
+      return { status: 403, json: { error: t283(lang, "Choose your own PIN to go on.", "Elija su propio PIN para continuar."), code: "auth.mustSetPin" } };
+    }
+    const unlock = /^\/api\/users\/([^/]+)\/unlock$/.exec(path);
+    if (unlock && method === "POST") {
+      const id = decodeURIComponent(unlock[1]);
+      if (!state.staff.some((x) => x.id === id)) return { status: 404, json: { error: t283(lang, "User not found", "No se encontró el usuario"), code: "common.userNotFound" } };
+      const own = st.people[id] || (st.people[id] = {});
+      const had = own.lockedUntil ? 5 : 0;
+      own.lockedUntil = null;
+      return ok({ unlocked: had });
+    }
+    const a = base();
+    if (!a || a.status !== 200 || !a.json) return a;
+    if (path === "/api/users" && method === "GET" && Array.isArray(a.json)) a.json = a.json.map((x) => Object.assign({}, x, { signIn: signInFor(x.id) }));
+    if (/^\/api\/users\/profile\/[^/]+$/.test(path) && a.json.user) a.json = Object.assign({}, a.json, { user: Object.assign({}, a.json.user, { signIn: signInFor(a.json.user.id) }) });
+    return a;
+  }
   // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
   function step247Route(method, path, query, body, lang, base) {
     const es = lang === "es";
@@ -4415,8 +4518,10 @@ function createStubs() {
     // --- auth -------------------------------------------------------------
     // A wrong phone or PIN is a 401 in the language the sign-in card is drawn in, which a call made
     // signed out says with Accept-Language alone.
+    // The badge number, phone or email arrives as identifier, which routes/auth.js reads ahead of phone.
     if (path === "/api/auth/login") {
-      const who = Object.keys(seed.PEOPLE).find((k) => seed.PEOPLE[k].login.phone === (body && body.phone));
+      const typed = String((body && (body.identifier || body.phone || body.badgeNumber || body.email)) || "").trim().toLowerCase();
+      const who = Object.keys(seed.PEOPLE).find((k) => [seed.PEOPLE[k].login.phone, String(seed.PEOPLE[k].email || "").toLowerCase(), seed.PEOPLE[k].badgeNumber].indexOf(typed) >= 0 && typed !== "");
       if (!who || seed.PEOPLE[who].login.pin !== (body && body.pin)) {
         return { status: 401, json: { error: lang === "es" ? "El n\u00famero de tel\u00e9fono o el PIN no es correcto" : "Phone number or PIN is incorrect" } };
       }
@@ -6029,7 +6134,8 @@ function createStubs() {
     const over269 = () => (step269 ? step269Route(method, path, u.searchParams, body, record.language, over270) : over270());
     const over275 = () => (step275 ? step275Route(method, path, u.searchParams, body, record.language, over269) : over269());
     const over280 = () => (step280 ? step280Route(method, path, u.searchParams, body, record.language, over275) : over275());
-    const answer = step278 ? step278Route(method, path, u.searchParams, body, record.language, over280) : over280();
+    const over278 = () => (step278 ? step278Route(method, path, u.searchParams, body, record.language, over280) : over280());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over278) : over278();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6109,6 +6215,15 @@ function createStubs() {
     // The routes and keys of the API's Step 280, supply requests with many items, on or off, laid over
     // whichever steps the run arms.
     setStep280: (v) => { step280 = v !== false; },
+    // The routes and words of the API's Step 283, sign-in made simple and closed, on or off, over
+    // everything else.
+    setStep283: (v) => { step283 = v !== false; },
+    // Whether a person is on the PIN the office gave, which with Step 283 armed holds every route but
+    // /me and change-pin until they choose their own.
+    setMustSetPin: (who, v) => { si283().mustSetPin[who] = v !== false; },
+    // An office account whose email no sign-in code can reach, which with Step 283 armed is answered
+    // 409 auth.noEmailForCode at sign-in.
+    setNoEmailForCode: (who, v) => { si283().noEmail[who] = v !== false; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -6166,6 +6281,7 @@ function createStubs() {
       step275 = false; state.t275 = false;
       step278 = false;
       step280 = false; state.r280 = false;
+      step283 = false; state.si283 = null;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

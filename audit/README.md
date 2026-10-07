@@ -29,10 +29,22 @@ Then it checks, one line a check:
 
 - at 1280 in English and in Spanish and at 390 in English, an admin signs in, the Spanish pass through
   the code screen of the second sign-in step, which the smoke check arms the stub to ask for;
-- at 1280 in English and in Spanish, before that, a wrong PIN on the sign-in card reads the words the
-  stub sent with its 401, in the screen's language, never Session expired; the card stays and nothing
-  fires `ocsa-session-expired`. The Spanish pass then types a wrong code on the code screen, which
-  reads the stub's words and the tries left under the box the same way, and goes Back to the PIN;
+- at 1280 in English and in Spanish and at 390 in English, before that, a wrong PIN on the sign-in
+  card reads the words the stub sent with its 401, in the screen's language, never Session expired; the
+  card stays and nothing fires `ocsa-session-expired`. The Spanish pass then types a wrong code on the
+  code screen, which reads the stub's words and the tries left under the box the same way, and goes
+  Back to the PIN;
+- against the stub's answers for the API's Step 283 contract (Step 284), which the smoke check arms with
+  `setStep283` over everything else, in those three passes: a badge number nobody holds is refused five
+  times and the sixth try reads the lock's words with its minutes, with the line that sign-in stops for
+  a while; Enter pressed twice in the PIN box sends one sign-in; the Spanish pass unticks Remember this
+  device on the code screen and nothing of the session is left in localStorage; once signed in, a 403
+  `auth.mustSetPin` from a screen, armed with `setMustSetPin`, draws Choose your PIN and nothing else,
+  through a reload, refuses two different PINs on the screen and the PIN the office gave in the stub's
+  words, and sends a PIN of the person's own once as newPin; Unlock on the locked person posts and no
+  one reads Locked until; and, with Step 278's answers armed and the page read again, the chat records
+  search reads its count and its record of searches, a project's Message Board card names its latest
+  post, a quote's Workload plan card lists its current plan, and the matrix reads Current and Due soon;
 - every side panel item opens with no page error, no crash and no sideways scroll;
 - Reports opens one card of each group, a filed form opens, Customer links opens, and Help answers;
 - at 1280 in English a supervisor sees only the admin items the seed gives them, and every item they
@@ -143,7 +155,12 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-warning-signature`, `data-who-source`, `data-signature-request-window` and
 `data-signature-request-close`, and Step 278's by `data-help-answer`, `data-help-picture`,
 `data-help-picture-open` and `data-help-picture-close`, and the wrong sign-in line's by
-`data-second-code`, `data-second-say`, `data-second-left` and `data-second-back`, and Step 282's by
+`data-second-code`, `data-second-say`, `data-second-left`, `data-second-back` and, since Step 284,
+`data-signin-notice`, and Step 284's by `data-signin-lock-hint`, `data-second-step`, `data-choose-pin`,
+`data-choose-pin-new`, `data-choose-pin-again`, `data-choose-pin-save`, `data-choose-pin-refusal`,
+`data-staff-unlock`, `data-sign-in-state`, `data-records-search`, `data-records-count`,
+`data-records-result`, `data-records-log`, `data-tool-card`, `data-quote-plans`, `data-quote-plan` and
+`data-matrix-legend-item`, and Step 282's by
 `data-supplies-tab`, `data-request-lines`, `data-request-first`, `data-request-open`,
 `data-request-window`, `data-request-line`, `data-request-line-decision`, `data-request-line-qty`,
 `data-request-line-approve`, `data-request-line-note`, `data-request-line-deny`,
@@ -170,7 +187,9 @@ guide. `npm run shots -- <name>` takes one picture, an entry's title takes its p
 `--lang=es` one language, and `--missing` only the files not there yet. It is not part of the smoke
 check, and it takes about two minutes.
 
-The stub serves the pictures with every step the API has built armed, the way live answers, and with
+The stub serves the pictures with every step the API has built armed, the way live answers, the API's
+Step 280 and Step 283 contracts among them, so Choose your PIN is taken in a session of its own signed
+in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and
 the filed forms each guide entry opens, kept in `pictures-stub.js`, and the one-pixel image every other

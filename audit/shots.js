@@ -366,6 +366,16 @@ const SHOTS = [
       await c.page.locator("input").nth(0).fill(seed.PEOPLE.admin.login.phone);
       await c.page.locator("input[type=password]").fill(seed.PEOPLE.admin.login.pin);
     } },
+  // Step 284: Choose your PIN, drawn for a person still on the PIN the office gave, the new PIN typed.
+  { name: "choose-your-pin", entry: "Sign in to the admin dashboard", as: "pin",
+    open: "overview", ready: "input[type=password]",
+    act: async (c) => {
+      await c.page.locator("input").nth(0).fill(seed.PEOPLE.admin.login.phone);
+      await c.page.locator("input[type=password]").fill(seed.PEOPLE.admin.login.pin);
+      await c.page.locator("[data-signin-submit]").click();
+      await until(c, "[data-choose-pin]");
+      await c.page.locator("[data-choose-pin-new]").fill("4826");
+    } },
   { name: "user-menu-sign-out", entry: "Sign out of the dashboard",
     open: "overview", ready: SHELL,
     act: async (c) => { await userMenu(c); await btn(c, "Sign Out").hover(); } },
@@ -403,6 +413,9 @@ const SHOTS = [
       // The Spanish headings make the table wider than the window, so it is scrolled to the row's Approve.
       await show(c, "table tbody tr button:has-text('" + c.say("Approve") + "')");
     } },
+  // Step 284: each person's sign-in under their status, one locked with Unlock.
+  { name: "staff-sign-in", entry: "See whether a person can sign in, and unlock them",
+    open: "staff", ready: '[data-staff-unlock="u-staff-5"]' },
   { name: "staff-reset-pin", entry: "Reset a staff member's PIN",
     open: "staff/u-staff-6", ready: "text=Ngozi Okonkwo",
     act: async (c) => { await press(c, "Reset PIN"); await until(c, MODAL); await inModal(c).locator("input").first().fill("4827"); } },
@@ -1466,7 +1479,9 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283"].forEach((k) => stubs[k](true));
+  // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
+  if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the
   // code is what finishes it (STEP225_CONTRACT.md).
   if (as === "code") {
@@ -1515,7 +1530,7 @@ async function openSession(browser, origin, lang, as) {
   const stubs = stubsFor(as);
   const d = await createDriver({ browser, origin, stubs, viewport: "wide", theme: "light", lang });
   d.page.setDefaultTimeout(8000);
-  if (as === "signedOut" || as === "code") await d.page.goto(origin + "/#overview", { waitUntil: "domcontentloaded" });
+  if (as === "signedOut" || as === "code" || as === "pin") await d.page.goto(origin + "/#overview", { waitUntil: "domcontentloaded" });
   else await d.signIn(as);
   return { d, stubs, as };
 }
@@ -1524,7 +1539,7 @@ async function takeOne(session, origin, shot, lang) {
   const { d, stubs } = session;
   const page = d.page;
   const c = { d, page, say: d.say, lang, stubs, origin };
-  if (session.as === "signedOut" || session.as === "code") {
+  if (session.as === "signedOut" || session.as === "code" || session.as === "pin") {
     await page.goto(origin + "/#" + (shot.open || "overview"), { waitUntil: "domcontentloaded" });
   } else {
     // A fresh load at the shot's address, so no window or menu from the shot before is still open.
@@ -1551,8 +1566,9 @@ function chosen(args) {
 const fileFor = (name, lang) => path.join(OUT, name + "." + lang + ".jpg");
 
 async function lane(browser, origin, lang, shots, report) {
-  // Signed out first, then the code screen, then the admin, then the supervisor, each a session.
-  const order = ["signedOut", "code", "admin", "supervisor"];
+  // Signed out first, then the code screen, then Choose your PIN, then the admin, then the supervisor,
+  // each a session.
+  const order = ["signedOut", "code", "pin", "admin", "supervisor"];
   for (const as of order) {
     const mine = shots.filter((s) => (s.as || "admin") === as);
     if (!mine.length) continue;

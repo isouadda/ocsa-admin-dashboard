@@ -170,9 +170,9 @@ function equipmentPart(ctx) {
   // category is left out: the API sends a code (autoscrubber, other) and the screen draws it as it
   // comes, so the pictures show make and model alone.
   const EQUIPMENT = [
-    { id: "eq-1", siteId: S[0].id, name: ["Floor scrubber 2", "Fregadora de pisos 2"], make: "Brightwater", model: "BW-20", serial: "BW20-44817", purchasedOn: "2024-05-14", status: "in_service", qrCode: "EQ-4KQ7M2", serviceEveryDays: 90, lastServiceOn: "2026-01-12", notes: ["Battery charger kept in the North Wing closet.", "El cargador de la bater\u00eda se guarda en el cuarto del ala norte."] },
-    { id: "eq-2", siteId: S[0].id, name: ["Carpet extractor", "Extractora de alfombras"], make: "Brightwater", model: "CX-12", serial: "CX12-20931", purchasedOn: "2023-09-02", status: "out_of_service", qrCode: "EQ-7HN3P8", serviceEveryDays: 180, lastServiceOn: "2025-11-03", notes: null },
-    { id: "eq-3", siteId: S[1].id, name: ["Floor burnisher", "Pulidora de pisos"], make: "Brightwater", model: "FB-17", serial: "FB17-11520", purchasedOn: "2022-03-21", status: "in_service", qrCode: "EQ-2MV9T4", serviceEveryDays: 60, lastServiceOn: "2026-01-10", notes: null },
+    { id: "eq-1", siteId: S[0].id, name: ["Floor scrubber 2", "Fregadora de pisos 2"], category: "autoscrubber", make: "Brightwater", model: "BW-20", serial: "BW20-44817", purchasedOn: "2024-05-14", status: "in_service", qrCode: "EQ-4KQ7M2", serviceEveryDays: 90, lastServiceOn: "2026-01-12", notes: ["Battery charger kept in the North Wing closet.", "El cargador de la bater\u00eda se guarda en el cuarto del ala norte."] },
+    { id: "eq-2", siteId: S[0].id, name: ["Carpet extractor", "Extractora de alfombras"], category: "carpet_extractor", make: "Brightwater", model: "CX-12", serial: "CX12-20931", purchasedOn: "2023-09-02", status: "out_of_service", qrCode: "EQ-7HN3P8", serviceEveryDays: 180, lastServiceOn: "2025-11-03", notes: null },
+    { id: "eq-3", siteId: S[1].id, name: ["Floor burnisher", "Pulidora de pisos"], category: "floor_machine", make: "Brightwater", model: "FB-17", serial: "FB17-11520", purchasedOn: "2022-03-21", status: "in_service", qrCode: "EQ-2MV9T4", serviceEveryDays: 60, lastServiceOn: "2026-01-10", notes: null },
     { id: "eq-4", siteId: S[1].id, name: ["Backpack vacuum 1", "Aspiradora de mochila 1"], make: "Kestrel", model: "BP-6", serial: "BP6-90314", purchasedOn: "2025-02-11", status: "in_service", qrCode: "EQ-9RD6K1", serviceEveryDays: 120, lastServiceOn: "2025-12-01", notes: null },
     { id: "eq-5", siteId: S[2].id, name: ["Pressure washer", "Hidrolavadora"], make: "Kestrel", model: "PW-3000", serial: "PW30-55208", purchasedOn: "2024-07-30", status: "in_service", qrCode: "EQ-5TB2W7", serviceEveryDays: 90, lastServiceOn: "2026-02-20", notes: null },
     { id: "eq-6", siteId: S[2].id, name: ["Upright vacuum 3", "Aspiradora vertical 3"], make: "Kestrel", model: "UV-14", serial: "UV14-30077", purchasedOn: "2019-10-08", status: "retired", qrCode: "EQ-3PX8L5", serviceEveryDays: null, lastServiceOn: "2025-06-02", notes: null, retiredAt: "2026-02-02T15:00:00Z" },
@@ -200,7 +200,7 @@ function equipmentPart(ctx) {
   const equipmentView = (x, lang) => {
     const next = x.serviceEveryDays && x.lastServiceOn && x.status !== "retired" ? addDays(x.lastServiceOn, x.serviceEveryDays) : null;
     const evs = EQUIPMENT_EVENTS[x.id] || [];
-    return { id: x.id, siteId: x.siteId, siteName: siteName(x.siteId), name: W(lang, x.name), category: null, make: x.make, model: x.model, serial: x.serial,
+    return { id: x.id, siteId: x.siteId, siteName: siteName(x.siteId), name: W(lang, x.name), category: x.category || null, make: x.make, model: x.model, serial: x.serial,
       purchasedOn: x.purchasedOn, status: x.status, qrCode: x.qrCode, qrUrl: "https://portal.example.invalid/e/" + x.qrCode, serviceEveryDays: x.serviceEveryDays,
       lastServiceOn: x.lastServiceOn, nextServiceOn: next, serviceDue: !!next && next <= TODAY, notes: x.notes ? W(lang, x.notes) : null, createdBy: DANA, createdByName: tPersonName(DANA),
       createdAt: x.purchasedOn + "T12:00:00Z", retiredAt: x.retiredAt || null, retiredBy: x.retiredAt ? DANA : null, latestEvent: evs[0] ? eventView(evs[0], x.id, lang) : null };
@@ -313,8 +313,8 @@ function equipmentPart(ctx) {
   // ---- Workspace (routes/workspace.js, helpers/workspace.js) --------------------------------------
   // Four projects, three open and one archived, with the first one's posts, to-dos, files and
   // activity, in the language asked: a person writes in their own language, and each picture is
-  // drawn in one. Nothing is written. The project answer leaves out latest, which the API sends as
-  // { post, todo, file } and the screen reads as lists, so the cards fill from the tools.
+  // drawn in one. Nothing is written. The project answer carries latest as the API sends it, { post,
+  // todo, file }, each the newest or null (helpers/workspace.js), which the cards read (Step 284).
   const PRIYA = seed.PEOPLE.capability.id, OYE = seed.PEOPLE.superAdmin.id;
   const PROJECTS = [
     { id: "wp-1", name: ["North Wing move-in", "Mudanza del ala norte"], description: ["Floors 2 and 3 of the North Wing ready for the new tenant on April 6.", "Los pisos 2 y 3 del ala norte listos para el nuevo inquilino el 6 de abril."],
@@ -396,10 +396,19 @@ function equipmentPart(ctx) {
     authorId: x.author, authorName: tPersonName(x.author), createdAt: x.createdAt, editedAt: null, archivedAt: null, commentCount: COMMENTS.filter((c) => c.subjectType === "post" && c.subjectId === x.id).length });
   const fileView = (f, lang) => ({ id: f.id, projectId: f.project, fileName: W(lang, f.name), mimeType: f.mime, sizeBytes: f.size, note: null, uploadedBy: f.by,
     uploaderName: tPersonName(f.by), uploadedByName: tPersonName(f.by), createdAt: f.createdAt, commentCount: 0 });
-  // actor carries the name as well: the API sends actorId and actorName, which the screen reads as an id.
+  // actorId and actorName, as the API sends them, and the screen reads actorName as the name (Step 284).
   const activityView = (a, lang) => ({ id: a.id, projectId: a.project, projectName: W(lang, projectOf(a.project).name), actorId: a.actor, actorName: tPersonName(a.actor),
-    actor: { id: a.actor, name: tPersonName(a.actor) }, action: a.action, summary: T(lang, ...DID[a.action]).replace("{title}", a.title ? W(lang, a.title) : ""),
+    action: a.action, summary: T(lang, ...DID[a.action]).replace("{title}", a.title ? W(lang, a.title) : ""),
     subjectType: a.subject[0], subjectId: a.subject[1], createdAt: a.createdAt });
+  const newest = (rows) => rows.slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0] || null;
+  const latestOf = (x, todos, lang) => {
+    const p0 = newest(POSTS.filter((y) => y.project === x.id)), t0 = newest(todos), f0 = newest(FILES.filter((f) => f.project === x.id));
+    return {
+      post: p0 ? { id: p0.id, title: W(lang, p0.title), authorId: p0.author, authorName: tPersonName(p0.author), createdAt: p0.createdAt } : null,
+      todo: t0 ? { id: t0.id, title: W(lang, t0.title), listId: t0.list, dueOn: t0.dueOn || null, completedAt: t0.completedAt || null, createdAt: t0.createdAt || null } : null,
+      file: f0 ? { id: f0.id, fileName: W(lang, f0.name), mimeType: f0.mime, sizeBytes: f0.size, uploadedBy: f0.by, uploaderName: tPersonName(f0.by), createdAt: f0.createdAt } : null,
+    };
+  };
   const fullProject = (x, lang) => {
     const lists = LISTS.filter((l) => l.project === x.id), todos = TODOS.filter((t0) => lists.some((l) => l.id === t0.list));
     const mine = x.members.find((m) => m[0] === person().id);
@@ -407,7 +416,8 @@ function equipmentPart(ctx) {
       members: x.members.map((m) => ({ userId: m[0], name: tPersonName(m[0]), role: m[1], emailCopies: m[2] === true, addedAt: x.createdAt })),
       me: { role: mine ? mine[1] : null, emailCopies: mine ? mine[2] === true : false },
       counts: { posts: POSTS.filter((p0) => p0.project === x.id).length, todoLists: lists.length, openTodos: todos.filter((t0) => !t0.completedAt).length,
-        doneTodos: todos.filter((t0) => t0.completedAt).length, files: FILES.filter((f) => f.project === x.id).length } });
+        doneTodos: todos.filter((t0) => t0.completedAt).length, files: FILES.filter((f) => f.project === x.id).length },
+      latest: latestOf(x, todos, lang) });
   };
   function workspaceRoute(method, path, query, lang) {
     if (method !== "GET" || path.indexOf("/api/workspace/") !== 0) return null;
@@ -488,9 +498,10 @@ function equipmentPart(ctx) {
     { id: "cr-4", channelId: "ch-1", channelType: "site", channelName: S[0].name, siteId: S[0].id, sender: TOMASZ, sentAt: at(-1, "21:20"), text: ["Lobby glass needs a second pass in the morning.", "El vidrio del vest\u00edbulo necesita una segunda pasada en la ma\u00f1ana."] },
     { id: "cr-5", channelId: "ch-1", channelType: "site", channelName: S[0].name, siteId: S[0].id, sender: MARCUS, sentAt: at(-1, "21:35"), text: ["I will tell the morning porter.", "Le aviso al conserje de la ma\u00f1ana."] },
   ];
+  // The searches recorded, as GET /api/chat/records/log answers them (helpers/chatRecords.js), newest first.
   const LOOKUPS = [
-    { id: "al-2", action_type: "chat_records_pdf", actor: OYE, created_at: at(-2, "15:32"), metadata: { filters: { userIds: ["u-staff-8"], channelId: null, from: "2026-03-01", to: "2026-03-15", q: null }, count: 6, more: false } },
-    { id: "al-1", action_type: "chat_records_read", actor: OYE, created_at: at(-2, "15:30"), metadata: { filters: { userIds: ["u-staff-8"], channelId: null, from: "2026-03-01", to: "2026-03-15", q: null }, count: 6, more: false } },
+    { id: "al-2", action: "chat_records_pdf", actor: OYE, createdAt: at(-2, "15:32"), filters: { userIds: ["u-staff-8"], channelId: null, from: "2026-03-01", to: "2026-03-15", q: null }, count: 6, more: false },
+    { id: "al-1", action: "chat_records_read", actor: OYE, createdAt: at(-2, "15:30"), filters: { userIds: ["u-staff-8"], channelId: null, from: "2026-03-01", to: "2026-03-15", q: null }, count: 6, more: false },
   ];
   function recordsRoute(method, path, query, lang) {
     if (method !== "GET") return null;
@@ -500,12 +511,10 @@ function equipmentPart(ctx) {
       const day = (r) => new Date(new Date(r.sentAt).getTime() - 4 * 3600000).toISOString().slice(0, 10);
       const rows = RECORDS.filter((r) => (!ids.length || ids.indexOf(r.sender) >= 0) && (!ch || r.channelId === ch) && (!from || day(r) >= from) && (!to || day(r) <= to) && (!q || W(lang, r.text).toLowerCase().indexOf(q) >= 0))
         .map((r) => ({ id: r.id, channelId: r.channelId, channelType: r.channelType, channelName: r.channelName, siteId: r.siteId || null, projectId: null, senderId: r.sender, senderName: tPersonName(r.sender), sentAt: r.sentAt, edited: false, text: W(lang, r.text) }));
-      return ok({ records: rows, count: rows.length, more: false, limit: 2000, messages: rows, total: rows.length });
+      return ok({ records: rows, count: rows.length, more: false, limit: 2000 });
     }
-    if (path === "/api/activity" && /^chat_records_(read|pdf)$/.test(String(query.get("action_type") || ""))) {
-      const rows = LOOKUPS.filter((r) => r.action_type === query.get("action_type")).map((r) => ({ id: r.id, entity_type: "user", entity_id: r.actor, actor_id: r.actor, action_type: r.action_type,
-        description: r.action_type === "chat_records_pdf" ? "Printed chat records" : "Looked up chat records", metadata: r.metadata, created_at: r.created_at, actor_name: tPersonName(r.actor), actor_role: "admin" }));
-      return ok({ total: rows.length, limit: 50, offset: 0, results: rows });
+    if (path === "/api/chat/records/log") {
+      return ok({ log: LOOKUPS.map((r) => ({ id: r.id, actorId: r.actor, actorName: tPersonName(r.actor), action: r.action, filters: r.filters, count: r.count, more: r.more, createdAt: r.createdAt })) });
     }
     return null;
   }
@@ -1439,11 +1448,10 @@ function peoplePart(ctx) {
   };
 
   // ---- trusted devices (routes/users.js, Step 232 Part C) --------------------------------------------
+  // As helpers/secondStep.js answers a device: the API's own reading of the browser, and firstSeenAt.
   const DEVICES = [
-    { id: "td-1", trustedAt: seed.shift(-21) + "T13:02:00Z", lastSeenAt: seed.shift(0) + "T12:40:00Z", expiresAt: seed.shift(9) + "T13:02:00Z",
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36" },
-    { id: "td-2", trustedAt: seed.shift(-6) + "T22:15:00Z", lastSeenAt: seed.shift(-1) + "T23:05:00Z", expiresAt: seed.shift(24) + "T22:15:00Z",
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1" },
+    { id: "td-1", browser: "Chrome on Windows", firstSeenAt: seed.shift(-21) + "T13:02:00Z", lastSeenAt: seed.shift(0) + "T12:40:00Z", expiresAt: seed.shift(9) + "T13:02:00Z" },
+    { id: "td-2", browser: "Safari on iOS", firstSeenAt: seed.shift(-6) + "T22:15:00Z", lastSeenAt: seed.shift(-1) + "T23:05:00Z", expiresAt: seed.shift(24) + "T22:15:00Z" },
   ];
 
   // ---- a completed inspection with its photos, signature and review line (routes/inspections.js) ---
