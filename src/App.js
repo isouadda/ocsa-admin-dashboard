@@ -22757,7 +22757,7 @@ const CASE_FILE_MAX_BYTES = 10 * 1024 * 1024;
 const CASE_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
 const CASE_LOG_BODY_MAX = 8000;
 const caseKindWord = (k) => ({
-  note: tr("Note|case log"), conversation: tr("Conversation"), meeting: tr("Meeting"), call: tr("Phone call"), file: tr("File|case log"),
+  note: tr("Note"), conversation: tr("Conversation"), meeting: tr("Meeting"), call: tr("Phone call"), file: tr("File"),
   correction: tr("Correction"), status: tr("Status change"), handoff: tr("Handoff"), warning: tr("Warning|case log"), closed: tr("Closing note"),
   earlier_notes: tr("Notes saved before the case log"),
 })[k] || "";
@@ -22811,7 +22811,7 @@ async function printCase({ af, detail, statusLabel }) {
     const target = u.kind === "correction" && u.correctsId != null ? updates.find(x => String(x.id) === String(u.correctsId)) : null;
     const corrected = (Array.isArray(u.correctedBy) ? u.correctedBy : []).map(id => numberOf[String(id)]).filter(Boolean);
     const detailLine = caseLogDetail(u, statusLabel);
-    const files = (Array.isArray(u.attachments) ? u.attachments : []).map(a => a.name || tr("File|case log"));
+    const files = (Array.isArray(u.attachments) ? u.attachments : []).map(a => a.name || tr("File"));
     return '<div class="entry" data-case-print-entry="' + keptEsc(u.id) + '"><div class="eh"><b>' + (i + 1) + ". " + keptEsc(caseKindWord(u.kind) || u.kindName || u.kind) + "</b><span>" + keptEsc([who, irWhen(u.createdAt)].filter(Boolean).join(", ")) + "</span></div>"
       + (caseLogHappened(u) ? line(tr("Happened {0}", irWhen(u.occurredAt))) : "")
       + (withWho ? line(tr("With {0}|case log", withWho)) : "")
@@ -22894,7 +22894,7 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
     const sendKind = correcting ? "correction" : kind;
     if (!body && sendKind !== "file") { setSaid({ text: tr("Write what was said or done."), keys: ["body"] }); return; }
     if (sendKind === "file" && files.length === 0) { setSaid({ text: tr("Attach at least one file."), keys: ["attachments"] }); return; }
-    if (body.length > CASE_LOG_BODY_MAX) { setSaid({ text: tr("Keep it under {0} characters.", CASE_LOG_BODY_MAX), keys: ["body"] }); return; }
+    if (body.length > CASE_LOG_BODY_MAX) { setSaid({ text: tr("Keep it to {0} characters.", CASE_LOG_BODY_MAX), keys: ["body"] }); return; }
     let occurredAt = null;
     if (whenTouched && when) {
       const at = new Date(when);
@@ -22950,7 +22950,7 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
         {detailLine && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{detailLine}</div>}
         {u.body && <div data-case-log-body="" style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5, marginTop: 6 }}>{u.body}</div>}
         {atts.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{atts.map(a => (
-          <button key={a.n} type="button" data-case-log-file={a.n} onClick={() => openFile(u, a)} disabled={opening === u.id + "/" + a.n} style={{ minHeight: 32, padding: "4px 10px", borderRadius: R.sm, border: "1px solid " + t.border, background: t.card, color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || tr("File|case log")}</button>))}</div>}
+          <button key={a.n} type="button" data-case-log-file={a.n} onClick={() => openFile(u, a)} disabled={opening === u.id + "/" + a.n} style={{ minHeight: 32, padding: "4px 10px", borderRadius: R.sm, border: "1px solid " + t.border, background: t.card, color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || tr("File")}</button>))}</div>}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
           {corrected.length > 0 ? <button type="button" data-case-log-corrected="" onClick={() => jump(corrected[corrected.length - 1])} style={{ background: "none", border: "none", padding: 0, minHeight: 32, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Corrected below")}</button> : <span />}
           <button type="button" data-case-log-correct="" onClick={() => correct(u)} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 32, color: t.textSec, fontSize: 12, cursor: "pointer", fontFamily: FONT_BODY, textDecoration: "underline" }}>{tr("Correct this")}</button>
@@ -22962,7 +22962,7 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
       {correcting ? <div data-case-update-correcting={correcting.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: t.textSec, marginBottom: 10 }}>
         <span>{tr("Correction to the entry of {0}", irWhen(caseLogWhenOf(correcting)))}</span>
         <Btn t={t} v="ghost" onClick={() => { setCorrecting(null); setSaid({ text: "", keys: [] }); }} data-case-update-cancel-correction="">{tr("Cancel")}</Btn>
-      </div> : <div style={{ marginBottom: 10 }}><Lbl>{tr("Type|case log")}</Lbl><Sel t={t} value={kind} onChange={e => setKind(e.target.value)} options={kindOptions} data-case-update-kind="" aria-label={tr("Type|case log")} style={box("kind")} />{under("kind")}</div>}
+      </div> : <div style={{ marginBottom: 10 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={kind} onChange={e => setKind(e.target.value)} options={kindOptions} data-case-update-kind="" aria-label={tr("Type")} style={box("kind")} />{under("kind")}</div>}
       <div style={{ marginBottom: 10 }}><Lbl>{tr("With|case log")}</Lbl>
         <PersonPick t={t} aria-label={tr("With|case log")} data-case-update-with="" value={withUser} onChange={e => { setWithUser(e.target.value); if (e.target.value) setWithName(""); }} options={[{ v: "", l: tr("No one from {0}", brand) }, ...people.map(p => ({ v: String(p.id), l: ((p.firstName || "") + " " + (p.lastName || "")).trim() || p.name || "" }))]} style={box("withUserId")} />
         {under("withUserId")}
@@ -22976,7 +22976,7 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
         <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Up to 5 pictures or PDFs, 10 MB each.")}</div>
         {files.map((f, i) => (<div key={i} data-case-update-file="" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12, color: t.text, padding: "4px 0" }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-          <button type="button" onClick={() => setFiles(files.filter((x, j) => j !== i))} aria-label={tr("Remove {0}", f.name)} style={{ ...xBtn, minWidth: 32, minHeight: 32 }}><XI sz={14} c={t.textMut} /></button>
+          <button type="button" onClick={() => setFiles(files.filter((x, j) => j !== i))} aria-label={tr("Remove {0}|file", f.name)} style={{ ...xBtn, minWidth: 32, minHeight: 32 }}><XI sz={14} c={t.textMut} /></button>
         </div>))}
         {under("attachments")}
       </div>

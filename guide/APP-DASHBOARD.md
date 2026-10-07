@@ -155,14 +155,16 @@ Last checked: 2026-10-07
 ## Respond to a Speak Up case (admin dashboard)
 Who can do this: admins, except anyone the case is about
 1. Click **Cases**. It opens on **Needs response**, with the most urgent first.
-2. Click a case to open it.
+2. Click a case to open it. The **Case log** (**Registro del caso**) under the summary lists everything done on the case, oldest first, with who did it and when.
 3. Click **Take this case** to hold it yourself, or click **Hand to** (**Entregar a**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick the person and click **Hand over** (**Entregar**).
-4. Change the status, add resolution notes, and click **Save changes**. The first save counts as the team's response.
-5. To give it back to the team, click **Release**.
-6. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
-If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left.
-Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up.
+4. To record a conversation, a meeting, a phone call, a note or a file, use **Add an update** (**Agregar una actualización**) at the bottom of the log.
+5. Change the status and click **Save changes**. The first save counts as the team's response. Setting **Resolved** (**Resuelto**) or **Closed** (**Cerrado**) asks for a **Closing note** (**Nota de cierre**), which goes into the log as the case's last entry.
+6. To give it back to the team, click **Release**.
+7. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
+If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left. **Save changes** with Resolved or Closed and an empty closing note says **Write the closing note.** (**Escriba la nota de cierre.**) Taking, releasing, handing over, escalating and every status change are written into the log by the app.
+Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up, close a case, closing note, nota de cierre.
 Picture: cases-case-window
+Picture: cases-closing-note
 Last checked: 2026-10-07
 
 ## Add an HR document for an employee (admin dashboard)
@@ -2339,4 +2341,41 @@ Who can do this: admins and supervisors
 If it does not work: the row shows once the system files signed pages.
 Words people use for this: signed handbook page, acknowledgment page, proof they signed, handbook signature, acuse de recibo.
 Picture: hr-folder-signed-page
+Last checked: 2026-10-07
+
+## Add to a case as it goes (admin dashboard)
+Who can do this: admins, except anyone the case is about
+1. Click **Cases** and click the case to open it.
+2. Under the **Case log** (**Registro del caso**), go to **Add an update** (**Agregar una actualización**) at the bottom.
+3. Choose the **Type** (**Tipo**): **Note** (**Nota**), **Conversation** (**Conversación**), **Meeting** (**Reunión**), **Phone call** (**Llamada telefónica**) or **File** (**Archivo**).
+4. Under **With** (**Con**), type a name, badge number or employee ID and pick the person, or type the name of someone outside the company in the box under it. Leave it empty for a note.
+5. Change **When it happened** (**Cuándo ocurrió**) if it was earlier. It starts at now and cannot be later than now.
+6. Write **What was said or done** (**Qué se dijo o se hizo**).
+7. To add a picture or a PDF, choose it under **Attach files** (**Adjuntar archivos**): up to 5, 10 MB each.
+8. Click **Add to the case log** (**Agregar al registro del caso**). The entry shows at the end of the log with your name and the time.
+If it does not work: every type but File needs text, and File needs at least one file. A picture must be JPEG, PNG, WebP or HEIC. Entries cannot be changed once added; to fix one, see Correct an entry in a case log. To open a file in the log, click its name.
+Words people use for this: case notes, add a note to a case, log a conversation, record a meeting, attach a file to a case, case update, notas del caso.
+Picture: cases-add-update
+Last checked: 2026-10-07
+
+## Correct an entry in a case log (admin dashboard)
+Who can do this: admins, except anyone the case is about
+1. Click **Cases** and click the case to open it.
+2. In the **Case log** (**Registro del caso**), find the entry and click **Correct this** (**Corregir esto**) under it.
+3. The form at the bottom reads **Add a correction** (**Agregar una corrección**) and names the entry it corrects. Write what is right in **What was said or done** (**Qué se dijo o se hizo**).
+4. Click **Add to the case log** (**Agregar al registro del caso**).
+5. The correction shows at the end of the log and names the entry it corrects; that entry now says **Corrected below** (**Corregida más abajo**). Click either line to jump to the other.
+If it does not work: the first entry stays as it was written, beside its correction, so the log keeps both. **Cancel** (**Cancelar**) leaves the form without adding the correction.
+Words people use for this: fix a case note, wrong date in a case, edit a case entry, change a case note, corregir una nota del caso.
+Picture: cases-correct-entry
+Last checked: 2026-10-07
+
+## Print a case (admin dashboard)
+Who can do this: admins, except anyone the case is about
+1. Click **Cases** and click the case to open it.
+2. Click **Print case** (**Imprimir el caso**) at the top of the window.
+3. A page opens with the case's details, the summary and the whole **Case log** (**Registro del caso**), each entry numbered, with its files listed by name. Print it or save it as a PDF from the browser.
+If it does not work: when nothing opens, allow pop-ups for the dashboard and click **Print case** (**Imprimir el caso**) again. The files are listed by name; open each one from the case log.
+Words people use for this: print a case, case report, export a case, case pdf, imprimir el caso.
+Picture: cases-print
 Last checked: 2026-10-07

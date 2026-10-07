@@ -128,6 +128,18 @@ Then it checks, one line a check:
   time off) in the list and is approved in its window. The stub serves the support routes, a PTO request,
   the signed page in u-staff-5's folder, and the periodic work, workload plans and discipline steps the
   pictures' answers hold, since Sites opens on the list and Open a case waits for the steps.
+- against the stub's answers for the API's Step 299 contract (Step 300, the case log), which the smoke
+  check arms with `setStep299` over whichever steps a pass arms: at 1280 in English and in Spanish and at
+  390 in English, a case opens with its log in the order the API gives it, with Happened, who a call was
+  with, Corrected below on the corrected entry and the correction pointing back to it, and no Resolution
+  notes box; a conversation is added with a person picked in the searchable picker and a PDF, sent as a
+  data URL, and drawn last with its author, its time, who it was with and the file, which opens behind
+  the token; Correct this on the first entry adds a correction of it, which then says Corrected below;
+  Resolved asks for the closing note, refuses to save without it, then sends `closing_note` and no
+  `resolution_notes`, and the log draws the closing entry; and Print case prints every entry with its
+  text and its files by name. The stub keeps each case's entries, writes its own for a status change, a
+  take, a release, a hand to, an escalation and a close, refuses an update in the routes' style with keys
+  naming the field, and answers a file behind the token.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -192,7 +204,14 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-ticket-note`, `data-ticket-save`, `data-tickets`, `data-tickets-export-open`,
 `data-tickets-export-text`, `data-settings-tab`, `data-support-contact`, `data-support-contact-name`,
 `data-support-contact-email`, `data-support-contact-save`, `data-support-contact-refusal`,
-`data-folder-signed-page`, `data-folder-signed-language` and `data-time-off-type`. Since Step 291 a person
+`data-folder-signed-page`, `data-folder-signed-language` and `data-time-off-type`, and Step 300's by
+`data-case-log`, `data-case-log-entry`, `data-case-log-kind`, `data-case-log-author`, `data-case-log-when`,
+`data-case-log-happened`, `data-case-log-with`, `data-case-log-body`, `data-case-log-file`,
+`data-case-log-correct`, `data-case-log-correction-of`, `data-case-log-corrected`, `data-case-update`,
+`data-case-update-kind`, `data-case-update-with`, `data-case-update-body`, `data-case-update-files`,
+`data-case-update-file`, `data-case-update-add`, `data-case-update-correcting`, `data-case-status`,
+`data-case-closing-note`, `data-case-closing-refusal`, `data-case-print` and the printed page's
+`data-case-print-entry`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -215,7 +234,7 @@ guide. `npm run shots -- <name>` takes one picture, an entry's title takes its p
 check, and it takes about two minutes.
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280, Step 283 and Step 289 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283, Step 289 and Step 299 contracts among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and

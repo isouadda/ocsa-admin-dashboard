@@ -464,7 +464,47 @@ const SHOTS = [
     } },
   { name: "cases-case-window", entry: "Respond to a Speak Up case",
     open: "cases", ready: "table tbody tr",
-    act: async (c) => { await click(c, "table tbody tr"); await until(c, MODAL); } },
+    act: async (c) => { await click(c, "table tbody tr"); await until(c, "[data-case-log-entry]"); await top(c, "[data-case-log]", 160); } },
+  { name: "cases-closing-note", entry: "Respond to a Speak Up case",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-log-entry]");
+      await c.page.locator("[data-case-status]").selectOption("resolved");
+      await typeIn(c, "[data-case-closing-note]", "Cover was added to the overnight shift and the person who raised it was told.", "Se agreg\u00f3 cobertura al turno de noche y se le avis\u00f3 a quien lo plante\u00f3.");
+      await top(c, "[data-case-status]", 200);
+    } },
+  { name: "cases-add-update", entry: "Add to a case as it goes",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-update]");
+      await c.page.locator("[data-case-update-kind]").selectOption("conversation");
+      await pickIn(c, "[data-case-update]", "u-staff-6", "Okonkwo");
+      await typeIn(c, "[data-case-update-body]", "Went over the overnight rota with them at the start of the shift.", "Revis\u00f3 con la persona el turno de noche al empezar el turno.");
+      await c.page.locator("[data-case-update-files]").setInputFiles({ name: "rota-meeting.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF\n", "latin1") });
+      await until(c, "[data-case-update-file]");
+      await blur(c);
+      await top(c, "[data-case-update]", 20);
+    } },
+  { name: "cases-correct-entry", entry: "Correct an entry in a case log",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-log-entry]");
+      await click(c, '[data-case-log-entry="cu-1"] [data-case-log-correct]');
+      await until(c, '[data-case-update-correcting="cu-1"]');
+      await typeIn(c, "[data-case-update-body]", "The rota was read on the second day of the week.", "El turno se ley\u00f3 el segundo d\u00eda de la semana.");
+      await blur(c);
+      await top(c, "[data-case-update]", 20);
+    } },
+  { name: "cases-print", entry: "Print a case",
+    open: "cases", ready: "table tbody tr",
+    act: async (c) => {
+      await click(c, "table tbody tr"); await until(c, "[data-case-print]");
+      await click(c, "[data-case-print]");
+      let html = "";
+      for (let i = 0; i < 40 && !html; i++) { await wait(100); const p = await c.d.prints(); html = p.length ? p[p.length - 1].html : ""; }
+      if (!html) throw new Error("Print case opened no page");
+      await c.page.setContent(html);
+    } },
   { name: "issues-issue-window", entry: "Review a reported problem and assign it",
     open: "issues", ready: "[data-issue-row]",
     act: async (c) => { await click(c, '[data-issue-row="i-1"]'); await until(c, "[data-issue-status]"); } },
@@ -1560,7 +1600,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

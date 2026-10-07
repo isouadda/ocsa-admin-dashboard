@@ -6194,6 +6194,136 @@ function createStubs() {
     return base();
   }
 
+  // The case log (STEP299_CONTRACT.md sections 1 and 2, the API's Step 299, for the dashboard's Step
+  // 300), answered only once a run arms it with setStep299, over everything else: GET /api/hr-cases/:id
+  // with updates, oldest first, each with correctedBy worked out from the corrections that name it and
+  // kindName in the screen's language; GET /api/hr-cases/:id/updates; POST /api/hr-cases/:id/updates,
+  // refusing in the routes' style with keys naming the field (a kind a person may not send, no text
+  // where one is needed, text over 8,000 characters, a moment later than now, a correction naming no
+  // entry of the same case, a correction id on anything else, more than 5 files, a file that is not a
+  // picture or a PDF, or one over 10 MB); GET /api/hr-cases/:id/updates/:updateId/files/:n, the file
+  // behind the token; and PATCH /api/hr-cases/:id, which writes its own entries (a status change, take,
+  // release, hand to and escalate, and the closing entry) and refuses Resolved or Closed with no
+  // closing_note. The case's status, holder and closing note stay as the run left them. Every value is
+  // invented.
+  let step299 = false;
+  const PERSON_KINDS_299 = ["note", "conversation", "meeting", "call", "file", "correction"];
+  const KIND_WORDS_299 = {
+    note: ["Note", "Nota"], conversation: ["Conversation", "Conversación"], meeting: ["Meeting", "Reunión"], call: ["Phone call", "Llamada"],
+    file: ["File", "Archivo"], correction: ["Correction", "Corrección"], status: ["Status change", "Cambio de estado"], handoff: ["Handoff", "Traspaso"],
+    warning: ["Warning", "Advertencia"], closed: ["Closing note", "Nota de cierre"], earlier_notes: ["Notes saved before the case log", "Notas guardadas antes del registro del caso"],
+  };
+  const FILE_TYPES_299 = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
+  const ADMIN_299 = { id: "u-admin-1", name: "Dana Whitlock" };
+  const UPDATES_299 = () => ({
+    "hc-1": [
+      { id: "cu-1", kind: "note", body: "Read the report. Asked the night lead for the cover rota of the first week.", withUser: null, withName: null, occurredAt: seed.shift(-3) + "T10:00:00Z", correctsId: null, attachments: [], details: {}, createdBy: ADMIN_299, createdAt: seed.shift(-3) + "T10:00:00Z" },
+      { id: "cu-2", kind: "call", body: "Asked who covered the overnight shifts in the first week. Two names were given.", withUser: null, withName: "Night agency coordinator", occurredAt: seed.shift(-3) + "T15:30:00Z", correctsId: null, attachments: [], details: {}, createdBy: ADMIN_299, createdAt: seed.shift(-3) + "T16:10:00Z" },
+      { id: "cu-3", kind: "file", body: null, withUser: null, withName: null, occurredAt: seed.shift(-2) + "T09:15:00Z", correctsId: null, attachments: [{ n: 1, name: "cover-rota-week-1.pdf", contentType: "application/pdf", size: 48213 }], details: {}, createdBy: ADMIN_299, createdAt: seed.shift(-2) + "T09:15:00Z" },
+      { id: "cu-4", kind: "correction", body: "The call was on the afternoon of the second day, with the agency's day coordinator.", withUser: null, withName: null, occurredAt: seed.shift(-2) + "T09:20:00Z", correctsId: "cu-2", attachments: [], details: {}, createdBy: ADMIN_299, createdAt: seed.shift(-2) + "T09:20:00Z" },
+      { id: "cu-5", kind: "handoff", body: null, withUser: null, withName: null, occurredAt: seed.shift(-2) + "T09:30:00Z", correctsId: null, attachments: [], details: { which: "release", from: ADMIN_299, to: null }, createdBy: ADMIN_299, createdAt: seed.shift(-2) + "T09:30:00Z" },
+    ],
+    "hc-2": [
+      { id: "cu-6", kind: "handoff", body: null, withUser: null, withName: null, occurredAt: seed.shift(-2) + "T10:00:00Z", correctsId: null, attachments: [], details: { which: "take", from: null, to: ADMIN_299 }, createdBy: ADMIN_299, createdAt: seed.shift(-2) + "T10:00:00Z" },
+      { id: "cu-7", kind: "status", body: null, withUser: null, withName: null, occurredAt: seed.shift(-2) + "T10:00:00Z", correctsId: null, attachments: [], details: { from: "open", to: "in_review" }, createdBy: ADMIN_299, createdAt: seed.shift(-2) + "T10:00:00Z" },
+    ],
+    "hc-3": [
+      { id: "cu-8", kind: "earlier_notes", body: "Answered in person the same week | the pay stub was corrected.", withUser: null, withName: null, occurredAt: seed.shift(-9) + "T16:00:00Z", correctsId: null, attachments: [], details: {}, createdBy: null, createdAt: seed.shift(-9) + "T16:00:00Z" },
+    ],
+  });
+  const s299 = () => {
+    if (!state.s299) state.s299 = { updates: UPDATES_299(), seq: 8, files: {}, cases: {} };
+    return state.s299;
+  };
+  const T299 = (lang, en, es) => (lang === "es" ? es : en);
+  const updateView299 = (u, all, lang) => Object.assign(clone(u), {
+    kindName: (KIND_WORDS_299[u.kind] || [u.kind, u.kind])[lang === "es" ? 1 : 0],
+    correctedBy: all.filter((x) => x.kind === "correction" && x.correctsId === u.id).map((x) => x.id),
+  });
+  const updatesOf299 = (id, lang) => { const all = s299().updates[id] || []; return all.map((u) => updateView299(u, all, lang)); };
+  const dataUrlOf299 = (v) => { const m = /^data:([^;,]+)(;base64)?,(.*)$/.exec(String(v || "")); return m ? { type: m[1], size: Math.floor(m[3].length * (m[2] ? 3 / 4 : 1)) } : null; };
+  function step299Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    const me = person();
+    const meRef = { id: me.id, name: me.firstName + " " + me.lastName };
+    const bad = (keys, en, es) => ({ status: 400, json: { error: T299(lang, en, es), code: "speakUp.badDetails", keys } });
+    const caseOf = (id) => { const c = HR_CASES.find((x) => x.id === id); return c ? Object.assign(clone(c), s299().cases[id] || {}) : null; };
+    const file = /^\/api\/hr-cases\/([^/]+)\/updates\/([^/]+)\/files\/(\d+)$/.exec(path);
+    if (file && method === "GET") {
+      const u = (s299().updates[file[1]] || []).find((x) => x.id === file[2]);
+      const a = u && (u.attachments || []).find((x) => String(x.n) === file[3]);
+      if (!a) return { status: 404, json: { error: T299(lang, "That file was not found.", "No se encontró ese archivo."), code: "speakUp.fileNotFound" } };
+      return { status: 200, bytes: a.contentType === "application/pdf" ? PDF_BYTES : PNG_BYTES, contentType: a.contentType === "application/pdf" ? "application/pdf" : "image/png", json: null, headers: { "Content-Disposition": 'inline; filename="' + a.name + '"' } };
+    }
+    const list = /^\/api\/hr-cases\/([^/]+)\/updates$/.exec(path);
+    if (list && method === "GET") return caseOf(list[1]) ? ok({ updates: updatesOf299(list[1], lang) }) : { status: 404, json: { error: T299(lang, "Case not found", "Caso no encontrado"), code: "speakUp.caseNotFound" } };
+    if (list && method === "POST") {
+      const id = list[1];
+      if (!caseOf(id)) return { status: 404, json: { error: T299(lang, "Case not found", "Caso no encontrado"), code: "speakUp.caseNotFound" } };
+      if (PERSON_KINDS_299.indexOf(b.kind) < 0) return bad(["kind"], "Choose a type.", "Elija un tipo.");
+      const text = typeof b.body === "string" ? b.body.trim() : "";
+      if (!text && b.kind !== "file") return bad(["body"], "Write what was said or done.", "Escriba lo que se dijo o se hizo.");
+      if (text.length > 8000) return bad(["body"], "Keep it to 8,000 characters.", "No pase de 8,000 caracteres.");
+      if (b.occurredAt && !(new Date(b.occurredAt).getTime() <= new Date(seed.NOW_ISO).getTime())) return bad(["occurredAt"], "When it happened cannot be later than now.", "Cuándo pasó no puede ser después de ahora.");
+      const all = s299().updates[id] || (s299().updates[id] = []);
+      if (b.kind === "correction" && !all.some((x) => x.id === b.correctsId)) return bad(["correctsId"], "Choose the entry this corrects.", "Elija la entrada que corrige.");
+      if (b.kind !== "correction" && b.correctsId != null) return bad(["correctsId"], "Only a correction names an entry.", "Solo una corrección nombra una entrada.");
+      const files = Array.isArray(b.attachments) ? b.attachments : [];
+      if (files.length > 5) return bad(["attachments"], "Attach up to 5 files.", "Adjunte hasta 5 archivos.");
+      const read = files.map((f) => ({ name: String((f && f.name) || "file"), info: dataUrlOf299(f && f.dataUrl) }));
+      if (read.some((f) => !f.info || FILE_TYPES_299.indexOf(f.info.type) < 0)) return bad(["attachments"], "Attach a JPEG, PNG, WebP or HEIC picture or a PDF.", "Adjunte una foto JPEG, PNG, WebP o HEIC, o un PDF.");
+      if (read.some((f) => f.info.size > 10 * 1024 * 1024)) return bad(["attachments"], "Each file can be up to 10 MB.", "Cada archivo puede tener hasta 10 MB.");
+      if (b.kind === "file" && read.length === 0) return bad(["attachments"], "Attach at least one file.", "Adjunte al menos un archivo.");
+      let withUser = null;
+      if (b.withUserId) {
+        const p = state.staff.find((s) => s.id === b.withUserId);
+        if (!p) return bad(["withUserId"], "That person is not on the staff list.", "Esa persona no está en la lista del personal.");
+        withUser = { id: p.id, name: (p.firstName || "") + " " + (p.lastName || "") };
+      }
+      s299().seq += 1;
+      const uid = "cu-" + s299().seq;
+      const row = { id: uid, kind: b.kind, body: text || null, withUser, withName: withUser ? null : (b.withName ? String(b.withName).trim() : null), occurredAt: b.occurredAt || seed.NOW_ISO,
+        correctsId: b.kind === "correction" ? b.correctsId : null, attachments: read.map((f, i) => ({ n: i + 1, name: f.name, contentType: f.info.type === "image/heic" || f.info.type === "image/heif" ? "image/jpeg" : f.info.type, size: f.info.size })),
+        details: {}, createdBy: meRef, createdAt: seed.NOW_ISO };
+      all.push(row);
+      return created({ update: updateView299(row, all, lang) });
+    }
+    const one = /^\/api\/hr-cases\/([^/]+)$/.exec(path);
+    if (one && method === "GET") {
+      const c = caseOf(one[1]);
+      if (!c) return base();
+      return ok(Object.assign(c, { updates: updatesOf299(one[1], lang) }));
+    }
+    if (one && method === "PATCH") {
+      const id = one[1];
+      const c = caseOf(id);
+      if (!c) return base();
+      const closing = ["resolved", "closed"].indexOf(b.status) >= 0;
+      const note = typeof b.closing_note === "string" ? b.closing_note.trim() : (closing && typeof b.resolution_notes === "string" ? b.resolution_notes.trim() : "");
+      if (closing && !note) return bad(["closing_note"], "Write the closing note.", "Escriba la nota de cierre.");
+      const all = s299().updates[id] || (s299().updates[id] = []);
+      const write = (kind, details, text) => { s299().seq += 1; all.push({ id: "cu-" + s299().seq, kind, body: text || null, withUser: null, withName: null, occurredAt: seed.NOW_ISO, correctsId: null, attachments: [], details: details || {}, createdBy: meRef, createdAt: seed.NOW_ISO }); };
+      const next = s299().cases[id] || (s299().cases[id] = {});
+      const who = (pid) => { const p = pid ? state.staff.find((s) => s.id === pid) : null; return p ? { id: p.id, name: (p.firstName || "") + " " + (p.lastName || "") } : null; };
+      if (b.status !== undefined && b.status !== c.status) { write("status", { from: c.status, to: b.status }); next.status = b.status; }
+      if (b.assigned_to !== undefined) {
+        const to = who(b.assigned_to);
+        write("handoff", { which: b.assigned_to === null ? "release" : b.assigned_to === me.id ? "take" : "hand", from: c.assignedTo, to });
+        next.assignedTo = to;
+      }
+      if (b.escalated_to) {
+        const sub = [{ id: "u-super-1", name: "Oyelaran Adebayo" }, { id: "u-staff-5", name: "Tomasz Wisniewski" }].find((x) => x.id === b.escalated_to) || who(b.escalated_to);
+        write("handoff", { which: "escalate", from: c.assignedTo, to: sub }); next.escalatedTo = sub; next.status = "escalated";
+      }
+      if (closing) { write("closed", {}, note); next.resolutionNotes = note; next.resolvedAt = seed.NOW_ISO; }
+      else if (typeof b.resolution_notes === "string" && b.resolution_notes.trim()) write("note", {}, b.resolution_notes.trim());
+      next.updatedAt = seed.NOW_ISO;
+      if (!c.firstResponseAt) next.firstResponseAt = seed.NOW_ISO;
+      return ok(Object.assign(caseOf(id), { message: "Case updated" }));
+    }
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6248,7 +6378,8 @@ function createStubs() {
     const over280 = () => (step280 ? step280Route(method, path, u.searchParams, body, record.language, over275) : over275());
     const over278 = () => (step278 ? step278Route(method, path, u.searchParams, body, record.language, over280) : over280());
     const over289 = () => (step289 ? step289Route(method, path, u.searchParams, body, record.language, over278) : over278());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over289) : over289();
+    const over299 = () => (step299 ? step299Route(method, path, u.searchParams, body, record.language, over289) : over289());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over299) : over299();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6334,6 +6465,9 @@ function createStubs() {
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
     // over whichever steps the run arms.
     setStep289: (v) => { step289 = v !== false; },
+    // The routes and keys of the API's Step 299 contract (the dashboard's Step 300), the case log, on or
+    // off, laid over whichever steps the run arms.
+    setStep299: (v) => { step299 = v !== false; },
     // Who a ticket's status change told, in which language, since the run armed Step 289.
     notified289: () => (state.s289 ? state.s289.notified.slice() : []),
     // Whether a person is on the PIN the office gave, which with Step 283 armed holds every route but
@@ -6349,7 +6483,7 @@ function createStubs() {
       state.sites = clone(seed.SITES);
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
-      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null;
+      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};

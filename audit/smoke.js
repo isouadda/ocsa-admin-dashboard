@@ -108,6 +108,15 @@
 //     language, and Export holds it with the note; App support contact draws the API's refusal under
 //     Email and then saves; the signed acknowledgment page reads its document and Signed in Spanish in
 //     the person's folder; and a PTO request reads PTO (paid time off) and is approved.
+//   - against the stub's answers for the API's Step 299 contract (Step 300, the case log), which the
+//     smoke check arms with setStep299, at 1280 in English and in Spanish and at 390 in English: a case
+//     opens with its log in the order the API gives it, Happened, who a call was with, Corrected below
+//     and a correction pointing back, and no Resolution notes box; a conversation is added with a person
+//     picked in the searchable picker and a PDF, sent as a data URL, and drawn last with its author, its
+//     time, who it was with and the file, which opens behind the token; Correct this adds a correction
+//     of the first entry, which then says Corrected below; Resolved asks for the closing note, refuses
+//     to save without it and sends closing_note, which the log draws as the closing entry; and Print
+//     case prints every entry with its text and its files by name.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -180,9 +189,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -1808,6 +1817,133 @@ async function step291(d, origin, p, stubs) {
   });
 }
 
+// Step 300's case log (STEP299_CONTRACT.md section 2), each a line, against the stub armed with
+// setStep299 (audit/stubs.js): a case opening with its log, a conversation added with a person and a
+// PDF and then drawn with its author and time, Correct this adding a correction that points back,
+// closing asking for the closing note, and Print case listing the whole log. Every line waits for what
+// it reads.
+const CASE_300 = "hc-1";
+const WITH_300 = { id: "u-staff-6", typed: "Okonkwo" };
+const SAID_300 = { en: "Went over the overnight rota with them at the start of the shift.", es: "Revisó con la persona el turno de noche al empezar el turno." };
+const FIXED_300 = { en: "The rota was read on the second day of the week.", es: "El turno se leyó el segundo día de la semana." };
+const CLOSING_300 = { en: "Cover was added to the overnight shift and the reporter was told.", es: "Se agregó cobertura al turno de noche y se le avisó a quien lo reportó." };
+const PDF_300 = { name: "rota-meeting.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n", "latin1") };
+async function step300(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const lang = p.lang === "es" ? "es" : "en";
+  const openCase = async () => {
+    await go(d, "cases", null, "table tbody tr");
+    await d.page.locator("table tbody tr").first().click();
+    await until(d, '[data-case-log-entry="cu-1"]');
+  };
+  const lastRead = () => stubs.calls.filter((c) => c.method === "GET" && (c.path === "/api/hr-cases/" + CASE_300 || c.path === "/api/hr-cases/" + CASE_300 + "/updates") && c.json && Array.isArray(c.json.updates)).pop();
+  const drawnIds = () => d.page.locator("[data-case-log-entry]").evaluateAll((els) => els.map((e) => e.getAttribute("data-case-log-entry")));
+  const added = () => stubs.calls.filter((c) => c.method === "POST" && c.path === "/api/hr-cases/" + CASE_300 + "/updates").pop();
+  await check("a case opens with its log, oldest first, and no Resolution notes box", async () => {
+    await openCase();
+    const read = lastRead();
+    if (!read) return "the case was not read with updates";
+    const ids = await drawnIds();
+    const want = read.json.updates.map((u) => u.id);
+    if (ids.join() !== want.join()) return "it draws " + JSON.stringify(ids) + " of " + JSON.stringify(want);
+    const call = '[data-case-log-entry="cu-2"]';
+    if ((await d.page.locator(call + " [data-case-log-happened]").count()) !== 1) return "the call does not say when it happened";
+    if ((await d.page.locator(call + " [data-case-log-with]").innerText()).indexOf("Night agency coordinator") < 0) return "the call does not say who it was with";
+    if ((await d.page.locator(call + " [data-case-log-corrected]").count()) !== 1) return "the corrected call does not say Corrected below";
+    if ((await d.page.locator('[data-case-log-entry="cu-4"] [data-case-log-correction-of="cu-2"]').count()) !== 1) return "the correction does not point back";
+    if ((await d.page.locator('[data-case-log-entry="cu-1"]').innerText()).indexOf(d.say("Note")) < 0) return "the note's kind is not drawn in the screen's language";
+    return (await d.page.getByText(d.say("Resolution notes"), { exact: true }).count()) ? "the Resolution notes box is still drawn" : "";
+  });
+  await check("a conversation added with a person and a PDF shows its author, its time and its file", async () => {
+    await openCase();
+    await d.page.locator("[data-case-update-kind]").selectOption("conversation");
+    const why = await pickPerson291(d, "[data-case-update-with]", WITH_300.id, WITH_300.typed);
+    if (why) return why;
+    await d.page.locator("[data-case-update-body]").fill(SAID_300[lang]);
+    await d.page.locator("[data-case-update-files]").setInputFiles(PDF_300);
+    await until(d, "[data-case-update-file]");
+    await d.page.locator("[data-case-update-add]").click();
+    await until(d, '[data-case-log-kind="conversation"]');
+    const post = added();
+    if (!post || post.status !== 201) return "the update was not added";
+    const b = post.body || {};
+    if (b.kind !== "conversation" || b.withUserId !== WITH_300.id || b.body !== SAID_300[lang]) return "it sent " + JSON.stringify({ kind: b.kind, withUserId: b.withUserId });
+    const att = (b.attachments || [])[0];
+    if (!att || att.name !== PDF_300.name || String(att.dataUrl).indexOf("data:application/pdf;base64,") !== 0) return "the PDF was not sent as a data URL";
+    const u = post.json.update;
+    const entry = d.page.locator('[data-case-log-entry="' + u.id + '"]');
+    await entry.waitFor();
+    const author = await entry.locator("[data-case-log-author]").innerText();
+    if (author !== u.createdBy.name) return "the author reads " + JSON.stringify(author);
+    if (!(await entry.locator("[data-case-log-when]").innerText()).trim()) return "the time is not drawn";
+    if ((await entry.locator("[data-case-log-with]").innerText()).indexOf(u.withUser.name) < 0) return "who it was with is not drawn";
+    if ((await entry.locator("[data-case-log-file]").innerText()).trim() !== PDF_300.name) return "the file is not listed by its name";
+    await entry.locator("[data-case-log-file]").click();
+    const want = "/api/hr-cases/" + CASE_300 + "/updates/" + u.id + "/files/1";
+    for (let i = 0; i < 20 && !stubs.calls.some((c) => c.path === want); i++) await wait(100);
+    const got = stubs.calls.filter((c) => c.path === want).pop();
+    if (!got || got.status !== 200 || !got.headers.authorization) return "the file was not opened behind the token";
+    return (await drawnIds()).pop() === u.id ? "" : "the new entry is not last";
+  });
+  await check("Correct this adds a correction that points back to its entry", async () => {
+    await openCase();
+    await d.page.locator('[data-case-log-entry="cu-1"] [data-case-log-correct]').click();
+    await until(d, '[data-case-update-correcting="cu-1"]');
+    await d.page.locator("[data-case-update-body]").fill(FIXED_300[lang]);
+    await d.page.locator("[data-case-update-add]").click();
+    await until(d, '[data-case-log-correction-of="cu-1"]');
+    const b = (added() || {}).body || {};
+    if (b.kind !== "correction" || b.correctsId !== "cu-1") return "it sent " + JSON.stringify({ kind: b.kind, correctsId: b.correctsId });
+    await until(d, '[data-case-log-entry="cu-1"] [data-case-log-corrected]');
+    await d.page.locator('[data-case-log-correction-of="cu-1"]').last().click();
+    return (await d.page.locator("[data-case-update-correcting]").count()) ? "the form stayed on the correction" : "";
+  });
+  await check("closing asks for the closing note and writes it as the log's last entry", async () => {
+    await openCase();
+    await d.page.locator("[data-case-status]").selectOption("resolved");
+    await until(d, "[data-case-closing-note]");
+    const before = stubs.calls.filter((c) => c.method === "PATCH" && c.path === "/api/hr-cases/" + CASE_300).length;
+    await d.page.getByRole("button", { name: d.say("Save changes") }).click();
+    await until(d, "[data-case-closing-refusal]");
+    const said = await d.page.locator("[data-case-closing-refusal]").innerText();
+    if (said !== d.say("Write the closing note.")) return "the refusal reads " + JSON.stringify(said);
+    if (stubs.calls.filter((c) => c.method === "PATCH" && c.path === "/api/hr-cases/" + CASE_300).length !== before) return "it saved with no closing note";
+    await d.page.locator("[data-case-closing-note]").fill(CLOSING_300[lang]);
+    await d.page.getByRole("button", { name: d.say("Save changes") }).click();
+    await until(d, '[data-case-log-kind="closed"]');
+    const patch = stubs.calls.filter((c) => c.method === "PATCH" && c.path === "/api/hr-cases/" + CASE_300).pop();
+    if (!patch || patch.body.status !== "resolved" || patch.body.closing_note !== CLOSING_300[lang]) return "it sent " + JSON.stringify(patch && patch.body);
+    if ("resolution_notes" in patch.body) return "it still sends resolution_notes";
+    const closed = await d.page.locator('[data-case-log-kind="closed"] [data-case-log-body]').innerText();
+    return closed === CLOSING_300[lang] ? "" : "the closing entry reads " + JSON.stringify(closed);
+  });
+  await check("Print case lists the whole log with each entry's files", async () => {
+    await openCase();
+    const read = lastRead();
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-case-print]").click();
+    let prints = await d.prints();
+    for (let i = 0; i < 30 && (prints.length <= before || !prints[prints.length - 1].html); i++) { await wait(100); prints = await d.prints(); }
+    if (prints.length <= before) return "no window opened";
+    const html = prints[prints.length - 1].html;
+    const n = (html.match(/data-case-print-entry=/g) || []).length;
+    if (n !== read.json.updates.length) return "it prints " + n + " entries of " + read.json.updates.length;
+    const esc = (v) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const lost = read.json.updates.filter((u) => u.body && html.indexOf(esc(u.body)) < 0).map((u) => u.id);
+    if (lost.length) return "it leaves out the text of " + lost.join(", ");
+    const files = [].concat(...read.json.updates.map((u) => (u.attachments || []).map((a) => a.name)));
+    const missing = files.filter((f) => html.indexOf(esc(f)) < 0);
+    return missing.length ? "it does not list " + missing.join(", ") : "";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -1829,6 +1965,8 @@ async function runPass(browser, origin, p) {
   if (p.step280) stubs.setStep280(true);
   // Step 289's answers (the dashboard's Step 291) are laid over whichever of those the pass arms.
   if (p.step291) stubs.setStep289(true);
+  // Step 299's answers (the dashboard's Step 300, the case log) are laid over those.
+  if (p.step300) stubs.setStep299(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -1929,6 +2067,7 @@ async function runPass(browser, origin, p) {
     if (p.step280) await step280(d, origin, p, stubs);
     if (p.step283) await step283(d, origin, p, stubs);
     if (p.step291) await step291(d, origin, p, stubs);
+    if (p.step300) await step300(d, origin, p, stubs);
 
     // Help, asked one question.
     {
