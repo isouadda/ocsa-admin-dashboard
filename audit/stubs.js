@@ -6542,10 +6542,13 @@ function createStubs() {
   // two requests of its own, a two-item refill waiting at the second site and one already ordered;
   // GET /api/vendors?approved=true, which setStep308NoVendors answers empty, GET /api/vendors/:id and
   // PATCH /api/vendors/:id; POST /api/supplies/requests/:id/sign, GET .../po.pdf behind the token and
-  // POST .../send, each refusing in the routes' style with keys. Every value is invented.
+  // POST .../send, each refusing in the routes' style with keys; and, for the dashboard's Step 325, a
+  // decision on a signed request refused 409 supplies.alreadySigned, and setStep308Own naming a request
+  // the signed-in person asked for, so canDecide is false on it. Every value is invented.
   let step308 = false;
   let holder308 = true;
   let noVendors308 = false;
+  let own308 = "";
   const REQUEST_308 = "sr-9";
   const ORDERED_308 = "sr-8";
   const T308 = (lang, en, es) => (lang === "es" ? es : en);
@@ -6583,6 +6586,7 @@ function createStubs() {
     const me = person();
     const o = s308().orders[rq.id] || null;
     const v = o ? s308().vendors.find((x) => x.id === o.vendorId) : null;
+    if (own308 && rq.id === own308) Object.assign(rq, { requested_by: me.id, requested_by_name: me.firstName + " " + me.lastName });
     return Object.assign(rq, {
       canDecide: holder308 && rq.requested_by !== me.id,
       approvedBy: o ? o.approvedBy : null, approvedAt: o ? o.approvedAt : null, signed: !!o,
@@ -6597,6 +6601,14 @@ function createStubs() {
     const rows = (s308(), requests280());
     const find = (id) => rows.find((x) => String(x.id) === decodeURIComponent(id));
     const refuse = (status, code, keys, en, es) => ({ status, json: Object.assign({ error: T308(lang, en, es), code }, keys ? { keys } : {}) });
+    // A signed request's items stay as signed (the API's Step 308, contract 1.6): deciding lines and the
+    // whole-request decision answer 409, in the API's words.
+    const alreadySigned308 = () => refuse(409, "supplies.alreadySigned", null, "This order is already signed.", "Esta orden ya est\u00e1 firmada.");
+    const whole = /^\/api\/supplies\/requests\/([^/]+)$/.exec(path);
+    if (whole && (method === "PATCH" || method === "PUT") && (b.status === "approved" || b.status === "denied")) {
+      const rq = find(whole[1]);
+      if (rq && s308().orders[rq.id]) return alreadySigned308();
+    }
     if (path === "/api/vendors" && method === "GET") {
       const all = s308().vendors.filter((v) => v.is_active !== false);
       if (query.get("approved") === "true") return ok(noVendors308 ? [] : all.filter((v) => v.approval_status === "approved"));
@@ -6625,7 +6637,8 @@ function createStubs() {
       if (!rq) return refuse(404, "supplies.notFound", null, "That request was not found.", "No se encontr\u00f3 ese pedido.");
       const view = order308(clone(rq));
       if (act[2] === "decide" && method === "POST") {
-        if (!view.canDecide) return refuse(403, rq.requested_by === me.id ? "supplies.ownRequest" : "supplies.cannotDecide", null, "Only the people who approve supply requests can decide this.", "Solo las personas que aprueban los pedidos de suministros pueden decidir esto.");
+        if (!view.canDecide) return refuse(403, view.requested_by === me.id ? "supplies.ownRequest" : "supplies.cannotDecide", null, "Only the people who approve supply requests can decide this.", "Solo las personas que aprueban los pedidos de suministros pueden decidir esto.");
+        if (view.signed) return alreadySigned308();
         const a = base();
         if (a && a.status === 200 && a.json && a.json.request) a.json.request = order308(clone(a.json.request));
         return a;
@@ -6987,6 +7000,7 @@ function createStubs() {
     setStep308: (v) => { step308 = v !== false; },
     setStep308Holder: (v) => { holder308 = v !== false; },
     setStep308NoVendors: (v) => { noVendors308 = v !== false; },
+    setStep308Own: (id) => { own308 = id ? String(id) : ""; },
     // The routes and keys of the API's Step 312 contract (the dashboard's Step 314), one inspection walk,
     // on or off, laid over whichever steps the run arms; and every schedule sent since, with what it sent.
     setStep312: (v) => { step312 = v !== false; },

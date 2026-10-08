@@ -167,12 +167,16 @@ Then it checks, one line a check:
   English, a holder of `approve_supplies` decides a two-item request with Approve all, picks an approved
   vendor (the dropdown offers the two approved ones and not the pending one) whose email fills in under
   it, finds Deliver to started at the site's address, signs, and the sign route gets the vendor, the
-  drawing and the address and answers the PO number the window draws; Open the purchase order reads the
+  drawing and the address and answers the PO number the window draws; once signed (Step 325) the request
+  draws no Change and no other decision control, the stub refusing a decision on it 409
+  `supplies.alreadySigned` as the API does, while Step 280's approved request, never signed, still offers
+  Change on every item and it opens the boxes; Open the purchase order reads the
   PDF behind the token; Send to the vendor's email emails it once, the window reads Ordered with where
   it went and the list the PO number and Ordered, and Send again emails it again and keeps the first
   ordered date; with `setStep308Holder(false)` an admin reads a request with "Only the people who approve
   supply requests can decide this." and no decision control, and Download for ordering still saves the
-  CSV; and with `setStep308NoVendors` Sign and order says "Add a vendor under Vendors and set it to
+  CSV; with `setStep308Own` the person who asked for a request reads "You asked for these supplies, so
+  someone else decides them." and no decision control (Step 325); and with `setStep308NoVendors` Sign and order says "Add a vendor under Vendors and set it to
   approved first." The stub's two requests of its own go after Step 280's, so its lines read what they
   always read: a refill waiting at the second site and an order sent 39 days ago.
 - against the stub's answers for the API's Step 312 contract (Step 314, one inspection walk), which the

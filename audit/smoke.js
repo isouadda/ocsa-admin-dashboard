@@ -134,10 +134,14 @@
 //   - against the stub's answers for the API's Step 308 contract (Step 309, supply orders), which the
 //     smoke check arms with setStep308 over Step 280's requests, at 1280 in English and in Spanish and
 //     at 390 in English: a holder decides a request and signs it with an approved vendor whose details
-//     fill in and the site's address in Deliver to; the purchase order opens behind the token; Send
+//     fill in and the site's address in Deliver to; once signed the request draws no Change and no other
+//     decision control, while an approved request not yet signed still offers Change on every item and
+//     it opens the boxes (Step 325); the purchase order opens behind the token; Send
 //     emails the vendor, the request reads Ordered with its date and the list its PO number and Ordered,
 //     and Send again sends once more and keeps the date; an admin without the capability reads a
-//     request with no decision controls and downloads the ordering CSV; and with no approved vendor,
+//     request with no decision controls and downloads the ordering CSV; the person who asked for a
+//     request reads "You asked for these supplies, so someone else decides them." and no decision
+//     control (Step 325); and with no approved vendor,
 //     Sign and order says to add one under Vendors.
 //   - against the stub's answers for the API's Step 312 contract (Step 314, one inspection walk), which
 //     the smoke check arms with setStep312, at 1280 in English and in Spanish and at 390 in English:
@@ -2187,9 +2191,11 @@ async function step306(d, origin, p, stubs) {
 
 // Step 309's supply orders (STEP308_CONTRACT.md section 2), each a line, against the stub armed with
 // setStep308 over Step 280's requests (audit/stubs.js): a holder deciding a request and signing it
-// with a vendor whose details fill in, the purchase order opening behind the token, Send and then
+// with a vendor whose details fill in, Change gone once it is signed and still on an approved request
+// not yet signed (Step 325), the purchase order opening behind the token, Send and then
 // Ordered with its date and Send again, an admin without the capability reading a request with no
-// controls and downloading the CSV, and the vendor dropdown's line when no vendor is approved. Every
+// controls and downloading the CSV, the person who asked reading that someone else decides it (Step
+// 325), and the vendor dropdown's line when no vendor is approved. Every
 // line waits for what it reads.
 const REQUEST_309 = { id: "sr-9", street: "9 Kestrel Way" };
 const VENDOR_309 = { id: "v-1", email: "orders@tallowridge.example.invalid" };
@@ -2230,6 +2236,30 @@ async function step309(d, origin, p, stubs) {
     const po = (await d.page.locator("[data-order-po]").innerText()).trim();
     return po === sign.json.request.poNumber ? "" : "the PO number reads " + JSON.stringify(po);
   });
+  // Step 325: the request just signed and not yet sent, and Step 280's three-item request, approved and
+  // never signed.
+  const DECISION_CONTROLS = "[data-request-line-change], [data-request-line-approve], [data-request-line-deny], [data-request-approve-all], [data-request-deny-all], [data-order-sign]";
+  await check("Change is gone on a signed request, and still there on an approved one not yet signed", async () => {
+    await openRequest("sr-4");
+    if ((await d.page.locator("[data-request-approve-all]").count()) > 0) {
+      await d.page.locator("[data-request-approve-all]").click();
+      await until(d, '[data-request-window] [data-request-status="approved"]');
+    }
+    if ((await d.page.locator("[data-order-signed]").count()) > 0) return "the approved request reads signed";
+    const lines = await d.page.locator("[data-request-window] [data-request-line]").count();
+    const offered = await d.page.locator("[data-request-window] [data-request-line-change]").count();
+    if (!lines || offered !== lines) return "the approved request offers Change on " + offered + " of " + lines + " items";
+    await d.page.locator("[data-request-window] [data-request-line-change]").first().click();
+    await until(d, "[data-request-window] [data-request-line-qty]");
+    await d.page.locator('[data-request-window] button[aria-label="' + d.say("Close") + '"]').first().click();
+    await d.page.locator("[data-request-window]").waitFor({ state: "detached" });
+    await openRequest(REQUEST_309.id, "[data-order-signed]");
+    if ((await d.page.locator("[data-order-ordered]").count()) > 0) return "the signed request already reads Ordered";
+    const said = await d.page.locator("[data-request-window] [data-request-line-said]").count();
+    if (said !== 2) return "the signed request reads " + said + " decided items";
+    const controls = await d.page.locator(DECISION_CONTROLS).count();
+    return controls ? "the signed request still draws " + controls + " decision controls" : "";
+  });
   await check("the purchase order opens behind the token", async () => {
     await openRequest(REQUEST_309.id, "[data-order-open-po]");
     await d.page.locator("[data-order-open-po]").click();
@@ -2261,7 +2291,7 @@ async function step309(d, origin, p, stubs) {
       await openRequest("sr-4", "[data-request-read-only]");
       const said = (await d.page.locator("[data-request-read-only]").innerText()).trim();
       if (said !== d.say("Only the people who approve supply requests can decide this.")) return "the line reads " + JSON.stringify(said);
-      const controls = await d.page.locator("[data-request-approve-all], [data-request-deny-all], [data-request-line-approve], [data-request-line-deny], [data-request-line-change], [data-order-sign]").count();
+      const controls = await d.page.locator(DECISION_CONTROLS).count();
       if (controls) return "it still draws " + controls + " decision controls";
       await d.page.locator('[data-request-window] button[aria-label="' + d.say("Close") + '"]').first().click();
       await d.page.locator("[data-ordering-download]").click();
@@ -2269,6 +2299,17 @@ async function step309(d, origin, p, stubs) {
       const csv = stubs.calls.filter((c) => c.path === "/api/supplies/requests/approved.csv").pop();
       return csv && csv.status === 200 ? "" : "the CSV was not downloaded";
     } finally { stubs.setStep308Holder(true); }
+  });
+  // Step 325: Step 280's three-item request, answered as asked for by the person signed in.
+  await check("the person who asked reads that someone else decides it, with no decision controls", async () => {
+    stubs.setStep308Own("sr-4");
+    try {
+      await openRequest("sr-4", '[data-request-read-only="mine"]');
+      const said = (await d.page.locator("[data-request-read-only]").innerText()).trim();
+      if (said !== d.say("You asked for these supplies, so someone else decides them.")) return "the line reads " + JSON.stringify(said);
+      const controls = await d.page.locator(DECISION_CONTROLS).count();
+      return controls ? "it still draws " + controls + " decision controls" : "";
+    } finally { stubs.setStep308Own(""); }
   });
   await check("with no approved vendor, Sign and order says to add one under Vendors", async () => {
     stubs.setStep308NoVendors(true);
