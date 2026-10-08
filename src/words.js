@@ -4891,6 +4891,7 @@ export const WORDS = {
   "Ends at": { es: "Termina a las" },
   "On a night shift that runs past midnight, the end can be before the start.": { es: "En un turno de noche que pasa de la medianoche, el fin puede ser antes del inicio." },
   "None ticked means every day.": { es: "Si no marca ninguno, son todos los d\u00edas." },
+  "You asked for these supplies, so someone else decides them.": { es: "Usted pidi\u00f3 estos suministros, as\u00ed que otra persona decide." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

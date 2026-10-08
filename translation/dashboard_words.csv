@@ -4666,3 +4666,4 @@ Edit the block,Editar el bloque,"Sites, a site's schedule, the window that edits
 Ends at,Termina a las,"Sites, a site's schedule, editing a block"
 "On a night shift that runs past midnight, the end can be before the start.","En un turno de noche que pasa de la medianoche, el fin puede ser antes del inicio.","Sites, a site's schedule, editing a block"
 None ticked means every day.,"Si no marca ninguno, son todos los días.","Sites, a site's schedule, editing a block's days"
+"You asked for these supplies, so someone else decides them.","Usted pidió estos suministros, así que otra persona decide.","Supplies and Inventory, Requests, a request's window for the person who asked for it"
