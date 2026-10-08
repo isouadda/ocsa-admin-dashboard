@@ -319,22 +319,22 @@ Picture: pickup-claimed
 Last checked: 2026-10-01
 
 ## Approve or deny a supply request (admin dashboard)
-Who can do this: admins and supervisors
+Who can do this: the people who approve supply requests decide them; every other admin and supervisor reads them and downloads the list for ordering
 1. Click **Inventory** (**Inventario**) in the side panel.
-2. Click the **Requests** (**Solicitudes**) tab. Each request names its first item and how many items it holds.
+2. Click the **Requests** (**Solicitudes**) tab. Each request names its first item and how many items it holds, and once it is signed, its purchase order number and when it was ordered.
 3. Click **Open** (**Abrir**) on the request. The window lists every item with its quantity and any note from the person who asked.
 4. To approve an item, lower **Quantity to approve** (**Cantidad a aprobar**) if you are sending fewer, down to 1, and click **Approve** (**Aprobar**). The item then reads **Approved {0} of {1}** (**Aprobado: {0} de {1}**).
 5. To deny an item, type a **Note (optional)** (**Nota (opcional)**) if the person should know why, and click **Deny** (**Denegar**).
 6. **Approve all** (**Aprobar todo**) and **Deny all** (**Denegar todo**) decide every item not decided yet, at the quantities and with the notes in their boxes.
-7. Until the request is fulfilled, **Change** (**Cambiar**) on a decided item opens its boxes again.
-8. Once every item is decided, the request reads approved when any item was approved and denied when none was. The person who asked gets a notice saying how many items were approved and how many denied.
-9. To order what was approved, choose **From** (**Desde**), **To** (**Hasta**) and a **Site** (**Sitio**) or **All sites** (**Todos los sitios**) above the list, and click **Download for ordering (CSV)** (**Descargar para hacer el pedido (CSV)**). The file lists each approved item of the requests not yet fulfilled, with the quantity approved.
+7. Until the request is ordered, **Change** (**Cambiar**) on a decided item opens its boxes again.
+8. Once every item is decided, the request reads approved when any item was approved and denied when none was. The person who asked gets a notice saying how many items were approved and how many denied. To order what was approved, sign it and send it to the vendor: see Sign a supply order and send it to the vendor.
+9. To download what was approved, choose **From** (**Desde**), **To** (**Hasta**) and a **Site** (**Sitio**) or **All sites** (**Todos los sitios**) above the list, and click **Download for ordering (CSV)** (**Descargar para hacer el pedido (CSV)**). The file lists each approved item of the requests not yet fulfilled, with the quantity approved.
 10. A request that shows **Approve** (**Aprobar**) and **Deny** (**Denegar**) on the request itself, and no **Open** (**Abrir**), is decided whole: click one, add a note if you want, and confirm.
-If it does not work: when a decision or the download is refused, the reason shows in red in the window or under the download button.
-Words people use for this: supply order, someone needs supplies, order request, approve supplies, many items, several items, quantity, approve part of a request, approve fewer, order list, purchase list, csv for ordering.
+If it does not work: a request reads **Only the people who approve supply requests can decide this.** (**Solo las personas que aprueban los pedidos de suministros pueden decidir esto.**) for anyone who does not approve supply requests, and for the person who asked for it: nobody decides their own request. When a decision or the download is refused, the reason shows in red in the window or under the download button.
+Words people use for this: supply order, someone needs supplies, order request, approve supplies, many items, several items, quantity, approve part of a request, approve fewer, order list, purchase list, csv for ordering, who approves supplies.
 Picture: supplies-request-approve
 Picture: supplies-request-list
-Last checked: 2026-10-06
+Last checked: 2026-10-07
 
 ## Add a supply to the inventory (admin dashboard)
 Who can do this: admins
@@ -352,8 +352,10 @@ Who can do this: admins and supervisors
 2. Click the **Scheduled** tab.
 3. Click **Schedule Inspection**.
 4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date. Only active supervisors are listed.
-5. Click **Schedule**.
+5. **Include the safety walk** (**Incluir el recorrido de seguridad**) is ticked to start: the inspector fills in the safety inspection (OCSA-FRM-015) in the same walk, signs once, and both records are kept. Untick it for an inspection with no safety part, such as one at a site whose safety inspection is done another way this month.
+6. Click **Schedule**.
 If it does not work: a supervisor who has left is not listed. An inspection already held by someone who left shows them with their status until you pick someone else.
+Words people use for this: schedule an inspection, monthly inspection, site inspection, safety walk, one walk, inspection and safety inspection together, programar una inspección.
 Picture: inspections-schedule
 Last checked: 2026-10-07
 ## Create an inspection template (admin dashboard)
@@ -1258,11 +1260,12 @@ Who can do this: anyone who can open Inspections
 5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
 6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
 7. Beside the score, **Band** (**Banda**) reads the inspection's band under OCSA-QMS-014 5.2, and **Findings** (**Hallazgos**) lists the tickets the inspection opened; see the entry on reading an inspection's findings and band.
+8. An inspection that held the safety walk shows **Safety walk** (**Recorrido de seguridad**) with its safety part above the items; see Read an inspection's safety walk.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
 Picture: inspection-completed-photos
 Picture: inspection-completed-signature
-Last checked: 2026-10-05
+Last checked: 2026-10-07
 
 ## Check who is still working with the roster check (admin dashboard)
 Who can do this: admins who manage staff
@@ -2395,4 +2398,93 @@ If it does not work: the button is grayed out with **No working email** (**Sin u
 Words people use for this: welcome email, activation email, resend the invite, set up link, they never got the email, correo de bienvenida.
 Picture: staff-welcome-email
 Picture: staff-welcome-no-email
+Last checked: 2026-10-07
+
+## Find and read a company document (admin dashboard)
+Who can do this: everyone who signs in to the dashboard
+1. Click **Library** (**Biblioteca**) in the side panel.
+2. The documents are listed by folder, each with its number, title and version. A folder's name at the top shows only its documents; **All** (**Todos**) shows every one. **Also in Spanish** (**También en español**) under a document means it has a Spanish edition.
+3. To find a document, type its number, its title or words from its text in the search box and click **Search** (**Buscar**). Each result says where the words were found, such as **Found in {0}** (**Encontrado en {0}**) with the section. Click a result to open the document at that section.
+4. Click a document to read it. It opens with its cover (number, version and language), then **Contents** (**Contenido**) by Part, then every section. Click a line in the contents to go to that section.
+5. Click **See the designed version** (**Ver la versión diseñada**) to open the document's PDF, where it has one.
+6. Click **Back to the Library** (**Volver a la Biblioteca**) to go back to the list.
+If it does not work: **The library is loading. Check back soon.** (**La biblioteca se está cargando. Vuelva a revisar pronto.**) means the documents have not arrived yet. A document opens in the screen's language when it has that edition, and otherwise says **This document is shown in English.** (**Este documento se muestra en inglés.**) Nothing is signed in the Library: the documents a person must sign are under **Documents to sign** (**Documentos por firmar**).
+Words people use for this: library, company documents, procedures, policies, the handbook, find a procedure, read a document, sop, biblioteca, documentos de la empresa.
+Picture: library-list
+Picture: library-reader
+Last checked: 2026-10-07
+
+## Ask Help what a document covers (admin dashboard)
+Who can do this: everyone who signs in to the dashboard
+1. Click **Help** (**Ayuda**) in the side panel.
+2. Ask what a document covers and name it by its number, or ask Help to show or open a document.
+3. Help says what the document is for and lists its Parts.
+4. Under the answer, click **Open {0}** (**Abrir {0}**), which carries the document's number, to read the whole document in the **Library** (**Biblioteca**).
+If it does not work: name the document by its number, as it is written on the document. A question about one part of a document gets that part's text.
+Words people use for this: what is in this document, what does this procedure say, open a document, show me the handbook, qué dice este documento.
+Picture: help-open-document
+Last checked: 2026-10-07
+
+## Sign a supply order and send it to the vendor (admin dashboard)
+Who can do this: the people who approve supply requests, for a request someone else made
+1. Click **Inventory** (**Inventario**), then the **Requests** (**Solicitudes**) tab, and click **Open** (**Abrir**) on the request.
+2. Decide every item. Once every item is decided and at least one is approved, **Sign and order** (**Firmar y pedir**) shows under the items.
+3. Choose the **Vendor** (**Proveedor**). Only approved vendors are offered. The vendor's contact, phone, email and address show under it; **Edit this vendor** (**Editar este proveedor**) opens the vendor under Vendors to correct them.
+4. Check **Deliver to** (**Entregar en**). It starts as the site's address; change it if the supplies go somewhere else.
+5. Sign in the box with the mouse or a finger and click **Sign** (**Firmar**). The window shows the **Purchase order** (**Orden de compra**) with its number, who signed and when.
+6. Click **Open the purchase order** (**Abrir la orden de compra**) to read the PDF: the company, the vendor, where it goes, the approved items and the signature.
+7. Click **Send to {0}** (**Enviar a {0}**), which carries the vendor's email, to email the purchase order to the vendor. To send it to another address, type it in **Send to** (**Enviar a**) first.
+8. The window then reads **Ordered {0}, sent to {1}** (**Pedido el {0}, enviado a {1}**), and the request in the list shows its number and **Ordered {0}** (**Pedido el {0}**). **Send again** (**Enviar de nuevo**) sends it once more.
+If it does not work: **Add a vendor under Vendors and set it to approved first.** (**Primero agregue un proveedor en Proveedores y márquelo como aprobado.**) means no vendor is approved yet; see Add or edit a vendor. Nobody signs their own request. A refused signature or send says why in red under the box or the button.
+Words people use for this: purchase order, po, send the order to the vendor, sign the supply order, order supplies from the vendor, email the vendor, orden de compra.
+Picture: supplies-order-sign
+Picture: supplies-order-sent
+Last checked: 2026-10-07
+
+## Add or edit a vendor (admin dashboard)
+Who can do this: admins
+1. Click **Vendors** (**Proveedores**) in the side panel.
+2. Click **Add Vendor** (**Agregar proveedor**), or click a vendor and then **Edit** (**Editar**).
+3. Fill in **Vendor Name *** (**Nombre del proveedor ***), **Contact Name** (**Nombre del contacto**), **Contact Phone** (**Teléfono del contacto**), **Contact Email** (**Correo del contacto**) and the **Address** (**Dirección**) with the city, state and ZIP. A supply order fills these in, and sends the purchase order to the contact email.
+4. Set **Approval Status** (**Estado de aprobación**). Only a vendor set to approved is offered when a supply order is signed.
+5. Click **Add Vendor** (**Agregar proveedor**) or **Save Changes** (**Guardar los cambios**).
+If it does not work: the vendor name is required. A vendor opened from a supply order's **Edit this vendor** (**Editar este proveedor**) opens straight in its editor.
+Words people use for this: add a vendor, supplier, approved supplier list, vendor email, vendor address, change a vendor, proveedor.
+Picture: vendors-edit
+Last checked: 2026-10-07
+
+## Read an inspection's safety walk (admin dashboard)
+Who can do this: anyone who can open Inspections
+1. Click **Inspections** (**Inspecciones**), then the **Completed** (**Completadas**) tab, and click the inspection. Its cards say **Safety walk** (**Recorrido de seguridad**): **Included** (**Incluido**) or **Not included** (**No incluido**).
+2. When it was included, the **Safety walk** (**Recorrido de seguridad**) card above the items shows the safety part: each area with its result and note, what the crew said, the findings with their severity, owner and due date, and the overall result.
+3. Click **Open the safety inspection record** (**Abrir el registro de la inspección de seguridad**) to open the OCSA-FRM-015 under **Filed forms** (**Formularios presentados**). It says **Filed as the safety walk of a scheduled inspection.** (**Presentado como el recorrido de seguridad de una inspección programada.**), and the Field Lead reviews and signs it there as always.
+4. On that record, **Open the inspection** (**Abrir la inspección**) goes back to the inspection.
+If it does not work: an inspection scheduled without the safety walk has no safety part; its safety inspection, when there is one, is a form of its own under **Filed forms** (**Formularios presentados**).
+Words people use for this: safety part of an inspection, safety walk, frm-015 with the inspection, safety findings, one walk, recorrido de seguridad.
+Picture: inspection-safety-part
+Picture: safety-record-inspection-link
+Last checked: 2026-10-07
+
+## Read a site's schedule by shift (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Sites** (**Sitios**), click the site, then the **Service Details** (**Detalles del servicio**) tab.
+2. **Schedule by shift** (**Horario por turno**) shows each shift with its start and end, and under it each block in time order: its window, such as 8:30 AM to 10:30 AM, a bar across the shift showing when it falls, its kind, its name, its days and its steps.
+3. The kind is written on each block: **Critical** (**Crítico**), **Residents' meal** (**Comida de los residentes**) for a time the space is in use, with no steps, **Empty, full access** (**Vacío, acceso total**) for a time nobody is in the space, **Check-in** (**Entrada**) and **Check-out** (**Salida**) for the shift's start and end, **When there is free time** (**Cuando haya tiempo libre**) for work done whenever there is time, and **Work** (**Trabajo**) for the rest.
+4. **Every day** (**Todos los días**) means the block runs every day; a block with days, such as Mon to Fri, shows on the staff checklist on those days only.
+If it does not work: the schedule shows once the site's blocks have their end and kind. A site with no timed blocks shows its tasks as before. The blocks are named and added under **Shift names** (**Nombres de turnos**).
+Words people use for this: site schedule, cleaning schedule, timeline, time schedule, shift schedule, what happens when, horario del sitio.
+Picture: site-schedule
+Last checked: 2026-10-07
+
+## Change a block's time, kind and days (admin dashboard)
+Who can do this: admins and supervisors who manage tasks
+1. Click **Sites** (**Sitios**), click the site, then the **Service Details** (**Detalles del servicio**) tab.
+2. Under **Schedule by shift** (**Horario por turno**), click **Edit** (**Editar**) on the block.
+3. Set **Starts at** (**Empieza a las**) and **Ends at** (**Termina a las**). On a night shift that runs past midnight, the end can be before the start.
+4. Choose the **Kind** (**Tipo**).
+5. Under **Days** (**Días**), tick the days the block runs; **None ticked means every day.** (**Si no marca ninguno, son todos los días.**)
+6. Click **Save Changes** (**Guardar los cambios**). The timeline shows the block in its new place.
+If it does not work: an end before the start on a day shift is refused, and the reason shows in red under **Ends at** (**Termina a las**). Fix the time and save again.
+Words people use for this: change a block time, block end time, critical block, meal time, full access, days of the week, cambiar el horario de un bloque.
+Picture: site-schedule-edit
 Last checked: 2026-10-07

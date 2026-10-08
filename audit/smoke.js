@@ -124,6 +124,33 @@
 //     sends; Send welcome email is disabled with No working email; a rehire's toast says the welcome
 //     email went; and the list says when it went for someone who has never signed in. At 1280 in
 //     English, Schedule inspection's Assigned Supervisor leaves out a supervisor who has left.
+//   - against the stub's answers for the API's Step 305 contract (Step 306, the Library), which the
+//     smoke check arms with setStep305, at 1280 in English and in Spanish and at 390 in English: the
+//     Library lists every document by folder with Also in Spanish on the ones with a Spanish edition; a
+//     search by a word in a section's text sends q and opens the document at that section; the reader
+//     draws the cover, Contents by Part, every section and the table, and no signature box; See the
+//     designed version opens the PDF behind the token; Help's answer about a document draws Open, which
+//     opens it in the Library; and an empty list says the library is loading.
+//   - against the stub's answers for the API's Step 308 contract (Step 309, supply orders), which the
+//     smoke check arms with setStep308 over Step 280's requests, at 1280 in English and in Spanish and
+//     at 390 in English: a holder decides a request and signs it with an approved vendor whose details
+//     fill in and the site's address in Deliver to; the purchase order opens behind the token; Send
+//     emails the vendor, the request reads Ordered with its date and the list its PO number and Ordered,
+//     and Send again sends once more and keeps the date; an admin without the capability reads a
+//     request with no decision controls and downloads the ordering CSV; and with no approved vendor,
+//     Sign and order says to add one under Vendors.
+//   - against the stub's answers for the API's Step 312 contract (Step 314, one inspection walk), which
+//     the smoke check arms with setStep312, at 1280 in English and in Spanish and at 390 in English:
+//     Schedule Inspection offers Include the safety walk, on, and sends withSafety true, and unticked
+//     sends false; a completed walk's result says the safety walk was included and shows its safety part,
+//     read from the OCSA-FRM-015 record itself, with its answers, findings and result; and Open the
+//     safety inspection record opens that record under Forms, whose Open the inspection opens the
+//     inspection again by its address.
+//   - against the stub's answers for the API's Step 315 contract (Step 317, timed site schedules), which
+//     the smoke check arms with setStep315, at 1280 in English and in Spanish and at 390 in English: the
+//     second site's Service Details draws its two shifts as a timeline, every block with its window, its
+//     kind in words, its days and its steps, in time order; editing a block's end and kind sends them and
+//     the timeline redraws it; and an end before the start is refused under Ends at, with nothing saved.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
@@ -196,9 +223,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
@@ -2068,6 +2095,322 @@ async function step293(d, origin, p, stubs) {
   });
 }
 
+// Step 306's Library (STEP305_CONTRACT.md section 2), each a line, against the stub armed with
+// setStep305 (audit/stubs.js): the Library by folder, a search by a word in a section's text opening
+// the document at that section, the reader with its cover, Contents by Part and every section and no
+// signature box, See the designed version opening the PDF behind the token, Help's Open button, and
+// the empty list's line. Every line waits for what it reads.
+const DOC_306 = "OCSA-QMS-901";
+const WORD_306 = { en: "squeegee", es: "escurridor" };
+const ASK_306 = { en: "What is in OCSA-QMS-901?", es: "\u00bfQu\u00e9 contiene OCSA-QMS-901?" };
+async function step306(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const lang = p.lang === "es" ? "es" : "en";
+  const listRead = () => stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/library" && !/[?&]q=/.test(c.query || "") && c.json && Array.isArray(c.json.documents)).pop();
+  const docRead = () => stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/documents/" + DOC_306 + "/read" && c.json && c.json.document).pop();
+  await check("the Library lists every document by folder, with Also in Spanish", async () => {
+    if ((await d.page.locator('[data-nav-item="library"]').count()) === 0 && p.viewport !== "phone") return "the side panel offers no Library";
+    await go(d, "library", null, "[data-library-folder]");
+    const read = listRead();
+    if (!read) return "the list was not read";
+    const docs = read.json.documents;
+    const drawn = await d.page.locator("[data-library-doc]").evaluateAll((els) => els.map((e) => e.getAttribute("data-library-doc")));
+    if (drawn.join() !== docs.map((x) => x.docCode).join()) return "it draws " + JSON.stringify(drawn);
+    const folders = await d.page.locator("[data-library-folder]").evaluateAll((els) => els.map((e) => e.getAttribute("data-library-folder")));
+    const want = docs.map((x) => x.folder).filter((f, i, all) => all.indexOf(f) === i);
+    if (folders.join() !== want.join()) return "its folders are " + JSON.stringify(folders);
+    const spanish = docs.filter((x) => x.locales.indexOf("es") >= 0).length;
+    if ((await d.page.locator("[data-library-spanish]").count()) !== spanish) return "Also in Spanish is not on the " + spanish + " documents with a Spanish edition";
+    const qms = await d.page.locator('[data-library-folder="QMS"]').innerText();
+    return qms.indexOf(docs.find((x) => x.folder === "QMS").folderName) === 0 ? "" : "the Quality folder reads " + JSON.stringify(qms);
+  });
+  await check("a search by a word in the text opens the document at the section it matched", async () => {
+    await go(d, "library", null, "[data-library-search]");
+    await d.page.locator("[data-library-search]").fill(WORD_306[lang]);
+    await d.page.locator("[data-library-search-send]").click();
+    await until(d, "[data-library-match]");
+    const asked = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/library" && /[?&]q=/.test(c.query || "")).pop();
+    if (!asked || new URLSearchParams(asked.query.slice(1)).get("q") !== WORD_306[lang]) return "the search was not sent with q";
+    const ref = await d.page.locator("[data-library-match]").first().getAttribute("data-library-match");
+    if (ref !== "2.2") return "it matched section " + ref;
+    await d.page.locator('[data-library-doc="' + DOC_306 + '"]').first().click();
+    await until(d, '[data-library-landed="2.2"]');
+    const at = await d.page.locator('[data-library-section="2.2"]').evaluate((e) => e.getBoundingClientRect().top);
+    if (at < -5 || at > 260) return "the section is drawn " + Math.round(at) + " pixels down, not at the top";
+    const read = docRead();
+    return read && read.locale === lang ? "" : "the document was not read in the screen's language";
+  });
+  await check("the reader draws the cover, Contents by Part and every section, and no signature box", async () => {
+    await go(d, "library", [DOC_306], "[data-library-contents]");
+    const doc = docRead().json.document;
+    if ((await d.page.locator("[data-library-cover]").innerText()).indexOf(doc.title) < 0) return "the cover does not carry the title";
+    if ((await d.page.locator("[data-library-section]").count()) !== doc.sections.length) return "it draws " + (await d.page.locator("[data-library-section]").count()) + " sections of " + doc.sections.length;
+    if ((await d.page.locator("[data-library-part]").count()) !== doc.parts.length) return "it draws " + (await d.page.locator("[data-library-part]").count()) + " Parts of " + doc.parts.length;
+    if ((await d.page.locator("[data-library-jump]").count()) !== doc.sections.length) return "the contents do not list every section";
+    if ((await d.page.locator("[data-library-table]").count()) !== 1) return "the table is not drawn as a table";
+    return (await d.page.locator("[data-signature-box], canvas").count()) ? "the reader draws a signature box" : "";
+  });
+  await check("See the designed version opens the PDF behind the token", async () => {
+    await go(d, "library", [DOC_306], "[data-library-designed]");
+    await d.page.locator("[data-library-designed]").click();
+    await until(d, '[data-library-pdf="' + DOC_306 + '"] iframe');
+    const got = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/documents/" + DOC_306 + "/pdf").pop();
+    return got && got.status === 200 && got.headers.authorization ? "" : "the PDF was not read behind the token";
+  });
+  await check("Help's answer about a document draws Open, which opens it in the Library", async () => {
+    await go(d, "help", null, "textarea");
+    await d.page.locator("textarea").first().fill(ASK_306[lang]);
+    await d.page.locator('button[aria-label="' + d.say("Send") + '"]').first().click();
+    await until(d, '[data-help-open-document="' + DOC_306 + '"]');
+    const words = await d.page.locator("[data-help-open-document]").last().innerText();
+    if (words.trim() !== d.say("Open {0}|document").replace("{0}", DOC_306)) return "the button reads " + JSON.stringify(words);
+    await d.page.locator("[data-help-open-document]").last().click();
+    await until(d, '[data-library-reader="' + DOC_306 + '"] [data-library-contents]');
+    return "";
+  });
+  await check("an empty Library says it is loading", async () => {
+    stubs.setStep305Empty(true);
+    try {
+      await go(d, "library", null, "[data-library-empty]");
+      const said = (await d.page.locator("[data-library-empty]").innerText()).trim();
+      return said === d.say("The library is loading. Check back soon.") ? "" : "it says " + JSON.stringify(said);
+    } finally { stubs.setStep305Empty(false); }
+  });
+}
+
+// Step 309's supply orders (STEP308_CONTRACT.md section 2), each a line, against the stub armed with
+// setStep308 over Step 280's requests (audit/stubs.js): a holder deciding a request and signing it
+// with a vendor whose details fill in, the purchase order opening behind the token, Send and then
+// Ordered with its date and Send again, an admin without the capability reading a request with no
+// controls and downloading the CSV, and the vendor dropdown's line when no vendor is approved. Every
+// line waits for what it reads.
+const REQUEST_309 = { id: "sr-9", street: "9 Kestrel Way" };
+const VENDOR_309 = { id: "v-1", email: "orders@tallowridge.example.invalid" };
+async function step309(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const openRequest = async (id, ready) => {
+    await go(d, "supplies", null, '[data-supplies-tab="requests"]');
+    await d.page.locator('[data-supplies-tab="requests"]').click();
+    await until(d, '[data-request-open="' + id + '"]');
+    await d.page.locator('[data-request-open="' + id + '"]').click();
+    await until(d, ready || '[data-request-window="' + id + '"]');
+  };
+  const posted = (what) => stubs.calls.filter((c) => c.method === "POST" && c.path === "/api/supplies/requests/" + REQUEST_309.id + "/" + what).pop();
+  await check("a holder decides a request and signs it with an approved vendor whose details fill in", async () => {
+    await openRequest(REQUEST_309.id);
+    await d.page.locator("[data-request-approve-all]").click();
+    await until(d, "[data-order-vendor]");
+    const offered = await d.page.locator("[data-order-vendor] option").evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
+    if (offered.join() !== "v-1,v-2") return "the dropdown offers " + JSON.stringify(offered);
+    await d.page.locator("[data-order-vendor]").selectOption(VENDOR_309.id);
+    await until(d, '[data-order-vendor-details="' + VENDOR_309.id + '"]');
+    if ((await d.page.locator("[data-order-vendor-details]").innerText()).indexOf(VENDOR_309.email) < 0) return "the vendor's email is not filled in";
+    if ((await d.page.locator("[data-order-deliver-to]").inputValue()).indexOf(REQUEST_309.street) !== 0) return "Deliver to does not start as the site's address";
+    if (!(await d.drawSignature())) return "no signature box";
+    await d.page.locator("[data-order-sign] [data-signature-box] button").first().click();
+    await until(d, "[data-order-signed] [data-order-po]");
+    const sign = posted("sign");
+    if (!sign || sign.status !== 200) return "the order was not signed";
+    const b = sign.body || {};
+    if (b.vendorId !== VENDOR_309.id || String(b.signature).indexOf("data:image/png;base64,") !== 0 || String(b.deliverTo).indexOf(REQUEST_309.street) !== 0) return "it sent " + JSON.stringify({ vendorId: b.vendorId, deliverTo: b.deliverTo });
+    const po = (await d.page.locator("[data-order-po]").innerText()).trim();
+    return po === sign.json.request.poNumber ? "" : "the PO number reads " + JSON.stringify(po);
+  });
+  await check("the purchase order opens behind the token", async () => {
+    await openRequest(REQUEST_309.id, "[data-order-open-po]");
+    await d.page.locator("[data-order-open-po]").click();
+    await until(d, "[data-order-pdf] iframe");
+    const got = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/supplies/requests/" + REQUEST_309.id + "/po.pdf").pop();
+    return got && got.status === 200 && got.headers.authorization ? "" : "the PDF was not read behind the token";
+  });
+  await check("Send emails the vendor, then the request reads Ordered with its date, and Send again sends once more", async () => {
+    await openRequest(REQUEST_309.id, "[data-order-send]");
+    const words = (await d.page.locator("[data-order-send]").innerText()).trim();
+    if (words !== d.say("Send to {0}").replace("{0}", VENDOR_309.email)) return "the button reads " + JSON.stringify(words);
+    await d.page.locator("[data-order-send]").click();
+    await until(d, "[data-order-ordered]");
+    const sent = stubs.sent308();
+    if (sent.length !== 1 || sent[0].to !== VENDOR_309.email) return "it was sent to " + JSON.stringify(sent.map((x) => x.to));
+    const first = posted("send").json.request.orderedAt;
+    if ((await d.page.locator("[data-order-ordered]").innerText()).indexOf(VENDOR_309.email) < 0) return "Ordered does not say where it went";
+    await d.page.locator("[data-order-send-again]").click();
+    for (let i = 0; i < 30 && stubs.sent308().length < 2; i++) await wait(100);
+    if (stubs.sent308().length !== 2) return "Send again sent nothing";
+    if (posted("send").json.request.orderedAt !== first) return "Send again moved the ordered date";
+    await d.page.locator('[data-request-window] button[aria-label="' + d.say("Close") + '"]').first().click();
+    await until(d, '[data-request-po="' + posted("sign").json.request.poNumber + '"]');
+    return (await d.page.locator('[data-request-ordered]').count()) >= 2 ? "" : "the list does not say Ordered";
+  });
+  await check("an admin without the capability reads a request with no controls and downloads the CSV", async () => {
+    stubs.setStep308Holder(false);
+    try {
+      await openRequest("sr-4", "[data-request-read-only]");
+      const said = (await d.page.locator("[data-request-read-only]").innerText()).trim();
+      if (said !== d.say("Only the people who approve supply requests can decide this.")) return "the line reads " + JSON.stringify(said);
+      const controls = await d.page.locator("[data-request-approve-all], [data-request-deny-all], [data-request-line-approve], [data-request-line-deny], [data-request-line-change], [data-order-sign]").count();
+      if (controls) return "it still draws " + controls + " decision controls";
+      await d.page.locator('[data-request-window] button[aria-label="' + d.say("Close") + '"]').first().click();
+      await d.page.locator("[data-ordering-download]").click();
+      for (let i = 0; i < 30 && !stubs.calls.some((c) => c.path === "/api/supplies/requests/approved.csv"); i++) await wait(100);
+      const csv = stubs.calls.filter((c) => c.path === "/api/supplies/requests/approved.csv").pop();
+      return csv && csv.status === 200 ? "" : "the CSV was not downloaded";
+    } finally { stubs.setStep308Holder(true); }
+  });
+  await check("with no approved vendor, Sign and order says to add one under Vendors", async () => {
+    stubs.setStep308NoVendors(true);
+    try {
+      await openRequest("sr-4");
+      if ((await d.page.locator("[data-request-approve-all]").count()) > 0) await d.page.locator("[data-request-approve-all]").click();
+      await until(d, "[data-order-no-vendor]");
+      const said = (await d.page.locator("[data-order-no-vendor]").innerText()).trim();
+      if (said !== d.say("Add a vendor under Vendors and set it to approved first.")) return "the line reads " + JSON.stringify(said);
+      return (await d.page.locator("[data-order-vendor]").count()) ? "the empty dropdown is still drawn" : "";
+    } finally { stubs.setStep308NoVendors(false); }
+  });
+}
+
+// Step 314's one inspection walk (STEP312_CONTRACT.md section 3), each a line, against the stub armed
+// with setStep312 (audit/stubs.js): Schedule Inspection with Include the safety walk on, sending
+// withSafety true, and off, sending false; a completed walk's result showing its safety part; and the
+// links both ways between the inspection and its OCSA-FRM-015 record. Every line waits for what it reads.
+const WALK_314 = "insp-4";
+const SAFETY_314 = "fr-safety-1";
+async function step314(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const win = () => d.page.locator("div[style*='z-index: 500']").last();
+  const schedule = async (withSafety) => {
+    await go(d, "inspections");
+    await d.page.getByRole("button", { name: d.say("Scheduled|inspections") }).first().click();
+    await d.page.getByRole("button", { name: d.say("Schedule Inspection") }).first().click();
+    await until(d, "[data-schedule-with-safety]");
+    const box = d.page.locator('[data-schedule-with-safety] input[type="checkbox"]');
+    if (!(await box.isChecked())) return { why: "Include the safety walk is not on to start" };
+    if (!withSafety) await box.uncheck();
+    await win().locator("select").nth(0).selectOption("tp-1");
+    await win().locator("select").nth(1).selectOption(seed.SITES[1].id);
+    await win().locator('input[type="date"]').first().fill(seed.shift(9));
+    const before = stubs.scheduled312().length;
+    await win().getByRole("button", { name: d.say("Schedule|verb"), exact: true }).click();
+    for (let i = 0; i < 30 && stubs.scheduled312().length === before; i++) await wait(100);
+    return { sent: stubs.scheduled312()[before] };
+  };
+  await check("Schedule Inspection offers Include the safety walk, on, and sends withSafety true", async () => {
+    const r = await schedule(true);
+    if (r.why) return r.why;
+    if (!r.sent) return "nothing was scheduled";
+    return r.sent.body.withSafety === true ? "" : "it sent withSafety " + JSON.stringify(r.sent.body.withSafety);
+  });
+  await check("unticked, Include the safety walk sends withSafety false", async () => {
+    const r = await schedule(false);
+    if (r.why) return r.why;
+    if (!r.sent) return "nothing was scheduled";
+    return r.sent.body.withSafety === false ? "" : "it sent withSafety " + JSON.stringify(r.sent.body.withSafety);
+  });
+  await check("a completed walk's result shows its safety part: its answers, findings and result", async () => {
+    await go(d, "inspections", [WALK_314], '[data-inspection-safety-answer="findings"]');
+    const read = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/forms/responses/" + SAFETY_314 && c.json && Array.isArray(c.json.fields)).pop();
+    if (!read) return "the safety record was not read";
+    if ((await d.page.locator('[data-inspection-with-safety="true"]').count()) !== 1) return "the inspection does not say the safety walk was included";
+    const keys = await d.page.locator("[data-inspection-safety-answer]").evaluateAll((els) => els.map((e) => e.getAttribute("data-inspection-safety-answer")));
+    const want = ["site", "kind", "areas", "crew", "findings", "overall"];
+    if (keys.join() !== want.join()) return "it draws " + JSON.stringify(keys);
+    const result = read.json.fields.find((f) => f.key === "overall").displayValue;
+    return (await d.page.locator('[data-inspection-safety-answer="overall"]').innerText()).indexOf(result) >= 0 ? "" : "the overall result is not drawn";
+  });
+  await check("the safety part opens its OCSA-FRM-015 record, which opens the inspection again", async () => {
+    await go(d, "inspections", [WALK_314], "[data-open-safety-record]");
+    await d.page.locator("[data-open-safety-record]").click();
+    await until(d, '[data-filed-inspection="' + WALK_314 + '"]');
+    if (!/^#forms\/reports\//.test(await d.page.evaluate(() => window.location.hash))) return "the record did not open under Forms";
+    await d.page.locator("[data-open-inspection]").click();
+    await until(d, '[data-inspection-safety="' + SAFETY_314 + '"]');
+    return (await d.page.evaluate(() => window.location.hash)) === "#inspections/" + WALK_314 ? "" : "the inspection did not open by its address";
+  });
+}
+
+// Step 317's timed site schedules (STEP315_CONTRACT.md section 3), each a line, against the stub armed
+// with setStep315 (audit/stubs.js): the second site's schedule by shift as a timeline, editing a
+// block's window and kind, and an end before the start refused under Ends at. Every line waits for
+// what it reads.
+const SITE_317 = "s-2";
+async function step317(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await recover(d, origin, p);
+  };
+  const open = async () => { await go(d, "sites", [SITE_317, "tasks"], "[data-schedule-block]"); await until(d, "[data-schedule-step]"); };
+  const blocksRead = () => stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/sites/" + SITE_317 + "/shift-blocks" && c.json && Array.isArray(c.json.blocks)).pop();
+  await check("a site's Service Details draws its schedule by shift, each block's window, kind and days with its steps", async () => {
+    await open();
+    const blocks = blocksRead().json.blocks;
+    if ((await d.page.locator("[data-site-schedule-shift]").count()) !== 2) return "it draws " + (await d.page.locator("[data-site-schedule-shift]").count()) + " shifts of 2";
+    const drawn = await d.page.locator("[data-schedule-block]").evaluateAll((els) => els.map((e) => [e.getAttribute("data-schedule-block"), e.getAttribute("data-schedule-kind")]));
+    if (drawn.length !== blocks.length) return "it draws " + drawn.length + " blocks of " + blocks.length;
+    const kinds = drawn.map((x) => x[1]).filter((k, i, all) => all.indexOf(k) === i).sort();
+    if (kinds.join() !== ["anytime", "check_in", "check_out", "critical", "full_access", "meal", "work"].join()) return "its kinds are " + JSON.stringify(kinds);
+    const crit = await d.page.locator('[data-schedule-block="tb-4"] [data-schedule-kind-word]').innerText();
+    if (crit.indexOf(d.say("Critical|block kind")) < 0) return "a critical block does not say so in words";
+    const days = await d.page.locator('[data-schedule-block="tb-6"] [data-schedule-days]').innerText();
+    if (days.indexOf(d.say("{0} to {1}").replace("{0}", d.say("Mon")).replace("{1}", d.say("Fri"))) !== 0) return "a weekday block's days read " + JSON.stringify(days);
+    if ((await d.page.locator('[data-schedule-block="tb-13"] [data-schedule-window]').innerText()).trim() !== d.say("When there is free time")) return "the any-time block does not say When there is free time";
+    if ((await d.page.locator('[data-schedule-block="tb-4"] [data-schedule-step]').count()) !== 3) return "a block's steps are not listed under it";
+    const order = drawn.filter((x) => ["tb-1", "tb-2", "tb-3", "tb-4"].indexOf(x[0]) >= 0).map((x) => x[0]).join();
+    return order === "tb-1,tb-2,tb-3,tb-4" ? "" : "the first shift is not in time order: " + order;
+  });
+  await check("editing a block's window and kind sends them and the timeline redraws it", async () => {
+    await open();
+    const was = await d.page.locator('[data-schedule-block="tb-5"] [data-schedule-window]').innerText();
+    await d.page.locator('[data-schedule-edit="tb-5"]').click();
+    await until(d, "[data-schedule-window-edit]");
+    await d.page.locator("[data-schedule-end]").fill("10:45");
+    await d.page.locator("[data-schedule-kind-pick]").selectOption("critical");
+    await d.page.locator("[data-schedule-save]").click();
+    await until(d, '[data-schedule-block="tb-5"][data-schedule-kind="critical"]');
+    const b = (stubs.saves315().pop() || {}).body || {};
+    if (b.anchorTime !== "09:15" || b.endTime !== "10:45" || b.kind !== "critical" || b.daysOfWeek !== null) return "it sent " + JSON.stringify(b);
+    const now = await d.page.locator('[data-schedule-block="tb-5"] [data-schedule-window]').innerText();
+    return now !== was && now.indexOf("10:45") >= 0 ? "" : "the window still reads " + JSON.stringify(now);
+  });
+  await check("an end before the start is refused under Ends at, and nothing is saved", async () => {
+    await open();
+    const before = stubs.saves315().length;
+    await d.page.locator('[data-schedule-edit="tb-4"]').click();
+    await until(d, "[data-schedule-window-edit]");
+    await d.page.locator("[data-schedule-end]").fill("08:00");
+    await d.page.locator("[data-schedule-save]").click();
+    await until(d, '[data-schedule-refusal="endTime"]');
+    const refused = stubs.calls.filter((c) => c.method === "PATCH" && c.path === "/api/sites/" + SITE_317 + "/shift-blocks/tb-4").pop();
+    const said = (await d.page.locator('[data-schedule-refusal="endTime"]').innerText()).trim();
+    if (!refused || refused.status !== 400 || said !== refused.json.error) return "the refusal reads " + JSON.stringify(said);
+    return stubs.saves315().length === before ? "" : "the block was saved";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -2093,6 +2436,14 @@ async function runPass(browser, origin, p) {
   if (p.step300) stubs.setStep299(true);
   // Step 292's answers (the dashboard's Step 293, the welcome email) are laid over those.
   if (p.step293) stubs.setStep292(true);
+  // Step 305's answers (the dashboard's Step 306, the Library) are laid over those.
+  if (p.step306) stubs.setStep305(true);
+  // Step 308's answers (the dashboard's Step 309, supply orders) are laid over Step 280's requests.
+  if (p.step309) stubs.setStep308(true);
+  // Step 312's answers (the dashboard's Step 314, one inspection walk) are laid over those.
+  if (p.step314) stubs.setStep312(true);
+  // Step 315's answers (the dashboard's Step 317, timed site schedules) are laid over those.
+  if (p.step317) stubs.setStep315(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -2195,6 +2546,10 @@ async function runPass(browser, origin, p) {
     if (p.step291) await step291(d, origin, p, stubs);
     if (p.step300) await step300(d, origin, p, stubs);
     if (p.step293) await step293(d, origin, p, stubs);
+    if (p.step306) await step306(d, origin, p, stubs);
+    if (p.step309) await step309(d, origin, p, stubs);
+    if (p.step314) await step314(d, origin, p, stubs);
+    if (p.step317) await step317(d, origin, p, stubs);
 
     // Help, asked one question.
     {

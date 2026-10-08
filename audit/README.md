@@ -152,6 +152,48 @@ Then it checks, one line a check:
   inactive. The stub creates a person active, keeps each person's latest welcome, says its reason in
   the screen's language, answers welcome where an account is made active, refuses an invite in the 422
   style of `helpers/invites.js`, and lists a supervisor who has left.
+- against the stub's answers for the API's Step 305 contract (Step 306, the Library), which the smoke
+  check arms with `setStep305` over whichever steps a pass arms: at 1280 in English and in Spanish and at
+  390 in English, the side panel offers Library and the Library lists every document by folder, in the
+  API's order, with Also in Spanish on each document with a Spanish edition; a search by a word in a
+  section's text sends `q`, says the section it matched and opens the document there, read in the
+  screen's language; the reader draws the cover with the title, Contents by Part, every section, every
+  Part's heading and the table, and no signature box; See the designed version opens the PDF behind the
+  token; Help's answer about a document draws Open with its number, which opens it in the Library; and,
+  with `setStep305Empty`, an empty list says "The library is loading. Check back soon." The stub's six
+  documents are invented, one with a Spanish edition and a PDF, in five folders.
+- against the stub's answers for the API's Step 308 contract (Step 309, supply orders), which the smoke
+  check arms with `setStep308` over Step 280's requests: at 1280 in English and in Spanish and at 390 in
+  English, a holder of `approve_supplies` decides a two-item request with Approve all, picks an approved
+  vendor (the dropdown offers the two approved ones and not the pending one) whose email fills in under
+  it, finds Deliver to started at the site's address, signs, and the sign route gets the vendor, the
+  drawing and the address and answers the PO number the window draws; Open the purchase order reads the
+  PDF behind the token; Send to the vendor's email emails it once, the window reads Ordered with where
+  it went and the list the PO number and Ordered, and Send again emails it again and keeps the first
+  ordered date; with `setStep308Holder(false)` an admin reads a request with "Only the people who approve
+  supply requests can decide this." and no decision control, and Download for ordering still saves the
+  CSV; and with `setStep308NoVendors` Sign and order says "Add a vendor under Vendors and set it to
+  approved first." The stub's two requests of its own go after Step 280's, so its lines read what they
+  always read: a refill waiting at the second site and an order sent 39 days ago.
+- against the stub's answers for the API's Step 312 contract (Step 314, one inspection walk), which the
+  smoke check arms with `setStep312` over whichever steps a pass arms: at 1280 in English and in Spanish
+  and at 390 in English, Schedule Inspection draws Include the safety walk ticked and sends `withSafety:
+  true`, and unticked sends `false`; `#inspections/insp-4` opens a completed walk that says the safety
+  walk was included and draws its safety part from `GET /api/forms/responses/fr-safety-1`, the site, the
+  kind, the areas, what the crew said, the findings and the overall result, in the record's order; and
+  Open the safety inspection record opens the OCSA-FRM-015 at `#forms/reports/fr-safety-1`, which says it
+  was filed as the walk's safety part and whose Open the inspection lands on `#inspections/insp-4` again.
+  The stub keeps what each schedule sent, answers `with_safety` on every scheduled inspection, and
+  answers the walk's `safety_response_id` and the record's `inspection: { id }`.
+- against the stub's answers for the API's Step 315 contract (Step 317, timed site schedules), which the
+  smoke check arms with `setStep315` over whichever steps a pass arms: at 1280 in English and in Spanish
+  and at 390 in English, `#sites/s-2/tasks` draws Schedule by shift with the stub's two shifts and all
+  fourteen blocks, every kind among them, each with its window, its kind in words (a critical block says
+  Critical), its days (a weekday block reads Mon to Fri) and its steps, the any-time block reading When
+  there is free time, in time order; Edit on a block sends `{ anchorTime, endTime, kind, daysOfWeek }` and
+  the timeline redraws the block with its new kind and window; and an end before the start on a day
+  block is refused 400 with the stub's words under Ends at, and nothing is saved. The stub's second site
+  holds an invented two-shift schedule, and its tasks add the steps that belong to the blocks.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -225,7 +267,21 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-case-closing-note`, `data-case-closing-refusal`, `data-case-print` and the printed page's
 `data-case-print-entry`, and Step 293's by `data-added-welcome`, `data-added-send-welcome`,
 `data-welcome-send`, `data-welcome-no-email`, `data-sign-in-state` (with `welcome` or `welcome-not-sent`),
-`data-employment-said` and `data-employment-again`. Since Step 291 a person
+`data-employment-said` and `data-employment-again`, and Step 306's by `data-library`, `data-library-folder`,
+`data-library-doc`, `data-library-spanish`, `data-library-search`, `data-library-search-send`,
+`data-library-match`, `data-library-empty`, `data-library-reader`, `data-library-cover`,
+`data-library-landed`, `data-library-contents`, `data-library-jump`, `data-library-part`, `data-library-section`,
+`data-library-table`, `data-library-designed`, `data-library-pdf` and `data-help-open-document`, and Step 309's by
+`data-order-vendor`, `data-order-vendor-details`, `data-order-deliver-to`, `data-order-sign`,
+`data-order-signed`, `data-order-po`, `data-order-open-po`, `data-order-pdf`, `data-order-send`,
+`data-order-send-again`, `data-order-ordered`, `data-order-no-vendor`, `data-request-read-only`,
+`data-request-po` and `data-request-ordered`, and Step 314's by `data-schedule-with-safety`,
+`data-inspection-with-safety`, `data-inspection-safety`, `data-inspection-safety-answer`,
+`data-open-safety-record`, `data-filed-inspection` and `data-open-inspection`, and Step 317's by
+`data-site-schedule`, `data-site-schedule-shift`, `data-schedule-block`, `data-schedule-kind`,
+`data-schedule-kind-word`, `data-schedule-window`, `data-schedule-days`, `data-schedule-step`,
+`data-schedule-edit`, `data-schedule-window-edit`, `data-schedule-end`, `data-schedule-kind-pick`,
+`data-schedule-save` and `data-schedule-refusal`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -250,7 +306,7 @@ picture's name with the day it was taken in both languages, which `npm run guide
 entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures current).
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280, Step 283, Step 289, Step 292 and Step 299 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283, Step 289, Step 292, Step 299, Step 305, Step 308, Step 312 and Step 315 contracts among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and

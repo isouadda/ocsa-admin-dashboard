@@ -6414,6 +6414,416 @@ function createStubs() {
     return a;
   }
 
+  // The Library (STEP305_CONTRACT.md sections 1 and 2, the API's Step 305, for the dashboard's Step
+  // 306), answered only once a run arms it with setStep305, over everything else: GET /api/library with
+  // every document once, sorted by number, its folder from the number's middle part and the folder's
+  // name in the screen's language; ?q= by number, title and words in the sections of the edition the
+  // screen reads, each with the section it matched, best first; GET /api/documents/:docCode/read for
+  // anyone signed in, in the language asked for where an edition exists and else English with
+  // shownInEnglish; GET /api/documents/:docCode/pdf behind the token; and Help's answer to a question
+  // naming a document, which carries openDocument. setStep305Empty answers the list empty, the way live
+  // answers before the library sync's first run. Every document, its title and its text are invented.
+  let step305 = false;
+  let library305Empty = false;
+  const FOLDERS_305 = { QMS: ["Quality", "Calidad"], SVC: ["Services", "Servicios"], HR: ["Human Resources", "Recursos Humanos"], HS: ["Health and Safety", "Salud y Seguridad"],
+    ENV: ["Environmental", "Ambiental"], MGT: ["Management", "Gesti\u00f3n"], PUR: ["Purchasing", "Compras"], CTR: ["Contractors", "Contratistas"], FIN: ["Finance", "Finanzas"], FRM: ["Forms", "Formularios"] };
+  const S305 = (ref, title, content) => ({ ref, title, content });
+  const LIBRARY_305 = [
+    { docCode: "OCSA-QMS-901", version: "2.0", hasPdf: true, ackSectionRef: "4.1",
+      parts: { en: [{ ref: "1", title: "Purpose and scope" }, { ref: "2", title: "How a site is kept clean" }, { ref: "3", title: "Checking the work" }, { ref: "4", title: "Acknowledgment" }],
+        es: [{ ref: "1", title: "Prop\u00f3sito y alcance" }, { ref: "2", title: "C\u00f3mo se mantiene limpio un sitio" }, { ref: "3", title: "Revisi\u00f3n del trabajo" }, { ref: "4", title: "Acuse de recibo" }] },
+      title: { en: "Sample Cleaning Quality Handbook", es: "Manual de muestra de calidad de limpieza" },
+      sections: {
+        en: [
+          S305("0", "Read First", "This handbook is a sample written for the test screens.\nEvery name and number in it is invented."),
+          S305("1", "Purpose and scope", "This handbook says how a site is cleaned and how the work is checked.\nIt covers every crew member and every site supervisor."),
+          S305("2", "How a site is kept clean", "Each site has a written list of tasks for every shift."),
+          S305("2.1", "Restrooms", "Restrooms are cleaned top to bottom and dry to wet.\nBefore you start:\n- Put out the wet floor sign\n- Put on gloves and eye protection\n- Check the supply cart"),
+          S305("2.2", "Glass and mirrors", "Glass is sprayed lightly and dried with a clean squeegee and a lint-free cloth.\nTable columns: Surface | Tool | How often\n- Entrance doors | Squeegee | Every shift\n- Restroom mirrors | Lint-free cloth | Every shift\n- Interior partitions | Squeegee | Weekly"),
+          S305("3", "Checking the work", "A supervisor walks the site every month with the site checklist."),
+          S305("3.1", "When something is missed", "Anything missed is written down with an owner and a due date, and checked again once it is fixed."),
+          S305("4", "Acknowledgment", "The people this handbook is for sign that they read it."),
+          S305("4.1", "Acknowledgment of receipt", "I received this handbook and I read it.\nI know who to ask when something is not clear."),
+        ],
+        es: [
+          S305("0", "Lea primero", "Este manual es una muestra escrita para las pantallas de prueba.\nCada nombre y n\u00famero en \u00e9l es inventado."),
+          S305("1", "Prop\u00f3sito y alcance", "Este manual dice c\u00f3mo se limpia un sitio y c\u00f3mo se revisa el trabajo.\nAplica a cada miembro del equipo y a cada supervisor de sitio."),
+          S305("2", "C\u00f3mo se mantiene limpio un sitio", "Cada sitio tiene una lista escrita de tareas para cada turno."),
+          S305("2.1", "Ba\u00f1os", "Los ba\u00f1os se limpian de arriba hacia abajo y de seco a mojado.\nAntes de empezar:\n- Coloque el letrero de piso mojado\n- P\u00f3ngase guantes y protecci\u00f3n para los ojos\n- Revise el carrito de suministros"),
+          S305("2.2", "Vidrios y espejos", "El vidrio se roc\u00eda ligeramente y se seca con un escurridor limpio y un pa\u00f1o sin pelusa.\nColumnas de la tabla: Superficie | Herramienta | Frecuencia\n- Puertas de entrada | Escurridor | Cada turno\n- Espejos de los ba\u00f1os | Pa\u00f1o sin pelusa | Cada turno\n- Divisiones interiores | Escurridor | Cada semana"),
+          S305("3", "Revisi\u00f3n del trabajo", "Un supervisor recorre el sitio cada mes con la lista del sitio."),
+          S305("3.1", "Cuando algo se pasa por alto", "Lo que se pasa por alto se anota con un responsable y una fecha l\u00edmite, y se revisa de nuevo cuando se corrige."),
+          S305("4", "Acuse de recibo", "Las personas a quienes va dirigido este manual firman que lo leyeron."),
+          S305("4.1", "Acuse de recibo", "Recib\u00ed este manual y lo le\u00ed.\nS\u00e9 a qui\u00e9n preguntar cuando algo no est\u00e9 claro."),
+        ],
+      } },
+    { docCode: "OCSA-QMS-902", version: "1.1", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Keeping documents current" }] },
+      title: { en: "Sample Document Control Procedure" },
+      sections: { en: [S305("1", "Keeping documents current", "Only the current version of a document is used at a site."), S305("1.1", "Old versions", "An old version is kept in the archive and marked as replaced.")] } },
+    { docCode: "OCSA-HS-903", version: "1.0", hasPdf: true, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Using a ladder" }], es: [{ ref: "1", title: "Uso de una escalera" }] },
+      title: { en: "Sample Ladder Safety Procedure", es: "Procedimiento de muestra de seguridad con escaleras" },
+      sections: { en: [S305("1", "Using a ladder", "Check the ladder before each use and keep three points of contact.")], es: [S305("1", "Uso de una escalera", "Revise la escalera antes de cada uso y mantenga tres puntos de contacto.")] } },
+    { docCode: "OCSA-HR-904", version: "3.0", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Asking for time off" }] },
+      title: { en: "Sample Time Off Procedure" },
+      sections: { en: [S305("1", "Asking for time off", "Ask for time off in the app at least two weeks ahead.")] } },
+    { docCode: "OCSA-SVC-905", version: "1.2", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "Floors" }], es: [{ ref: "1", title: "Pisos" }] },
+      title: { en: "Sample Floor Care Standard", es: "Est\u00e1ndar de muestra de cuidado de pisos" },
+      sections: { en: [S305("1", "Floors", "Dust mop first, then damp mop with the neutral cleaner.")], es: [S305("1", "Pisos", "Primero el trapeador seco, luego el trapeador h\u00famedo con el limpiador neutro.")] } },
+    { docCode: "OCSA-FRM-906", version: "1.0", hasPdf: false, ackSectionRef: "",
+      parts: { en: [{ ref: "1", title: "The checklist" }] },
+      title: { en: "Sample Site Walk Checklist" },
+      sections: { en: [S305("1", "The checklist", "Walk each area and mark it done or not done.")] } },
+  ];
+  const T305 = (lang, en, es) => (lang === "es" ? es : en);
+  const folderOf305 = (code) => String(code).split("-")[1] || "";
+  const editionOf305 = (d, lang) => (lang === "es" && d.sections.es ? "es" : "en");
+  const listRow305 = (d, lang) => {
+    const f = folderOf305(d.docCode);
+    const ed = editionOf305(d, lang);
+    return { docCode: d.docCode, title: d.title[ed] || d.title.en, version: d.version, folder: f, folderName: T305(lang, (FOLDERS_305[f] || [f])[0], (FOLDERS_305[f] || [f, f])[1]), locales: Object.keys(d.sections), hasPdf: d.hasPdf, parts: d.parts[ed] || d.parts.en };
+  };
+  const doc305 = (code) => LIBRARY_305.find((d) => d.docCode.toLowerCase() === String(code || "").toLowerCase());
+  function step305Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    if (path === "/api/library" && method === "GET") {
+      if (library305Empty) return ok({ documents: [] });
+      const q = String(query.get("q") || "").trim().toLowerCase();
+      const all = LIBRARY_305.slice().sort((x, y) => (x.docCode < y.docCode ? -1 : 1));
+      if (!q) return ok({ documents: all.map((d) => listRow305(d, lang)) });
+      const hits = [];
+      all.forEach((d) => {
+        const ed = editionOf305(d, lang);
+        const row = listRow305(d, lang);
+        if (d.docCode.toLowerCase().indexOf(q) >= 0) { hits.push({ rank: 0, row }); return; }
+        if (String(d.title[ed] || d.title.en).toLowerCase().indexOf(q) >= 0) { hits.push({ rank: 1, row }); return; }
+        const sec = d.sections[ed].find((s) => (s.title + "\n" + s.content).toLowerCase().indexOf(q) >= 0);
+        if (sec) hits.push({ rank: 2, row: Object.assign(row, { match: { sectionRef: sec.ref, sectionTitle: sec.title } }) });
+      });
+      return ok({ documents: hits.sort((x, y) => x.rank - y.rank).map((h) => h.row) });
+    }
+    const read = /^\/api\/documents\/([^/]+)\/(read|pdf)$/.exec(path);
+    if (read && method === "GET") {
+      const d = doc305(decodeURIComponent(read[1]));
+      if (!d) return base();
+      const asked = query.get("locale") || lang || "en";
+      const ed = editionOf305(d, asked);
+      if (read[2] === "pdf") {
+        if (!d.hasPdf) return { status: 404, json: { error: T305(lang, "This document has no designed version yet.", "Este documento todav\u00eda no tiene versi\u00f3n dise\u00f1ada."), code: "documents.noPdf" } };
+        return { status: 200, bytes: PDF_BYTES, contentType: "application/pdf", json: null, headers: { "Content-Disposition": 'inline; filename="' + d.docCode + "-" + ed + '.pdf"' } };
+      }
+      return ok({ document: { docCode: d.docCode, title: d.title[ed] || d.title.en, version: d.version, locale: ed, locales: Object.keys(d.sections), shownInEnglish: asked !== "en" && ed === "en",
+        parts: d.parts[ed] || d.parts.en, ackSectionRef: d.ackSectionRef || null, pdfUrl: d.hasPdf ? "/api/documents/" + d.docCode + "/pdf" : null, pdfLocale: d.hasPdf ? ed : null,
+        sections: d.sections[ed].map((s) => Object.assign({ locale: ed }, s)), acknowledgement: { en: "I received and read this document.", es: "Recib\u00ed y le\u00ed este documento.", fr: "J'ai re\u00e7u et lu ce document." } } });
+    }
+    // Help, asked what a document covers or to open one: the document's purpose and its Parts, and
+    // openDocument for the Open button.
+    if (path === "/api/agent/message/stream" && method === "POST" && !agentStream) {
+      const m = /OCSA-[A-Z]+-\d+/i.exec(String(b.text || ""));
+      const d = m ? doc305(m[0]) : null;
+      if (d) {
+        const ed = editionOf305(d, lang);
+        const parts = (d.parts[ed] || d.parts.en).map((p) => p.ref + ". " + p.title).join("\n");
+        agentStream = { pieces: [T305(lang, d.docCode + ", " + (d.title.en) + ", says how a site is cleaned and how the work is checked. Its Parts are:\n", d.docCode + ", " + (d.title[ed] || d.title.en) + ", dice c\u00f3mo se limpia un sitio y c\u00f3mo se revisa el trabajo. Sus partes son:\n"), parts],
+          done: { openDocument: { docCode: d.docCode, title: d.title[ed] || d.title.en }, citedDocs: [d.docCode] } };
+      }
+    }
+    return base();
+  }
+
+  // Supply orders (STEP308_CONTRACT.md sections 1 and 2, the API's Step 308, for the dashboard's Step
+  // 309), answered only once a run arms it with setStep308, over Step 280's requests: every request
+  // answer carries canDecide for the caller (a holder of approve_supplies who did not ask for it; the
+  // signed-in admin holds it unless setStep308Holder(false) takes it away) and the order's keys,
+  // approvedBy, approvedAt, signed, vendor, deliverTo, poNumber, poPdfUrl, orderedAt and orderedToEmail;
+  // two requests of its own, a two-item refill waiting at the second site and one already ordered;
+  // GET /api/vendors?approved=true, which setStep308NoVendors answers empty, GET /api/vendors/:id and
+  // PATCH /api/vendors/:id; POST /api/supplies/requests/:id/sign, GET .../po.pdf behind the token and
+  // POST .../send, each refusing in the routes' style with keys. Every value is invented.
+  let step308 = false;
+  let holder308 = true;
+  let noVendors308 = false;
+  const REQUEST_308 = "sr-9";
+  const ORDERED_308 = "sr-8";
+  const T308 = (lang, en, es) => (lang === "es" ? es : en);
+  const s308 = () => {
+    if (state.s308) return state.s308;
+    const rows = requests280();
+    const by = { name: "Marcus Ferreira" };
+    // Both go after Step 280's requests, so its lines read the list and the ordering CSV they always
+    // read: the ordered one is older than the CSV's thirty days, and the refill waits for a decision.
+    rows.push({ id: REQUEST_308, supply_name: "Glass cleaner, quart", supply_id: "sp-1", item_name: null, quantity: 6, unit: "each", status: "pending", requested_by: "u-staff-7", requested_by_name: "Elena Barbosa",
+      site_name: S[1].name, site_id: S[1].id, notes: "", requested_at: seed.shift(0) + "T13:05:00Z", admin_notes: null, request_type: "refill", urgency: "high",
+      created_at: seed.shift(0) + "T13:05:00Z", description: "For the clinic's entrance glass.",
+      items: [
+        line280(REQUEST_308, 0, { supplyId: "sp-1", name: "Glass cleaner, quart", unit: "each", quantity: 6 }),
+        line280(REQUEST_308, 1, { supplyId: "sp-2", name: "Microfiber cloth pack", unit: "case", quantity: 1, note: "The blue ones." }),
+      ] });
+    rows.push({ id: ORDERED_308, supply_name: "Floor finish, 5 gallon", supply_id: "sp-5", item_name: null, quantity: 2, unit: "each", status: "approved", requested_by: "u-staff-6", requested_by_name: "Ngozi Okonkwo",
+      site_name: S[2].name, site_id: S[2].id, notes: "", requested_at: seed.shift(-40) + "T15:40:00Z", admin_notes: null, request_type: "refill", urgency: "normal",
+      created_at: seed.shift(-40) + "T15:40:00Z", description: "Refinish the dock office floor.",
+      items: [line280(ORDERED_308, 0, { supplyId: "sp-5", name: "Floor finish, 5 gallon", unit: "each", quantity: 2, decision: "approved", decidedAt: seed.shift(-39) + "T09:00:00Z", decidedBy: by.name })] });
+    state.s308 = {
+      seq: 41,
+      sent: [],
+      vendors: clone(VENDORS),
+      orders: {
+        [ORDERED_308]: { approvedBy: { id: "u-sup-1", name: by.name }, approvedAt: seed.shift(-39) + "T09:05:00Z", vendorId: "v-1", deliverTo: "1200 Tannery Lane, Oldmarsh, PA 19061", poNumber: "PO-2026-0040",
+          orderedAt: seed.shift(-39) + "T09:12:00Z", orderedBy: "u-sup-1", orderedToEmail: "orders@tallowridge.example.invalid" },
+      },
+    };
+    return state.s308;
+  };
+  const vendorAddress308 = (v) => [v.address_line1, v.city, [v.state, v.zip_code].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const siteAddress308 = (id) => { const s = S.find((x) => x.id === id) || {}; return [s.address, s.city, [s.state, s.zip].filter(Boolean).join(" ")].filter(Boolean).join(", "); };
+  const order308 = (rq) => {
+    const me = person();
+    const o = s308().orders[rq.id] || null;
+    const v = o ? s308().vendors.find((x) => x.id === o.vendorId) : null;
+    return Object.assign(rq, {
+      canDecide: holder308 && rq.requested_by !== me.id,
+      approvedBy: o ? o.approvedBy : null, approvedAt: o ? o.approvedAt : null, signed: !!o,
+      vendor: v ? { id: v.id, name: v.name, contactName: v.contact_name || null, contactPhone: v.contact_phone || null, contactEmail: v.contact_email || null, address: vendorAddress308(v) } : null,
+      deliverTo: o ? o.deliverTo : null, poNumber: o ? o.poNumber : null, poPdfUrl: o ? "/api/supplies/requests/" + rq.id + "/po.pdf" : null,
+      orderedAt: o ? o.orderedAt || null : null, orderedToEmail: o ? o.orderedToEmail || null : null,
+    });
+  };
+  function step308Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    const me = person();
+    const rows = (s308(), requests280());
+    const find = (id) => rows.find((x) => String(x.id) === decodeURIComponent(id));
+    const refuse = (status, code, keys, en, es) => ({ status, json: Object.assign({ error: T308(lang, en, es), code }, keys ? { keys } : {}) });
+    if (path === "/api/vendors" && method === "GET") {
+      const all = s308().vendors.filter((v) => v.is_active !== false);
+      if (query.get("approved") === "true") return ok(noVendors308 ? [] : all.filter((v) => v.approval_status === "approved"));
+      return ok(all);
+    }
+    const vend = /^\/api\/vendors\/([^/]+)$/.exec(path);
+    if (vend) {
+      const v = s308().vendors.find((x) => x.id === decodeURIComponent(vend[1]));
+      if (!v) return refuse(404, "vendors.notFound", null, "Vendor not found", "No se encontr\u00f3 el proveedor");
+      if (method === "GET") return ok({ vendor: clone(v), linkedSupplies: [], evaluations: [] });
+      if (method === "PATCH") {
+        const map = { name: "name", contactName: "contact_name", contactPhone: "contact_phone", contactEmail: "contact_email", website: "website", addressLine1: "address_line1", city: "city", state: "state", zipCode: "zip_code", productsServices: "products_services", certificationStatus: "certification_status", contractTerms: "contract_terms", approvalStatus: "approval_status", lastReviewDate: "last_review_date" };
+        Object.keys(map).forEach((k) => { if (b[k] !== undefined) v[map[k]] = b[k] === "" ? null : b[k]; });
+        if (v.approval_status) v.status = v.approval_status;
+        return ok(clone(v));
+      }
+    }
+    if (path === "/api/supplies/requests" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((rq) => order308(clone(rq)));
+      return a;
+    }
+    const act = /^\/api\/supplies\/requests\/([^/]+)\/(sign|send|po\.pdf|decide)$/.exec(path);
+    if (act) {
+      const rq = find(act[1]);
+      if (!rq) return refuse(404, "supplies.notFound", null, "That request was not found.", "No se encontr\u00f3 ese pedido.");
+      const view = order308(clone(rq));
+      if (act[2] === "decide" && method === "POST") {
+        if (!view.canDecide) return refuse(403, rq.requested_by === me.id ? "supplies.ownRequest" : "supplies.cannotDecide", null, "Only the people who approve supply requests can decide this.", "Solo las personas que aprueban los pedidos de suministros pueden decidir esto.");
+        const a = base();
+        if (a && a.status === 200 && a.json && a.json.request) a.json.request = order308(clone(a.json.request));
+        return a;
+      }
+      if (act[2] === "po.pdf" && method === "GET") {
+        const o = s308().orders[rq.id];
+        if (!o) return refuse(404, "supplies.noPurchaseOrder", null, "This request has no purchase order yet.", "Este pedido todav\u00eda no tiene orden de compra.");
+        return { status: 200, bytes: PDF_BYTES, contentType: "application/pdf", json: null, headers: { "Content-Disposition": 'inline; filename="' + o.poNumber + '.pdf"' } };
+      }
+      if (act[2] === "sign" && method === "POST") {
+        if (!view.canDecide) return refuse(403, rq.requested_by === me.id ? "supplies.ownRequest" : "supplies.cannotDecide", null, "Only the people who approve supply requests can sign this.", "Solo las personas que aprueban los pedidos de suministros pueden firmar esto.");
+        if (s308().orders[rq.id]) return refuse(409, "supplies.alreadySigned", null, "This request is already signed.", "Este pedido ya est\u00e1 firmado.");
+        if (!rq.items.every((x) => x.decision)) return refuse(409, "supplies.notDecided", null, "Decide every item before you sign.", "Decida cada art\u00edculo antes de firmar.");
+        if (!rq.items.some((x) => x.decision === "approved")) return refuse(409, "supplies.nothingApproved", null, "Approve at least one item before you sign.", "Apruebe al menos un art\u00edculo antes de firmar.");
+        const v = s308().vendors.find((x) => x.id === b.vendorId);
+        if (!v || v.approval_status !== "approved" || v.is_active === false) return refuse(400, "supplies.badVendor", ["vendorId"], "Choose an approved vendor.", "Elija un proveedor aprobado.");
+        if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return refuse(400, "supplies.signatureRequired", ["signature"], "Sign before you send.", "Firme antes de enviar.");
+        const deliverTo = b.deliverTo == null || String(b.deliverTo).trim() === "" ? siteAddress308(rq.site_id) : String(b.deliverTo).trim();
+        if (deliverTo.length > 500) return refuse(400, "supplies.badDetails", ["deliverTo"], "Keep the address to 500 characters.", "No pase de 500 caracteres en la direcci\u00f3n.");
+        s308().seq += 1;
+        s308().orders[rq.id] = { approvedBy: { id: me.id, name: me.firstName + " " + me.lastName }, approvedAt: seed.NOW_ISO, vendorId: v.id, deliverTo, poNumber: "PO-2026-" + String(s308().seq).padStart(4, "0"), signature: "png" };
+        return ok({ request: order308(clone(rq)) });
+      }
+      if (act[2] === "send" && method === "POST") {
+        const o = s308().orders[rq.id];
+        if (!view.canDecide) return refuse(403, "supplies.cannotDecide", null, "Only the people who approve supply requests can send this.", "Solo las personas que aprueban los pedidos de suministros pueden enviar esto.");
+        if (!o) return refuse(409, "supplies.notSigned", null, "Sign the order before you send it.", "Firme la orden antes de enviarla.");
+        const v = s308().vendors.find((x) => x.id === o.vendorId) || {};
+        const to = String(b.to || v.contact_email || "").trim();
+        if (!to) return refuse(400, "supplies.noAddress", ["to"], "There is no address to send this to.", "No hay una direcci\u00f3n a la cual enviar esto.");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return refuse(400, "supplies.badEmail", ["to"], "That is not an email address.", "Esa no es una direcci\u00f3n de correo.");
+        s308().sent.push({ requestId: rq.id, to, at: seed.NOW_ISO, by: me.id });
+        if (!o.orderedAt) Object.assign(o, { orderedAt: seed.NOW_ISO, orderedBy: me.id, orderedToEmail: to });
+        return ok({ request: order308(clone(rq)), sent: { to } });
+      }
+    }
+    return base();
+  }
+
+  // One inspection walk (STEP312_CONTRACT.md sections 1 and 3, the API's Step 312, for the dashboard's
+  // Step 314), answered only once a run arms it with setStep312, over everything else: POST
+  // /api/inspections/scheduled takes withSafety, true when it is not sent, and keeps what each schedule
+  // sent; every scheduled inspection read carries with_safety; the completed walk at the first site
+  // (insp-4) answers its result with safety_response_id and safety: { responseId }, and GET
+  // /api/forms/responses/:id answers that OCSA-FRM-015 submitted with it, inspection: { id } naming it
+  // back, with its areas, what the crew said, its findings and its result in the screen's language.
+  // Every value is invented.
+  let step312 = false;
+  const WALK_312 = "insp-4";
+  const SAFETY_312 = "fr-safety-1";
+  const T312 = (lang, en, es) => (lang === "es" ? es : en);
+  const s312 = () => state.s312 || (state.s312 = { scheduled: [] });
+  const safetyForm312 = (lang) => {
+    const L = (en, es) => T312(lang, en, es);
+    const pick = [{ value: "pass", label: L("Pass", "Aprobado") }, { value: "fail", label: L("Fail", "No aprobado") }, { value: "na", label: L("Not applicable", "No aplica") }];
+    const site = S.find((x) => x.id === "s-1");
+    return {
+      draft: { id: SAFETY_312, formCode: "OCSA-FRM-015", formName: L("Safety Inspection Checklist", "Lista de inspecci\u00f3n de seguridad"), version: 3, status: "submitted",
+        siteId: site.id, siteName: site.name, createdAt: seed.shift(-7) + "T17:10:00Z", submittedAt: seed.shift(-7) + "T18:00:00Z", source: "inspection", inspection: { id: WALK_312 } },
+      inspection: { id: WALK_312 },
+      fields: [
+        { key: "site", label: L("Site", "Sitio"), type: "site", value: site.id, displayValue: site.name },
+        { key: "kind", label: L("Kind of inspection", "Tipo de inspecci\u00f3n"), type: "select", value: "monthly", displayValue: L("Monthly", "Mensual") },
+        { key: "areas", label: L("Areas", "\u00c1reas"), type: "grid",
+          rows: [{ key: "exits", label: L("Exits and walkways", "Salidas y pasillos") }, { key: "chemicals", label: L("Chemical storage", "Almacenamiento de qu\u00edmicos") }, { key: "ladders", label: L("Ladders", "Escaleras") }, { key: "first_aid", label: L("First aid kit", "Botiqu\u00edn") }],
+          columns: [{ key: "result", label: L("Result", "Resultado"), type: "select", options: pick }, { key: "note", label: L("Note", "Nota"), type: "text" }],
+          value: { exits: { result: "pass" }, chemicals: { result: "fail", note: L("Two bottles with no label", "Dos botellas sin etiqueta") }, ladders: { result: "pass" }, first_aid: { result: "na" } } },
+        { key: "crew", label: L("What the crew said", "Lo que dijo el equipo"), type: "grid",
+          columns: [{ key: "who", label: L("Who", "Qui\u00e9n"), type: "text" }, { key: "said", label: L("What they said", "Lo que dijo"), type: "text" }],
+          value: [{ who: L("Day porter", "Conserje de d\u00eda"), said: L("The labels peel off in the wet closet.", "Las etiquetas se despegan en el cuarto h\u00famedo.") }, { who: L("Crew lead", "L\u00edder del equipo"), said: L("No concerns this month.", "Sin inquietudes este mes.") }] },
+        { key: "findings", label: L("Findings", "Hallazgos"), type: "grid",
+          columns: [{ key: "finding", label: L("Finding", "Hallazgo"), type: "text" }, { key: "severity", label: L("Severity", "Gravedad"), type: "select", options: ["A", "B", "C", "D"].map((v) => ({ value: v, label: v })) }, { key: "owner", label: L("Owner", "Responsable"), type: "text" }, { key: "due", label: L("Due", "Vence"), type: "date" }],
+          value: [{ finding: L("Relabel the two bottles in the chemical closet", "Volver a etiquetar las dos botellas del cuarto de qu\u00edmicos"), severity: "C", owner: "Marcus Ferreira", due: seed.shift(0) }] },
+        { key: "overall", label: L("Overall result", "Resultado general"), type: "select", value: "pass_findings", displayValue: L("Pass with findings", "Aprobado con hallazgos") },
+        { key: "inspected_by", label: L("Inspected by", "Inspeccionado por"), type: "signoff", value: { name: "Priya Raghunathan", at: seed.shift(-7) + "T18:00:00Z" } },
+      ],
+      sections: [],
+      canSign: [], canWriteSupervisor: false, supervisorMissing: [],
+    };
+  };
+  function step312Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    if (path === "/api/inspections/scheduled" && method === "POST") {
+      const a = base();
+      const withSafety = b.withSafety !== false;
+      s312().scheduled.push({ body: clone(b), withSafety });
+      if (a && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { with_safety: withSafety });
+      return a;
+    }
+    if (path === "/api/inspections/scheduled" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((r) => Object.assign({}, r, { with_safety: r.with_safety !== false }));
+      return a;
+    }
+    const one = /^\/api\/inspections\/scheduled\/([^/]+)$/.exec(path);
+    if (one && method === "GET") {
+      const a = base();
+      if (!a || a.status !== 200 || !a.json || typeof a.json !== "object") return a;
+      a.json = Object.assign({}, a.json, { with_safety: true });
+      if (one[1] === WALK_312 && a.json.result) {
+        a.json.result = Object.assign({}, a.json.result, { safety_response_id: SAFETY_312 });
+        a.json.safety = { responseId: SAFETY_312 };
+      }
+      return a;
+    }
+    if (path === "/api/forms/responses/" + SAFETY_312 && method === "GET") return ok(safetyForm312(lang));
+    return base();
+  }
+
+  // Timed site schedules (STEP315_CONTRACT.md sections 1 and 3, the API's Step 315, for the dashboard's
+  // Step 317), answered only once a run arms it with setStep315, over everything else: the second site
+  // holds an invented two-shift schedule with every kind of block, GET /api/sites/:siteId/shift-blocks
+  // answering each block's endTime, kind and daysOfWeek beside anchorTime, with its names in the screen's
+  // language; the site's tasks add the steps that belong to the blocks; and PATCH
+  // /api/sites/:siteId/shift-blocks/:id takes anchorTime, endTime, kind and daysOfWeek, refusing an end
+  // before the start (except a night block that runs past midnight), an unknown kind and a bad day list,
+  // each with keys. Every name and time is invented.
+  let step315 = false;
+  const SITE_315 = S[1].id;
+  const T315 = (lang, en, es) => (lang === "es" ? es : en);
+  const BLOCKS_315 = () => {
+    const B = (id, shift, block, start, end, kind, days, es) => ({ id, siteId: SITE_315, shiftLabel: shift, blockLabel: block, anchorTime: start ? start + ":00" : null, endTime: end ? end + ":00" : null, kind, daysOfWeek: days, isActive: true, es });
+    const F = ["First shift", "Primer turno"], N = ["Second shift", "Segundo turno"];
+    return [
+      B("tb-1", F[0], "Sign in", "07:00", "07:15", "check_in", null, [F[1], "Registro de entrada"]),
+      B("tb-2", F[0], "Empty the office and break room trash", "07:15", "08:30", "critical", null, [F[1], "Vaciar la basura de oficinas y salas de descanso"]),
+      B("tb-3", F[0], "Residents' breakfast", "07:15", "09:15", "meal", null, [F[1], "Desayuno de los residentes"]),
+      B("tb-4", F[0], "Clean the first floor restrooms", "08:30", "10:30", "critical", null, [F[1], "Limpiar los ba\u00f1os del primer piso"]),
+      B("tb-5", F[0], "Dust the window sills, first floor", "09:15", "10:15", "work", null, [F[1], "Sacudir los alf\u00e9izares, primer piso"]),
+      B("tb-6", F[0], "Clean the second floor lounge", "10:15", "11:00", "work", "mon,tue,wed,thu,fri", [F[1], "Limpiar la sala del segundo piso"]),
+      B("tb-7", F[0], "Lounge: empty, full access", "13:00", "14:00", "full_access", null, [F[1], "Sala: vac\u00eda, acceso total"]),
+      B("tb-8", F[0], "End-of-shift check and check out", "15:15", "15:30", "check_out", null, [F[1], "Revisi\u00f3n de fin de turno y salida"]),
+      B("tb-9", N[0], "Sign in", "14:00", "14:15", "check_in", null, [N[1], "Registro de entrada"]),
+      B("tb-10", N[0], "Residents' dinner", "16:00", "18:15", "meal", null, [N[1], "Cena de los residentes"]),
+      B("tb-11", N[0], "Clean the dining room after dinner", "18:00", "20:00", "critical", null, [N[1], "Limpiar el comedor despu\u00e9s de la cena"]),
+      B("tb-12", N[0], "Dining room: empty, full access", "19:00", "20:00", "full_access", "wed,thu,fri,sat,sun", [N[1], "Comedor: vac\u00edo, acceso total"]),
+      B("tb-13", N[0], "Stairway upkeep", null, null, "anytime", "sat", [N[1], "Mantenimiento de las escaleras"]),
+      B("tb-14", N[0], "End-of-shift check and check out", "21:45", "22:00", "check_out", null, [N[1], "Revisi\u00f3n de fin de turno y salida"]),
+    ];
+  };
+  const STEPS_315 = [
+    ["tb-2", "Empty every office trash can and replace the liner", "Vaciar cada bote de basura de las oficinas y cambiar la bolsa"],
+    ["tb-2", "Take the bags to the dumpster", "Llevar las bolsas al contenedor"],
+    ["tb-4", "Clean the toilets, urinals and sinks", "Limpiar los inodoros, urinarios y lavamanos"],
+    ["tb-4", "Refill the soap and the paper", "Rellenar el jab\u00f3n y el papel"],
+    ["tb-4", "Mop the floor", "Trapear el piso"],
+    ["tb-5", "Dust the sills and the ledges", "Sacudir los alf\u00e9izares y las repisas"],
+    ["tb-6", "Vacuum the carpet", "Aspirar la alfombra"],
+    ["tb-6", "Wipe the tables", "Limpiar las mesas"],
+    ["tb-7", "Damp mop the lounge floor", "Trapear con h\u00famedo el piso de la sala"],
+    ["tb-11", "Wipe the chairs and tables", "Limpiar las sillas y las mesas"],
+    ["tb-11", "Sweep and mop the floor", "Barrer y trapear el piso"],
+    ["tb-12", "Spot clean the walls", "Limpiar las manchas de las paredes"],
+    ["tb-13", "Sweep the stairs and landings", "Barrer las escaleras y los descansos"],
+  ];
+  const s315 = () => state.s315 || (state.s315 = { blocks: BLOCKS_315(), saves: [] });
+  const blockView315 = (b, lang) => Object.assign({}, b, { es: undefined, taskCount: STEPS_315.filter((x) => x[0] === b.id).length, display: { shift: T315(lang, b.shiftLabel, b.es[0]), block: T315(lang, b.blockLabel, b.es[1]) } });
+  const KINDS_315 = ["work", "critical", "meal", "full_access", "check_in", "check_out", "anytime"];
+  const DAYS_315 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  function step315Route(method, path, query, body, lang, base) {
+    const b = body || {};
+    const site = /^\/api\/sites\/([^/]+)\/shift-blocks$/.exec(path);
+    if (site && method === "GET" && decodeURIComponent(site[1]) === SITE_315) return ok({ siteId: SITE_315, blocks: s315().blocks.map((x) => blockView315(x, lang)) });
+    const one = /^\/api\/sites\/([^/]+)\/shift-blocks\/([^/]+)$/.exec(path);
+    if (one && method === "PATCH" && decodeURIComponent(one[1]) === SITE_315) {
+      const row = s315().blocks.find((x) => x.id === decodeURIComponent(one[2]));
+      if (!row) return { status: 404, json: { error: T315(lang, "Block not found", "No se encontr\u00f3 el bloque"), code: "shiftBlocks.notFound" } };
+      const bad = (keys, code, en, es) => ({ status: 400, json: { error: T315(lang, en, es), code, keys } });
+      const hhmm = (v) => (v == null || v === "" ? null : /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(v)) ? String(v).slice(0, 5) + ":00" : undefined);
+      const start = b.anchorTime !== undefined ? hhmm(b.anchorTime) : row.anchorTime;
+      const end = b.endTime !== undefined ? hhmm(b.endTime) : row.endTime;
+      if (start === undefined) return bad(["anchorTime"], "shiftBlocks.badTime", "Write the start as a time.", "Escriba el inicio como una hora.");
+      if (end === undefined) return bad(["endTime"], "shiftBlocks.badTime", "Write the end as a time.", "Escriba el fin como una hora.");
+      const kind = b.kind !== undefined ? b.kind : row.kind;
+      if (KINDS_315.indexOf(kind) < 0) return bad(["kind"], "shiftBlocks.badKind", "Choose a kind of block.", "Elija un tipo de bloque.");
+      const night = start && end && start >= "18:00:00" && end <= "08:00:00";
+      if (start && end && end <= start && !night) return bad(["endTime"], "shiftBlocks.endBeforeStart", "The end is before the start. Only a night block that runs past midnight can end before it starts.", "El fin es antes del inicio. Solo un bloque de noche que pasa de la medianoche puede terminar antes de empezar.");
+      const days = b.daysOfWeek !== undefined ? b.daysOfWeek : row.daysOfWeek;
+      if (days != null && (typeof days !== "string" || !days.split(",").every((d) => DAYS_315.indexOf(d) >= 0))) return bad(["daysOfWeek"], "shiftBlocks.badDays", "Choose days from Monday to Sunday.", "Elija d\u00edas de lunes a domingo.");
+      Object.assign(row, { anchorTime: start, endTime: end, kind, daysOfWeek: days || null });
+      s315().saves.push({ id: row.id, body: clone(b) });
+      return ok(blockView315(row, lang));
+    }
+    const tasks = /^\/api\/sites\/([^/]+)\/tasks$/.exec(path);
+    if (tasks && method === "GET" && decodeURIComponent(tasks[1]) === SITE_315) {
+      const a = base();
+      if (!a || a.status !== 200 || !Array.isArray(a.json)) return a;
+      const blocks = s315().blocks;
+      a.json = a.json.concat(STEPS_315.map((x, i) => {
+        const blk = blocks.find((y) => y.id === x[0]);
+        return { id: "tt-315-" + (i + 1), site_id: SITE_315, label: x[1], zone: "Common area", priority: "standard", cims_category: "SD", site_shift_block_id: blk.id, shift_label: blk.shiftLabel, block_label: blk.blockLabel,
+          anchor_time: blk.anchorTime, days_of_week: null, description: "", display: { label: T315(lang, x[1], x[2]), zone: T315(lang, "Common area", "\u00c1rea com\u00fan"), shift: T315(lang, blk.shiftLabel, blk.es[0]), block: T315(lang, blk.blockLabel, blk.es[1]) } };
+      }));
+      return a;
+    }
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6470,7 +6880,11 @@ function createStubs() {
     const over289 = () => (step289 ? step289Route(method, path, u.searchParams, body, record.language, over278) : over278());
     const over299 = () => (step299 ? step299Route(method, path, u.searchParams, body, record.language, over289) : over289());
     const over292 = () => (step292 ? step292Route(method, path, u.searchParams, body, record.language, over299) : over299());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over292) : over292();
+    const over305 = () => (step305 ? step305Route(method, path, u.searchParams, body, record.language, over292) : over292());
+    const over308 = () => (step308 ? step308Route(method, path, u.searchParams, body, record.language, over305) : over305());
+    const over312 = () => (step312 ? step312Route(method, path, u.searchParams, body, record.language, over308) : over308());
+    const over315 = () => (step315 ? step315Route(method, path, u.searchParams, body, record.language, over312) : over312());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over315) : over315();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -6562,6 +6976,27 @@ function createStubs() {
     // The routes and keys of the API's Step 292 contract (the dashboard's Step 293), the welcome email,
     // on or off, laid over whichever steps the run arms and under Step 283's sign-in answers.
     setStep292: (v) => { step292 = v !== false; },
+    // The routes and keys of the API's Step 305 contract (the dashboard's Step 306), the Library, on or
+    // off, laid over whichever steps the run arms; and the list answered empty, as before the library
+    // sync's first run.
+    setStep305: (v) => { step305 = v !== false; },
+    setStep305Empty: (v) => { library305Empty = v !== false; },
+    // The routes and keys of the API's Step 308 contract (the dashboard's Step 309), supply orders, on
+    // or off, laid over Step 280's requests; whether the signed-in admin holds approve_supplies; and the
+    // approved vendors answered empty.
+    setStep308: (v) => { step308 = v !== false; },
+    setStep308Holder: (v) => { holder308 = v !== false; },
+    setStep308NoVendors: (v) => { noVendors308 = v !== false; },
+    // The routes and keys of the API's Step 312 contract (the dashboard's Step 314), one inspection walk,
+    // on or off, laid over whichever steps the run arms; and every schedule sent since, with what it sent.
+    setStep312: (v) => { step312 = v !== false; },
+    scheduled312: () => (state.s312 ? state.s312.scheduled.slice() : []),
+    // The routes and keys of the API's Step 315 contract (the dashboard's Step 317), timed site
+    // schedules, on or off, laid over whichever steps the run arms; and every block save it took.
+    setStep315: (v) => { step315 = v !== false; },
+    saves315: () => (state.s315 ? state.s315.saves.slice() : []),
+    // Every purchase order sent since the run armed Step 308, to whom.
+    sent308: () => (state.s308 ? state.s308.sent.slice() : []),
     // Every welcome email tried since the run armed Step 292, with whom and how it went.
     welcomes292: () => (state.s292 ? state.s292.sent.slice() : []),
     // Who a ticket's status change told, in which language, since the run armed Step 289.
@@ -6579,7 +7014,8 @@ function createStubs() {
       state.sites = clone(seed.SITES);
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
-      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null;
+      state.schedule = null; state.patterns = null; state.timeOff = null; state.s289 = null; state.s299 = null; state.s292 = null; library305Empty = false;
+      state.s308 = null; holder308 = true; noVendors308 = false; state.s312 = null; state.s315 = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};

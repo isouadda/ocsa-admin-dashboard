@@ -639,6 +639,7 @@ const SHOTS = [
       await choose(c, "Monthly quality walk"); await choose(c, seed.SITES[1].name); await choose(c, "Marcus Ferreira");
       await inModal(c).locator("input[type=date]").first().fill(seed.shift(7));
       await blur(c);
+      await show(c, "[data-schedule-with-safety]");
     } },
   { name: "inspections-new-template", entry: "Create an inspection template",
     open: "inspections", ready: SHELL,
@@ -1562,6 +1563,64 @@ const SHOTS = [
   { name: "hr-folder-signed-page", entry: "Find a person's signed acknowledgment page",
     open: "hr/" + ACTIVE, ready: "[data-folder-signed-page]",
     act: async (c) => { await top(c, "[data-folder-signed-page]", 300); } },
+  // Step 306: the Library, by folder, a document open in the reader, and Help's answer about a
+  // document with its Open button (audit/stubs.js, setStep305).
+  { name: "library-list", entry: "Find and read a company document",
+    open: "library", ready: "[data-library-folder]",
+    act: async (c) => { await until(c, "[data-library-spanish]"); } },
+  { name: "library-reader", entry: "Find and read a company document",
+    open: "library/OCSA-QMS-901", ready: "[data-library-contents]",
+    act: async (c) => { await until(c, "[data-library-designed]"); } },
+  { name: "help-open-document", entry: "Ask Help what a document covers",
+    open: "help", ready: "textarea",
+    act: async (c) => {
+      await typeIn(c, "textarea", "What is in OCSA-QMS-901?", "\u00bfQu\u00e9 contiene OCSA-QMS-901?");
+      await c.page.locator('button[aria-label="' + c.say("Send") + '"]').first().click();
+      await until(c, "[data-help-open-document]");
+    } },
+  // Step 309: a request decided and Sign and order filled in, an order sent, and a vendor's editor
+  // (audit/stubs.js, setStep308).
+  { name: "supplies-order-sign", entry: "Sign a supply order and send it to the vendor",
+    open: "supplies", ready: SHELL,
+    act: async (c) => {
+      await wait(400); await click(c, '[data-supplies-tab="requests"]'); await until(c, '[data-request-open="sr-9"]');
+      await click(c, '[data-request-open="sr-9"]'); await until(c, '[data-request-window="sr-9"]');
+      await click(c, "[data-request-approve-all]"); await until(c, "[data-order-vendor]");
+      await c.page.locator("[data-order-vendor]").selectOption("v-1"); await until(c, "[data-order-vendor-details]");
+      await sign(c); await blur(c);
+      await toTop(c, "[data-order-sign]", 10);
+    } },
+  { name: "supplies-order-sent", entry: "Sign a supply order and send it to the vendor",
+    open: "supplies", ready: SHELL,
+    act: async (c) => {
+      await wait(400); await click(c, '[data-supplies-tab="requests"]'); await until(c, '[data-request-open="sr-8"]');
+      await click(c, '[data-request-open="sr-8"]'); await until(c, "[data-order-ordered]");
+      await toTop(c, '[data-request-window="sr-8"]', 0);
+    } },
+  { name: "vendors-edit", entry: "Add or edit a vendor",
+    open: "vendors/v-1", ready: "[data-vendor-order-fields]",
+    act: async (c) => { await inModal(c).locator("select").last().scrollIntoViewIfNeeded(); await wait(200); } },
+  // Step 314: a completed walk's safety part, and the OCSA-FRM-015 record filed with it (audit/stubs.js,
+  // setStep312).
+  { name: "inspection-safety-part", entry: "Read an inspection's safety walk",
+    open: "inspections/insp-4", ready: "[data-inspection-safety-answer]",
+    act: async (c) => { await until(c, '[data-inspection-safety-answer="findings"]'); await toTop(c, "[data-inspection-safety]", 120); } },
+  { name: "safety-record-inspection-link", entry: "Read an inspection's safety walk",
+    open: report("fr-safety-1"), ready: "[data-open-inspection]",
+    act: async (c) => { await wait(200); } },
+  // Step 317: the second site's schedule by shift, and a block's window being edited (audit/stubs.js,
+  // setStep315).
+  { name: "site-schedule", entry: "Read a site's schedule by shift",
+    open: "sites/s-2/tasks", ready: "[data-schedule-block]",
+    act: async (c) => { await until(c, "[data-schedule-step]"); await toTop(c, "[data-site-schedule]", 100); } },
+  { name: "site-schedule-edit", entry: "Change a block's time, kind and days",
+    open: "sites/s-2/tasks", ready: '[data-schedule-edit="tb-5"]',
+    act: async (c) => {
+      await click(c, '[data-schedule-edit="tb-5"]'); await until(c, "[data-schedule-window-edit]");
+      await c.page.locator("[data-schedule-end]").fill("10:45");
+      await c.page.locator("[data-schedule-kind-pick]").selectOption("critical");
+      await blur(c);
+    } },
 ];
 
 
@@ -1625,7 +1684,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312", "setStep315"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the
