@@ -4938,6 +4938,8 @@ export const WORDS = {
   "Off: staff can read the task list as a reference, and nothing is checked off.": { es: "Apagado: el personal puede leer la lista de tareas como referencia, y no se marca nada." },
   "Staff no longer check off tasks here.": { es: "El personal ya no marca tareas aqu\u00ed." },
   "Staff check off tasks here again.": { es: "El personal vuelve a marcar las tareas aqu\u00ed." },
+  // Part 341, changing a hire date.
+  "To fix a wrong date, pick the right one.": { es: "Para corregir una fecha equivocada, elija la correcta." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
