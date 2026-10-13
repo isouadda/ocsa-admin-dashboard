@@ -1647,6 +1647,23 @@ const SHOTS = [
   { name: "site-task-list-record", entry: "Keep a site's task list as a record only",
     open: "sites/s-3/tasks", ready: '[data-checklist-mode="reference"]',
     act: async (c) => { await toTop(c, "[data-checklist-mode]", 120); } },
+  // Changing a hire date (part 341, setStep341): a profile's Edit with Hire Date filled in for a
+  // person who had none, and a date two years ahead refused under the field.
+  { name: "staff-hire-date", entry: "Change a staff member's hire date",
+    open: "staff/u-staff-7", ready: "[data-profile-edit]",
+    act: async (c) => {
+      await click(c, "[data-profile-edit]"); await until(c, '[data-hire-date="profile"]');
+      await c.page.locator('[data-hire-date="profile"] input').fill("2025-04-17");
+      await blur(c); await toTop(c, "[data-hire-date=profile]", 330);
+    } },
+  { name: "staff-hire-date-refused", entry: "Change a staff member's hire date",
+    open: "staff/u-staff-5", ready: "[data-profile-edit]",
+    act: async (c) => {
+      await click(c, "[data-profile-edit]"); await until(c, '[data-hire-date="profile"]');
+      await c.page.locator('[data-hire-date="profile"] input').fill((Number(seed.shift(0).slice(0, 4)) + 2) + "-06-01");
+      await press(c, "Save Changes"); await until(c, "[data-hire-date-said]");
+      await blur(c); await toTop(c, "[data-hire-date=profile]", 330);
+    } },
   { name: "site-schedule-edit", entry: "Change a block's time, kind and days",
     open: "sites/s-2/tasks", ready: '[data-schedule-edit="tb-5"]',
     act: async (c) => {
@@ -1718,7 +1735,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312", "setStep315", "setStep327", "setStep329", "setStep330", "setStep337"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312", "setStep315", "setStep327", "setStep329", "setStep330", "setStep337", "setStep341"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

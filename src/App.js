@@ -2038,6 +2038,19 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // carries codes.
   const isEmployeeIdTaken = (e) => (e && (e.code === "users.employeeIdTaken" || e.code === "users.employeeIdTakenByOther")) || /employee id/i.test((e && e.message) || "");
   const [empIdError, setEmpIdError] = useState("");
+  // Part 341: the hire date, in both edit windows and Add Staff, for manage_employment (isAdmin until
+  // the API names it). A day the API wrote is read as it is written, so no time zone moves it. It goes
+  // with a save only when it changed, and once set it cannot be emptied: a wrong date is fixed by
+  // picking the right one. A refusal, users.badHireDate, is drawn under the field in the API's words.
+  const hireDayOf = (d) => (d ? String(d).split("T")[0] : "");
+  const withHireDate = (body) => { const was = body.hireDateWas || ""; delete body.hireDateWas; if (!canEmploy || !body.hireDate || body.hireDate === was) delete body.hireDate; return body; };
+  const isBadHireDate = (e) => !!e && e.code === "users.badHireDate";
+  const [hireSaid, setHireSaid] = useState(null);
+  const hireDateField = (at, form, setForm, style) => canEmploy ? <div data-hire-date={at} style={style}>
+    <Lbl>{tr("Hire Date")}</Lbl>
+    <Inp t={t} type="date" aria-label={tr("Hire Date")} required={!!form.hireDateWas} value={form.hireDate || ""} onChange={e => { const v = e.target.value; if (!v && form.hireDateWas) return; setForm({ ...form, hireDate: v }); setHireSaid(null); }} style={hireSaid && hireSaid.at === at ? { borderColor: RD } : undefined} />
+    {hireSaid && hireSaid.at === at ? <div data-hire-date-said="" role="alert" style={{ fontSize: 11, color: RD, marginTop: 4 }}>{hireSaid.text}</div> : form.hireDateWas ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("To fix a wrong date, pick the right one.")}</div> : null}
+  </div> : null;
   // Profile view state
   const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
   // Step 232: the open person's employment, once GET /api/users/:id/employment answers, and the
@@ -2113,7 +2126,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
   const approve = async id => { try { const d = await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(withWelcome(tr("Approved"), d)); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), email: made.email || addForm.email || "", tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false, welcome: d && d.welcome !== undefined ? d.welcome : undefined }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
+  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); setHireSaid(null); try { const d = await af("/api/users", { method: "POST", body: withHireDate(Object.assign({}, addForm)) }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), email: made.email || addForm.email || "", tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false, welcome: d && d.welcome !== undefined ? d.welcome : undefined }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else if (isBadHireDate(e)) { setHireSaid({ at: "add", text: e.message || tr("Request failed") }); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
   const openProfile = async (id, tab) => {
@@ -2360,7 +2373,26 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       showToast(tr("Copying is blocked here. The PIN is selected, so copy it with your keyboard."), "error");
     }
   };
-  const submitEdit = async () => { try { const body = Object.assign({}, editForm); if (!canEmploy) delete body.role; await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
+  // Edit Staff Info, the list's pencil. It opens on the person's row and keeps what it opened with in
+  // was. Since part 341 a save sends only the fields whose value changed from that, so a field the list
+  // never carries, the hourly rate among them, is never sent as blank, and every field left untouched
+  // stays as it is. A save with nothing changed closes the window and sends nothing.
+  const openEdit = (s) => {
+    const opened = { firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null };
+    setHireSaid(null);
+    setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened }, opened));
+  };
+  const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
+  const submitEdit = async () => {
+    setHireSaid(null);
+    const was = editForm.was || {};
+    const body = withHireDate(Object.assign({}, editForm));
+    delete body.id; delete body.was;
+    if (!canEmploy) delete body.role;
+    Object.keys(body).forEach(k => { if (sameValue(body[k], was[k])) delete body[k]; });
+    if (!Object.keys(body).length) { setEditForm(null); return; }
+    try { await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
+  };
 
   // Photo upload
   const handlePhotoUpload = async (file, userId) => {
@@ -2380,11 +2412,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Save profile personal info
   const saveProfileInfo = async () => {
     if (!profileEdit) return;
-    setEmpIdError("");
+    setEmpIdError(""); setHireSaid(null);
     try {
       // The language goes only when it was changed, so the one the account holds, French among them,
       // is never written over by the code the picker shows for it (Step 243).
-      const body = Object.assign({}, profileEdit);
+      const body = withHireDate(Object.assign({}, profileEdit));
       if (langCode(body.preferredLanguage) === langCode(profile.user.preferredLanguage)) delete body.preferredLanguage;
       if (!canEmploy) delete body.role;
       await af("/api/users/" + profile.user.id, { method: "PATCH", body });
@@ -2393,6 +2425,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       openProfile(profile.user.id); load(); loadStaff();
     } catch (e) {
       if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); }
+      else if (isBadHireDate(e)) { setHireSaid({ at: "profile", text: e.message || tr("Request failed") }); }
       else { showToast(e.message, "error"); }
     }
   };
@@ -2497,7 +2530,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, hireDate: hireDayOf(u.hireDate), hireDateWas: hireDayOf(u.hireDate), employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -2531,6 +2564,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               {canEmploy && <div><Lbl>{tr("Role")}</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
+              {hireDateField("profile", pe, setProfileEdit)}
               <div><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={pe.employmentType || ""} onChange={e => setProfileEdit({ ...pe, employmentType: e.target.value || null })} options={employmentOpts} /></div>
               <div><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>
               <div><Lbl>{tr("Birthday")}</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>
@@ -2699,7 +2733,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     {rosterWin && <EmploymentWindow af={af} t={t} userId={rosterWin.userId} name={rosterWin.name} mode={rosterWin.mode} data={null} showToast={showToast} onClose={() => setRosterWin(null)} onSaved={() => { setRosterWin(null); setRosterAgain(n => n + 1); load(); if (loadStaff) loadStaff(); }} />}
   </div>);
   return (<div>
-    <SecT t={t} action={canEmploy ? tr("Add Staff") : undefined} onAction={canEmploy ? () => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); } : undefined}>{tr("Staff Management")}</SecT>
+    <SecT t={t} action={canEmploy ? tr("Add Staff") : undefined} onAction={canEmploy ? () => { setEmpIdError(""); setHireSaid(null); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", hireDate: "", employmentType: null }); } : undefined}>{tr("Staff Management")}</SecT>
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
@@ -2730,7 +2764,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Role"), tdStyle: { color: t.textSec }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
-        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{canEmploy && s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{canEmploy && s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
       if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? (staffRefused || tr("This page is for admins.")) : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
@@ -2743,6 +2777,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Email *")}</Lbl><Inp t={t} value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} placeholder={tr("name@email.com")} type="email" /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={addForm.employeeId || ""} onChange={e => { setAddForm({ ...addForm, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>
+      {hireDateField("add", addForm, setAddForm, { marginBottom: 12 })}
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={addForm.employmentType || ""} onChange={e => setAddForm({ ...addForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Staff")}</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
@@ -2752,6 +2787,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
       {canEmploy && <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
+      {hireDateField("edit", editForm, setEditForm, { marginBottom: 12 })}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={editForm.employmentType || ""} onChange={e => setEditForm({ ...editForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder={`${clientConfig.employee.idPrefix}-0042`} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>

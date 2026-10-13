@@ -241,6 +241,21 @@ stood from 148 to 114 seconds; `SMOKE_LANES` sets how many. Then it checks, one 
     Step 291's Periodic work line has read every site: the third site's Service Details reads Staff check
     off tasks here off with its line and no Periodic work, Live Ops marks the site and its person Not
     tracked with no percentage, and turning the setting on saves `{ checklistMode: "tracked" }`.
+- against the stub's answers for changing a hire date (the API's part 340, for the dashboard's part 341),
+  `setStep341`, armed in the part's own lines at the end of four passes: GET /api/users and a profile
+  answer each person's `hireDate`, one active person answering none, and the list carries no
+  `hourlyRate`, as the API's does not; PATCH /api/users/:id and POST /api/users take `hireDate` from a
+  holder of manage_employment, refusing a day that is not real or is more than a year ahead 400
+  `users.badHireDate` and dropping it for anyone else, and keep every body sent.
+  - at 1280 in English and in Spanish, an admin: Edit Staff Info, the list's pencil, opens on the
+    person's date with Hourly Rate empty, keeps the date from being emptied, and a save with nothing
+    changed closes the window with no request; a changed date sends `{ hireDate }` and nothing else, and
+    the window opens again on it; a rate typed in the pencil sends `{ hourlyRate }`; a profile's Edit
+    fills the missing date, a date two years ahead draws `users.badHireDate` under the field in the
+    stub's words, and the profile opens again on the date saved with the line under it; Add Staff sends
+    no `hireDate` when the field is empty and the date when it is filled.
+  - at 1280 in English and in Spanish, a supervisor: no Hire Date in Edit Staff Info or in a profile's
+    Edit, a phone changed in the pencil sends `{ phone }` alone, and no Add Staff.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -336,7 +351,7 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-shift-time-off`, `data-time-off-window`, `data-time-off-affected`, `data-affected-shift`,
 `data-affected-action`, `data-cover-pick`, `data-cover-overtime`, `data-time-off-cover-save`,
 `data-checklist-mode`, `data-checklist-mode-switch`, `data-ops-site`, `data-ops-not-tracked` and
-`data-not-tracked`. Since Step 291 a person
+`data-not-tracked`, and part 341's by `data-hire-date`, `data-hire-date-said` and `data-profile-edit`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -362,7 +377,7 @@ entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures curr
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
 Step 280, Step 283, Step 289, Step 292, Step 299, Step 305, Step 308, Step 312 and Step 315 contracts and the
-training day round's parts 327, 329, 330 and 337 among them, so Choose your PIN is taken in a session of its own signed
+training day round's parts 327, 329, 330 and 337 and part 340 among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and
