@@ -155,11 +155,25 @@
 //     second site's Service Details draws its two shifts as a timeline, every block with its window, its
 //     kind in words, its days and its steps, in time order; editing a block's end and kind sends them and
 //     the timeline redraws it; and an end before the start is refused under Ends at, with nothing saved.
+//   - against the stub's answers for the training day round (TRAINING_DAY_CONTRACT.md, the API's parts
+//     327, 329, 330 and 337, for the dashboard's parts 332 to 334 and 338), armed with setStep327,
+//     setStep329, setStep330 and setStep337: a supervisor, in English first with the stub as today and
+//     then armed, and in Spanish armed from the start, sees Staff Management with no Add Staff, Approve or
+//     employment control, Training and Cases with Open a case and no HR Records, and opens a case from a
+//     filed incident report with formResponseId; at 1280 in English and in Spanish an admin's bell opens
+//     issue_assigned, time_off and hr_case_assigned inside the dashboard and a subject with no page here
+//     in a new tab, a new notice pops up with the bell's and the title's count, and My alerts turns alerts
+//     on this computer on, posting app dashboard, and off; the week marks time off and the shifts under
+//     it, Approve sends a reassign and a cancel, and an approved request's Shifts to cover saves through
+//     its own route, at 390 in English too; and a site kept as a record reads Not tracked on Live Ops and
+//     its setting saves. Once, before the passes, the worker line runs public/sw.js in a sandbox: a push
+//     shows its alert and a click opens each subject's place.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
-// Since Step 273 the passes run two at a time, each in a browser context and a stub of its own, and
-// each pass's lines are printed together, in the order the passes are listed, once it is done.
-// SMOKE_LANES sets how many run at once (1 runs them one after another, as before).
+// Since Step 273 the passes run side by side, each in a browser context and a stub of its own, and
+// each pass's lines are printed together, in the order the passes are listed, once it is done. Since
+// the training day round they run three at a time (two until then), which took the run as it stood
+// from 148 to 114 seconds. SMOKE_LANES sets how many run at once (1 runs them one after another).
 "use strict";
 const { createStubs } = require("./stubs");
 const { serve } = require("./lib/serve");
@@ -227,16 +241,19 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true },
-  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step334: true },
+  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor", step332: "after" },
+  // The training day round: a supervisor in Spanish with the API's Step 327 answered from the start,
+  // its lines alone.
+  { name: "1280 es supervisor", viewport: "wide", lang: "es", who: "supervisor", step332: true, walk: false },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
 ];
 
 const started = Date.now();
-const LANES = Math.max(1, Number(process.env.SMOKE_LANES) || 2);
+const LANES = Math.max(1, Number(process.env.SMOKE_LANES) || 3);
 let failures = 0;
 // Each pass's lines, held until the passes before it have printed theirs; a line outside a pass is
 // printed at once.
@@ -2452,6 +2469,282 @@ async function step317(d, origin, p, stubs) {
   });
 }
 
+// The training day round (TRAINING_DAY_CONTRACT.md section 2, the dashboard's parts 332 to 334 and 338),
+// against the stub armed with setStep327, setStep329, setStep330 and setStep337 (audit/stubs.js). Each
+// function is a pass's lines for one part, and every line waits for what it reads.
+const lineChecker = (d, origin, p) => async (what, fn) => {
+  const mark = d.pageErrors.length;
+  let why = "";
+  try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+  say(!why, p.name, what, why);
+  await d.page.keyboard.press("Escape").catch(() => {});
+  await recover(d, origin, p);
+};
+const hashNow = (d) => d.page.evaluate(() => window.location.hash);
+const forCalls = async (count, before) => { for (let i = 0; i < 40 && count() === before; i++) await wait(100); };
+
+// Part 332, a supervisor. With the stub as today (p.step332 "after", the English pass) the menu is as
+// today first; then Step 327 is armed and the page read again. The Spanish pass is armed from the start.
+const IR_332 = "fr-incident-327";
+async function step332(d, origin, p, stubs) {
+  const check = lineChecker(d, origin, p);
+  if (p.step332 === "after") {
+    await check("with the stub as today, the menu is as today: HR Records and Training, and no Cases", async () => {
+      const ids = (await navItems(d)).map((x) => x.id);
+      const want = ["hr", "training"].filter((x) => ids.indexOf(x) < 0);
+      return want.length ? "the side panel has no " + want.join(", ") : ids.indexOf("cases") >= 0 ? "the side panel offers Cases" : "";
+    });
+    stubs.setStep327(true);
+    await d.page.reload({ waitUntil: "domcontentloaded" });
+    await until(d, '[data-nav-item="training"]');
+  }
+  await check("a supervisor sees Staff Management with no Add Staff, no Approve and no employment control", async () => {
+    await until(d, '[data-nav-item="cases"]').catch(() => {});
+    const ids = (await navItems(d)).map((x) => x.id);
+    if (ids.indexOf("staff") < 0) return "the side panel has no Staff Management";
+    await go(d, "staff", null, "table tbody tr");
+    if ((await d.page.getByRole("button", { name: d.say("Add Staff"), exact: true }).count()) > 0) return "Add Staff is offered";
+    if ((await d.page.getByRole("button", { name: d.say("Approve"), exact: true }).count()) > 0) return "Approve is offered on a registration";
+    await go(d, "staff", ["u-staff-5"], 'button:has-text("' + d.say("Reset PIN") + '")');
+    const employment = await d.page.locator("[data-employment-action]").count();
+    const status = await d.page.getByRole("button", { name: new RegExp("^(" + d.say("Deactivate") + "|" + d.say("Reactivate") + ")$") }).count();
+    if (employment || status) return "the profile offers " + (employment ? employment + " employment changes" : "Deactivate or Reactivate");
+    return (await d.page.locator("[data-open-hr-file]").count()) ? "Open HR file is offered without HR Records" : "";
+  });
+  await check("a supervisor sees Training and Cases with Open a case, and no HR Records", async () => {
+    const ids = (await navItems(d)).map((x) => x.id);
+    if (ids.indexOf("training") < 0 || ids.indexOf("cases") < 0) return "the side panel has " + ids.join(", ");
+    if (ids.indexOf("hr") >= 0) return "the side panel offers HR Records";
+    await go(d, "cases");
+    await d.page.getByRole("button", { name: d.say("Open a case"), exact: true }).first().waitFor();
+    await go(d, "hr");
+    await d.page.getByText(d.say("This page is for admins.")).first().waitFor();
+    return "";
+  });
+  await check("a supervisor reads a filed incident report in Forms and opens a case from it", async () => {
+    await go(d, "forms", ["reports", IR_332], "[data-report-open-case]");
+    await d.page.locator("[data-report-open-case]").click();
+    await until(d, '[data-open-case-report="' + IR_332 + '"]');
+    const box = d.page.locator("[data-open-case] textarea").first();
+    if ((await box.inputValue()).indexOf("OCSA-FRM-016") < 0) return "What happened does not start from the report";
+    await d.page.locator("[data-open-case] select").first().selectOption("no");
+    const before = stubs.opened327().length;
+    await d.page.locator("[data-open-case]").getByRole("button", { name: d.say("Open a case"), exact: true }).click();
+    await forCalls(() => stubs.opened327().length, before);
+    const sent = stubs.opened327()[before];
+    if (!sent) return "no case was opened";
+    if (sent.formResponseId !== IR_332) return "the case was sent with formResponseId " + JSON.stringify(sent.formResponseId);
+    await d.page.locator('[data-report-case]:has-text("' + d.say("Case opened.") + '")').waitFor();
+    return "";
+  });
+}
+
+// Part 333, an admin: the bell's notices open inside the dashboard (and the one with no page here in a
+// new tab), a new notice pops up with its count, and My alerts turns this computer's alerts on and off.
+async function openBell333(d) {
+  if (d.phone) await d.page.locator('button[title="' + d.say("More") + '"]').first().click();
+  await d.page.locator('button[title="' + d.say("Notifications") + '"]').last().click();
+  await until(d, "[data-notice-row]");
+}
+async function tapNotice333(d, id) {
+  await go(d, "overview");
+  await openBell333(d);
+  await d.page.locator('[data-notice-row="' + id + '"]').click();
+  await wait(200);
+}
+const opensOf = (d) => d.page.evaluate(() => window.__audit.prints.map((x) => x.url));
+async function step333(d, origin, p, stubs) {
+  const check = lineChecker(d, origin, p);
+  await check("the bell opens issue_assigned in the Issue Tracker, and a subject with no page here in a new tab", async () => {
+    const before = (await opensOf(d)).length;
+    await tapNotice333(d, "n-329-1");
+    if ((await hashNow(d)) !== "#issues/i-1") return "issue_assigned opened " + (await hashNow(d));
+    if ((await opensOf(d)).length !== before) return "issue_assigned opened a new tab";
+    await tapNotice333(d, "n-329-4");
+    const opened = (await opensOf(d)).slice(before);
+    return opened.length === 1 && opened[0] === stubs.notice329("n-329-4", p.lang).link ? "" : "the notice with no page opened " + JSON.stringify(opened);
+  });
+  await check("the bell opens time_off on its request window, and hr_case_assigned on its case", async () => {
+    await tapNotice333(d, "n-329-2");
+    await until(d, '[data-time-off-window="to-330"]');
+    if ((await hashNow(d)) !== "#schedule/timeoff/to-330") return "time_off opened " + (await hashNow(d));
+    await d.page.keyboard.press("Escape");
+    await tapNotice333(d, "n-329-3");
+    await until(d, '[data-case-window="hc-1"]');
+    if ((await hashNow(d)) !== "#cases/hc-1") return "hr_case_assigned opened " + (await hashNow(d));
+    // Part 332: Hand to lists the active supervisors as well as the admins.
+    await d.page.locator("[data-case-hand-to] [data-person-pick-field]").click();
+    return (await d.page.locator('[data-person-pick-option="u-sup-1"]').count()) === 1 ? "" : "Hand to does not list a supervisor";
+  });
+  await check("a new notice arriving shows the toast with Open, the bell's count and the count in the tab's title", async () => {
+    await go(d, "overview");
+    const was = Number((/^\((\d+)\)/.exec(await d.page.title()) || [])[1] || 0);
+    const id = stubs.addNotice329();
+    await d.page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await until(d, '[data-notice-toast="' + id + '"]');
+    const title = (await d.page.locator("[data-notice-toast-title]").innerText()).trim();
+    if (title !== stubs.newNotice329(p.lang).title) return "the toast reads " + JSON.stringify(title);
+    if ((await d.page.title()).indexOf("(" + (was + 1) + ") ") !== 0) return "the tab's title reads " + JSON.stringify(await d.page.title()) + " after " + was;
+    if (!d.phone && (await d.page.locator('button[aria-label="' + d.say("{0} unread notifications").replace("{0}", was + 1) + '"]').count()) === 0) return "the bell does not count " + (was + 1);
+    await d.page.locator("[data-notice-toast-open]").click();
+    await wait(200);
+    return (await hashNow(d)) === "#issues/i-2" ? "" : "Open went to " + (await hashNow(d));
+  });
+  // My alerts is a window Escape does not close, so the line closes it itself, whatever it found.
+  const closeAlerts = async () => { const x = d.page.locator('[data-computer-alerts]').locator("xpath=ancestor::div[contains(@style, 'z-index: 500')]").first(); if (await x.count()) await x.locator('button[aria-label="' + d.say("Close") + '"]').first().click().catch(() => {}); };
+  await check("My alerts' Turn on alerts on this computer posts app dashboard, and Turn off deletes it", async () => { try { return await alertsLine(); } finally { await closeAlerts(); } });
+  async function alertsLine() {
+    await go(d, "overview");
+    // A browser with push, answered by the page itself: no permission is given until the press.
+    await d.page.evaluate(() => {
+      const box = { asked: 0, sub: null, opts: null, unsubscribed: 0 };
+      const sub = { endpoint: "https://push.example.invalid/send/smoke-1", toJSON() { return { endpoint: this.endpoint, keys: { p256dh: "BHsmokeKey", auth: "smokeAuth" } }; }, unsubscribe: async () => { box.unsubscribed += 1; box.sub = null; return true; } };
+      const reg = { pushManager: { getSubscription: async () => box.sub, subscribe: async (o) => { box.opts = { userVisibleOnly: o.userVisibleOnly, keyBytes: o.applicationServerKey ? o.applicationServerKey.length : 0 }; box.sub = sub; return sub; } } };
+      navigator.serviceWorker.getRegistration = async () => reg;
+      window.Notification = { permission: "default", requestPermission: async () => { box.asked += 1; window.Notification.permission = "granted"; return "granted"; } };
+      window.__push = box;
+    });
+    if (d.phone) await d.page.locator('button[title="' + d.say("More") + '"]').first().click();
+    else await d.page.locator("button", { hasText: seed.PEOPLE[p.who].firstName }).first().click();
+    await d.page.getByRole("button", { name: d.say("My alerts"), exact: true }).last().click();
+    await until(d, '[data-computer-alerts="off"]');
+    if ((await d.page.evaluate(() => window.__push.asked)) !== 0) return "the browser was asked before the press";
+    const before = stubs.subscribed329().length;
+    await d.page.locator("[data-computer-alerts-on]").click();
+    await forCalls(() => stubs.subscribed329().length, before);
+    const sent = stubs.subscribed329()[before];
+    if (!sent) return "nothing was posted";
+    if (sent.app !== "dashboard" || sent.endpoint !== "https://push.example.invalid/send/smoke-1" || !sent.keys || sent.keys.auth !== "smokeAuth" || !sent.userAgent) return "it posted " + JSON.stringify(sent);
+    const box = await d.page.evaluate(() => window.__push);
+    if (box.asked !== 1 || !box.opts || !box.opts.userVisibleOnly || box.opts.keyBytes !== 65) return "the subscription was made with " + JSON.stringify(box);
+    await until(d, '[data-computer-alerts="on"]');
+    const gone = stubs.unsubscribed329().length;
+    await d.page.locator("[data-computer-alerts-off]").click();
+    await forCalls(() => stubs.unsubscribed329().length, gone);
+    const removed = stubs.unsubscribed329()[gone];
+    if (!removed || removed.endpoint !== sent.endpoint) return "Turn off deleted " + JSON.stringify(removed);
+    return (await d.page.evaluate(() => window.__push.unsubscribed)) === 1 ? "" : "the browser's subscription was not ended";
+  }
+}
+
+// Part 333, the worker itself, run once outside the passes in a sandbox of its own: a push shows its
+// notification with its subject, and a click opens the place for each subject the bell opens here, in
+// a new window at /#<place> or by telling an open one where to go.
+async function workerLines() {
+  const fs = require("fs");
+  const vm = require("vm");
+  const src = fs.readFileSync(require("path").join(__dirname, "..", "public", "sw.js"), "utf8");
+  const on = {};
+  const box = { shown: [], opened: [], posted: [], focused: 0, windows: [] };
+  const self = {
+    addEventListener: (k, fn) => { on[k] = fn; },
+    skipWaiting: () => {},
+    location: { origin: "https://admin.example.invalid" },
+    registration: { showNotification: (title, opts) => { box.shown.push({ title, opts }); return Promise.resolve(); } },
+    clients: { claim: () => Promise.resolve(), matchAll: () => Promise.resolve(box.windows), openWindow: (u) => { box.opened.push(u); return Promise.resolve(); } },
+  };
+  vm.runInNewContext(src, { self, encodeURIComponent, String, Promise, setTimeout });
+  const fire = async (kind, event) => { let done = Promise.resolve(); event.waitUntil = (pr) => { done = pr; }; on[kind](event); await done; };
+  const PLACES = [["issue_assigned", "i-1", "issues/i-1"], ["time_off", "to-330", "schedule/timeoff/to-330"], ["hr_case_assigned", "hc-1", "cases/hc-1"], ["inspection_unfinished", "insp-4", "inspections/insp-4"], ["shift_assigned", "sh-1", "schedule"], ["form", "fr-9", "forms/reports/fr-9"]];
+  let why = "";
+  try {
+    await fire("push", { data: { json: () => ({ title: "A case was assigned to you", body: "Open it in Cases.", tag: "hc-1", subjectType: "hr_case_assigned", subjectId: "hc-1", locale: "en" }) } });
+    const n = box.shown[0];
+    if (!n || n.title !== "A case was assigned to you" || n.opts.data.subjectType !== "hr_case_assigned" || n.opts.data.subjectId !== "hc-1" || n.opts.tag !== "hc-1") why = "a push showed " + JSON.stringify(n);
+    for (const [st, id, place] of PLACES) {
+      if (why) break;
+      box.windows = [];
+      await fire("notificationclick", { notification: { data: { subjectType: st, subjectId: id }, close() {} } });
+      if (box.opened[box.opened.length - 1] !== "/#" + place) why = st + " opened " + JSON.stringify(box.opened[box.opened.length - 1]);
+      const win = { url: "https://admin.example.invalid/#overview", postMessage: (m) => box.posted.push(m), focus: () => { box.focused += 1; return Promise.resolve(); } };
+      box.windows = [win];
+      const was = box.opened.length;
+      await fire("notificationclick", { notification: { data: { subjectType: st, subjectId: id }, close() {} } });
+      const m = box.posted[box.posted.length - 1];
+      if (!why && (box.opened.length !== was || !m || m.type !== "ocsa-open" || m.place !== place || m.subjectType !== st)) why = st + " told the open window " + JSON.stringify(m);
+    }
+    if (!why && box.focused !== PLACES.length) why = "the open window was focused " + box.focused + " times";
+  } catch (e) { why = e.message.split("\n")[0]; }
+  say(!why, "worker", "a push shows its alert, and a click opens the place of each subject, in an open window or a new one", why);
+}
+
+// Part 334, an admin: time off on the week, the request window with the shifts it affects and the cover
+// picker, and an approved request's Shifts to cover by its address.
+async function step334(d, origin, p, stubs) {
+  const check = lineChecker(d, origin, p);
+  await check("the week marks time off on the person's day and the shifts under it", async () => {
+    await go(d, "schedule", null, '[data-time-off-chip="to-330"]');
+    const asked = await d.page.locator('[data-time-off-chip="to-330"][data-time-off-status="requested"]').count();
+    if (asked !== 2) return "the request over two days is drawn " + asked + " times";
+    if ((await d.page.locator('[data-time-off-chip="to-331"][data-time-off-status="approved"]').count()) !== 1) return "the approved time off is not drawn";
+    if ((await d.page.locator('[data-time-off-chip="to-331"]').innerText()).indexOf(d.say("Off|time off")) < 0) return "approved time off does not read Off";
+    const marks = await d.page.locator("[data-shift-time-off]").evaluateAll((els) => els.map((e) => e.getAttribute("data-shift-chip") + ":" + e.getAttribute("data-shift-time-off")).sort());
+    return marks.join() === ["sh-1:requested", "sh-330:requested", "sh-4:approved"].join() ? "" : "the shifts marked are " + JSON.stringify(marks);
+  });
+  await check("a request over two shifts shows both under Shifts this affects, and Approve sends one reassign and one cancel", async () => {
+    await go(d, "schedule", null, '[data-time-off-chip="to-330"]');
+    await d.page.locator('[data-time-off-chip="to-330"]').first().click();
+    await until(d, '[data-time-off-window="to-330"] [data-time-off-affected="affects"] [data-affected-shift]');
+    const shifts = await d.page.locator("[data-affected-shift]").evaluateAll((els) => els.map((e) => e.getAttribute("data-affected-shift")));
+    if (shifts.join() !== "sh-1,sh-330") return "Shifts this affects lists " + JSON.stringify(shifts);
+    await d.page.locator('[data-affected-shift="sh-1"] [data-affected-action]').selectOption("reassign");
+    await d.page.locator('[data-affected-shift="sh-1"] [data-person-pick-field]').click();
+    await d.page.locator('[data-person-pick-option="u-staff-6"]').click();
+    await until(d, '[data-affected-shift="sh-1"] [data-cover-overtime]');
+    await d.page.locator('[data-affected-shift="sh-1"] [data-person-pick-field]').click();
+    await d.page.locator('[data-person-pick-option="u-staff-9"]').click();
+    await d.page.locator('[data-affected-shift="sh-330"] [data-affected-action]').selectOption("cancel");
+    const before = stubs.approvals330().length;
+    await d.page.locator('[data-time-off-window="to-330"]').getByRole("button", { name: d.say("Approve"), exact: true }).click();
+    await forCalls(() => stubs.approvals330().length, before);
+    const sent = stubs.approvals330()[before];
+    if (!sent) return "nothing was approved";
+    const want = [{ shiftId: "sh-1", action: "reassign", userId: "u-staff-9" }, { shiftId: "sh-330", action: "cancel" }];
+    if (JSON.stringify(sent.body.shifts) !== JSON.stringify(want)) return "it sent " + JSON.stringify(sent.body);
+    await until(d, '[data-time-off-window="to-330"][data-time-off-status="approved"]');
+    for (let i = 0; i < 30 && (await d.page.locator("[data-time-off-affected]").count()) > 0; i++) await wait(100);
+    return (await d.page.locator("[data-time-off-affected]").count()) === 0 ? "" : "the settled shifts are still listed";
+  });
+  await check("#schedule/timeoff/<id> opens an approved request with Shifts to cover, saved through its own route", async () => {
+    await go(d, "schedule", ["timeoff", "to-331"], '[data-time-off-window="to-331"] [data-time-off-affected="cover"] [data-affected-shift="sh-4"]');
+    await d.page.locator('[data-affected-shift="sh-4"] [data-affected-action]').selectOption("post");
+    const before = stubs.covers330().length;
+    await d.page.locator("[data-time-off-cover-save]").click();
+    await forCalls(() => stubs.covers330().length, before);
+    const sent = stubs.covers330()[before];
+    if (!sent || JSON.stringify(sent.body) !== JSON.stringify({ shifts: [{ shiftId: "sh-4", action: "post" }] })) return "it sent " + JSON.stringify(sent && sent.body);
+    for (let i = 0; i < 30 && (await d.page.locator("[data-time-off-affected]").count()) > 0; i++) await wait(100);
+    return (await d.page.locator("[data-time-off-affected]").count()) === 0 ? "" : "Shifts to cover still lists the shift";
+  });
+}
+
+// Part 338, an admin: the third site's task list is kept as a record.
+async function step338(d, origin, p, stubs) {
+  const check = lineChecker(d, origin, p);
+  // Step 337 is armed here, after Step 291's Periodic work line has read every site's work.
+  stubs.setStep337(true);
+  await check("a site answered reference shows the setting off and Not tracked on Live Ops, and the setting saves", async () => {
+    await go(d, "sites", ["s-3", "tasks"], "[data-checklist-mode]");
+    if ((await d.page.locator("[data-checklist-mode]").getAttribute("data-checklist-mode")) !== "reference") return "the setting reads " + (await d.page.locator("[data-checklist-mode]").getAttribute("data-checklist-mode"));
+    if (await d.page.locator("[data-checklist-mode-switch]").isChecked()) return "Staff check off tasks here is on";
+    if ((await d.page.locator("[data-checklist-mode]").innerText()).indexOf(d.say("Off: staff can read the task list as a reference, and nothing is checked off.")) < 0) return "the line under it is not there";
+    if ((await d.page.locator("[data-site-periodic]").count()) > 0) return "the site draws Periodic work";
+    await go(d, "operations", null, '[data-ops-site="s-3"]');
+    if ((await d.page.locator('[data-ops-site="s-3"]').getAttribute("data-ops-not-tracked")) !== "true") return "Live Ops does not mark the site";
+    const card = d.page.locator('[data-ops-site="s-3"]').locator("xpath=..");
+    if ((await card.locator("[data-not-tracked]").count()) < 1) return "the person at the site does not read Not tracked";
+    if ((await card.innerText()).indexOf("0%") >= 0) return "the site reads 0%";
+    await go(d, "sites", ["s-3", "tasks"], "[data-checklist-mode-switch]");
+    const before = stubs.saves337().length;
+    await d.page.locator("[data-checklist-mode-switch]").click();
+    await forCalls(() => stubs.saves337().length, before);
+    const sent = stubs.saves337()[before];
+    if (!sent || sent.id !== "s-3" || sent.body.checklistMode !== "tracked") return "it saved " + JSON.stringify(sent);
+    await until(d, '[data-checklist-mode="tracked"]');
+    return "";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -2485,6 +2778,11 @@ async function runPass(browser, origin, p) {
   if (p.step314) stubs.setStep312(true);
   // Step 315's answers (the dashboard's Step 317, timed site schedules) are laid over those.
   if (p.step317) stubs.setStep315(true);
+  // The training day round's answers (the API's parts 327, 329, 330 and 337) are laid over those. A
+  // supervisor pass that reads the menu as today first arms Step 327 itself, partway through.
+  if (p.step332 === true) stubs.setStep327(true);
+  if (p.step333) stubs.setStep329(true);
+  if (p.step334) stubs.setStep330(true);
   // Step 283's sign-in answers are laid over everything else.
   if (p.step283) stubs.setStep283(true);
   if (p.secondStep) armSecondStep(stubs);
@@ -2510,7 +2808,7 @@ async function runPass(browser, origin, p) {
 
     const items = await navItems(d);
     say(items.length > 0, p.name, "side panel holds " + items.length + " items");
-    if (p.who === "supervisor") {
+    if (p.who === "supervisor" && p.step332 !== true) {
       // Forms is a supervisor's when the forms API lets them list filed reports, and Settings when they
       // hold manage permissions, the way the audit's pages case reads the seed. No other admin item.
       const who = seed.PEOPLE[p.who];
@@ -2521,7 +2819,7 @@ async function runPass(browser, origin, p) {
       say(!shown.length && !missing.length, p.name, "sees " + (allowed.length ? allowed.join(", ") + " and " : "") + "no other admin-only item",
         shown.length ? "can see " + shown.join(", ") : missing.length ? "is missing " + missing.join(", ") : "");
     }
-    for (const it of items) {
+    for (const it of (p.walk === false ? [] : items)) {
       const mark = d.pageErrors.length;
       try { await openNav(d, it.id); const why = await trouble(d, mark); say(!why, p.name, "opens " + it.label, why); }
       catch (e) { say(false, p.name, "opens " + it.label, e.message.split("\n")[0]); }
@@ -2591,6 +2889,11 @@ async function runPass(browser, origin, p) {
     if (p.step309) await step309(d, origin, p, stubs);
     if (p.step314) await step314(d, origin, p, stubs);
     if (p.step317) await step317(d, origin, p, stubs);
+    if (p.step332) await step332(d, origin, p, stubs);
+    if (p.step333) await step333(d, origin, p, stubs);
+    if (p.step334) await step334(d, origin, p, stubs);
+    if (p.step338) await step338(d, origin, p, stubs);
+    if (p.walk === false) return;
 
     // Help, asked one question.
     {
@@ -2623,6 +2926,7 @@ async function runPass(browser, origin, p) {
     process.exit(1);
   }
   say(true, "build", "build/ is current");
+  await workerLines();
   const server = await serve(BUILD_DIR);
   const browser = await launch();
   try {

@@ -57,14 +57,17 @@ Last checked: 2026-09-27
 
 ## See your notifications (admin dashboard)
 Who can do this: admins and supervisors
-1. Click the bell at the top. A number on it means unread notices.
-2. Click a notice to open what it is about. A notice about a filed report opens that report. A notice that a piece of equipment was tagged out or is due for service opens the item, one that periodic work is overdue opens the checklist of its site, and one that a client reported a concern opens the report.
-3. Click **Mark all read** to clear the number.
-4. On a phone, or any window narrower than 700 pixels, the bell is inside **More** (**Más**), the three dots at the top right, as **Notifications** (**Avisos**); the unread number shows on the More button.
-5. Notices read in the language the dashboard is shown in. Switch the language and the list is read again in the new one.
-If it does not work: a notice about something only admins can open does not move you. The bell closes and says it is for admins. A notice written before notices could be read in either language shows in the words it was written in.
+1. Click the bell at the top. A number on it means unread notices, and the browser tab's title starts with the same number, such as (3).
+2. Click a notice to open what it is about, inside the dashboard whatever the notice links to. A notice about a problem opens it in the **Issue Tracker** (**Registro de incidencias**), an inspection's opens it in **Inspections** (**Inspecciones**), a time off request's opens that request in **Schedule** (**Horario**), a case's opens that case in **Cases** (**Casos**), and a shift's opens **Schedule** (**Horario**). A notice about a filed report opens that report. A notice that a piece of equipment was tagged out or is due for service opens the item, one that periodic work is overdue opens the checklist of its site, and one that a client reported a concern opens the report.
+3. A notice about something the dashboard has no page for opens the staff app in a new tab.
+4. A notice that arrives while the dashboard is open pops up at the bottom right with its title and **Open** (**Abrir**), which opens it the same way. It goes by itself after a few seconds, and stays in the bell.
+5. Click **Mark all read** (**Marcar todo como leído**) to clear the number.
+6. On a phone, or any window narrower than 700 pixels, the bell is inside **More** (**Más**), the three dots at the top right, as **Notifications** (**Avisos**); the unread number shows on the More button.
+7. Notices read in the language the dashboard is shown in. Switch the language and the list is read again in the new one.
+If it does not work: a notice about something only admins can open does not move you. The bell closes and says it is for admins. A notice written before notices could be read in either language shows in the words it was written in. To be alerted when the dashboard is closed, see Turn on alerts on this computer.
+Words people use for this: notifications, bell, alerts, new notice, pop up, unread count, avisos.
 Picture: notifications-panel
-Last checked: 2026-10-02
+Last checked: 2026-10-13
 
 ## Change who gets told about reports and requests (admin dashboard)
 Who can do this: admins
@@ -81,7 +84,7 @@ Picture: settings-who-gets-told
 Last checked: 2026-10-07
 
 ## Add a staff member (admin dashboard)
-Who can do this: admins
+Who can do this: admins. A supervisor opens **Staff Management** (**Gestión de personal**) and does not see **Add Staff** (**Agregar persona**).
 1. Click **Staff Management** (**Gestión de personal**).
 2. Click **Add Staff** (**Agregar persona**).
 3. Fill in first name, phone and email, and the role and employment type.
@@ -90,11 +93,11 @@ Who can do this: admins
 6. The **Temporary PIN** (**PIN temporal**) stays in the window, hidden, in case the email does not reach them: **Show** (**Mostrar**) reveals it and **Copy** (**Copiar**) copies it for the person's sign-in slip.
 7. To send the email again, click **Send it again** (**Enviarlo de nuevo**), or **Send welcome email** (**Enviar el correo de bienvenida**) when the first one did not go.
 The welcome email has a button to set up the account, in English and in Spanish. The first time the person signs in with the temporary PIN instead, the staff app asks them to choose their own.
-If it does not work: fix a placeholder email on the person's profile, then send the welcome email from there. See Send a welcome email.
+If it does not work: fix a placeholder email on the person's profile, then send the welcome email from there. See Send a welcome email. Approving a registration, every employment change and changing a role are an admin's too.
 Words people use for this: new hire, add an employee, onboard someone, set up an account for someone, temporary pin, welcome email, activation invite.
 Picture: staff-add-window
 Picture: staff-added-welcome
-Last checked: 2026-10-07
+Last checked: 2026-10-13
 ## Approve a new employee's registration (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management**.
@@ -104,14 +107,14 @@ Who can do this: admins
 Picture: staff-pending
 Last checked: 2026-10-07
 ## Edit a staff member's information (admin dashboard)
-Who can do this: admins
+Who can do this: admins and supervisors. Only admins change a person's role, and a supervisor changes the information of staff only.
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
-3. Change what is needed and click **Save Changes** (**Guardar los cambios**).
-4. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**).
+3. Change what is needed and click **Save Changes** (**Guardar los cambios**). A supervisor's window has no role to change.
+4. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**), which shows for anyone who can open HR Records.
 5. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
 Picture: staff-profile-edit
-Last checked: 2026-10-07
+Last checked: 2026-10-13
 
 ## Reset a staff member's PIN (admin dashboard)
 Who can do this: admins
@@ -157,30 +160,32 @@ Words people use for this: add a certificate, add a license, certification on fi
 Picture: hr-folder-add-certification
 Last checked: 2026-10-07
 ## Respond to a Speak Up case (admin dashboard)
-Who can do this: admins, except anyone the case is about
-1. Click **Cases**. It opens on **Needs response**, with the most urgent first.
+Who can do this: admins, and supervisors given Cases, except anyone the case is about
+1. Click **Cases** (**Casos**). It opens on **Needs response**, with the most urgent first. A notice that a case was assigned to you or escalated to you opens that case.
 2. Click a case to open it. The **Case log** (**Registro del caso**) under the summary lists everything done on the case, oldest first, with who did it and when.
-3. Click **Take this case** to hold it yourself, or click **Hand to** (**Entregar a**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick the person and click **Hand over** (**Entregar**).
+3. Click **Take this case** to hold it yourself, or click **Hand to** (**Entregar a**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick the person and click **Hand over** (**Entregar**). The list holds every active admin and supervisor, each with their role.
 4. To record a conversation, a meeting, a phone call, a note or a file, use **Add an update** (**Agregar una actualización**) at the bottom of the log.
-5. Change the status and click **Save changes**. The first save counts as the team's response. Setting **Resolved** (**Resuelto**) or **Closed** (**Cerrado**) asks for a **Closing note** (**Nota de cierre**), which goes into the log as the case's last entry.
-6. To give it back to the team, click **Release**.
-7. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
+5. To escalate it, choose the person under **Escalate to** (**Escalar a**): every active admin and supervisor, then the escalation contacts.
+6. Change the status and click **Save changes**. The first save counts as the team's response. Setting **Resolved** (**Resuelto**) or **Closed** (**Cerrado**) asks for a **Closing note** (**Nota de cierre**), which goes into the log as the case's last entry.
+7. To give it back to the team, click **Release**.
+8. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
 If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left. **Save changes** with Resolved or Closed and an empty closing note says **Write the closing note.** (**Escriba la nota de cierre.**) Taking, releasing, handing over, escalating and every status change are written into the log by the app.
 Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up, close a case, closing note, nota de cierre.
 Picture: cases-case-window
 Picture: cases-closing-note
-Last checked: 2026-10-07
+Last checked: 2026-10-13
 
 ## Add an HR document for an employee (admin dashboard)
-Who can do this: admins and supervisors
+Who can do this: admins, and supervisors given HR Records
 1. Click **HR Records** (**Expedientes de personal**).
 2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Document** (**+ Agregar documento**). The person is filled in as the **Employee** (**Persona**) and stays there.
 3. Or click the **Documents** (**Documentos**) tab, then **+ Add Document** (**+ Agregar documento**), and choose the **Employee** (**Persona**): type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them. The list shows active people first, then inactive and terminated people, each with its status after the name.
 4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one. Warnings and termination letters go under **Disciplinary** (**Disciplinario**).
 5. Click **Add** (**Agregar**).
+If it does not work: without HR Records the side panel has no **HR Records** (**Expedientes de personal**), and its address says **This page is for admins.** (**Esta página es para administradores.**) Training stays on its own item.
 Words people use for this: upload a document, add a file to someone's folder, document for someone who left, termination letter, subir un documento.
 Picture: hr-folder-add-document
-Last checked: 2026-10-07
+Last checked: 2026-10-13
 
 ## Add a training record (admin dashboard)
 Who can do this: admins and supervisors
@@ -373,11 +378,12 @@ Last checked: 2026-09-30
 
 ## See who has started a shift today (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Live Ops**.
+1. Click **Live Ops** (**Operaciones en vivo**).
 2. Each site lists who started, when, and how many tasks are done.
-3. Change the date to look at another day.
+3. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), with no count of tasks, since nothing is checked off there.
+4. Change the date to look at another day.
 Picture: live-ops
-Last checked: 2026-09-16
+Last checked: 2026-10-13
 
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -472,16 +478,19 @@ Last checked: 2026-09-21
 
 ## Approve or deny a time off request (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
-1. Click **Schedule** in the menu on the left.
-2. Click **Time off** beside **Week**, **Month** and **Patterns**. The number beside it is how many are waiting for a decision.
-3. Click a row to open the request. It shows the person, the type in the dashboard's language, such as **PTO (paid time off)** (**PTO (tiempo libre pagado)**), the dates, the hours, their reason, and the shifts they have on those days.
-4. Type a **Note**. A note is optional when approving and required when denying.
-5. Click **Approve**, or **Deny**.
-6. The person gets a notice in the app carrying the dates, and reads your note in the app.
-Words people use for this: approve time off, approve pto, paid time off, deny a day off, decide a leave request, sign off on vacation, time off queue.
-If it does not work: nobody decides their own request. Deciding a request leaves the schedule as it is, so change or cover those shifts yourself. If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet.
+1. Click **Schedule** (**Horario**) in the menu on the left.
+2. On **Week** (**Semana**) and **Month** (**Mes**), time off shows on the person's day: **Time off requested** (**Tiempo libre solicitado**) in amber while it waits, and **Off** (**Libre**) in gray once approved. A shift under it is marked too. Click the time off to open its request.
+3. Or click **Time off** (**Tiempo libre**) beside **Week**, **Month** and **Patterns**. The number beside it is how many are waiting for a decision. Click a row to open the request. A notice that someone requested time off opens the request too.
+4. The request shows the person, the type in the dashboard's language, such as **PTO (paid time off)** (**PTO (tiempo libre pagado)**), the dates, the hours and their reason.
+5. Under **Shifts this affects** (**Turnos afectados**), choose for each shift **Leave it as it is** (**Dejarlo como está**), **Reassign to** (**Reasignar a**), **Post to Shift Pickup** (**Publicar en Turnos disponibles**) or **Cancel the shift** (**Cancelar el turno**). Reassign to opens a list of who can take it. See Cover a shift when someone is off.
+6. Type a **Note** (**Nota**). A note is optional when approving and required when denying.
+7. Click **Approve** (**Aprobar**), or **Deny** (**Denegar**). Approve sends the choices for the shifts with it.
+8. The person gets a notice in the app carrying the dates, and reads your note in the app.
+Words people use for this: approve time off, approve pto, paid time off, deny a day off, decide a leave request, sign off on vacation, time off queue, time off on the schedule.
+If it does not work: nobody decides their own request. A shift left as it is stays under the person, and the approved request then lists it under **Shifts to cover** (**Turnos por cubrir**). If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet.
 Picture: time-off-request
-Last checked: 2026-10-07
+Picture: schedule-time-off-week
+Last checked: 2026-10-13
 
 ## See past time off requests (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
@@ -619,16 +628,17 @@ Picture: committee-minutes-confirm
 Last checked: 2026-09-27
 
 ## Read a filed report (admin dashboard)
-Who can do this: admins, anyone the server lets read a filed report, and the person who filed it
+Who can do this: admins, anyone the server lets read a filed report, and the person who filed it. Supervisors read filed incident reports.
 1. Click **Forms** (**Formularios**). The page opens on **Filed forms** (**Formularios presentados**), which lists every report filed from the app or the dashboard. The tab shows how many are unfinished, as **Filed forms (2)** (**Formularios presentados (2)**).
 2. Choose **Submitted** (**Enviado**) or **Unfinished** (**Sin terminar**), and narrow the list with **Form** (**Formulario**) and **Site** (**Sitio**). Under each form's name a line says where it came from: **From the app** (**Desde la aplicación**), **From the dashboard** (**Desde el panel**) or **From a customer** (**De un cliente**).
 3. Click a report. The window shows **What was reported** (**Lo que se informó**) and the **Supervisor section** (**Sección del supervisor**). A photos question shows one small picture per photo; click one to see it large, and **Close** (**Cerrar**) puts it away. A question with none reads **No photos** (**Sin fotos**).
 4. A sign-off reads **Signed by** (**Firmado por**) a name, a date and a time, with the drawn signature above it, or **Not signed** (**Sin firmar**).
 5. **Download PDF** (**Descargar el PDF**) keeps a copy, with the photos and signatures in it. **Send again** (**Enviar de nuevo**), then **Send it** (**Enviarlo**), sends it to everyone set for that form once more. The person who filed it cannot send their own again.
+6. For anyone given Cases, a filed report shows **Open a case** (**Abrir un caso**), which starts a case with the report linked. See Open a case.
 Words people use for this: incident reports, filed forms, what was reported, see the photos, download the report, print the report, save as pdf, resend, the register.
 Picture: filed-forms-list
 Picture: filed-report-window
-Last checked: 2026-09-28
+Last checked: 2026-10-13
 
 ## Read a filed form (admin dashboard)
 Who can do this: admins, and supervisors the form lets read filed reports
@@ -858,10 +868,10 @@ Who can do this: anyone signed in
 1. Click your name at the top right, then **My alerts** (**Mis alertas**). On a phone, it is under **More** (**Más**).
 2. Under **Chat messages** (**Mensajes del chat**), choose **Every message** (**Cada mensaje**), **Only when I'm tagged** (**Solo cuando me etiquetan**), or Off.
 3. Five switches cover **Schedule and time off** (**Horario y tiempo libre**), **Shift pickups and drops** (**Turnos libres y turnos soltados**), **Supply requests** (**Pedidos de suministros**), **Problems reported** (**Problemas reportados**) and **Forms filed** (**Formularios presentados**). Each choice saves at once.
-These decide what buzzes your phone in the staff app; turn alerts on for your phone from the staff app's Settings, Phone alerts. The bell keeps every notice whatever you choose, and announcements from the office always come through.
+These decide what alerts your phone in the staff app and this computer; turn alerts on for your phone from the staff app's Settings, Phone alerts, and for this computer with **Turn on alerts on this computer** (**Activar las alertas en esta computadora**) at the top of **My alerts** (**Mis alertas**). The bell keeps every notice whatever you choose, and announcements from the office always come through.
 Words people use for this: notification settings, stop alerts, mute chat, only tagged, alert settings, mis alertas.
 Picture: my-alerts
-Last checked: 2026-09-28
+Last checked: 2026-10-13
 
 ## Tag someone in a chat (admin dashboard)
 Who can do this: anyone who can read the chat
@@ -1455,7 +1465,7 @@ Picture: discipline-page
 Last checked: 2026-10-07
 
 ## Open a case (admin dashboard)
-Who can do this: anyone who can open Cases
+Who can do this: admins, and supervisors given Cases
 1. Click **Cases** (**Casos**), then **Open a case** (**Abrir un caso**).
 2. Fill in **What happened** (**Qué pasó**).
 3. Under **About whom** (**Sobre quién**), add each person it is about, or none: type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), pick them and click **Add** (**Agregar**).
@@ -1464,9 +1474,11 @@ Who can do this: anyone who can open Cases
 6. Choose who holds it under **Assigned to** (**Asignado a**), or leave it at **Nobody yet** (**Nadie todavía**).
 7. Click **Open a case** (**Abrir un caso**).
 8. To warn the person later, open the case and click **Issue a warning** (**Emitir una advertencia**).
-Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, abrir un caso.
+9. To start a case from a filed report or an incident report, open the report under **Forms** (**Formularios**) and click **Open a case** (**Abrir un caso**) in it. **What happened** (**Qué pasó**) starts with a line naming the report, the window says **The filed report is linked to this case.** (**El reporte presentado queda vinculado a este caso.**), and the report then says **Case opened.** (**Caso abierto.**)
+Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, case from an incident report, abrir un caso.
 Picture: case-open-window
-Last checked: 2026-10-07
+Picture: case-from-report
+Last checked: 2026-10-13
 
 ## Add an old form's warning to the record (admin dashboard)
 Who can do this: admins
@@ -2121,14 +2133,14 @@ Picture: property-issue-window
 Last checked: 2026-10-07
 
 ## Find training on the dashboard (admin dashboard)
-Who can do this: admins and supervisors
-1. Click **Training** (**Capacitación**) on the side panel, right under **HR Records** (**Expedientes de personal**). It opens the Training area.
+Who can do this: admins and supervisors, with or without HR Records
+1. Click **Training** (**Capacitación**) on the side panel. It opens the Training area.
 2. Its tabs are **Records** (**Registros**), **Gaps** (**Brechas**), **Catalog** (**Catálogo**), **Drafts** (**Borradores**), **Awaiting sign-off** (**Por firmar**), **Sessions** (**Sesiones**) and **Documents to sign** (**Documentos por firmar**). A tab shows once the system answers its route, and **Drafts** (**Borradores**) is for admins.
-3. The same area is still under **HR Records** (**Expedientes de personal**), on its **Training** (**Capacitación**) tab, and a link to it there keeps working.
-If it does not work: an account that cannot open HR Records cannot open Training either.
+3. For anyone who can open **HR Records** (**Expedientes de personal**), the same area is still on its **Training** (**Capacitación**) tab. A link to it there keeps working for everyone, and opens Training.
+4. A notice about training, a sign-off waiting, a reteach or a record expiring, opens here.
 Words people use for this: where is training, training menu, training page, find the catalog, training tab, capacitación en el panel.
 Picture: training-area
-Last checked: 2026-10-07
+Last checked: 2026-10-13
 
 ## Order the training catalog (admin dashboard)
 Who can do this: admins
@@ -2488,3 +2500,40 @@ If it does not work: an end before the start on a day shift is refused, and the 
 Words people use for this: change a block time, block end time, critical block, meal time, full access, days of the week, cambiar el horario de un bloque.
 Picture: site-schedule-edit
 Last checked: 2026-10-07
+
+## Turn on alerts on this computer (admin dashboard)
+Who can do this: anyone signed in
+1. Click your name at the top right, then **My alerts** (**Mis alertas**). On a phone, it is under **More** (**Más**).
+2. Under **Alerts on this computer** (**Alertas en esta computadora**), click **Turn on alerts on this computer** (**Activar las alertas en esta computadora**).
+3. The browser asks once whether the dashboard may show alerts. Allow it.
+4. Each notice now shows as an alert on this computer, even when the dashboard is closed. Click an alert to open the dashboard on what it is about, the place the bell opens.
+5. To stop them, open **My alerts** (**Mis alertas**) again and click **Turn off** (**Desactivar**).
+6. Signing out turns this computer's alerts off, so the next person at a shared computer never gets yours.
+If it does not work: **This browser blocks alerts from the dashboard. Allow them in the browser's site settings, then try again.** (**Este navegador bloquea las alertas del panel. Permítalas en la configuración del sitio del navegador y vuelva a intentarlo.**) means the browser was told no; allow notifications for the dashboard in the browser's site settings. **This browser cannot show alerts.** (**Este navegador no puede mostrar alertas.**) means the browser has no alerts at all. The switches in My alerts decide which notices alert, here and on your phone.
+Words people use for this: desktop notifications, computer alerts, push notifications, alerts on my laptop, browser notifications, alertas en la computadora.
+Picture: computer-alerts
+Last checked: 2026-10-13
+
+## Cover a shift when someone is off (admin dashboard)
+Who can do this: anyone allowed to approve and deny time off
+1. Open the time off request: click it on **Schedule** (**Horario**)'s **Week** (**Semana**) or **Month** (**Mes**), click its row under **Time off** (**Tiempo libre**), or click the notice about it.
+2. On a request waiting for a decision, each shift is under **Shifts this affects** (**Turnos afectados**). On an approved request with a shift still under the person, each one is under **Shifts to cover** (**Turnos por cubrir**).
+3. For each shift choose **Reassign to** (**Reasignar a**), **Post to Shift Pickup** (**Publicar en Turnos disponibles**) or **Cancel the shift** (**Cancelar el turno**), or leave it at **Leave it as it is** (**Dejarlo como está**).
+4. Reassign to opens a list to search by name, badge number or employee ID. People assigned to the site come first under **Assigned to this site** (**Asignados a este sitio**), then **Everyone else** (**Todos los demás**), each with their hours this week. **Overtime** (**Horas extra**) marks someone the shift would take past 40 hours, and a line under the person picked says so.
+5. On a waiting request, click **Approve** (**Aprobar**): the choices go with the approval. On an approved one, click **Save changes** (**Guardar los cambios**).
+6. A reassigned shift goes to the person picked, and they get a notice. A posted shift goes to **Shift Pickup** (**Turnos disponibles**) for staff to claim. A cancelled shift leaves a gap on the schedule.
+If it does not work: a refusal shows under the shift it is about, such as someone who already has a shift then. Pick someone else and try again.
+Words people use for this: cover a shift, someone is off, find cover, reassign a shift, shift under time off, cubrir un turno.
+Picture: time-off-cover
+Last checked: 2026-10-13
+
+## Keep a site's task list as a record only (admin dashboard)
+Who can do this: admins, and anyone allowed to change site records. Everyone else reads the setting.
+1. Click **Sites** (**Sitios**), open the site, and click **Service Details** (**Detalles del servicio**).
+2. At the top, turn off **Staff check off tasks here** (**El personal marca las tareas aquí**). The line under it reads **Off: staff can read the task list as a reference, and nothing is checked off.** (**Apagado: el personal puede leer la lista de tareas como referencia, y no se marca nada.**)
+3. Staff at that site read the task list in the staff app and check nothing off. Everything else they do there works as before.
+4. **Live Ops** (**Operaciones en vivo**), **Dashboard** (**Panel**), the **Task Completion** (**Tareas completadas**) card in **Reports** (**Informes**) and the **Owner's dashboard** (**Tablero del propietario**) read **Not tracked** (**Sin seguimiento**) for the site, never 0%, and **Periodic work** (**Trabajo periódico**) leaves it out.
+5. The task list stays fully editable either way. Turn the setting back on to have staff check off tasks there again.
+Words people use for this: task list for reference, no check off, schools, record of the work, not tracked, lista de tareas como referencia.
+Picture: site-task-list-record
+Last checked: 2026-10-13

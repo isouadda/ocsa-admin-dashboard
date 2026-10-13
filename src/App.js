@@ -177,9 +177,13 @@ const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"
 // this person's own capabilities, and until it does the API's own defaults table decides. Every
 // control the API guards with a capability draws only for a holder, so nothing is drawn that the
 // API will refuse.
+// Step 332 (the API's Step 327): supervisors hold manage_staff, manage_cases and read_incident_reports
+// by default, and manage_employment and read_hr_records are an admin's. A capability the API does not
+// name yet keeps today's behavior: Cases, HR Records and the employment controls read the API's own
+// answer for those three (capNamed in the shell), never these defaults.
 const CAP_ROLE_DEFAULTS = {
-  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: false, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
-  supervisor: { manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true },
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: false, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
+  supervisor: { manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
   staff: {},
 };
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
@@ -517,8 +521,6 @@ export default function AdminDashboard() {
     return want;
   });
   const chooseLang = (id) => { setLang(id); setLangState(id); try { localStorage.setItem("ocsa-lang", id); } catch {} };
-  // The browser tab's title, in the language of the screen.
-  useEffect(() => { try { document.title = clientConfig.company.brandTag + " " + tr("Admin Dashboard"); } catch (e) { /* no document */ } }, [lang]);
   useEffect(() => { try { document.documentElement.lang = lang; } catch (e) {} }, [lang]);
   const zoom = textSizeFactor(textSize);
   // At Standard the property is left off the root altogether, so the page is what it always was.
@@ -606,6 +608,15 @@ export default function AdminDashboard() {
     const tier = isAdmin ? "admin" : (user && user.role === "supervisor" ? "supervisor" : "staff");
     return !!(CAP_ROLE_DEFAULTS[tier] && CAP_ROLE_DEFAULTS[tier][name]);
   }, [caps, isAdmin, user]);
+  // A capability as the API answered it, true or false, or undefined while the API does not name it.
+  const capNamed = useCallback((name) => (caps && Object.prototype.hasOwnProperty.call(caps, name) ? !!caps[name] : undefined), [caps]);
+  // Step 332: adding a person, approving a registration, every employment change and changing a role
+  // are manage_employment's; before the API names it they follow isAdmin, as they always have.
+  const canEmploy = capNamed("manage_employment") !== undefined ? capNamed("manage_employment") : isAdmin;
+  // Cases opens for an admin, or for anyone the API answers manage_cases true. HR Records opens for
+  // everyone who signs in, as it always has, unless the API answers read_hr_records false.
+  const casesOn = isAdmin || capNamed("manage_cases") === true;
+  const hrRecordsOn = capNamed("read_hr_records") !== false;
   // The manage permissions capability opens the Roles and Permissions screen; manage settings opens
   // Company settings and the customer links on Filed forms; manage admins lets a person change an
   // admin's account, which nobody holds by default.
@@ -650,6 +661,8 @@ export default function AdminDashboard() {
     if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups") || devicesOn;
     if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
     if (id === "staff") return hasCap("manage_staff");
+    if (id === "cases") return casesOn;
+    if (id === "hr") return hrRecordsOn;
     if (id === "announcements") return hasCap("send_announcements");
     // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
     // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
@@ -677,7 +690,7 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -739,7 +752,26 @@ export default function AdminDashboard() {
   const [bellOpen, setBellOpen] = useState(false);
   // An announcement read from the bell by someone the Announcements page is not for (Step 196).
   const [annOpen, setAnnOpen] = useState(null);
-  const loadUnread = useCallback(async () => { try { const d = await af("/api/notifications/unread-count"); setUnread(Number(d && d.unread) || 0); } catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); } }, [af]);
+  // Step 333: a notice that arrives while the dashboard is open pops up. When the count rises past the
+  // one read before, the newest notice is read, and if it is unread and not the one seen last it is
+  // drawn as a toast with Open. The first count of a session only sets where to count from.
+  const [noticeToast, setNoticeToast] = useState(null);
+  const closeNoticeToast = useCallback(() => setNoticeToast(null), []);
+  const unreadWas = useRef(null);
+  const noticeSeen = useRef("");
+  const loadUnread = useCallback(async () => {
+    let n;
+    try { const d = await af("/api/notifications/unread-count"); n = Number(d && d.unread) || 0; setUnread(n); }
+    catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); return; }
+    const was = unreadWas.current;
+    unreadWas.current = n;
+    if (was === null || n <= was) return;
+    try {
+      const d = await af("/api/notifications?limit=1");
+      const top = d && Array.isArray(d.notifications) ? d.notifications[0] : null;
+      if (top && !top.readAt && String(top.id) !== noticeSeen.current) { noticeSeen.current = String(top.id); setNoticeToast(top); }
+    } catch (e) { console.warn("Newest notice:", e.message); }
+  }, [af]);
   // Unread messages, summed over every chat this person can read, from the unreadCount each channel
   // carries (Step 179). A channel that carries none counts nothing, so the badge is quiet until then.
   const [chatUnread, setChatUnread] = useState(0);
@@ -756,14 +788,50 @@ export default function AdminDashboard() {
   // One timer drives the bell, the Messages badge and the Cases badge together, so the polls never stack.
   useEffect(() => {
     if (!token) { setCaseQueue(null); setUnread(0); setChatUnread(0); setBellOpen(false); return; }
-    const tick = () => { loadUnread(); loadChatUnread(); if (isAdmin) loadCaseQueue(); };
+    const tick = () => { loadUnread(); loadChatUnread(); if (casesOn) loadCaseQueue(); };
     tick();
     const iv = setInterval(() => { if (!document.hidden) tick(); }, 60000);
     return () => clearInterval(iv);
-  }, [token, isAdmin, loadUnread, loadChatUnread, loadCaseQueue]);
+  }, [token, casesOn, loadUnread, loadChatUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
   // The bell's count is read again whenever the bell opens, so it never lags what the panel lists.
   useEffect(() => { if (bellOpen && token) loadUnread(); }, [bellOpen, token, loadUnread]);
+  // Step 333: and whenever the window comes back to the front, so a notice that came while the person
+  // was elsewhere pops up when they return rather than at the next minute.
+  useEffect(() => {
+    if (!token) { unreadWas.current = null; setNoticeToast(null); return undefined; }
+    const back = () => { if (!document.hidden) loadUnread(); };
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", back);
+    return () => { window.removeEventListener("focus", back); document.removeEventListener("visibilitychange", back); };
+  }, [token, loadUnread]);
+  // Step 333: the worker says a notice came (ocsa-notice), so the count and the toast do not wait for the
+  // next minute, and where a clicked alert points (ocsa-open), which opens once the person is signed in.
+  const [openAsk, setOpenAsk] = useState(null);
+  useEffect(() => {
+    const sw = typeof navigator !== "undefined" ? navigator.serviceWorker : null;
+    if (!sw || !sw.addEventListener) return undefined;
+    const onMsg = (e) => {
+      const d = e && e.data;
+      if (!d || typeof d !== "object") return;
+      if (d.type === "ocsa-notice") loadUnread();
+      else if (d.type === "ocsa-open") setOpenAsk({ subjectType: d.subjectType == null ? null : String(d.subjectType), subjectId: d.subjectId == null ? null : String(d.subjectId), place: typeof d.place === "string" ? d.place : "" });
+    };
+    sw.addEventListener("message", onMsg);
+    return () => sw.removeEventListener("message", onMsg);
+  }, [loadUnread]);
+  useEffect(() => {
+    if (!openAsk || !token) return;
+    const ask = openAsk;
+    setOpenAsk(null);
+    const n = { subjectType: ask.subjectType, subjectId: ask.subjectId };
+    if (!noticePlace(n)) { if (ask.place) window.location.hash = ask.place; return; }
+    goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+  }, [openAsk, token, canOpenPage, showToast]);
+  // A subscription this computer already holds moves to the person signed in.
+  useEffect(() => { if (token) repostComputerAlerts(af); }, [token, af]);
+  // The browser tab's title, in the language of the screen, with the unread count before it (Step 333).
+  useEffect(() => { try { document.title = (token && unread > 0 ? "(" + (unread > 99 ? "99+" : unread) + ") " : "") + clientConfig.company.brandTag + " " + tr("Admin Dashboard"); } catch (e) { /* no document */ } }, [lang, unread, token]);
   // What a badge on the side panel is made of. The light arm is the only thing that changed.
   const badgeRed = themeMode === "light" ? "#C62828" : RD;
   const badgeRedText = themeMode === "light" ? "#FFFFFF" : "#F8F7F4";
@@ -790,6 +858,14 @@ export default function AdminDashboard() {
   const [mustSetPin, setMustSetPin] = useState(false);
   const signOut = useCallback((words) => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
   useEffect(() => { const h = (ev) => signOut(ev && ev.detail && ev.detail.words); window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, [signOut]);
+  // Step 333: a sign-out control deletes this computer's alerts on the API before the token is let go,
+  // so the next person at a shared computer never gets the last person's alerts, the way the staff app
+  // signs out. A browser that never allowed alerts asks nothing, and a delete that fails or takes more
+  // than four seconds never holds signing out.
+  const signOutHere = async () => {
+    if (pushSupported() && pushPermission() === "granted") { try { await Promise.race([turnOffComputerAlerts(af), new Promise(resolve => setTimeout(resolve, SIGN_OUT_PUSH_MS))]); } catch (e) {} }
+    signOut();
+  };
   // A 403 auth.mustSetPin from any route draws Choose your PIN and nothing else (STEP283_CONTRACT.md
   // section 1.1), for the person signed in.
   useEffect(() => { const h = () => setMustSetPin(true); window.addEventListener("ocsa-must-set-pin", h); return () => window.removeEventListener("ocsa-must-set-pin", h); }, []);
@@ -898,7 +974,7 @@ export default function AdminDashboard() {
   </div></ThemeCtx.Provider>);
   if (!token) return authCard(<LoginForm onLogin={handleLogin} onForgot={forgotPin} say={cardSay || (signedOutWords ? { text: signedOutWords, bad: true } : null)} wrongTries={wrongTries} loading={loading} t={t} second={second} onSecondDone={(d, remember) => { setSecond(null); signedIn(d, remember); }} onSecondBack={() => setSecond(null)} />);
   // While the API says mustSetPin, Choose your PIN is all there is, whatever the address names.
-  if (mustSetPin) return authCard(<ChoosePinForm t={t} token={token} onDone={pinChosen} onSignOut={() => signOut()} />);
+  if (mustSetPin) return authCard(<ChoosePinForm t={t} token={token} onDone={pinChosen} onSignOut={() => signOutHere()} />);
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
@@ -921,13 +997,14 @@ export default function AdminDashboard() {
     ]},
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
-      { id: "hr", l: tr("HR Records"), i: FolI },
-      // Step 268, the owner's change of October 6: Training has its own item, right under HR Records,
-      // for the admins and supervisors HR Records opens for; it opens the Training area as #hr/training does.
+      ...(canOpenPage("hr") ? [{ id: "hr", l: tr("HR Records"), i: FolI }] : []),
+      // Step 268, the owner's change of October 6: Training has its own item, right under HR Records;
+      // it opens the Training area as #hr/training does. Since Step 332 it stays for a supervisor the
+      // API answers read_hr_records false, who keeps Training, Sign-offs and Gaps without HR Records.
       { id: "training", l: tr("Training"), i: ClpI },
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
-      ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
+      ...(canOpenPage("cases") ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
     { label: tr("Quality"), items: [
       { id: "issues", l: tr("Issues"), i: AlI },
@@ -1088,10 +1165,10 @@ export default function AdminDashboard() {
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
               <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? tr("Admin") : tr("Supervisor")}</div></div>
             </div>
-            <button onClick={signOut} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
+            <button onClick={signOutHere} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
           </div>
         ) : (
-          <button onClick={signOut} title={tr("Logout")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
+          <button onClick={signOutHere} title={tr("Logout")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
         )}
       </div>
     </div>)}
@@ -1133,7 +1210,7 @@ export default function AdminDashboard() {
                 </button>
                 {alertSettings && <button onClick={() => { setMoreOpen(false); setAlertsOpen(true); }} style={menuRow}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={menuRow}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />} {themeMode === "dark" ? tr("Light mode") : tr("Dark mode")}</button>
-                <button onClick={signOut} style={{ ...menuRow, color: RD }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
+                <button onClick={signOutHere} style={{ ...menuRow, color: RD }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
               </div>
             </div>
           )}
@@ -1169,7 +1246,7 @@ export default function AdminDashboard() {
                 {alertSettings && <button onClick={() => { setAlertsOpen(true); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{languageChoice(true)}</div>
-                <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
+                <button onClick={signOutHere} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
               </div>
             )}
           </div>
@@ -1186,9 +1263,12 @@ export default function AdminDashboard() {
         {/* The API decides who reads it: a person the side panel does not offer it to, who reaches it
             by its address, is shown the API's refusal in its own words. */}
         {page === "owner" && <OwnerDashboardPage af={af} t={t} sites={sites} lang={lang} />}
-        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} canEmploy={canEmploy} canOpenHr={canOpenPage("hr")} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {/* Step 332: #hr/training/... still opens Training for someone HR Records is not open to. */}
+        {page === "hr" && (canOpenPage("hr") ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />
+          : route[0] === "training" ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />
+          : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -1198,12 +1278,12 @@ export default function AdminDashboard() {
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
-        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1212,7 +1292,7 @@ export default function AdminDashboard() {
         {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
         {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1222,6 +1302,13 @@ export default function AdminDashboard() {
     </div>
 
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} />}
+    {noticeToast && <NoticeToast t={t} n={noticeToast} onClose={closeNoticeToast} onOpen={async () => {
+      const n = noticeToast;
+      setNoticeToast(null);
+      try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); }
+      goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+      loadUnread();
+    }} />}
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></PeopleCtx.Provider></ThemeCtx.Provider>);
@@ -1456,9 +1543,16 @@ const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) =
 
 const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ display: "flex", gap: 12 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>{node}{!last && <div style={{ flex: 1, width: 2, background: t.border, marginTop: 4, minHeight: 12, borderRadius: 1 }} />}</div><div onClick={onClick} onMouseEnter={onClick ? (e => e.currentTarget.style.background = t.hover) : undefined} onMouseLeave={onClick ? (e => e.currentTarget.style.background = "transparent") : undefined} style={{ flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 14, paddingLeft: onClick ? 8 : 0, paddingRight: onClick ? 8 : 0, marginLeft: onClick ? -8 : 0, borderRadius: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.12s" }}>{children}</div></div>;
 
+// Step 338 (the API's Step 337, TRAINING_DAY_CONTRACT.md 1.337): a site whose checklistMode is
+// reference keeps its task list as the record of the work, and nothing is checked off there. Every
+// figure that counts check-offs answers such a site notTracked: true, and the dashboard draws Not
+// tracked for it, never 0%. Until the API answers either, everything is as it was.
+const notTrackedOf = (x) => !!(x && (x.notTracked === true || x.not_tracked === true));
+const siteIsReference = (site) => !!(site && (site.checklistMode === "reference" || site.checklist_mode === "reference"));
+const NotTrackedWord = ({ t, style }) => <span data-not-tracked="" style={{ fontSize: 10, fontWeight: 600, color: t.textMut, ...(style || {}) }}>{tr("Not tracked")}</span>;
 // Shift session helpers. GET /api/shift-sessions/by-site returns { date, sites: [{ siteId, siteName, people: [...] }] }.
 // A session records who started a shift where. There is no end time, so these never claim who is on site right now.
-const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.people || []).map(p => ({ ...p, siteName: site.siteName })));
+const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.people || []).map(p => ({ ...p, siteName: site.siteName, notTracked: notTrackedOf(site) || notTrackedOf(p) })));
 const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "";
 const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", ");
 
@@ -1487,7 +1581,11 @@ function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t 
     <Crd t={t} style={{ marginBottom: 20 }}>
       {failed.started && <LoadFailed t={t} onRetry={loadDash} style={{ padding: 0, textAlign: "left" }} />}
       {!failed.started && started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>{tr("No shifts started yet today.")}</div>}
-      {!failed.started && started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
+      {!failed.started && started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; if (s.notTracked) return (
+        <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
+          <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{tr("Started")} {fmtSessionStart(s.startedAt)}</div><div style={{ marginTop: 3 }}><NotTrackedWord t={t} /></div></div>
+        </div>); return (
         <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
           <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
           <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{tr("Started")} {fmtSessionStart(s.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1}", s.tasksCompleted, s.tasksTotal)}</span></div></div>
@@ -1839,8 +1937,8 @@ function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, relo
     { header: tr("Actions"), tdStyle: { minWidth: 220 }, render: p => (<div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {!isMe(p) && p.status === "active" && <Btn t={t} onClick={() => confirm(p)} disabled={!!busy} style={small} data-roster-still={p.userId}>{busy === p.userId ? tr("Saving...") : tr("Still working")}</Btn>}
-        {!isMe(p) && p.status === "active" && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "leave")} style={small}>{tr("Put on leave")}</Btn>}
-        {!isMe(p) && (p.status === "active" || p.status === "inactive") && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "end")} style={small}>{tr("End employment")}</Btn>}
+        {onEmployment && !isMe(p) && p.status === "active" && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "leave")} style={small}>{tr("Put on leave")}</Btn>}
+        {onEmployment && !isMe(p) && (p.status === "active" || p.status === "inactive") && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "end")} style={small}>{tr("End employment")}</Btn>}
         <Btn t={t} v="ghost" onClick={() => onOpen(p.userId, "assign")} style={small}>{tr("Sites")}</Btn>
       </div>
       {refused[p.userId] ? <div data-roster-refusal={p.userId} style={{ fontSize: 11, color: RD, marginTop: 4 }}>{refused[p.userId]}</div> : null}
@@ -1906,7 +2004,10 @@ function SignInState({ t, si, welcome }) {
   if (!si.lastSignInAt && welcome) lines.push(welcomeWent(welcome) ? { k: "welcome", text: tr("Welcome email sent {0}", signInWhen(welcome.sentAt)), c: t.textSec } : { k: "welcome-not-sent", text: tr("Welcome email not sent: {0}", welcomeWhy(welcome)), c: OR });
   return <span data-sign-in-state={lines.map(x => x.k).join(" ")} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, lineHeight: 1.4, minWidth: 0 }}>{lines.map(x => <span key={x.k} style={{ color: x.c, fontWeight: x.strong ? 600 : 400 }}>{x.text}</span>)}</span>;
 }
-function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute, devicesOn = false }) {
+// Step 332: canEmploy is manage_employment (isAdmin until the API names it). Without it Staff Management
+// draws no Add Staff, no Approve, no employment change (leave, return, end, rehire, reactivate,
+// deactivate) and no Role field, and a save sends no role; everything else manage_staff opens stays.
+function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, canEmploy = true, canOpenHr = true, user = null, route = [], onRoute, devicesOn = false }) {
   // The super admin forgets another office account's trusted devices (Step 232, Part C), once the
   // trusted devices routes answer. The flag is the account's own, as the API sends it.
   const superAdmin = !!(user && (user.isSuperAdmin === true || user.is_super_admin === true));
@@ -1977,7 +2078,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // The roster check's own Employment window, and a count that reads the roster check again after one.
   const [rosterWin, setRosterWin] = useState(null);
   const [rosterAgain, setRosterAgain] = useState(0);
-  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); if (e.status !== 403) showToast(e.message, "error"); }); loadRoster(); };
+  // A refusal is drawn in the API's own words, in one line (Step 332).
+  const [staffRefused, setStaffRefused] = useState("");
+  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); setStaffRefused(""); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); setStaffRefused(e.status === 403 ? (e.message || "") : ""); if (e.status !== 403) showToast(e.message, "error"); }); loadRoster(); };
   useEffect(() => { load(); }, []);
   // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
   // displayLabel the API sends in that language, a role the list does not hold reads the table's
@@ -2257,7 +2360,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       showToast(tr("Copying is blocked here. The PIN is selected, so copy it with your keyboard."), "error");
     }
   };
-  const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
+  const submitEdit = async () => { try { const body = Object.assign({}, editForm); if (!canEmploy) delete body.role; await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
 
   // Photo upload
   const handlePhotoUpload = async (file, userId) => {
@@ -2283,6 +2386,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       // is never written over by the code the picker shows for it (Step 243).
       const body = Object.assign({}, profileEdit);
       if (langCode(body.preferredLanguage) === langCode(profile.user.preferredLanguage)) delete body.preferredLanguage;
+      if (!canEmploy) delete body.role;
       await af("/api/users/" + profile.user.id, { method: "PATCH", body });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
@@ -2357,7 +2461,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         subtitle={roleOf(u.role) + (u.employmentType ? " (" + employmentOf(u.employmentType) + ")" : "")}
         badges={<><Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />{signInOf(u) ? <span style={{ flexBasis: "100%", marginTop: 4 }}><SignInState t={t} si={signInOf(u)} welcome={welcomeOf(u)} /></span> : null}</>}
         actions={<>
-          <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>
+          {canOpenHr && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>}
           {canChange(u) && signInOf(u) && signInOf(u).lockedUntil && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-staff-unlock={u.id} disabled={!!unlocking} onClick={() => unlock(u.id)}>{tr("Unlock")}</Btn>}
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
@@ -2368,11 +2472,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             {signInOf(u).emailDeliverable === false && <span data-welcome-no-email="" style={{ fontSize: 11, color: OR, fontWeight: 600 }}>{tr("No working email")}</span>}
           </span>}
           {canChange(u) && !u.badgeNumber && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => generateBadge(u.id)}>{tr("Generate badge number")}</Btn>}
-          {!employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
-          {!employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
-          {employment && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentActions(employment.status).map(m => <Btn key={m} t={t} v={m === "end" ? "danger" : "ghost"} data-employment-action={m} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => setEmpWin({ mode: m, record: false })}>{tr(EMPLOYMENT_SEND[m])}</Btn>)}
+          {canEmploy && !employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
+          {canEmploy && !employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {canEmploy && employment && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentActions(employment.status).map(m => <Btn key={m} t={t} v={m === "end" ? "danger" : "ghost"} data-employment-action={m} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => setEmpWin({ mode: m, record: false })}>{tr(EMPLOYMENT_SEND[m])}</Btn>)}
           {devicesOn && superAdmin && (u.role === "admin" || u.role === "supervisor") && !(user && String(user.id) === String(u.id)) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} data-forget-devices={u.id} onClick={() => forgetDevices(u)}>{tr("Forget this person's devices")}</Btn>}
-          {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
+          {canEmploy && u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
         </>}
       />
 
@@ -2389,7 +2493,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Employment")}</div>
           <div role="alert" style={{ fontSize: 13, color: employmentSaid.again ? RD : t.text, marginTop: 8, lineHeight: 1.5 }}>{employmentSaid.text}{employmentSaid.again ? <button onClick={() => loadEmployment(u.id)} data-employment-again="" style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Try again")}</button> : null}</div>
         </div></Crd>}
-        {employment && <EmploymentCard t={t} data={employment} onRecord={canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
+        {employment && <EmploymentCard t={t} data={employment} onRecord={canEmploy && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
@@ -2426,7 +2530,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>{tr("Email")}</Lbl><Inp t={t} value={pe.email || ""} onChange={e => setProfileEdit({ ...pe, email: e.target.value })} type="email" /></div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><Lbl>{tr("Role")}</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>
+              {canEmploy && <div><Lbl>{tr("Role")}</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
               <div><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={pe.employmentType || ""} onChange={e => setProfileEdit({ ...pe, employmentType: e.target.value || null })} options={employmentOpts} /></div>
               <div><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>
               <div><Lbl>{tr("Birthday")}</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>
@@ -2591,11 +2695,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // ============================================================
   // Step 232: the roster check at #staff/roster, once GET /api/users/roster-check answers.
   if (route[0] === "roster" && roster) return (<div>
-    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={(p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })} />
+    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={canEmploy ? ((p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })) : null} />
     {rosterWin && <EmploymentWindow af={af} t={t} userId={rosterWin.userId} name={rosterWin.name} mode={rosterWin.mode} data={null} showToast={showToast} onClose={() => setRosterWin(null)} onSaved={() => { setRosterWin(null); setRosterAgain(n => n + 1); load(); if (loadStaff) loadStaff(); }} />}
   </div>);
   return (<div>
-    <SecT t={t} action={tr("Add Staff")} onAction={() => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); }}>{tr("Staff Management")}</SecT>
+    <SecT t={t} action={canEmploy ? tr("Add Staff") : undefined} onAction={canEmploy ? () => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); } : undefined}>{tr("Staff Management")}</SecT>
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
@@ -2626,9 +2730,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Role"), tdStyle: { color: t.textSec }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
-        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{canEmploy && s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
-      if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? tr("This page is for admins.") : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
+      if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? (staffRefused || tr("This page is for admins.")) : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
     {addedWindow}
@@ -2647,7 +2751,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>
+      {canEmploy && <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={editForm.employmentType || ""} onChange={e => setEditForm({ ...editForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder={`${clientConfig.employee.idPrefix}-0042`} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
@@ -3163,6 +3267,26 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const loadMoreTl = () => { const next = tlOffset + 100; setTlOffset(next); loadTimeline(tlCat, next, true); };
 
   const refreshProfile = async () => { if (selectedSite) { try { const p = await af("/api/sites/profile/" + selectedSite); setSiteProfile(p); } catch (e) { console.warn(e); } } };
+  // Step 338: whether staff check off tasks at this site, once a site read answers checklistMode (the
+  // site's own read, else the list's), set by a holder of manage_sites through PATCH /api/sites/:id.
+  const checklistModeOf = (id) => {
+    const own = siteProfile && siteProfile.site && String(siteProfile.site.id || id) === String(id) ? siteProfile.site : null;
+    const listed = (sites || []).find(x => String(x.id) === String(id));
+    const v = (own && (own.checklistMode || own.checklist_mode)) || (listed && (listed.checklistMode || listed.checklist_mode));
+    return v === "tracked" || v === "reference" ? v : "";
+  };
+  const [modeBusy, setModeBusy] = useState(false);
+  const saveChecklistMode = async (next) => {
+    if (modeBusy || !selectedSite) return;
+    setModeBusy(true);
+    try {
+      await af("/api/sites/" + encodeURIComponent(selectedSite), { method: "PATCH", body: { checklistMode: next } });
+      setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, checklistMode: next } } : p));
+      showToast(next === "reference" ? tr("Staff no longer check off tasks here.") : tr("Staff check off tasks here again."));
+      loadSites();
+    } catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setModeBusy(false);
+  };
 
   const loadSiteChat = async () => {
     if (!selectedSite) return;
@@ -3580,8 +3704,17 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
       {/* SERVICE DETAILS TAB (Tasks) */}
       {siteTab === "tasks" && <div>
-        {/* Step 291: this site's periodic work first, once GET /api/periodic-work?siteId= answers. */}
-        <PeriodicWorkPanel key={selectedSite} af={af} t={t} siteId={selectedSite} />
+        {/* Step 338: Staff check off tasks here, once the site's read answers checklistMode. */}
+        {checklistModeOf(selectedSite) && <div data-checklist-mode={checklistModeOf(selectedSite)} style={{ marginBottom: 18, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: canManageSites && !modeBusy ? "pointer" : "default" }}>
+            <span style={chkWrap}><input type="checkbox" role="switch" data-checklist-mode-switch="" checked={checklistModeOf(selectedSite) === "tracked"} aria-checked={checklistModeOf(selectedSite) === "tracked"} disabled={!canManageSites || modeBusy} onChange={e => saveChecklistMode(e.target.checked ? "tracked" : "reference")} style={{ width: 20, height: 20, accentColor: GO, cursor: canManageSites ? "pointer" : "default" }} /></span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Staff check off tasks here")}</span>
+          </label>
+          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("Off: staff can read the task list as a reference, and nothing is checked off.")}</div>
+        </div>}
+        {/* Step 291: this site's periodic work first, once GET /api/periodic-work?siteId= answers; never at a
+            site whose task list is kept as a record (Step 338). */}
+        {checklistModeOf(selectedSite) !== "reference" && <PeriodicWorkPanel key={selectedSite} af={af} t={t} siteId={selectedSite} />}
         {/* Step 317: the site's schedule by shift, once its blocks answer their end and kind. */}
         <SiteSchedulePanel key={"schedule-" + selectedSite} af={af} t={t} siteId={selectedSite} tasks={st} canEdit={canManageTasks} showToast={showToast} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -3958,11 +4091,12 @@ function OpsPage({ af, t, allStaff }) {
     </div>
     {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></div>
-      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
+      <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
+      {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. Its task list is kept as the record of the work.")}</div>}
+      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); const untracked = notTrackedOf(site) || notTrackedOf(p); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] ? tr(RL[p.role]) : p.role}{place ? ", " + place : ""}</div></div>
-        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{tr("Started")} {fmtSessionStart(p.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</span></div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{tr("Started")} {fmtSessionStart(p.startedAt)}</div>{untracked ? <div style={{ marginTop: 4 }}><NotTrackedWord t={t} /></div> : <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</span></div>}</div>
       </div>; })}
     </Crd>)}
     <button onClick={() => setShowRest(!showRest)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 20, marginBottom: 8, padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>
@@ -6568,8 +6702,141 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
   </div>);
 }
 
+// ===== ALERTS ON THIS COMPUTER (Step 333, TRAINING_DAY_CONTRACT.md part 333, item 3) =====
+// The staff app's pattern: these answer whether this browser can take alerts and what it has decided,
+// and turn them on and off. The browser's permission is asked only from the person's own press of Turn
+// on alerts on this computer; the subscription is made with GET /api/push/key's public key and posted to
+// POST /api/push/subscriptions with app "dashboard", so the API pushes a notice once, here, to a person
+// whose phone and computer are the same browser. Turn off unsubscribes here and deletes it there. Nothing
+// here ever throws to a screen; each call answers a word. The worker, public/sw.js, shows each alert and
+// opens its place when it is clicked.
+const pushSupported = () => { try { return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; } catch (e) { return false; } };
+const pushPermission = () => { try { return window.Notification && window.Notification.permission ? window.Notification.permission : "denied"; } catch (e) { return "denied"; } };
+// The worker's registration: the one already there, or, on a first load while it is still registering,
+// the one ready within a few seconds.
+async function pushRegistration() {
+  try {
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) reg = await Promise.race([navigator.serviceWorker.ready, new Promise(resolve => setTimeout(() => resolve(null), 3000))]);
+    return reg && reg.pushManager ? reg : null;
+  } catch (e) { return null; }
+}
+async function pushSubscriptionHere() {
+  if (!pushSupported()) return null;
+  const reg = await pushRegistration();
+  if (!reg) return null;
+  try { return await reg.pushManager.getSubscription(); } catch (e) { return null; }
+}
+// The API's public key, as the browser wants it.
+function vapidKeyBytes(key) {
+  const s0 = String(key).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(s0 + "=".repeat((4 - s0.length % 4) % 4));
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+// The API's public key: a string, or null when the server has none or does not answer, and then My
+// alerts offers nothing for this computer.
+async function readPushKey(af) {
+  try { const d = await af("/api/push/key"); return d && typeof d.publicKey === "string" && d.publicKey.trim() ? d.publicKey.trim() : null; } catch (e) { return null; }
+}
+const subscriptionBody = (sub) => { const j = sub.toJSON ? sub.toJSON() : { endpoint: sub.endpoint, keys: {} }; return { endpoint: j.endpoint, keys: j.keys || {}, userAgent: window.navigator.userAgent, app: "dashboard" }; };
+// What this browser says right now: unsupported, denied, on, or off. Nothing is asked of the browser.
+async function computerAlertsState() {
+  if (!pushSupported()) return "unsupported";
+  if (pushPermission() === "denied") return "denied";
+  const reg = await pushRegistration();
+  if (!reg) return "unsupported";
+  const sub = pushPermission() === "granted" ? await pushSubscriptionHere() : null;
+  return sub ? "on" : "off";
+}
+// Turns alerts on for this computer, from the person's press. Answers on, denied, failed or unsupported.
+async function turnOnComputerAlerts(af, publicKey) {
+  if (!pushSupported()) return "unsupported";
+  let perm = pushPermission();
+  if (perm === "default") {
+    try { const r = window.Notification.requestPermission(); perm = r && typeof r.then === "function" ? await r : pushPermission(); } catch (e) { perm = pushPermission(); }
+  }
+  if (perm !== "granted") return "denied";
+  const reg = await pushRegistration();
+  if (!reg) return "unsupported";
+  let sub = null;
+  try {
+    sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKeyBytes(publicKey) });
+  } catch (e) { return "failed"; }
+  try { await af("/api/push/subscriptions", { method: "POST", body: subscriptionBody(sub) }); return "on"; }
+  catch (e) {
+    // A subscription the API never took is dropped, so the browser holds nothing the API does not know.
+    try { await sub.unsubscribe(); } catch (x) {}
+    return "failed";
+  }
+}
+// After a sign-in, a subscription this browser already holds is posted again under the person now
+// signed in, so a shared computer's alerts move to them. Nothing is asked of the browser, and a failure
+// is silent.
+async function repostComputerAlerts(af) {
+  try {
+    if (!pushSupported() || pushPermission() !== "granted") return;
+    const sub = await pushSubscriptionHere();
+    if (!sub || !sub.endpoint) return;
+    await af("/api/push/subscriptions", { method: "POST", body: subscriptionBody(sub) });
+  } catch (e) {}
+}
+// Turns alerts off for this computer: unsubscribes here, deletes there. Answers whether the API took it.
+async function turnOffComputerAlerts(af) {
+  const sub = await pushSubscriptionHere();
+  if (!sub) return true;
+  const endpoint = sub.endpoint;
+  try { await sub.unsubscribe(); } catch (e) {}
+  try { await af("/api/push/subscriptions", { method: "DELETE", body: { endpoint } }); return true; } catch (e) { return false; }
+}
+const SIGN_OUT_PUSH_MS = 4000;
+// My alerts' part for this computer: drawn once GET /api/push/key answers a key.
+function ComputerAlerts({ af, t }) {
+  const [key, setKey] = useState(undefined);
+  const [state, setState] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState("");
+  useEffect(() => {
+    let alive = true;
+    readPushKey(af).then(k => { if (!alive) return; setKey(k); if (k) computerAlertsState().then(st => { if (alive) setState(st); }); });
+    return () => { alive = false; };
+  }, [af]);
+  if (!key) return null;
+  const on = async () => {
+    if (busy) return;
+    setBusy(true); setSaid("");
+    const r = await turnOnComputerAlerts(af, key);
+    if (r === "on") setState("on");
+    else if (r === "denied") setState("denied");
+    else if (r === "unsupported") setState("unsupported");
+    else setSaid(tr("Alerts did not turn on. Try again."));
+    setBusy(false);
+  };
+  const off = async () => {
+    if (busy) return;
+    setBusy(true); setSaid("");
+    const ok = await turnOffComputerAlerts(af);
+    setState("off");
+    if (!ok) setSaid(tr("Alerts are off here. The office may still list this computer until you turn alerts on and off again."));
+    setBusy(false);
+  };
+  return (<div data-computer-alerts={state || "reading"} style={{ marginBottom: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    <Lbl>{tr("Alerts on this computer")}</Lbl>
+    {state === "on" && <div style={{ fontSize: 12, color: t.text, marginBottom: 8, lineHeight: 1.5 }}>{tr("Alerts are on for this computer. A notice shows here even when the dashboard is closed.")}</div>}
+    {state === "off" && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Your browser asks once whether the dashboard may show alerts.")}</div>}
+    {state === "denied" && <div data-computer-alerts-blocked="" style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("This browser blocks alerts from the dashboard. Allow them in the browser's site settings, then try again.")}</div>}
+    {state === "unsupported" && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("This browser cannot show alerts.")}</div>}
+    {(state === "off" || state === "denied") && <Btn t={t} onClick={on} disabled={busy} data-computer-alerts-on="" style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Turn on alerts on this computer")}</Btn>}
+    {state === "on" && <Btn t={t} v="ghost" onClick={off} disabled={busy} data-computer-alerts-off="" style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Turn off|computer alerts")}</Btn>}
+    {said && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said}</div>}
+  </div>);
+}
+
 // My alerts: the same settings as the staff app's Phone alerts (Step 179). They decide what is pushed
-// to a person's phones; the bell keeps every notice whatever they say. Each change is saved at once.
+// to a person's phones, and since Step 333 to this computer too; the bell keeps every notice whatever
+// they say. Each change is saved at once.
 const ALERT_SWITCHES = [["schedule", "Schedule and time off"], ["pickups", "Shift pickups and drops"], ["supplies", "Supply requests"], ["issues", "Problems reported"], ["forms", "Forms filed"]];
 function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
   // Each change shows at once and is sent on its own PATCH, one at a time in the order made, so a
@@ -6604,7 +6871,8 @@ function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("My alerts")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("These decide what buzzes your phone in the staff app. The bell here keeps everything.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("These decide what alerts your phone in the staff app and this computer. The bell here keeps everything.")}</div>
+    <ComputerAlerts af={af} t={t} />
     <div style={{ marginBottom: 16 }}><Lbl>{tr("Chat messages")}</Lbl><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{chatChoice("all", tr("Every message"))}{chatChoice("mentions", tr("Only when I'm tagged"))}{chatChoice("off", tr("Off|alerts"))}</div></div>
     {ALERT_SWITCHES.map(([k, l]) => (<label key={k} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, cursor: "pointer", borderTop: "1px solid " + t.border }}>
       <input type="checkbox" role="switch" checked={settings[k] !== false} aria-checked={settings[k] !== false} onChange={e => save({ [k]: e.target.checked })} style={{ width: 20, height: 20 }} />
@@ -8056,10 +8324,11 @@ const notifTarget = (link) => {
   const fin = /^\/issues\/([^/]+)\/?$/.exec(u.pathname || "");
   if (fin && fin[1] !== "requests") return { kind: "page", page: "issues", hash: "issues/" + fin[1] };
   // The training notices (Step 263, against the API's Step 256): /training/attempts/<id> opens that
-  // attempt in HR Records' Training area, Awaiting sign-off while it waits for a trainer and else the
-  // person's list in Gaps; /training/people/<userId> opens that person's list in Gaps.
+  // attempt in the Training area, Awaiting sign-off while it waits for a trainer and else the person's
+  // list in Gaps; /training/people/<userId> opens that person's list in Gaps. Since Step 332 they open
+  // the Training page, which stays open to a supervisor without HR Records.
   const trn0 = /^\/training\/(attempts|people)\/([^/]+)\/?$/.exec(u.pathname || "");
-  if (trn0) return { kind: "page", page: "hr", hash: "hr/training/" + trn0[1] + "/" + trn0[2] };
+  if (trn0) return { kind: "page", page: "training", hash: "training/" + trn0[1] + "/" + trn0[2] };
   // The office's signature notices (Step 272, against the API's Step 270): /signatures/<requestId>
   // opens Waiting for signatures in HR Records with that request open.
   const sg0 = /^\/signatures\/([^/]+)\/?$/.exec(u.pathname || "");
@@ -8069,6 +8338,79 @@ const notifTarget = (link) => {
   const id = parts[0] || "";
   return PAGE_IDS.includes(id) ? { kind: "page", page: id, hash: parts.length > 1 ? parts.join("/") : "" } : { kind: "external", href: u.href };
 };
+// Where a notice opens, by its subject (Step 333, TRAINING_DAY_CONTRACT.md part 333): { page, hash } for
+// a place inside the dashboard, checked against canOpenPage by the caller, or null, and the notice's link
+// decides. The bell, the new notice's toast and a tapped alert on this computer all read it, so a notice
+// opens in one place wherever it is opened from. Every subject the dashboard has a page for opens here,
+// whatever its link says (each pattern takes the bare word too, issue, inspection, hr_case and shift):
+// an issue_* subject on the Issue Tracker, an inspection_* subject on
+// Inspections (inspection_finding is a ticket, so it keeps opening the Issue Tracker, Step 254), time_off
+// on its request in Schedule, an hr_case_* subject on its case, and a shift_* subject on Schedule. Only a
+// link to the staff app for a subject with no page here opens in a new tab.
+function noticePlace(n) {
+  const st = String((n && n.subjectType) || "");
+  const sid = n && n.subjectId != null && String(n.subjectId) !== "" ? String(n.subjectId) : "";
+  const enc = encodeURIComponent;
+  // A form notice carries the report it is about, so it opens that report rather than the page.
+  if (st === "form" && sid) return { page: "forms", hash: "forms/reports/" + sid };
+  // A chat notice and a tag carry their chat, and an announcement carries itself (Step 179).
+  if ((st === "chat" || st === "chat_mention") && sid) return { page: "chat", hash: "chat/" + sid, always: true };
+  if (st === "announcement" && sid) return { page: "announcements", hash: "announcements/" + sid, announcement: sid };
+  // Step 239: an equipment notice names its item (subjectId, under subjectKey equipment) and opens it;
+  // a periodic work notice names its site (subjectId, under subjectKey site), one notice a site, and
+  // opens that site's checklist.
+  if ((st === "equipment_tagged_out" || st === "equipment_service_due") && sid) return { page: "equipment", hash: "equipment/" + sid };
+  if (st === "periodic_overdue") return { page: "sites", hash: sid ? "sites/" + sid + "/tasks" : "" };
+  // Step 243: a client's concern names its report, the Customer Complaint Log, and opens it.
+  if (st === "customer_concern" && sid) return { page: "forms", hash: "forms/reports/" + sid };
+  // Step 251: a client request's notice opens the Issue Tracker's Client requests tab on that request.
+  if (st === "client_request" && sid) return { page: "issues", hash: "issues/requests/" + sid };
+  // Step 254: a finding's notice opens the Issue Tracker on that ticket.
+  if (st === "inspection_finding" && sid) return { page: "issues", hash: "issues/" + enc(sid) };
+  // Step 263: a sign-off or reteach notice names its attempt and opens it; an expiring record's opens
+  // the person its link names, else Gaps. Since Step 332 through the Training page.
+  if ((st === "training_signoff" || st === "training_reteach") && sid) return { page: "training", hash: "training/attempts/" + enc(sid) };
+  if (st === "training_expiring") { const m = /\/training\/people\/([^/?#]+)/.exec(String((n && n.link) || "")); return { page: "training", hash: m ? "training/people/" + m[1] : "training/gaps" }; }
+  // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
+  // it in Waiting for signatures.
+  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue") && sid) return { page: "hr", hash: "hr/signatures/" + enc(sid) };
+  // Step 333.
+  if (/^issue(_|$)/.test(st) && sid) return { page: "issues", hash: "issues/" + enc(sid) };
+  if (/^inspection(_|$)/.test(st) && sid) return { page: "inspections", hash: "inspections/" + enc(sid) };
+  if (st === "time_off") return { page: "schedule", hash: sid ? "schedule/timeoff/" + enc(sid) : "schedule/timeoff" };
+  if (/^hr_case(_|$)/.test(st)) return { page: "cases", hash: sid ? "cases/" + enc(sid) : "" };
+  if (/^shift(_|$)/.test(st)) return { page: "schedule", hash: "" };
+  return null;
+}
+// Opens a notice where noticePlace, or else its link, says (Step 333). how carries the shell's
+// canOpenPage, openHash, openPage, openAnnouncement and refuse, the same for the bell and the toast.
+function goToNotice(n, how) {
+  const place = noticePlace(n);
+  if (place) {
+    // Someone told of an announcement who cannot open the page reads it in a window of its own.
+    if (place.announcement && !how.canOpenPage("announcements")) { if (how.openAnnouncement) how.openAnnouncement(place.announcement); else how.refuse(); return; }
+    if (!place.always && !how.canOpenPage(place.page)) { how.refuse(); return; }
+    if (place.hash) how.openHash(place.hash); else how.openPage(place.page);
+    return;
+  }
+  const target = notifTarget(n.link);
+  if (target.kind === "page") { if (!how.canOpenPage(target.page)) { how.refuse(); return; } if (target.hash) how.openHash(target.hash); else how.openPage(target.page); }
+  else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
+}
+// A notice that arrived while the dashboard is open (Step 333): its title, its body on one line, Open,
+// which opens it where the bell would, and Close. It goes by itself after twelve seconds.
+function NoticeToast({ t, n, onOpen, onClose }) {
+  useEffect(() => { const tm = setTimeout(onClose, 12000); return () => clearTimeout(tm); }, [n, onClose]);
+  return (<div role="status" aria-live="polite" data-notice-toast={String(n.id)} style={{ position: "fixed", right: 20, bottom: 20, zIndex: 1000, width: "min(360px, calc(100vw - 40px))", boxSizing: "border-box", background: t.card, color: t.text, border: "1px solid " + t.border, borderLeft: "4px solid " + GO, borderRadius: R.sm, boxShadow: t.popShadow, padding: "12px 12px 12px 14px", fontFamily: FONT_BODY, display: "flex", gap: 10, alignItems: "flex-start" }}>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 2 }}>{tr("New notice")}</div>
+      <div data-notice-toast-title="" style={{ fontSize: 13, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{n.title}</div>
+      {n.body ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.body}</div> : null}
+      <div style={{ marginTop: 8 }}><Btn t={t} onClick={onOpen} data-notice-toast-open="" style={{ minHeight: 44, padding: "8px 16px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
+    </div>
+    <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={16} c={t.textMut} /></button>
+  </div>);
+}
 // An announcement opened from the bell by someone who does not hold send_announcements, read only,
 // from GET /api/announcements/:id, which answers anyone it was sent to.
 function AnnouncementWindow({ af, t, id, onClose }) {
@@ -8132,44 +8474,13 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
 
   // A notice can point at a page this person cannot open. The panel closes and says one line rather
   // than leaving them on a page that draws nothing for them. The notice itself stays in the list.
-  const refuse = () => { onClose(); onRefused(); };
   const openRow = async (n) => {
     if (busy) return;
     setBusy(true);
     if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
     setBusy(false);
-    // A form notice carries the report it is about, so it opens that report rather than the page.
-    if (n.subjectType === "form" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
-    // A chat notice and a tag carry their chat, and an announcement carries itself (Step 179).
-    if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
-    // Someone told of an announcement who cannot open the page reads it in a window of its own.
-    if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { onClose(); if (onOpenAnnouncement) onOpenAnnouncement(n.subjectId); else onRefused(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
-    // Step 239: an equipment notice names its item (subjectId, under subjectKey equipment) and opens it;
-    // a periodic work notice names its site (subjectId, under subjectKey site), one notice a site, and
-    // opens that site's checklist.
-    if ((n.subjectType === "equipment_tagged_out" || n.subjectType === "equipment_service_due") && n.subjectId) { if (!canOpenPage("equipment")) { refuse(); return; } onOpenHash("equipment/" + n.subjectId); onClose(); return; }
-    if (n.subjectType === "periodic_overdue") {
-      if (!canOpenPage("sites")) { refuse(); return; }
-      if (n.subjectId) onOpenHash("sites/" + n.subjectId + "/tasks"); else onOpenPage("sites");
-      onClose(); return;
-    }
-    // Step 243: a client's concern names its report, the Customer Complaint Log, and opens it.
-    if (n.subjectType === "customer_concern" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
-    // Step 251: a client request's notice opens the Issue Tracker's Client requests tab on that request.
-    if (n.subjectType === "client_request" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/requests/" + n.subjectId); onClose(); return; }
-    // Step 254: a finding's notice opens the Issue Tracker on that ticket.
-    if (n.subjectType === "inspection_finding" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
-    // Step 263: a sign-off or reteach notice names its attempt and opens it; an expiring record's opens
-    // the person its link names, else Gaps.
-    if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
-    if (n.subjectType === "training_expiring") { if (!canOpenPage("hr")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "hr/training/people/" + m[1] : "hr/training/gaps"); onClose(); return; }
-    // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
-    // it in Waiting for signatures.
-    if ((n.subjectType === "signature_disputed" || n.subjectType === "signature_declined" || n.subjectType === "signature_overdue") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/signatures/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
-    const target = notifTarget(n.link);
-    if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
-    else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
     onClose();
+    goToNotice(n, { canOpenPage, openHash: onOpenHash, openPage: onOpenPage, openAnnouncement: onOpenAnnouncement, refuse: onRefused });
   };
   const markAll = async () => {
     if (busy || unread === 0) return;
@@ -8190,7 +8501,7 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
       {!failed && !loading && rows.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Nothing yet.")}</div>}
       {loading && rows.length === 0 && !failed && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>}
       {rows.map(n => (
-        <button key={n.id} onClick={() => openRow(n)} disabled={busy} style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "100%", minHeight: 44, padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid " + t.border, textAlign: "left", cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY }}>
+        <button key={n.id} data-notice-row={String(n.id)} onClick={() => openRow(n)} disabled={busy} style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "100%", minHeight: 44, padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid " + t.border, textAlign: "left", cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: n.readAt ? "transparent" : GO, flexShrink: 0, marginTop: 6 }} />
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ display: "block", fontSize: 13, fontWeight: n.readAt ? 400 : 700, color: t.text }}>{n.title}</span>
@@ -10710,8 +11021,11 @@ const PERIODIC_ORDER = ["overdue", "due", "done"];
 const periodicByOf = (x) => (x.lastDoneBy && typeof x.lastDoneBy === "object" ? x.lastDoneBy.name || "" : x.lastDoneBy || "");
 const shownLabel = (x) => (x && x.display && x.display.label) || (x && x.label) || "";
 const shownZone = (x) => (x && x.display && x.display.zone) || (x && x.zone) || "";
-function PeriodicWorkPanel({ af, t, onOpenSite, siteId = "" }) {
-  const [items, setItems] = useState(null);
+// Step 338: notTrackedSites, the ids of the sites whose task list is kept as a record, and any item
+// answered notTracked are left out; nothing is checked off there, so nothing there is overdue.
+function PeriodicWorkPanel({ af, t, onOpenSite, siteId = "", notTrackedSites = [] }) {
+  const [items0, setItems] = useState(null);
+  const items = items0 === null ? null : items0.filter(x => !notTrackedOf(x) && notTrackedSites.indexOf(String(x.siteId)) < 0);
   const [state, setState] = useState("all");
   useEffect(() => {
     let alive = true;
@@ -11297,7 +11611,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
-            <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{trn("{0} done|count", s.completedTasks)}</span>
+            {notTrackedOf(s) ? <span data-report-not-tracked={s.siteId} style={{ fontSize: 12, color: t.textMut, fontWeight: 600 }}>{tr("Not tracked")}</span> : <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{trn("{0} done|count", s.completedTasks)}</span>}
           </div>
         </div>) : null}
         {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No data yet.")}</div> : null}
@@ -11380,7 +11694,8 @@ function OwnerMeasure({ t, m }) {
   const src = ownerSourceLine(m);
   return (<div data-owner-measure={m.key} style={{ padding: 12, borderRadius: R.md, border: "1px solid " + t.border, background: t.cardAlt, minWidth: 0 }}>
     <div style={{ fontSize: 12, fontWeight: 600, color: t.textSec, lineHeight: 1.4, overflowWrap: "anywhere" }}>{m.label}</div>
-    {m.value == null
+    {notTrackedOf(m) ? <div data-owner-not-tracked="" style={{ fontSize: 13, color: t.textMut, marginTop: 6, fontWeight: 600 }}>{tr("Not tracked")}</div>
+      : m.value == null
       ? <div data-owner-needs="" style={{ fontSize: 13, color: t.textMut, marginTop: 6, lineHeight: 1.45, overflowWrap: "anywhere" }}><span style={{ fontWeight: 600 }}>{tr("Needs:")}</span> {m.needs || ""}</div>
       : <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
         <span data-owner-value="" style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: t.text }}>{ownerValueWord(m.value, m.unit)}</span>
@@ -11392,7 +11707,7 @@ function OwnerMeasure({ t, m }) {
       <thead><tr><th style={{ textAlign: "left", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Site")}</th><th style={{ textAlign: "right", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Value")}</th></tr></thead>
       <tbody>{bySite.map(x => <tr key={x.siteId} data-owner-site={x.siteId} style={{ borderTop: "1px solid " + t.border }}>
         <td style={{ padding: "5px 8px 5px 0", color: t.text, overflowWrap: "anywhere" }}>{x.siteName}</td>
-        <td style={{ padding: "5px 0", textAlign: "right", whiteSpace: "nowrap", color: x.value == null ? t.textMut : t.text }}>{x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit)}</td>
+        <td style={{ padding: "5px 0", textAlign: "right", whiteSpace: "nowrap", color: x.value == null || notTrackedOf(x) ? t.textMut : t.text }}>{notTrackedOf(x) ? tr("Not tracked") : x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit)}</td>
       </tr>)}</tbody>
     </table>}
     {src && <div data-owner-source="" style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{src}</div>}
@@ -11405,8 +11720,8 @@ function ownerPages(d, siteWord) {
   (d.sections || []).forEach(sec => {
     const rows = [];
     (sec.measures || []).forEach(m => {
-      rows.push([m.label, m.value == null ? tr("Needs:") + " " + (m.needs || "") : ownerValueWord(m.value, m.unit), m.previous == null ? "" : ownerValueWord(m.previous, m.unit), m.value == null ? "" : ownerChangeWord(m), ownerSourceLine(m)]);
-      (Array.isArray(m.bySite) ? m.bySite : []).forEach(x => rows.push(["    " + x.siteName, x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit), "", "", ""]));
+      rows.push([m.label, notTrackedOf(m) ? tr("Not tracked") : m.value == null ? tr("Needs:") + " " + (m.needs || "") : ownerValueWord(m.value, m.unit), m.previous == null ? "" : ownerValueWord(m.previous, m.unit), m.value == null || notTrackedOf(m) ? "" : ownerChangeWord(m), ownerSourceLine(m)]);
+      (Array.isArray(m.bySite) ? m.bySite : []).forEach(x => rows.push(["    " + x.siteName, notTrackedOf(x) ? tr("Not tracked") : x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit), "", "", ""]));
     });
     parts.push({ h: sec.title, cols: ["Measure", "This period", "Previous period", "Change|trend", "Source"], rows });
   });
@@ -12236,6 +12551,45 @@ const TIME_OFF_ORDER_NOTE = "Soonest first. Deciding a request leaves the schedu
 const TIME_OFF_CAPPED = "Showing the first {0}. Choose a person to narrow the list.";
 
 const TIME_OFF_SHIFT_NOTE = "Deciding this request leaves these shifts as they are. Change or cover them on the schedule.";
+// Step 334 (the API's Step 330, TRAINING_DAY_CONTRACT.md 1.330.1 to 1.330.4): GET /api/time-off/:id
+// answers affectedShifts, every shift of the person still scheduled over the request. Each one is left
+// as it is, reassigned to someone from GET /api/time-off/:id/cover-candidates?shiftId= (people assigned
+// to the site first, overtime flagged), posted to Shift Pickup, or cancelled. Approve sends the choices
+// with the approval as shifts [{ shiftId, action, userId }]; on an approved request with a shift still
+// under the person, Shifts to cover sends them through POST /api/time-off/:id/shifts. A shift with no
+// choice is not sent, so the API leaves it as it is. Until affectedShifts answers the window is as before.
+const TIME_OFF_AFFECTED_NOTE = "Choose what happens to each shift. A shift left as it is stays under this person.";
+const COVER_ACTIONS = [["", "Leave it as it is"], ["reassign", "Reassign to"], ["post", "Post to Shift Pickup"], ["cancel", "Cancel the shift"]];
+const affectedShiftsOf = (d) => { const a = d && (Array.isArray(d.affectedShifts) ? d.affectedShifts : d.request && Array.isArray(d.request.affectedShifts) ? d.request.affectedShifts : null); return a ? a.filter(x => x && x.shiftId != null) : null; };
+// One affected shift: its day, time and site, what to do with it, and the person when it is reassigned.
+function AffectedShift({ af, t, requestId, sh, choice, onChoice, said, disabled }) {
+  const [cands, setCands] = useState(null);
+  const [candsFailed, setCandsFailed] = useState("");
+  const action = (choice && choice.action) || "";
+  useEffect(() => {
+    if (action !== "reassign" || cands) return undefined;
+    let alive = true;
+    af("/api/time-off/" + encodeURIComponent(requestId) + "/cover-candidates?shiftId=" + encodeURIComponent(sh.shiftId))
+      .then(d => { if (alive) setCands(d && Array.isArray(d.candidates) ? d.candidates : []); })
+      .catch(e => { if (alive) { setCands([]); setCandsFailed(e.message || tr("Request failed")); } });
+    return () => { alive = false; };
+  }, [action, af, requestId, sh.shiftId, cands]);
+  const line = timeOffShiftLine({ date: sh.date, startTime: sh.startTime, endTime: sh.endTime, siteName: sh.siteName });
+  const opts = [{ v: "", l: tr("Choose a person") }].concat((cands || []).map(c => ({ v: String(c.id), l: String(c.name || ""), group: c.assignedHere ? tr("Assigned to this site") : tr("Everyone else"),
+    hint: [c.weekHours != null && c.weekHours !== "" ? trn("{0} hour this week|count", Math.round(Number(c.weekHours) * 10) / 10) : "", c.overtime ? tr("Overtime") : ""].filter(Boolean).join(", ") })));
+  const chosen = (cands || []).find(c => choice && String(c.id) === String(choice.userId));
+  return (<div data-affected-shift={String(sh.shiftId)} style={{ padding: "8px 0", borderTop: "1px solid " + t.border }}>
+    <div style={{ fontSize: 12, color: t.text, marginBottom: 6 }}>{line}</div>
+    <Sel t={t} aria-label={tr("What happens to this shift")} data-affected-action="" value={action} disabled={disabled} onChange={e => onChoice({ action: e.target.value, userId: "" })} options={COVER_ACTIONS.map(([v, l]) => ({ v, l: tr(l) }))} />
+    {action === "reassign" && <div style={{ marginTop: 6 }}>
+      {!cands && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+      {cands && <PersonPick t={t} aria-label={tr("Reassign to")} data-cover-pick="" value={(choice && choice.userId) || ""} disabled={disabled} onChange={e => onChoice({ action: "reassign", userId: e.target.value })} options={opts} />}
+      {candsFailed && <div style={{ fontSize: 12, color: RD, marginTop: 4 }}>{candsFailed}</div>}
+      {chosen && chosen.overtime && <div data-cover-overtime="" style={{ fontSize: 11, color: OR, fontWeight: 600, marginTop: 4 }}>{tr("This shift takes them past 40 hours this week.")}</div>}
+    </div>}
+    {said && <div data-affected-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{said}</div>}
+  </div>);
+}
 const TIME_OFF_OWN = "Someone else has to decide your own request.";
 const TIME_OFF_NOTE_HINT = "The person reads your note in the app. Their notice shows only the dates.";
 const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
@@ -12246,6 +12600,11 @@ const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
 // so the window shows what is true now.
 function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
   const [req, setReq] = useState(seed);
+  // Step 334: the shifts the request affects, once the read answers them, and what to do with each.
+  const [affected, setAffected] = useState(null);
+  const [choices, setChoices] = useState({});
+  const [shiftSaid, setShiftSaid] = useState({});
+  const [covering, setCovering] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -12258,24 +12617,65 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
   }, [onClose]);
 
   const reload = async () => {
-    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); }
+    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); }
     catch (e) { setError(e.message || tr("Request failed")); }
   };
+  // The choices that send something; a reassign with nobody picked is held back with its line.
+  const chosenShifts = () => {
+    const out = []; const held = {};
+    (affected || []).forEach(sh => {
+      const c = choices[String(sh.shiftId)];
+      if (!c || !c.action) return;
+      if (c.action === "reassign" && !c.userId) { held[String(sh.shiftId)] = tr("Choose who takes this shift."); return; }
+      out.push(c.action === "reassign" ? { shiftId: sh.shiftId, action: "reassign", userId: c.userId } : { shiftId: sh.shiftId, action: c.action });
+    });
+    return { out, held };
+  };
+  // A refusal that names a shift is drawn under it, and any other in the window.
+  const sayRefusal = (e) => {
+    const b = (e && e.body) || {};
+    const sid = b.shiftId != null ? String(b.shiftId) : "";
+    if (sid && (affected || []).some(sh => String(sh.shiftId) === sid)) setShiftSaid({ [sid]: e.message || tr("Request failed") });
+    else setError(e.message || tr("Request failed"));
+  };
+  const coverSave = async () => {
+    if (sending.current) return;
+    const { out, held } = chosenShifts();
+    setShiftSaid(held); setError("");
+    if (Object.keys(held).length || !out.length) return;
+    sending.current = true; setCovering(true);
+    try {
+      await af("/api/time-off/" + encodeURIComponent(req.id) + "/shifts", { method: "POST", body: { shifts: out } });
+      setChoices({});
+      showToast(tr("Shifts updated."));
+      await reload();
+      if (onDecided) onDecided();
+    } catch (e) { sayRefusal(e); }
+    sending.current = false; setCovering(false);
+  };
+  // Step 334: opened from the week or the month, the window holds only what the calendar carries, so
+  // the request is read whole when the window opens.
+  useEffect(() => { reload(); }, []);
   // One send at a time. The ref closes the gap before the disabled buttons redraw, so a double
   // click is one request.
   const decide = async (kind) => {
     if (sending.current) return;
     const trimmed = note.trim();
     if (kind === "deny" && !trimmed) { setNoteError(tr(TIME_OFF_NOTE_REQUIRED)); return; }
+    const picked = kind === "approve" ? chosenShifts() : { out: [], held: {} };
+    setShiftSaid(picked.held);
+    if (Object.keys(picked.held).length) return;
     sending.current = true; setBusy(true); setError(""); setNoteError("");
     try {
-      const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body: trimmed ? { note: trimmed } : {} });
+      const body = Object.assign(trimmed ? { note: trimmed } : {}, picked.out.length ? { shifts: picked.out } : {});
+      const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body });
       if (d && d.request) setReq(d.request);
-      setNote("");
+      setNote(""); setChoices({});
+      if (affected) await reload();
       showToast(kind === "deny" ? tr("Time off denied. They get a notice in the app.") : tr("Time off approved. They get a notice in the app."));
       if (onDecided) onDecided();
     } catch (e) {
-      setError(e.message || tr("Request failed"));
+      sayRefusal(e);
       if (e.status === 409) { await reload(); if (onDecided) onDecided(); }
     }
     sending.current = false; setBusy(false);
@@ -12286,7 +12686,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
   const decided = req.status === "approved" || req.status === "denied";
   const mine = !!myId && req.userId != null && String(req.userId) === myId;
 
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-time-off-window={String(req.id)} data-time-off-status={req.status || ""}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Time off request")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
@@ -12301,12 +12701,19 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
     </div>
-    <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Shifts on these days")}</Lbl>
       {shifts.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("No shifts on these days.")}</div>}
       {shifts.map((sh, i) => <div key={sh.id || i} style={{ fontSize: 12, color: t.text, marginBottom: 4 }}>{timeOffShiftLine(sh)}{sh.status && sh.status !== "scheduled" ? <span style={{ color: t.textMut }}> {sh.status}</span> : null}</div>)}
       {shifts.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(TIME_OFF_SHIFT_NOTE)}</div>}
-    </div>
+    </div>}
+    {affected && (req.status === "requested" || (req.status === "approved" && affected.length > 0)) && <div data-time-off-affected={req.status === "approved" ? "cover" : "affects"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + (req.status === "approved" ? t.redBorder : t.border) }}>
+      <Lbl>{req.status === "approved" ? tr("Shifts to cover") : tr("Shifts this affects")}</Lbl>
+      {affected.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("No shifts on these days.")}</div>}
+      {affected.map(sh => <AffectedShift key={String(sh.shiftId)} af={af} t={t} requestId={req.id} sh={sh} disabled={busy || covering || (req.status === "requested" && mine)} choice={choices[String(sh.shiftId)]} said={shiftSaid[String(sh.shiftId)] || ""} onChoice={(c) => { setChoices(prev => ({ ...prev, [String(sh.shiftId)]: c })); setShiftSaid(prev => { const next = { ...prev }; delete next[String(sh.shiftId)]; return next; }); }} />)}
+      {affected.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(req.status === "approved" ? "This person is off for these shifts. Choose who covers each one, or post or cancel it." : TIME_OFF_AFFECTED_NOTE)}</div>}
+      {req.status === "approved" && affected.length > 0 && <div style={{ marginTop: 10 }}><Btn t={t} onClick={coverSave} disabled={covering} data-time-off-cover-save="" style={{ minHeight: 44 }}>{covering ? tr("Saving...") : tr("Save changes")}</Btn></div>}
+    </div>}
     {decided && <div style={{ marginBottom: 14 }}>
       {row("Decided by", req.decidedByName || "")}
       {row("Decided", timeOffMoment(req.decidedAt))}
@@ -12335,13 +12742,16 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
 // The list of requests, with the status buttons and the person picker above it. Every change of a
 // filter is one call. A refused call puts the API's words where the table would be and leaves the
 // filters working, so the person can try another status without reloading the page.
-function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
+// Step 334: openId, from #schedule/timeoff/<id>, opens that request's window over the list, read whole by
+// the window; onOpened says when it closes, so the address goes back to the list.
+function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange, openId = "", onOpened }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("requested");
   const [userId, setUserId] = useState("");
-  const [open, setOpen] = useState(null);
+  const [open, setOpen] = useState(() => (openId ? { id: openId } : null));
+  useEffect(() => { if (openId) setOpen({ id: openId }); }, [openId]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -12374,7 +12784,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
     {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(r)} empty={empty} />}
     {!loading && !error && rows.length >= TIME_OFF_LIMIT && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr(TIME_OFF_CAPPED, TIME_OFF_LIMIT)}</div>}
-    {open && <TimeOffWindow af={af} t={t} seed={open} myId={myId} showToast={showToast} onClose={() => setOpen(null)} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
+    {open && <TimeOffWindow key={String(open.id)} af={af} t={t} seed={open} myId={myId} showToast={showToast} onClose={() => { setOpen(null); if (onOpened) onOpened(); }} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
   </div>);
 }
 
@@ -12395,7 +12805,9 @@ const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand"
 const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr(k.code + "|pattern reason"); if (w !== k.code) return w; } const key = PATTERN_REASON_WORDS[k.reason]; return key ? tr(key) : (k.reason || ""); };
 // The line under a Time off button someone cannot open (Step 185).
 const TIME_OFF_LOCKED_LINE = "Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.";
-function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
+// Step 334: #schedule/timeoff opens the Time off view, and #schedule/timeoff/<id> that request's window,
+// where the approver's time_off notice points.
+function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   // A code on this page is drawn as a word: a role and a pickup's reason read the pick list's shown
   // label, then the table's word; a pickup's and an inspection's status read the table's word.
   const staffRoleShown = lkMap("staff_roles", true);
@@ -12408,7 +12820,12 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   // shift's saved service is drawn by its shown word.
   const SERVICE_CATS = [{ v: "", l: tr("No specific service") }, ...getOpts("service_categories", undefined, true)];
   const serviceWord = serviceWordOf(lkMap);
-  const [view, setView] = useState("week");
+  const timeOffRoute = route[0] === "timeoff";
+  const timeOffRouteId = timeOffRoute && route[1] ? String(route[1]) : "";
+  const [view, setViewState] = useState(() => (timeOffRoute ? "timeoff" : "week"));
+  useEffect(() => { if (timeOffRoute) setViewState("timeoff"); }, [timeOffRoute, timeOffRouteId]);
+  // Leaving Time off lets go of its address, so the page does not open on it again.
+  const setView = (v) => { setViewState(v); if (v !== "timeoff" && timeOffRoute && onRoute) onRoute([]); };
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
   const [searchStaff, setSearchStaff] = useState("");
@@ -12428,6 +12845,8 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   const [inspForm, setInspForm] = useState({ assigned_to: "", scheduled_date: "" });
   const [schedSupervisors, setSchedSupervisors] = useState([]);
   const [pickupDetail, setPickupDetail] = useState(null);
+  // Step 334: the time off request opened from the week or the month, in the window Time off opens.
+  const [timeOffOpen, setTimeOffOpen] = useState(null);
   const [patternError, setPatternError] = useState("");
   const [patternConflictId, setPatternConflictId] = useState("");
   const [patternSkipped, setPatternSkipped] = useState(null);
@@ -12498,7 +12917,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       (d.sites || []).forEach(site => (site.people || []).forEach(p => {
         if (!p.sessionDate) return;
         if (!byDay[p.sessionDate]) byDay[p.sessionDate] = [];
-        byDay[p.sessionDate].push({ ...p, siteId: site.siteId, siteName: site.siteName });
+        byDay[p.sessionDate].push({ ...p, siteId: site.siteId, siteName: site.siteName, notTracked: notTrackedOf(site) || notTrackedOf(p) });
       }));
       setStartedByDay(byDay);
     } catch (e) {
@@ -12545,6 +12964,15 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   const calInspections = (calData.inspections || []).filter(s => s && s.status !== "cancelled");
   const getInspForDay = (dateStr) => calInspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
   const getPickupsForDay = (dateStr) => openShifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
+  // Step 334 (the API's Step 330, TRAINING_DAY_CONTRACT.md 1.330.5): GET /api/schedule/calendar answers
+  // timeOff, the range's requested and approved time off, and each shift timeOffConflict when its person
+  // has asked for or been given time off over it. Until it does, nothing new is drawn.
+  const calTimeOff = (Array.isArray(calData.timeOff) ? calData.timeOff : []).filter(x => x && x.id != null && (x.status === "requested" || x.status === "approved"));
+  const timeOffForDay = (dateStr) => calTimeOff.filter(x => { const a = String(x.startsOn || "").slice(0, 10); const b = String(x.endsOn || x.startsOn || "").slice(0, 10); return a && a <= dateStr && dateStr <= b; });
+  const timeOffWord = (st) => (st === "approved" ? tr("Off|time off") : tr("Time off requested"));
+  const timeOffInk = (st) => (st === "approved" ? "#7A8A9A" : OR);
+  const timeOffName = (x) => { const p = staffList.find(u => String(u.id) === String(x.userId)); return p ? (p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim()) : ""; };
+  const openTimeOff = (x) => setTimeOffOpen({ id: x.id, userId: x.userId, userName: timeOffName(x), leaveType: x.leaveType, startsOn: x.startsOn, endsOn: x.endsOn, startTime: x.startTime, endTime: x.endTime, partDay: !!(x.startTime && x.endTime), status: x.status });
 
   // One matcher for both staff searches, the toolbar box and the picker in the Schedule Shift modal.
   // Both sides are lowercased. It reads first name, last name, the two joined, and the employee id.
@@ -12718,20 +13146,26 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         const openHere = dayPickups.filter(p => p.status === "open" && String(p.original_user_id) === String(staff.id));
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
         const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
-        const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
+        const offHere = timeOffForDay(d).filter(x => String(x.userId) === String(staff.id));
+        const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0 || offHere.length > 0;
         const items = (<>
-          {sched.map(s => (<button type="button" key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ ...chipBtn, background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+          {offHere.map(x => (<button type="button" key={"off-" + x.id} data-time-off-chip={x.id} data-time-off-status={x.status} onClick={e => { e.stopPropagation(); openTimeOff(x); }} style={{ ...chipBtn, background: timeOffInk(x.status) + "1F", color: x.status === "approved" ? t.textSec : OR, border: "1px dashed " + timeOffInk(x.status) }}>
+            {timeOffWord(x.status)}
+            {x.startTime && x.endTime ? <div style={{ fontSize: 9, opacity: 0.85 }}>{tr("{0} to {1}", patternTime(String(x.startTime).slice(0, 5)), patternTime(String(x.endTime).slice(0, 5)))}</div> : null}
+          </button>))}
+          {sched.map(s => { const off = s.timeOffConflict && s.timeOffConflict.requestId != null ? s.timeOffConflict : null; return (<button type="button" key={s.id} data-shift-chip={String(s.id)} data-shift-time-off={off ? off.status || "requested" : undefined} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ ...chipBtn, background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: off ? "2px solid " + timeOffInk(off.status) : "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+            {off && <div data-shift-time-off-word="" style={{ fontSize: 8, fontWeight: 700, color: off.status === "approved" ? RD : OR, textTransform: "uppercase" }}>{off.status === "approved" ? tr("Off, needs cover") : tr("Time off requested")}</div>}
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " " + tr("F{0}", s.floor_number) : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{serviceWord(s.service_category)}</div>}
             {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>{tr("Repeats")}</div>}
-          </button>))}
+          </button>); })}
           {startedHere.map(p => (<button type="button" key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ ...chipBtn, background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
             {tr("Started")} {fmtSessionStart(p.startedAt)}
             {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " " + tr("F{0}", p.floorNumber) : ""}</span>}
             {p.siteName && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.siteName}</div>}
-            {p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</div>}
+            {p.notTracked ? <div style={{ fontSize: 8, opacity: 0.8 }}>{tr("Not tracked")}</div> : p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</div>}
           </button>))}
           {openHere.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ ...chipBtn, background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
@@ -12803,8 +13237,11 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase" }}>{tr(d)}</div>)}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1, gridAutoRows: "1fr" }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const startedHere = getStartedForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
-        return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
+        const offs = timeOffForDay(d); const offShifts = sched.filter(s => s.timeOffConflict && s.timeOffConflict.requestId != null).length;
+        return (<div key={d} data-month-day={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? t.goldText : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
+          {offs.map(x => (<button type="button" key={"off-" + x.id} data-time-off-chip={x.id} data-time-off-status={x.status} onClick={e => { e.stopPropagation(); openTimeOff(x); }} title={timeOffWord(x.status)} style={{ display: "block", width: "100%", textAlign: "left", minHeight: 24, padding: "2px 4px", marginBottom: 2, borderRadius: 4, fontSize: 8, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, background: timeOffInk(x.status) + "1F", color: x.status === "approved" ? t.textSec : OR, border: "1px dashed " + timeOffInk(x.status), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{timeOffWord(x.status)}{timeOffName(x) ? ": " + timeOffName(x) : ""}</button>))}
+          {offShifts > 0 && <div data-month-time-off-shifts="" style={{ fontSize: 8, fontWeight: 700, color: RD, marginBottom: 1 }}>{trn("{0} shift under time off|count", offShifts)}</div>}
           {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.goldText, marginBottom: 1 }}>{tr("{0} scheduled", sched.length)}</div>}
           {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: GR, marginBottom: 1 }}>{trn("{0} started|count", startedHere.length)}</div>}
           {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.textMut, marginBottom: 1 }}>{tr("{0} open", pks.filter(p => p.status === "open").length)}</div>}
@@ -12829,7 +13266,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div>
     {timeOffWaiting === null && timeOffLocked && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr(TIME_OFF_LOCKED_LINE)}</div>}
     {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
-    {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} />}
+    {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} openId={timeOffRouteId} onOpened={() => { if (timeOffRouteId && onRoute) onRoute(["timeoff"]); }} />}
     {view !== "patterns" && view !== "timeoff" && <>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: tr("This Week") }, { key: "lastWeek", label: tr("Last Week") }, { key: "nextWeek", label: tr("Next Week") }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -12953,7 +13390,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <div><div style={startedLbl}>{tr("Building")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.buildingName || "-"}</div></div>
         <div><div style={startedLbl}>{tr("Floor")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.floorNumber ? tr("Floor {0}", startedDetail.floorNumber) : "-"}</div></div>
         <div><div style={startedLbl}>{tr("Started")}</div><div style={{ fontSize: 13, fontWeight: 600, color: GR }}>{fmtSessionStart(startedDetail.startedAt) || "-"}</div></div>
-        <div><div style={startedLbl}>{tr("Task progress")}</div>{(() => { const total = startedDetail.tasksTotal || 0; const done = startedDetail.tasksCompleted || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 70, height: 5, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 13, color: t.text }}>{tr("{0} of {1}", done, total)}</span></div>); })()}</div>
+        <div><div style={startedLbl}>{tr("Task progress")}</div>{startedDetail.notTracked ? <NotTrackedWord t={t} style={{ fontSize: 13 }} /> : (() => { const total = startedDetail.tasksTotal || 0; const done = startedDetail.tasksCompleted || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 70, height: 5, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 13, color: t.text }}>{tr("{0} of {1}", done, total)}</span></div>); })()}</div>
       </div>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 16 }}>{tr("Recorded when the person started the shift in the portal. There is no end time and no hours here.")}</div>
       <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setStartedDetail(null)}>{tr("Close")}</Btn></div>
@@ -12976,6 +13413,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* PICKUP DETAIL MODAL */}
+    {timeOffOpen && <TimeOffWindow af={af} t={t} seed={timeOffOpen} myId={myId} showToast={showToast} onClose={() => setTimeOffOpen(null)} onDecided={() => { loadCalendar(); loadTimeOffCount(); }} />}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.")}</div>}
@@ -16198,6 +16636,10 @@ const CAPABILITY_LABELS = {
   record_injuries: "Keep the injury log",
   // Step 208: the Quotes page, routes/quotes (STEP207_CONTRACT.md, section 5).
   build_quotes: "Build quotes",
+  // Step 332, against the API's Step 327: employment changes, HR Records and Cases, each its own.
+  manage_employment: "Add people, approve registrations, change employment and roles",
+  read_hr_records: "Read HR records",
+  manage_cases: "Open and work on cases",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
@@ -17458,8 +17900,12 @@ function SignatureImage({ t, token, responseId, signKey, path }) {
 const ACK_METHODS = [{ v: "phone", l: "Phone call", said: "phone call|acknowledged" }, { v: "text", l: "Text message", said: "text message|acknowledged" }, { v: "email", l: "Email", said: "email|acknowledged" }, { v: "in_person", l: "In person", said: "in person|acknowledged" }];
 const ACK_FIELDS = ["method", "note"];
 const TELL_FIELDS = ["whatHappened", "whatWasDone", "prevention"];
-function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null }) {
+// Step 332: openCase, { me }, for a holder of manage_cases, draws Open a case on a filed report, which
+// opens the Open a case window with the report named in What happened and its id sent with the case.
+function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null, openCase = null }) {
   const [data, setData] = useState(null);
+  const [caseOpening, setCaseOpening] = useState(false);
+  const [caseOpened, setCaseOpened] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // What the footer's own calls say. The report itself is still read once per opening.
@@ -17989,7 +18435,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     </div>);
   };
 
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<><Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || tr("Report")}</div>
@@ -18017,6 +18463,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       {monthly.status === "overdue" && <div style={{ fontSize: 12, color: RD, fontWeight: 600, marginTop: 6 }}>{tr("Sent {0} and not acknowledged yet.", monthly.sentAt ? irDay(monthly.sentAt) : "--")}</div>}
       {monthly.acknowledgedBy && <div style={{ fontSize: 13, color: t.text, marginTop: 6 }}>{tr("Acknowledged by {0} on {1}", monthlyWho(monthly.acknowledgedBy), monthly.acknowledgedAt ? irWhen(monthly.acknowledgedAt) : "--")}</div>}
       {monthly.acknowledgedBy && monthly.comments ? <div style={{ fontSize: 13, color: t.textSec, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{String(monthly.comments)}</div> : null}
+    </div>}
+    {!loading && !error && draft && submitted && openCase && <div data-report-case="" style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ flex: "1 1 220px", fontSize: 13, color: t.text, lineHeight: 1.5 }}>{caseOpened ? tr("Case opened.") : tr("Start a case with this report linked.")}</span>
+      {!caseOpened && <Btn t={t} v="ghost" data-report-open-case="" onClick={() => setCaseOpening(true)} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open a case")}</Btn>}
     </div>}
     {!loading && !error && draft && filedInspectionIdOf(data) && <div data-filed-inspection={filedInspectionIdOf(data)} style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <span style={{ flex: "1 1 220px", fontSize: 13, color: t.text, lineHeight: 1.5 }}>{tr("Filed as the safety walk of a scheduled inspection.")}</span>
@@ -18166,7 +18616,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       {!loading && !error && canResend && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setVoiding(false); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>{tr("Send again")}</Btn>}
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
     </div>
-  </div></Mdl>);
+  </div></Mdl>
+  {caseOpening && openCase && draft && <OpenCaseWindow af={af} t={t} allStaff={people} me={openCase.me} report={{ id: String(draft.id || id), name: draft.formName || "", code: draft.formCode || "", site: draft.siteName || "", at: draft.submittedAt || draft.createdAt || "" }} onClose={() => setCaseOpening(false)} onOpened={() => { setCaseOpening(false); setCaseOpened(true); }} />}
+  </>);
 }
 
 // ===== STARTING AND FILING A FORM FROM THE DASHBOARD (Step 166) =====
@@ -20208,7 +20660,7 @@ function complaintDue(r) {
   return { text: irDay(r.dueAt), color: left != null && left <= 1 ? OR : null };
 }
 
-function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished, onOpenLinks }) {
+function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished, onOpenLinks, openCase = null }) {
   const [status, setStatus] = useState("submitted");
   // Void reports are listed for an admin once the API lists them (Step 179): one quiet read asks,
   // and a refusal or a 404 leaves the switch undrawn.
@@ -20421,7 +20873,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : status === "void" ? voidCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : status === "void" ? tr("No void reports.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
-    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} />}
+    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} openCase={openCase} />}
     {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
@@ -20467,7 +20919,7 @@ const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added
 // Where an alias came from, as the API stores it (user_aliases.source), drawn as its word.
 const ALIAS_SOURCE_WORDS = { manual_link: "Linked by hand", admin_added: "Added by an admin", auto_learned: "Learned from a match" };
 const aliasSourceWord = (v) => (ALIAS_SOURCE_WORDS[v] ? tr(ALIAS_SOURCE_WORDS[v]) : String(v || ""));
-function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false }) {
+function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false, canOpenCase = false }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
   // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
@@ -21717,7 +22169,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ FILED FORMS ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} allStaff={allStaff} canManageSettings={canManageSettings} onOpenLinks={() => pickTab("links")} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} allStaff={allStaff} canManageSettings={canManageSettings} openCase={canOpenCase ? { me: user } : null} onOpenLinks={() => pickTab("links")} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
       {tab === "links" && canManageSettings && <CustomerLinksTab af={af} token={token} t={t} sites={sites} siteFilter={linkSite} onSiteFilter={v => { if (onRoute) onRoute(v ? ["links", "site", v] : ["links"]); }} />}
 
       {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
@@ -22442,6 +22894,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   const [filterExpired, setFilterExpired] = useState(false);
   const [filterOnbIncomplete, setFilterOnbIncomplete] = useState(false);
   const [showTest, setShowTest] = useState(false);
+  // Step 332: a 403 from the summary (read_hr_records) is drawn in the API's words, in one line.
+  const [refused, setRefused] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -22449,7 +22903,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
       const q = "?status=" + encodeURIComponent(statusFilter) + (showTest ? "&include_test=true" : "");
       const d = await af("/api/hr/employees-summary" + q);
       setEmployees(d.employees || []);
-    } catch (e) { showToast(e.message, "error"); }
+      setRefused("");
+    } catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     finally { setLoading(false); }
   }, [af, showToast, statusFilter, showTest]);
 
@@ -22537,6 +22992,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
     <button onClick={onClick} style={{ padding: "5px 12px", borderRadius: 16, border: "1px solid " + (active ? (color || GO) : t.border), background: active ? ((color || GO) + "22") : "transparent", color: active ? goldToText(t, color || GO) : t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
   );
 
+  if (refused) return <Crd t={t}><div data-page-refused="hr" role="alert" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{refused}</div></Crd>;
   return (
     <div>
       {/* Top filter row */}
@@ -23430,8 +23886,13 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
 // happened, on behalf of a staff member who reported it in person, whether it is about someone in
 // management, and who holds it. The same case the staff side makes, with the API's rules. A refusal
 // is drawn word for word under the field its keys name.
-function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast }) {
-  const [f, setF] = useState({ summary: "", subjects: [], pick: "", onBehalfOf: "", aboutManagement: "", assignedTo: "" });
+// Step 332: opened from a filed report, report ({ id, name, code, site, at }) fills What happened with a
+// line naming the report, its site and when it was filed, and the report's id goes with the case as
+// formResponseId, which the API's Step 327 links the case by (the contract names no key, see the pull
+// request).
+const caseReportLine = (r) => tr("From the filed report: {0}", [r.name + (r.code ? " (" + r.code + ")" : ""), r.site, r.at ? irWhen(r.at) : ""].filter(Boolean).join(", "));
+function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast, report = null }) {
+  const [f, setF] = useState(() => ({ summary: report ? caseReportLine(report) + "\n\n" : "", subjects: [], pick: "", onBehalfOf: "", aboutManagement: "", assignedTo: "" }));
   const [refusal, setRefusal] = useState({ text: "", field: "" });
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -23445,7 +23906,7 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
     if (busyRef.current || !f.summary.trim() || !f.aboutManagement) return;
     busyRef.current = true; setBusy(true); setRefusal({ text: "", field: "" });
     try {
-      const d = await af("/api/hr-cases", { method: "POST", body: { summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null } });
+      const d = await af("/api/hr-cases", { method: "POST", body: Object.assign({ summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null }, report ? { formResponseId: report.id } : {}) });
       if (showToast) showToast(tr("Case opened."));
       onOpened(d && d.case ? d.case : d);
     } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => FIELDS.indexOf(k) >= 0) || "" }); }
@@ -23459,6 +23920,7 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
     </div>
     {refusal.text && !refusal.field && <div data-case-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {report && <div data-open-case-report={report.id} style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The filed report is linked to this case.")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("What happened")}</Lbl><TArea t={t} rows={4} aria-label={tr("What happened")} value={f.summary} onChange={e => set("summary", e.target.value)} style={box("summary")} />{under("summary")}</div>
     <div style={{ marginBottom: 12 }}>
       <Lbl>{tr("About whom")}</Lbl>
@@ -23725,7 +24187,8 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
   </div>);
 }
 
-function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
+// Step 333: #cases/<id>, where an hr_case_* notice points, opens that case once the page is up.
+function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, route = [], onRoute }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
   // A case's status and what the log says a person did, as words. Each stays the code it is on the
@@ -23748,10 +24211,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const [holdError, setHoldError] = useState("");
   const actionLabel = { hr_case_read: tr("Read the case"), hr_case_list: tr("Saw it in the list"), hr_case_updated: tr("Updated the case"), hr_case_access_log_read: tr("Read this log"), hr_case_escalation_mail: tr("Escalation email"), hr_case_created: tr("Raised the case"), hr_case_filed_mail: tr("Filing email to the team"), hr_case_assignment_mail: tr("Assignment email"), hr_case_due_soon_mail: tr("48 hour reminder to the team"), hr_case_overdue_mail: tr("72 hour reminder to the team") };
 
+  // Step 332: a refused list is drawn in the API's words, in one line, in the table's place.
+  const [refused, setRefused] = useState("");
   const load = async (status) => {
     setLoading(true);
-    try { const d = await af("/api/hr-cases" + (status && status !== "needs_response" ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); }
-    catch (e) { showToast(e.message, "error"); }
+    try { const d = await af("/api/hr-cases" + (status && status !== "needs_response" ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); setRefused(""); }
+    catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     setLoading(false);
   };
   useEffect(() => { load(statusFilter); }, [statusFilter]);
@@ -23766,7 +24231,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
     loadAccessLog(d.id);
     af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
   };
-  const closeCase = () => { setDetail(null); setAccessLog([]); };
+  const routeCase = route[0] ? String(route[0]) : "";
+  const closeCase = () => { setDetail(null); setAccessLog([]); if (routeCase && onRoute) onRoute([]); };
+  useEffect(() => { if (routeCase) openCase({ id: encodeURIComponent(routeCase) }); }, [routeCase]);
   // The log as it stands after a change the API logged itself: the answer's own updates when it
   // carries them, else the log read again, the entries in hand drawn meanwhile.
   const refreshLog = async (id) => {
@@ -23784,7 +24251,8 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const [opening, setOpening] = useState(false);
   const [caseWarning, setCaseWarning] = useState(null);
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setOfficeCases(d.steps.length > 0); }).catch(() => { if (alive) setOfficeCases(false); }); return () => { alive = false; }; }, [af]);
-  // The case's own subject is never offered: the route answers 400 for that choice.
+  // The case's own subject is never offered: the route answers 400 for that choice. Since Step 332 the
+  // list is every active admin and supervisor, and the escalation contacts the API lists after them.
   const escalateOptions = detail ? subjects.filter(p => !detail.subject || String(p.id) !== String(detail.subject.id)) : [];
   const save = async () => {
     if (!detail) return;
@@ -23830,8 +24298,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const myId = user && user.id != null ? String(user.id) : "";
   const holderId = detail && detail.assignedTo && detail.assignedTo.id != null ? String(detail.assignedTo.id) : "";
   const iHold = !!myId && holderId === myId;
-  // Every active admin the dashboard already loaded, minus the case's subject and minus the caller.
-  const handOptions = detail ? allStaff.filter(p => p && p.role === "admin" && (!p.status || p.status === "active") && String(p.id) !== myId && !(detail.subject && String(p.id) === String(detail.subject.id))) : [];
+  // Step 332: every active admin and supervisor the dashboard already loaded (a case can be held by any
+  // of them since the API's Step 327), minus the people the case is about and minus the caller.
+  const aboutIds = detail ? [].concat(detail.subject && detail.subject.id != null ? [String(detail.subject.id)] : [], (Array.isArray(detail.subjects) ? detail.subjects : []).map(x => String(x && x.id != null ? x.id : x))) : [];
+  const officePeople = allStaff.filter(p => p && (p.role === "admin" || p.role === "supervisor") && (!p.status || p.status === "active") && aboutIds.indexOf(String(p.id)) < 0);
+  const handOptions = detail ? officePeople.filter(p => String(p.id) !== myId) : [];
+  const personName = (p) => ((p.firstName || "") + " " + (p.lastName || "")).trim() || p.name || "";
   const handChosen = handOptions.find(p => String(p.id) === handTo);
 
   const isOpen = c => OPEN_STATUSES.includes(c.status);
@@ -23874,7 +24346,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
 
-    {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }}>
+    {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Case")}</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Received {0}", ff(detail.createdAt))}</span></div></div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -23893,7 +24365,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         </div>
         <div style={{ marginTop: 12 }}><Lbl>{tr("Hand to")}</Lbl>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <PersonPick t={t} aria-label={tr("Hand to")} value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
+            <PersonPick t={t} aria-label={tr("Hand to")} data-case-hand-to="" value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: personName(p), hint: roleWord(p.role) }))]} />
             <Btn t={t} onClick={() => handChosen && holdSave(handChosen.id)} disabled={holdBusy || !handChosen} style={{ whiteSpace: "nowrap" }}>{tr("Hand over")}</Btn>
           </div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("They will get an email. The email carries no case text.")}</div>
@@ -23914,7 +24386,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
       {caseLogUpdates(detail) && form.status !== detail.status && CASE_LOG_CLOSING.indexOf(form.status) >= 0 && <div style={{ marginBottom: 12 }}><Lbl>{tr("Closing note")}</Lbl><TArea t={t} rows={4} value={form.closingNote} onChange={e => { setForm({ ...form, closingNote: e.target.value }); setClosingSaid(""); }} aria-label={tr("Closing note")} aria-required="true" data-case-closing-note="" style={closingSaid ? { borderColor: RD } : {}} />
         {closingSaid ? <div data-case-closing-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{closingSaid}</div> : <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Required. It goes into the case log as the case's last entry.")}</div>}
       </div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><PersonPick t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><PersonPick t={t} aria-label={tr("Escalate to")} data-case-escalate-to="" value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...officePeople.filter(p => String(p.id) !== myId).map(p => ({ v: String(p.id), l: personName(p), hint: roleWord(p.role) })), ...escalateOptions.filter(p => !officePeople.some(o => String(o.id) === String(p.id))).map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
       {!caseLogUpdates(detail) && <div style={{ marginBottom: 14 }}><Lbl>{tr("Resolution notes")}</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>{tr("Close")}</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : tr("Save changes")}</Btn></div>
       <div><Lbl>{tr("Access log")}</Lbl>
@@ -24677,9 +25149,19 @@ function useActivePeople(af) {
   const [error, setError] = useState("");
   useEffect(() => {
     let alive = true;
+    // Step 332: the summary is read_hr_records' (the API's Step 327), and Training stays open to a
+    // supervisor without it, so a 403 reads the active people from GET /api/users (manage_staff) in
+    // the same shape. An admin's read does not change.
+    const fromUsers = (rows) => (Array.isArray(rows) ? rows : []).filter(p => p && p.id != null && p.role !== "client_contact").map(p => {
+      const name = String(p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim());
+      return { id: String(p.id), firstName: p.firstName || name.split(" ")[0] || "", lastName: p.lastName || name.split(" ").slice(1).join(" "), name, role: p.role, status: p.status, employeeId: p.employeeId || "", badgeNumber: p.badgeNumber || "" };
+    });
     af("/api/hr/employees-summary?status=active")
       .then((d) => { if (alive) setPeople(((d && d.employees) || []).map(hrPerson)); })
-      .catch((e) => { if (alive) { setPeople([]); setError(e.message); } });
+      .catch((e) => {
+        if (e && e.status === 403) { af("/api/users?status=active").then(rows => { if (alive) setPeople(fromUsers(rows)); }).catch(x => { if (alive) { setPeople([]); setError(x.message); } }); return; }
+        if (alive) { setPeople([]); setError(e.message); }
+      });
     return () => { alive = false; };
   }, [af]);
   return [people, error];
