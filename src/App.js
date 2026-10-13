@@ -521,8 +521,6 @@ export default function AdminDashboard() {
     return want;
   });
   const chooseLang = (id) => { setLang(id); setLangState(id); try { localStorage.setItem("ocsa-lang", id); } catch {} };
-  // The browser tab's title, in the language of the screen.
-  useEffect(() => { try { document.title = clientConfig.company.brandTag + " " + tr("Admin Dashboard"); } catch (e) { /* no document */ } }, [lang]);
   useEffect(() => { try { document.documentElement.lang = lang; } catch (e) {} }, [lang]);
   const zoom = textSizeFactor(textSize);
   // At Standard the property is left off the root altogether, so the page is what it always was.
@@ -754,7 +752,26 @@ export default function AdminDashboard() {
   const [bellOpen, setBellOpen] = useState(false);
   // An announcement read from the bell by someone the Announcements page is not for (Step 196).
   const [annOpen, setAnnOpen] = useState(null);
-  const loadUnread = useCallback(async () => { try { const d = await af("/api/notifications/unread-count"); setUnread(Number(d && d.unread) || 0); } catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); } }, [af]);
+  // Step 333: a notice that arrives while the dashboard is open pops up. When the count rises past the
+  // one read before, the newest notice is read, and if it is unread and not the one seen last it is
+  // drawn as a toast with Open. The first count of a session only sets where to count from.
+  const [noticeToast, setNoticeToast] = useState(null);
+  const closeNoticeToast = useCallback(() => setNoticeToast(null), []);
+  const unreadWas = useRef(null);
+  const noticeSeen = useRef("");
+  const loadUnread = useCallback(async () => {
+    let n;
+    try { const d = await af("/api/notifications/unread-count"); n = Number(d && d.unread) || 0; setUnread(n); }
+    catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); return; }
+    const was = unreadWas.current;
+    unreadWas.current = n;
+    if (was === null || n <= was) return;
+    try {
+      const d = await af("/api/notifications?limit=1");
+      const top = d && Array.isArray(d.notifications) ? d.notifications[0] : null;
+      if (top && !top.readAt && String(top.id) !== noticeSeen.current) { noticeSeen.current = String(top.id); setNoticeToast(top); }
+    } catch (e) { console.warn("Newest notice:", e.message); }
+  }, [af]);
   // Unread messages, summed over every chat this person can read, from the unreadCount each channel
   // carries (Step 179). A channel that carries none counts nothing, so the badge is quiet until then.
   const [chatUnread, setChatUnread] = useState(0);
@@ -779,6 +796,17 @@ export default function AdminDashboard() {
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
   // The bell's count is read again whenever the bell opens, so it never lags what the panel lists.
   useEffect(() => { if (bellOpen && token) loadUnread(); }, [bellOpen, token, loadUnread]);
+  // Step 333: and whenever the window comes back to the front, so a notice that came while the person
+  // was elsewhere pops up when they return rather than at the next minute.
+  useEffect(() => {
+    if (!token) { unreadWas.current = null; setNoticeToast(null); return undefined; }
+    const back = () => { if (!document.hidden) loadUnread(); };
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", back);
+    return () => { window.removeEventListener("focus", back); document.removeEventListener("visibilitychange", back); };
+  }, [token, loadUnread]);
+  // The browser tab's title, in the language of the screen, with the unread count before it (Step 333).
+  useEffect(() => { try { document.title = (token && unread > 0 ? "(" + (unread > 99 ? "99+" : unread) + ") " : "") + clientConfig.company.brandTag + " " + tr("Admin Dashboard"); } catch (e) { /* no document */ } }, [lang, unread, token]);
   // What a badge on the side panel is made of. The light arm is the only thing that changed.
   const badgeRed = themeMode === "light" ? "#C62828" : RD;
   const badgeRedText = themeMode === "light" ? "#FFFFFF" : "#F8F7F4";
@@ -1241,6 +1269,13 @@ export default function AdminDashboard() {
     </div>
 
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} />}
+    {noticeToast && <NoticeToast t={t} n={noticeToast} onClose={closeNoticeToast} onOpen={async () => {
+      const n = noticeToast;
+      setNoticeToast(null);
+      try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); }
+      goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+      loadUnread();
+    }} />}
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></PeopleCtx.Provider></ThemeCtx.Provider>);
@@ -8139,6 +8174,35 @@ function noticePlace(n) {
   if (/^shift(_|$)/.test(st)) return { page: "schedule", hash: "" };
   return null;
 }
+// Opens a notice where noticePlace, or else its link, says (Step 333). how carries the shell's
+// canOpenPage, openHash, openPage, openAnnouncement and refuse, the same for the bell and the toast.
+function goToNotice(n, how) {
+  const place = noticePlace(n);
+  if (place) {
+    // Someone told of an announcement who cannot open the page reads it in a window of its own.
+    if (place.announcement && !how.canOpenPage("announcements")) { if (how.openAnnouncement) how.openAnnouncement(place.announcement); else how.refuse(); return; }
+    if (!place.always && !how.canOpenPage(place.page)) { how.refuse(); return; }
+    if (place.hash) how.openHash(place.hash); else how.openPage(place.page);
+    return;
+  }
+  const target = notifTarget(n.link);
+  if (target.kind === "page") { if (!how.canOpenPage(target.page)) { how.refuse(); return; } if (target.hash) how.openHash(target.hash); else how.openPage(target.page); }
+  else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
+}
+// A notice that arrived while the dashboard is open (Step 333): its title, its body on one line, Open,
+// which opens it where the bell would, and Close. It goes by itself after twelve seconds.
+function NoticeToast({ t, n, onOpen, onClose }) {
+  useEffect(() => { const tm = setTimeout(onClose, 12000); return () => clearTimeout(tm); }, [n, onClose]);
+  return (<div role="status" aria-live="polite" data-notice-toast={String(n.id)} style={{ position: "fixed", right: 20, bottom: 20, zIndex: 1000, width: "min(360px, calc(100vw - 40px))", boxSizing: "border-box", background: t.card, color: t.text, border: "1px solid " + t.border, borderLeft: "4px solid " + GO, borderRadius: R.sm, boxShadow: t.popShadow, padding: "12px 12px 12px 14px", fontFamily: FONT_BODY, display: "flex", gap: 10, alignItems: "flex-start" }}>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 2 }}>{tr("New notice")}</div>
+      <div data-notice-toast-title="" style={{ fontSize: 13, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{n.title}</div>
+      {n.body ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.body}</div> : null}
+      <div style={{ marginTop: 8 }}><Btn t={t} onClick={onOpen} data-notice-toast-open="" style={{ minHeight: 44, padding: "8px 16px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
+    </div>
+    <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={16} c={t.textMut} /></button>
+  </div>);
+}
 // An announcement opened from the bell by someone who does not hold send_announcements, read only,
 // from GET /api/announcements/:id, which answers anyone it was sent to.
 function AnnouncementWindow({ af, t, id, onClose }) {
@@ -8202,24 +8266,13 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
 
   // A notice can point at a page this person cannot open. The panel closes and says one line rather
   // than leaving them on a page that draws nothing for them. The notice itself stays in the list.
-  const refuse = () => { onClose(); onRefused(); };
   const openRow = async (n) => {
     if (busy) return;
     setBusy(true);
     if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
     setBusy(false);
-    const place = noticePlace(n);
-    if (place) {
-      // Someone told of an announcement who cannot open the page reads it in a window of its own.
-      if (place.announcement && !canOpenPage("announcements")) { onClose(); if (onOpenAnnouncement) onOpenAnnouncement(place.announcement); else onRefused(); return; }
-      if (!place.always && !canOpenPage(place.page)) { refuse(); return; }
-      if (place.hash) onOpenHash(place.hash); else onOpenPage(place.page);
-      onClose(); return;
-    }
-    const target = notifTarget(n.link);
-    if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
-    else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
     onClose();
+    goToNotice(n, { canOpenPage, openHash: onOpenHash, openPage: onOpenPage, openAnnouncement: onOpenAnnouncement, refuse: onRefused });
   };
   const markAll = async () => {
     if (busy || unread === 0) return;
