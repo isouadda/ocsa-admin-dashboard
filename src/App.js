@@ -177,9 +177,13 @@ const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"
 // this person's own capabilities, and until it does the API's own defaults table decides. Every
 // control the API guards with a capability draws only for a holder, so nothing is drawn that the
 // API will refuse.
+// Step 332 (the API's Step 327): supervisors hold manage_staff, manage_cases and read_incident_reports
+// by default, and manage_employment and read_hr_records are an admin's. A capability the API does not
+// name yet keeps today's behavior: Cases, HR Records and the employment controls read the API's own
+// answer for those three (capNamed in the shell), never these defaults.
 const CAP_ROLE_DEFAULTS = {
-  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: false, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
-  supervisor: { manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true },
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: false, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
+  supervisor: { manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
   staff: {},
 };
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
@@ -606,6 +610,15 @@ export default function AdminDashboard() {
     const tier = isAdmin ? "admin" : (user && user.role === "supervisor" ? "supervisor" : "staff");
     return !!(CAP_ROLE_DEFAULTS[tier] && CAP_ROLE_DEFAULTS[tier][name]);
   }, [caps, isAdmin, user]);
+  // A capability as the API answered it, true or false, or undefined while the API does not name it.
+  const capNamed = useCallback((name) => (caps && Object.prototype.hasOwnProperty.call(caps, name) ? !!caps[name] : undefined), [caps]);
+  // Step 332: adding a person, approving a registration, every employment change and changing a role
+  // are manage_employment's; before the API names it they follow isAdmin, as they always have.
+  const canEmploy = capNamed("manage_employment") !== undefined ? capNamed("manage_employment") : isAdmin;
+  // Cases opens for an admin, or for anyone the API answers manage_cases true. HR Records opens for
+  // everyone who signs in, as it always has, unless the API answers read_hr_records false.
+  const casesOn = isAdmin || capNamed("manage_cases") === true;
+  const hrRecordsOn = capNamed("read_hr_records") !== false;
   // The manage permissions capability opens the Roles and Permissions screen; manage settings opens
   // Company settings and the customer links on Filed forms; manage admins lets a person change an
   // admin's account, which nobody holds by default.
@@ -650,6 +663,8 @@ export default function AdminDashboard() {
     if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups") || devicesOn;
     if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
     if (id === "staff") return hasCap("manage_staff");
+    if (id === "cases") return casesOn;
+    if (id === "hr") return hrRecordsOn;
     if (id === "announcements") return hasCap("send_announcements");
     // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
     // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
@@ -677,7 +692,7 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -756,11 +771,11 @@ export default function AdminDashboard() {
   // One timer drives the bell, the Messages badge and the Cases badge together, so the polls never stack.
   useEffect(() => {
     if (!token) { setCaseQueue(null); setUnread(0); setChatUnread(0); setBellOpen(false); return; }
-    const tick = () => { loadUnread(); loadChatUnread(); if (isAdmin) loadCaseQueue(); };
+    const tick = () => { loadUnread(); loadChatUnread(); if (casesOn) loadCaseQueue(); };
     tick();
     const iv = setInterval(() => { if (!document.hidden) tick(); }, 60000);
     return () => clearInterval(iv);
-  }, [token, isAdmin, loadUnread, loadChatUnread, loadCaseQueue]);
+  }, [token, casesOn, loadUnread, loadChatUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
   // The bell's count is read again whenever the bell opens, so it never lags what the panel lists.
   useEffect(() => { if (bellOpen && token) loadUnread(); }, [bellOpen, token, loadUnread]);
@@ -921,13 +936,14 @@ export default function AdminDashboard() {
     ]},
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
-      { id: "hr", l: tr("HR Records"), i: FolI },
-      // Step 268, the owner's change of October 6: Training has its own item, right under HR Records,
-      // for the admins and supervisors HR Records opens for; it opens the Training area as #hr/training does.
+      ...(canOpenPage("hr") ? [{ id: "hr", l: tr("HR Records"), i: FolI }] : []),
+      // Step 268, the owner's change of October 6: Training has its own item, right under HR Records;
+      // it opens the Training area as #hr/training does. Since Step 332 it stays for a supervisor the
+      // API answers read_hr_records false, who keeps Training, Sign-offs and Gaps without HR Records.
       { id: "training", l: tr("Training"), i: ClpI },
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
-      ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
+      ...(canOpenPage("cases") ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
     { label: tr("Quality"), items: [
       { id: "issues", l: tr("Issues"), i: AlI },
@@ -1186,9 +1202,12 @@ export default function AdminDashboard() {
         {/* The API decides who reads it: a person the side panel does not offer it to, who reaches it
             by its address, is shown the API's refusal in its own words. */}
         {page === "owner" && <OwnerDashboardPage af={af} t={t} sites={sites} lang={lang} />}
-        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} canEmploy={canEmploy} canOpenHr={canOpenPage("hr")} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />}
+        {/* Step 332: #hr/training/... still opens Training for someone HR Records is not open to. */}
+        {page === "hr" && (canOpenPage("hr") ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />
+          : route[0] === "training" ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />
+          : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -1839,8 +1858,8 @@ function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, relo
     { header: tr("Actions"), tdStyle: { minWidth: 220 }, render: p => (<div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {!isMe(p) && p.status === "active" && <Btn t={t} onClick={() => confirm(p)} disabled={!!busy} style={small} data-roster-still={p.userId}>{busy === p.userId ? tr("Saving...") : tr("Still working")}</Btn>}
-        {!isMe(p) && p.status === "active" && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "leave")} style={small}>{tr("Put on leave")}</Btn>}
-        {!isMe(p) && (p.status === "active" || p.status === "inactive") && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "end")} style={small}>{tr("End employment")}</Btn>}
+        {onEmployment && !isMe(p) && p.status === "active" && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "leave")} style={small}>{tr("Put on leave")}</Btn>}
+        {onEmployment && !isMe(p) && (p.status === "active" || p.status === "inactive") && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "end")} style={small}>{tr("End employment")}</Btn>}
         <Btn t={t} v="ghost" onClick={() => onOpen(p.userId, "assign")} style={small}>{tr("Sites")}</Btn>
       </div>
       {refused[p.userId] ? <div data-roster-refusal={p.userId} style={{ fontSize: 11, color: RD, marginTop: 4 }}>{refused[p.userId]}</div> : null}
@@ -1906,7 +1925,10 @@ function SignInState({ t, si, welcome }) {
   if (!si.lastSignInAt && welcome) lines.push(welcomeWent(welcome) ? { k: "welcome", text: tr("Welcome email sent {0}", signInWhen(welcome.sentAt)), c: t.textSec } : { k: "welcome-not-sent", text: tr("Welcome email not sent: {0}", welcomeWhy(welcome)), c: OR });
   return <span data-sign-in-state={lines.map(x => x.k).join(" ")} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, lineHeight: 1.4, minWidth: 0 }}>{lines.map(x => <span key={x.k} style={{ color: x.c, fontWeight: x.strong ? 600 : 400 }}>{x.text}</span>)}</span>;
 }
-function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute, devicesOn = false }) {
+// Step 332: canEmploy is manage_employment (isAdmin until the API names it). Without it Staff Management
+// draws no Add Staff, no Approve, no employment change (leave, return, end, rehire, reactivate,
+// deactivate) and no Role field, and a save sends no role; everything else manage_staff opens stays.
+function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, canEmploy = true, canOpenHr = true, user = null, route = [], onRoute, devicesOn = false }) {
   // The super admin forgets another office account's trusted devices (Step 232, Part C), once the
   // trusted devices routes answer. The flag is the account's own, as the API sends it.
   const superAdmin = !!(user && (user.isSuperAdmin === true || user.is_super_admin === true));
@@ -1977,7 +1999,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // The roster check's own Employment window, and a count that reads the roster check again after one.
   const [rosterWin, setRosterWin] = useState(null);
   const [rosterAgain, setRosterAgain] = useState(0);
-  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); if (e.status !== 403) showToast(e.message, "error"); }); loadRoster(); };
+  // A refusal is drawn in the API's own words, in one line (Step 332).
+  const [staffRefused, setStaffRefused] = useState("");
+  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); setStaffRefused(""); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); setStaffRefused(e.status === 403 ? (e.message || "") : ""); if (e.status !== 403) showToast(e.message, "error"); }); loadRoster(); };
   useEffect(() => { load(); }, []);
   // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
   // displayLabel the API sends in that language, a role the list does not hold reads the table's
@@ -2257,7 +2281,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       showToast(tr("Copying is blocked here. The PIN is selected, so copy it with your keyboard."), "error");
     }
   };
-  const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
+  const submitEdit = async () => { try { const body = Object.assign({}, editForm); if (!canEmploy) delete body.role; await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
 
   // Photo upload
   const handlePhotoUpload = async (file, userId) => {
@@ -2283,6 +2307,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       // is never written over by the code the picker shows for it (Step 243).
       const body = Object.assign({}, profileEdit);
       if (langCode(body.preferredLanguage) === langCode(profile.user.preferredLanguage)) delete body.preferredLanguage;
+      if (!canEmploy) delete body.role;
       await af("/api/users/" + profile.user.id, { method: "PATCH", body });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
@@ -2357,7 +2382,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         subtitle={roleOf(u.role) + (u.employmentType ? " (" + employmentOf(u.employmentType) + ")" : "")}
         badges={<><Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />{signInOf(u) ? <span style={{ flexBasis: "100%", marginTop: 4 }}><SignInState t={t} si={signInOf(u)} welcome={welcomeOf(u)} /></span> : null}</>}
         actions={<>
-          <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>
+          {canOpenHr && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>}
           {canChange(u) && signInOf(u) && signInOf(u).lockedUntil && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-staff-unlock={u.id} disabled={!!unlocking} onClick={() => unlock(u.id)}>{tr("Unlock")}</Btn>}
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
@@ -2368,11 +2393,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             {signInOf(u).emailDeliverable === false && <span data-welcome-no-email="" style={{ fontSize: 11, color: OR, fontWeight: 600 }}>{tr("No working email")}</span>}
           </span>}
           {canChange(u) && !u.badgeNumber && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => generateBadge(u.id)}>{tr("Generate badge number")}</Btn>}
-          {!employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
-          {!employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
-          {employment && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentActions(employment.status).map(m => <Btn key={m} t={t} v={m === "end" ? "danger" : "ghost"} data-employment-action={m} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => setEmpWin({ mode: m, record: false })}>{tr(EMPLOYMENT_SEND[m])}</Btn>)}
+          {canEmploy && !employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
+          {canEmploy && !employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {canEmploy && employment && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentActions(employment.status).map(m => <Btn key={m} t={t} v={m === "end" ? "danger" : "ghost"} data-employment-action={m} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => setEmpWin({ mode: m, record: false })}>{tr(EMPLOYMENT_SEND[m])}</Btn>)}
           {devicesOn && superAdmin && (u.role === "admin" || u.role === "supervisor") && !(user && String(user.id) === String(u.id)) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} data-forget-devices={u.id} onClick={() => forgetDevices(u)}>{tr("Forget this person's devices")}</Btn>}
-          {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
+          {canEmploy && u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
         </>}
       />
 
@@ -2389,7 +2414,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Employment")}</div>
           <div role="alert" style={{ fontSize: 13, color: employmentSaid.again ? RD : t.text, marginTop: 8, lineHeight: 1.5 }}>{employmentSaid.text}{employmentSaid.again ? <button onClick={() => loadEmployment(u.id)} data-employment-again="" style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Try again")}</button> : null}</div>
         </div></Crd>}
-        {employment && <EmploymentCard t={t} data={employment} onRecord={canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
+        {employment && <EmploymentCard t={t} data={employment} onRecord={canEmploy && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
@@ -2426,7 +2451,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>{tr("Email")}</Lbl><Inp t={t} value={pe.email || ""} onChange={e => setProfileEdit({ ...pe, email: e.target.value })} type="email" /></div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><Lbl>{tr("Role")}</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>
+              {canEmploy && <div><Lbl>{tr("Role")}</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
               <div><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={pe.employmentType || ""} onChange={e => setProfileEdit({ ...pe, employmentType: e.target.value || null })} options={employmentOpts} /></div>
               <div><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>
               <div><Lbl>{tr("Birthday")}</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>
@@ -2591,11 +2616,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // ============================================================
   // Step 232: the roster check at #staff/roster, once GET /api/users/roster-check answers.
   if (route[0] === "roster" && roster) return (<div>
-    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={(p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })} />
+    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={canEmploy ? ((p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })) : null} />
     {rosterWin && <EmploymentWindow af={af} t={t} userId={rosterWin.userId} name={rosterWin.name} mode={rosterWin.mode} data={null} showToast={showToast} onClose={() => setRosterWin(null)} onSaved={() => { setRosterWin(null); setRosterAgain(n => n + 1); load(); if (loadStaff) loadStaff(); }} />}
   </div>);
   return (<div>
-    <SecT t={t} action={tr("Add Staff")} onAction={() => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); }}>{tr("Staff Management")}</SecT>
+    <SecT t={t} action={canEmploy ? tr("Add Staff") : undefined} onAction={canEmploy ? () => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); } : undefined}>{tr("Staff Management")}</SecT>
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
@@ -2626,9 +2651,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Role"), tdStyle: { color: t.textSec }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
-        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{canEmploy && s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
-      if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? tr("This page is for admins.") : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
+      if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? (staffRefused || tr("This page is for admins.")) : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
     {addedWindow}
@@ -2647,7 +2672,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>
+      {canEmploy && <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={editForm.employmentType || ""} onChange={e => setEditForm({ ...editForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder={`${clientConfig.employee.idPrefix}-0042`} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
@@ -8056,10 +8081,11 @@ const notifTarget = (link) => {
   const fin = /^\/issues\/([^/]+)\/?$/.exec(u.pathname || "");
   if (fin && fin[1] !== "requests") return { kind: "page", page: "issues", hash: "issues/" + fin[1] };
   // The training notices (Step 263, against the API's Step 256): /training/attempts/<id> opens that
-  // attempt in HR Records' Training area, Awaiting sign-off while it waits for a trainer and else the
-  // person's list in Gaps; /training/people/<userId> opens that person's list in Gaps.
+  // attempt in the Training area, Awaiting sign-off while it waits for a trainer and else the person's
+  // list in Gaps; /training/people/<userId> opens that person's list in Gaps. Since Step 332 they open
+  // the Training page, which stays open to a supervisor without HR Records.
   const trn0 = /^\/training\/(attempts|people)\/([^/]+)\/?$/.exec(u.pathname || "");
-  if (trn0) return { kind: "page", page: "hr", hash: "hr/training/" + trn0[1] + "/" + trn0[2] };
+  if (trn0) return { kind: "page", page: "training", hash: "training/" + trn0[1] + "/" + trn0[2] };
   // The office's signature notices (Step 272, against the API's Step 270): /signatures/<requestId>
   // opens Waiting for signatures in HR Records with that request open.
   const sg0 = /^\/signatures\/([^/]+)\/?$/.exec(u.pathname || "");
@@ -8161,8 +8187,8 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if (n.subjectType === "inspection_finding" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     // Step 263: a sign-off or reteach notice names its attempt and opens it; an expiring record's opens
     // the person its link names, else Gaps.
-    if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
-    if (n.subjectType === "training_expiring") { if (!canOpenPage("hr")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "hr/training/people/" + m[1] : "hr/training/gaps"); onClose(); return; }
+    if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("training")) { refuse(); return; } onOpenHash("training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
+    if (n.subjectType === "training_expiring") { if (!canOpenPage("training")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "training/people/" + m[1] : "training/gaps"); onClose(); return; }
     // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
     // it in Waiting for signatures.
     if ((n.subjectType === "signature_disputed" || n.subjectType === "signature_declined" || n.subjectType === "signature_overdue") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/signatures/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
@@ -16198,6 +16224,10 @@ const CAPABILITY_LABELS = {
   record_injuries: "Keep the injury log",
   // Step 208: the Quotes page, routes/quotes (STEP207_CONTRACT.md, section 5).
   build_quotes: "Build quotes",
+  // Step 332, against the API's Step 327: employment changes, HR Records and Cases, each its own.
+  manage_employment: "Add people, approve registrations, change employment and roles",
+  read_hr_records: "Read HR records",
+  manage_cases: "Open and work on cases",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
@@ -22442,6 +22472,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   const [filterExpired, setFilterExpired] = useState(false);
   const [filterOnbIncomplete, setFilterOnbIncomplete] = useState(false);
   const [showTest, setShowTest] = useState(false);
+  // Step 332: a 403 from the summary (read_hr_records) is drawn in the API's words, in one line.
+  const [refused, setRefused] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -22449,7 +22481,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
       const q = "?status=" + encodeURIComponent(statusFilter) + (showTest ? "&include_test=true" : "");
       const d = await af("/api/hr/employees-summary" + q);
       setEmployees(d.employees || []);
-    } catch (e) { showToast(e.message, "error"); }
+      setRefused("");
+    } catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     finally { setLoading(false); }
   }, [af, showToast, statusFilter, showTest]);
 
@@ -22537,6 +22570,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
     <button onClick={onClick} style={{ padding: "5px 12px", borderRadius: 16, border: "1px solid " + (active ? (color || GO) : t.border), background: active ? ((color || GO) + "22") : "transparent", color: active ? goldToText(t, color || GO) : t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
   );
 
+  if (refused) return <Crd t={t}><div data-page-refused="hr" role="alert" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{refused}</div></Crd>;
   return (
     <div>
       {/* Top filter row */}
@@ -23748,10 +23782,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const [holdError, setHoldError] = useState("");
   const actionLabel = { hr_case_read: tr("Read the case"), hr_case_list: tr("Saw it in the list"), hr_case_updated: tr("Updated the case"), hr_case_access_log_read: tr("Read this log"), hr_case_escalation_mail: tr("Escalation email"), hr_case_created: tr("Raised the case"), hr_case_filed_mail: tr("Filing email to the team"), hr_case_assignment_mail: tr("Assignment email"), hr_case_due_soon_mail: tr("48 hour reminder to the team"), hr_case_overdue_mail: tr("72 hour reminder to the team") };
 
+  // Step 332: a refused list is drawn in the API's words, in one line, in the table's place.
+  const [refused, setRefused] = useState("");
   const load = async (status) => {
     setLoading(true);
-    try { const d = await af("/api/hr-cases" + (status && status !== "needs_response" ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); }
-    catch (e) { showToast(e.message, "error"); }
+    try { const d = await af("/api/hr-cases" + (status && status !== "needs_response" ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); setRefused(""); }
+    catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     setLoading(false);
   };
   useEffect(() => { load(statusFilter); }, [statusFilter]);
@@ -24677,9 +24713,19 @@ function useActivePeople(af) {
   const [error, setError] = useState("");
   useEffect(() => {
     let alive = true;
+    // Step 332: the summary is read_hr_records' (the API's Step 327), and Training stays open to a
+    // supervisor without it, so a 403 reads the active people from GET /api/users (manage_staff) in
+    // the same shape. An admin's read does not change.
+    const fromUsers = (rows) => (Array.isArray(rows) ? rows : []).filter(p => p && p.id != null && p.role !== "client_contact").map(p => {
+      const name = String(p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim());
+      return { id: String(p.id), firstName: p.firstName || name.split(" ")[0] || "", lastName: p.lastName || name.split(" ").slice(1).join(" "), name, role: p.role, status: p.status, employeeId: p.employeeId || "", badgeNumber: p.badgeNumber || "" };
+    });
     af("/api/hr/employees-summary?status=active")
       .then((d) => { if (alive) setPeople(((d && d.employees) || []).map(hrPerson)); })
-      .catch((e) => { if (alive) { setPeople([]); setError(e.message); } });
+      .catch((e) => {
+        if (e && e.status === 403) { af("/api/users?status=active").then(rows => { if (alive) setPeople(fromUsers(rows)); }).catch(x => { if (alive) { setPeople([]); setError(x.message); } }); return; }
+        if (alive) { setPeople([]); setError(e.message); }
+      });
     return () => { alive = false; };
   }, [af]);
   return [people, error];
