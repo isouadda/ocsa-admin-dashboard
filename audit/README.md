@@ -25,7 +25,8 @@ npm run smoke
 `smoke.js` is the quick check, in under three minutes, built from this folder's own parts: the stub,
 the static server, the browser and the driver. It serves the `build/` already made and stops at once,
 with one failed line, when anything in `src`, `public` or `package.json` is newer than that build.
-Then it checks, one line a check:
+Since the training day round the passes run three at a time (two until then), which took the run as it
+stood from 148 to 114 seconds; `SMOKE_LANES` sets how many. Then it checks, one line a check:
 
 - at 1280 in English and in Spanish and at 390 in English, an admin signs in, the Spanish pass through
   the code screen of the second sign-in step, which the smoke check arms the stub to ask for;
@@ -198,6 +199,48 @@ Then it checks, one line a check:
   the timeline redraws the block with its new kind and window; and an end before the start on a day
   block is refused 400 with the stub's words under Ends at, and nothing is saved. The stub's second site
   holds an invented two-shift schedule, and its tasks add the steps that belong to the blocks.
+- against the stub's answers for the training day round (TRAINING_DAY_CONTRACT.md, the API's parts 327,
+  329, 330 and 337, for the dashboard's parts 332 to 334 and 338), which the smoke check arms with
+  `setStep327`, `setStep329`, `setStep330` and `setStep337`:
+  - part 332, at 1280 in English and in Spanish, a supervisor: in English the menu is first read with the
+    stub as today (HR Records and Training, no Cases, and the older line's no admin-only item but Forms),
+    then `setStep327` is armed and the page read again; the Spanish pass, `1280 es supervisor`, is armed
+    from the start and runs these lines alone. The supervisor sees Staff Management with no Add Staff, no
+    Approve and, on a profile, no employment change and no Open HR file; sees Training and Cases with Open
+    a case, no HR Records, and HR Records' address says the page is for admins; and opens the filed
+    OCSA-FRM-016 at `#forms/reports/fr-incident-327`, whose Open a case starts the window with the report
+    named in What happened and sends the case with `formResponseId`, after which the report says Case
+    opened. The stub names `manage_employment`, `read_hr_records` and `manage_cases`, gives a supervisor
+    `manage_staff`, `manage_cases` and `read_incident_reports` by default, refuses them the HR employees
+    summary 403 `auth.capabilityRequired` naming `read_hr_records`, answers the discipline steps, and keeps
+    every case opened.
+  - part 333, at 1280 in English and in Spanish, an admin: the bell opens `issue_assigned`, whose link is
+    the staff app, at `#issues/i-1` with no new tab, and a notice about something the dashboard has no
+    page for in a new tab at its staff app link; `time_off` at `#schedule/timeoff/to-330` with the request
+    window open, and `hr_case_assigned` at `#cases/hc-1` with the case open, whose Hand to lists a
+    supervisor; a notice put at the top with `addNotice329`, once the window comes back to the front, pops
+    up as a toast with its title and Open, the tab's title and the bell count one more, and Open lands on
+    the issue; and My alerts, with the browser's push answered by the page itself, asks the browser
+    nothing until Turn on alerts on this computer is pressed, which subscribes with the stub's 65-byte key
+    and posts `{ endpoint, keys, userAgent, app: "dashboard" }`, and Turn off ends the subscription and
+    deletes it. The line closes My alerts itself, since Escape does not. Once, before the passes, the
+    `worker` line runs `public/sw.js` in a sandbox of its own: a push shows its alert with its subject, and
+    a click on `issue_assigned`, `time_off`, `hr_case_assigned`, `inspection_unfinished`, `shift_assigned`
+    and `form` opens `/#<place>` in a new window, or tells an open window `ocsa-open` with the place and
+    focuses it.
+  - part 334, at 1280 in English and in Spanish and at 390 in English, an admin: the week draws the request
+    over two days on both days and the approved one as Off, and marks the three shifts under them; the
+    request's window lists both shifts under Shifts this affects, the cover picker flags a person on
+    overtime, and Approve sends `[{ shiftId: "sh-1", action: "reassign", userId: "u-staff-9" },
+    { shiftId: "sh-330", action: "cancel" }]`, after which nothing is left to settle; and
+    `#schedule/timeoff/to-331` opens the approved request with its shift under Shifts to cover, posted to
+    Shift Pickup through `POST /api/time-off/to-331/shifts`. The stub adds an invented second shift for the
+    person, answers `timeOff` and `timeOffConflict` on the calendar, `affectedShifts`, the cover
+    candidates, and the approval and cover routes with their refusals, and keeps what each was sent.
+  - part 338, at 1280 in English and in Spanish, an admin, with `setStep337` armed in its own line, after
+    Step 291's Periodic work line has read every site: the third site's Service Details reads Staff check
+    off tasks here off with its line and no Periodic work, Live Ops marks the site and its person Not
+    tracked with no percentage, and turning the setting on saves `{ checklistMode: "tracked" }`.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
@@ -285,7 +328,15 @@ and Step 268's by `data-training-views`, `data-training-view`, `data-catalog-cat
 `data-site-schedule`, `data-site-schedule-shift`, `data-schedule-block`, `data-schedule-kind`,
 `data-schedule-kind-word`, `data-schedule-window`, `data-schedule-days`, `data-schedule-step`,
 `data-schedule-edit`, `data-schedule-window-edit`, `data-schedule-end`, `data-schedule-kind-pick`,
-`data-schedule-save` and `data-schedule-refusal`. Since Step 291 a person
+`data-schedule-save` and `data-schedule-refusal`, and the training day round's by `data-report-case`,
+`data-report-open-case`, `data-open-case-report`, `data-page-refused`, `data-notice-row`,
+`data-notice-toast`, `data-notice-toast-title`, `data-notice-toast-open`, `data-case-window`,
+`data-case-hand-to`, `data-case-escalate-to`, `data-computer-alerts`, `data-computer-alerts-on`,
+`data-computer-alerts-off`, `data-time-off-chip`, `data-time-off-status`, `data-shift-chip`,
+`data-shift-time-off`, `data-time-off-window`, `data-time-off-affected`, `data-affected-shift`,
+`data-affected-action`, `data-cover-pick`, `data-cover-overtime`, `data-time-off-cover-save`,
+`data-checklist-mode`, `data-checklist-mode-switch`, `data-ops-site`, `data-ops-not-tracked` and
+`data-not-tracked`. Since Step 291 a person
 is picked in a searchable picker, so the session line picks its trainer by `data-person-pick-option`.
 
 ## Pictures of the screen
@@ -310,7 +361,8 @@ picture's name with the day it was taken in both languages, which `npm run guide
 entry's `Last checked:` to (guide/README.md, Every entry keeps its pictures current).
 
 The stub serves the pictures with every step the API has built armed, the way live answers, the API's
-Step 280, Step 283, Step 289, Step 292, Step 299, Step 305, Step 308, Step 312 and Step 315 contracts among them, so Choose your PIN is taken in a session of its own signed
+Step 280, Step 283, Step 289, Step 292, Step 299, Step 305, Step 308, Step 312 and Step 315 contracts and the
+training day round's parts 327, 329, 330 and 337 among them, so Choose your PIN is taken in a session of its own signed
 in on the PIN the office gave (Step 284), and with
 `setStep278`, which the smoke check arms only for its Help pictures lines: invented answers for the screens no check had drawn before, such
 as the PPE a person was issued, quotes, clearances, warnings, workload plans, equipment, projects and

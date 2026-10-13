@@ -77,6 +77,15 @@ const HELP_ANSWER = {
 const HELP_QUESTION = { en: "How do I print the evidence pack?", es: "\u00bfC\u00f3mo imprimo el paquete de evidencias?" };
 // The shell is up once the side panel's items are drawn, and a window is the one at z-index 500.
 const SHELL = "[data-nav-item]";
+// A browser that can take alerts on this computer, answered by the page itself, the way audit/smoke.js
+// answers it: nothing is subscribed until Turn on alerts on this computer is pressed (Step 333).
+const fakePush = async (c) => {
+  await c.page.evaluate(() => {
+    const reg = { pushManager: { getSubscription: async () => null, subscribe: async () => null } };
+    navigator.serviceWorker.getRegistration = async () => reg;
+    window.Notification = { permission: "default", requestPermission: async () => "default" };
+  });
+};
 const MODAL = "div[style*='z-index: 500']";
 // The stub's first assigned task, at-1, in the words each language draws it with.
 const TASK = { en: "Strip and refinish lobby", es: "Decapar y encerar el vest\u00edbulo" };
@@ -689,13 +698,19 @@ const SHOTS = [
   { name: "theme-button", entry: "Switch between light and dark",
     open: "overview", ready: SHELL,
     act: async (c) => { await btn(c, "Dark Mode").hover(); } },
+  // The training day round (part 334): a request over two shifts with what happens to each chosen,
+  // from its address, and the week marking the time off and the shifts under it (setStep330).
   { name: "time-off-request", entry: "Approve or deny a time off request",
-    open: "schedule", ready: "text=Tomasz Wisniewski",
+    open: "schedule/timeoff/to-330", ready: '[data-time-off-window="to-330"] [data-affected-shift="sh-330"]',
     act: async (c) => {
-      await press(c, "Time off"); await until(c, "table tbody tr");
-      // Step 291: the PTO request the API's Step 289 brings.
-      await row(c, "table tbody tr", "Bertrand Lefevre"); await until(c, MODAL);
+      await c.page.locator('[data-affected-shift="sh-1"] [data-affected-action]').selectOption("reassign");
+      await click(c, '[data-affected-shift="sh-1"] [data-person-pick-field]'); await click(c, '[data-person-pick-option="u-staff-9"]');
+      await c.page.locator('[data-affected-shift="sh-330"] [data-affected-action]').selectOption("cancel");
+      await blur(c); await toTop(c, "[data-time-off-affected]", 120);
     } },
+  { name: "schedule-time-off-week", entry: "Approve or deny a time off request",
+    open: "schedule", ready: '[data-time-off-chip="to-330"]',
+    act: async (c) => { await until(c, '[data-shift-chip="sh-4"][data-shift-time-off="approved"]'); } },
   { name: "time-off-all", entry: "See past time off requests",
     open: "schedule", ready: "text=Tomasz Wisniewski",
     act: async (c) => { await press(c, "Time off"); await until(c, "table tbody tr"); await press(c, "All|requests"); await wait(500); } },
@@ -838,7 +853,7 @@ const SHOTS = [
     } },
   { name: "my-alerts", entry: "Choose what alerts your phone",
     open: "overview", ready: "[data-nav-item]",
-    act: async (c) => { await c.d.openUserMenu(); await press(c, "My alerts"); await until(c, MODAL); } },
+    act: async (c) => { await fakePush(c); await c.d.openUserMenu(); await press(c, "My alerts"); await until(c, "[data-computer-alerts]"); } },
   { name: "chat-tag-someone", entry: "Tag someone in a chat",
     open: "chat/ch-1", ready: "[data-nav-item]",
     act: async (c) => { await click(c, 'button[title="' + c.say("Tag someone") + '"]'); await until(c, "[data-tag-picker]"); } },
@@ -1613,6 +1628,25 @@ const SHOTS = [
   { name: "site-schedule", entry: "Read a site's schedule by shift",
     open: "sites/s-2/tasks", ready: "[data-schedule-block]",
     act: async (c) => { await until(c, "[data-schedule-step]"); await toTop(c, "[data-site-schedule]", 100); } },
+  // The training day round: Open a case from a filed incident report (part 332, setStep327), My alerts'
+  // part for this computer (part 333, setStep329, with the browser's push answered by the page itself),
+  // an approved request's Shifts to cover with the cover picker open (part 334, setStep330), and the
+  // third site's task list kept as a record (part 338, setStep337).
+  { name: "case-from-report", entry: "Open a case",
+    open: report("fr-incident-327"), ready: "[data-report-open-case]",
+    act: async (c) => { await click(c, "[data-report-open-case]"); await until(c, "[data-open-case-report]"); await blur(c); } },
+  { name: "computer-alerts", entry: "Turn on alerts on this computer",
+    open: "overview", ready: "[data-nav-item]",
+    act: async (c) => { await fakePush(c); await c.d.openUserMenu(); await press(c, "My alerts"); await until(c, '[data-computer-alerts="off"]'); } },
+  { name: "time-off-cover", entry: "Cover a shift when someone is off",
+    open: "schedule/timeoff/to-331", ready: '[data-time-off-affected="cover"] [data-affected-shift="sh-4"]',
+    act: async (c) => {
+      await c.page.locator('[data-affected-shift="sh-4"] [data-affected-action]').selectOption("reassign");
+      await click(c, '[data-affected-shift="sh-4"] [data-person-pick-field]'); await until(c, '[data-person-pick-option="u-staff-6"]');
+    } },
+  { name: "site-task-list-record", entry: "Keep a site's task list as a record only",
+    open: "sites/s-3/tasks", ready: '[data-checklist-mode="reference"]',
+    act: async (c) => { await toTop(c, "[data-checklist-mode]", 120); } },
   { name: "site-schedule-edit", entry: "Change a block's time, kind and days",
     open: "sites/s-2/tasks", ready: '[data-schedule-edit="tb-5"]',
     act: async (c) => {
@@ -1684,7 +1718,7 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
-  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312", "setStep315"].forEach((k) => stubs[k](true));
+  ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312", "setStep315", "setStep327", "setStep329", "setStep330", "setStep337"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
   // The second step of sign-in, the way audit/smoke.js arms it: sign-in answers secondStep, and the

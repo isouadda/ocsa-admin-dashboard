@@ -6837,6 +6837,243 @@ function createStubs() {
     return base();
   }
 
+  // The training day round (TRAINING_DAY_CONTRACT.md section 1, the API's parts 327, 329, 330 and 337,
+  // for the dashboard's parts 332, 333, 334 and 338), each armed on its own over everything else. Every
+  // name, time and key is invented.
+  const T327 = (lang, en, es) => (lang === "es" ? es : en);
+
+  // setStep327, the supervisor's menu (part 327): the permissions answer names manage_employment,
+  // read_hr_records and manage_cases, a supervisor holds manage_staff, manage_cases and
+  // read_incident_reports by default (so GET /api/users answers them), the HR employees summary is
+  // read_hr_records' and refuses them 403 auth.capabilityRequired naming it, the discipline steps answer
+  // (so Open a case shows), and a filed OCSA-FRM-016 is listed and read. Every case opened is kept.
+  let step327 = false;
+  const CAPS_327 = [
+    { key: "manage_employment", label: "Add people, approve registrations, change employment and roles", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "read_hr_records", label: "Read HR records", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_cases", label: "Open and work on cases", group: "Administration", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+  ];
+  const SUPERVISOR_DEFAULTS_327 = {};
+  const arm327 = (on) => {
+    step327 = on;
+    CAPS_327.forEach((c) => { const at = CAPABILITIES.findIndex((x) => x.key === c.key); if (on && at < 0) CAPABILITIES.push(clone(c)); if (!on && at >= 0) CAPABILITIES.splice(at, 1); });
+    ["manage_staff", "read_incident_reports"].forEach((k) => {
+      const c = CAPABILITIES.find((x) => x.key === k);
+      if (!c) return;
+      if (!(k in SUPERVISOR_DEFAULTS_327)) SUPERVISOR_DEFAULTS_327[k] = !!c.defaults.supervisor;
+      c.defaults = Object.assign({}, c.defaults, { supervisor: on ? true : SUPERVISOR_DEFAULTS_327[k] });
+    });
+  };
+  const IR_327 = "fr-incident-327";
+  const s327 = () => state.s327 || (state.s327 = { opened: [] });
+  const incidentRow327 = (lang) => ({ id: IR_327, formCode: "OCSA-FRM-016", formName: T327(lang, "Safety Incident Report", "Reporte de incidente de seguridad"), version: 2, status: "submitted",
+    siteId: S[1].id, siteName: S[1].name, userName: "Ngozi Okonkwo", createdAt: seed.shift(-1) + "T15:00:00Z", submittedAt: seed.shift(-1) + "T15:20:00Z", answered: 5, remaining: 0, dueAt: null });
+  const incidentRead327 = (lang) => {
+    const L = (en, es) => T327(lang, en, es);
+    return { draft: incidentRow327(lang), fields: [
+      { key: "site", label: L("Site", "Sitio"), type: "site", value: S[1].id, displayValue: S[1].name },
+      { key: "when", label: L("When it happened", "Cu\u00e1ndo pas\u00f3"), type: "text", value: "2:40 PM", displayValue: "2:40 PM" },
+      { key: "what", label: L("What happened", "Qu\u00e9 pas\u00f3"), type: "text", value: "", displayValue: L("A wet floor sign fell over in the clinic hallway and a mop bucket tipped.", "Un letrero de piso mojado se cay\u00f3 en el pasillo de la cl\u00ednica y se volc\u00f3 una cubeta.") },
+      { key: "injury", label: L("Was anyone hurt?", "\u00bfAlguien se lastim\u00f3?"), type: "select", value: "no", displayValue: L("No", "No") },
+      { key: "done", label: L("What was done", "Qu\u00e9 se hizo"), type: "text", value: "", displayValue: L("The hallway was closed and dried.", "Se cerr\u00f3 el pasillo y se sec\u00f3.") },
+    ], sections: [], canSign: [], canWriteSupervisor: false, supervisorMissing: [] };
+  };
+  function step327Route(method, path, query, body, lang, base) {
+    if (path === "/api/forms/responses" && method === "GET") {
+      const a = base();
+      const status = String(query.get("status") || "submitted");
+      const code = query.get("formCode") || "";
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.responses) && status === "submitted" && (!code || code === "OCSA-FRM-016")) a.json = Object.assign({}, a.json, { responses: [incidentRow327(lang)].concat(a.json.responses) });
+      return a;
+    }
+    if (path === "/api/forms/responses/" + IR_327 && method === "GET") return ok(incidentRead327(lang));
+    if (path === "/api/hr/employees-summary" && person().role !== "admin") {
+      return { status: 403, json: { error: T327(lang, "You need HR Records access to open this.", "Necesita acceso a Expedientes de personal para abrir esto."), code: "auth.capabilityRequired", capability: "read_hr_records" } };
+    }
+    if (path === "/api/discipline/steps" && method === "GET") return pictures278(method, path, query, body, lang, base) || base();
+    if (path === "/api/hr-cases" && method === "POST") { s327().opened.push(clone(body || {})); return base(); }
+    return base();
+  }
+
+  // setStep329, notices that open in the dashboard and alerts on this computer (parts 328 and 329): the
+  // bell holds an issue_assigned notice whose link is the staff app, a time_off notice and an
+  // hr_case_assigned notice whose links are the dashboard's, and a notice about something the dashboard
+  // has no page for, linked to the staff app; addNotice329 puts a new one at the top, which is what
+  // arrives while the dashboard is open. GET /api/push/key answers an invented key, and POST and DELETE
+  // /api/push/subscriptions keep what each was sent, refusing a subscription with no https endpoint or
+  // no keys 400 push.badSubscription in the API's words.
+  let step329 = false;
+  const STAFF_APP_329 = "https://staff.example.invalid";
+  const DASHBOARD_329 = "https://admin.example.invalid";
+  const PUSH_KEY_329 = Buffer.concat([Buffer.from([4]), Buffer.alloc(64, 7)]).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const NOTICES_329 = [
+    { id: "n-329-1", en: ["A problem is assigned to you", "Lobby floor scuffed after delivery."], es: ["Se le asign\u00f3 un problema", "Piso del vest\u00edbulo rayado despu\u00e9s de una entrega."], subjectType: "issue_assigned", subjectId: "i-1", link: STAFF_APP_329 + "/issues/i-1", createdAt: seed.shift(0) + "T23:20:00Z" },
+    { id: "n-329-2", en: ["Time off requested for Mar 17", "Tomasz Wisniewski asked for two days."], es: ["Tiempo libre solicitado para el 17 de mar", "Tomasz Wisniewski pidi\u00f3 dos d\u00edas."], subjectType: "time_off", subjectId: "to-330", link: DASHBOARD_329 + "/#schedule/timeoff/to-330", createdAt: seed.shift(0) + "T23:15:00Z" },
+    { id: "n-329-3", en: ["A case was assigned to you", "Open it in Cases."], es: ["Se le asign\u00f3 un caso", "\u00c1bralo en Casos."], subjectType: "hr_case_assigned", subjectId: "hc-1", link: DASHBOARD_329 + "/#cases/hc-1", createdAt: seed.shift(0) + "T23:10:00Z" },
+    { id: "n-329-4", en: ["Your uniform fitting is booked", "Thursday at 9:00 AM."], es: ["Su prueba de uniforme est\u00e1 reservada", "El jueves a las 9:00 AM."], subjectType: "uniform_fitting", subjectId: "uf-1", link: STAFF_APP_329 + "/uniforms/uf-1", createdAt: seed.shift(0) + "T23:05:00Z" },
+  ];
+  const NEW_NOTICE_329 = { id: "n-329-new", en: ["A new problem was reported", "Clinic restroom out of paper towels."], es: ["Se report\u00f3 un problema nuevo", "Ba\u00f1o de la cl\u00ednica sin toallas de papel."], subjectType: "issue", subjectId: "i-2", link: DASHBOARD_329 + "/issues/i-2" };
+  const s329 = () => state.s329 || (state.s329 = { subscribed: [], removed: [] });
+  const notices329 = () => {
+    if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+    if (!state.notices329) { state.notices329 = true; NOTICES_329.slice().reverse().forEach((n) => state.notifications.unshift(Object.assign({ readAt: null }, clone(n)))); }
+    return state.notifications;
+  };
+  const shown329 = (n, lang) => (n && n.en ? Object.assign({}, n, { en: undefined, es: undefined, title: (lang === "es" ? n.es : n.en)[0], body: (lang === "es" ? n.es : n.en)[1] }) : n);
+  function step329Route(method, path, query, body, lang, base) {
+    if (path === "/api/notifications/unread-count" || path === "/api/notifications" || /^\/api\/notifications\/[^/]+\/read$/.test(path) || path === "/api/notifications/read-all") notices329();
+    if (path === "/api/notifications" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.notifications)) {
+        const limit = Number(query.get("limit")) || 0;
+        const all = a.json.notifications.map((n) => shown329(n, lang));
+        a.json = Object.assign({}, a.json, { notifications: limit ? all.slice(0, limit) : all });
+      }
+      return a;
+    }
+    if (path === "/api/push/key" && method === "GET") return ok({ publicKey: PUSH_KEY_329 });
+    if (path === "/api/push/subscriptions" && (method === "POST" || method === "DELETE")) {
+      const b = body || {};
+      const endpoint = typeof b.endpoint === "string" ? b.endpoint : "";
+      const bad = () => ({ status: 400, json: { error: T327(lang, "That alert subscription is not complete. Turn alerts on again.", "Esa suscripci\u00f3n de alertas no est\u00e1 completa. Vuelva a activar las alertas."), code: "push.badSubscription" } });
+      if (!/^https:\/\//i.test(endpoint)) return bad();
+      if (method === "DELETE") { s329().removed.push(clone(b)); return ok({ ok: true }); }
+      if (!b.keys || typeof b.keys.p256dh !== "string" || typeof b.keys.auth !== "string") return bad();
+      s329().subscribed.push(clone(b));
+      return created({ ok: true });
+    }
+    return base();
+  }
+
+  // setStep330, time off on the schedule (part 330): a request waiting for a decision over two of
+  // Tomasz Wisniewski's shifts, today's at the first site and tomorrow's, and an approved one under which
+  // Rashid Haddad's shift the day after is still scheduled. GET /api/schedule/calendar answers both as
+  // timeOff for the range and marks each of those shifts timeOffConflict. GET /api/time-off/:id answers
+  // affectedShifts, cover-candidates answers two people (the site's own first, one on overtime), and
+  // approve and POST /:id/shifts take shifts [{ shiftId, action, userId }], refusing a shift the request
+  // does not affect, a reassign with nobody and a person with a shift of their own over it, each in the
+  // API's words with its code, and keep what each was sent. The old list and its five requests are
+  // left as they are.
+  let step330 = false;
+  const s330 = () => {
+    if (state.s330) return state.s330;
+    if (!state.schedule) state.schedule = clone(SCHEDULE);
+    if (!state.schedule.some((x) => x.id === "sh-330")) state.schedule.push({ id: "sh-330", user_id: "u-staff-5", user_name: "Tomasz Wisniewski", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(1), start_time: "18:00", end_time: "02:00", status: "scheduled", building_name: "North Wing", floor_number: "3", notes: "", pattern_id: null, crosses_midnight: true });
+    state.s330 = { approvals: [], covers: [], requests: [
+      { id: "to-330", userId: "u-staff-5", userName: "Tomasz Wisniewski", leaveType: "pto", leaveTypeLabel: "PTO", startsOn: seed.shift(0), endsOn: seed.shift(1), partDay: false, hours: 16, status: "requested", reason: "Moving to a new apartment.", createdAt: seed.shift(-1) + "T13:00:00Z" },
+      { id: "to-331", userId: "u-staff-8", userName: "Rashid Haddad", leaveType: "paid_sick", leaveTypeLabel: "Paid sick leave", startsOn: seed.shift(2), endsOn: seed.shift(2), partDay: false, hours: 8, status: "approved", reason: "", createdAt: seed.shift(-1) + "T09:30:00Z", decidedByName: "Dana Whitlock", decidedAt: seed.shift(-1) + "T11:00:00Z", decisionNote: null },
+    ] };
+    return state.s330;
+  };
+  const CANDIDATES_330 = [
+    { id: "u-staff-9", name: "Yuki Tanabe", assignedHere: true, weekHours: 24, overtime: false },
+    { id: "u-staff-6", name: "Ngozi Okonkwo", assignedHere: false, weekHours: 36, overtime: true },
+  ];
+  const day330 = (v) => String(v || "").slice(0, 10);
+  const affected330 = (r) => state.schedule.filter((x) => String(x.user_id) === String(r.userId) && x.status === "scheduled" && day330(x.scheduled_date) >= day330(r.startsOn) && day330(x.scheduled_date) <= day330(r.endsOn || r.startsOn))
+    .map((x) => ({ shiftId: x.id, date: day330(x.scheduled_date), startTime: x.start_time, endTime: x.end_time, siteId: x.site_id, siteName: x.site_name, status: x.status }));
+  const view330 = (r) => Object.assign({}, r, { shifts: affected330(r).map((x) => ({ id: x.shiftId, date: x.date, startTime: x.startTime, endTime: x.endTime, siteName: x.siteName, status: x.status })) });
+  const refuse330 = (lang, code, en, es, extra) => ({ status: 400, json: Object.assign({ error: T327(lang, en, es), code }, extra || {}) });
+  // The choices, held to the request's own shifts and the cover's own day, then made.
+  const settle330 = (r, shifts, lang) => {
+    const mine = affected330(r);
+    for (const c of shifts) {
+      if (!mine.some((x) => String(x.shiftId) === String(c.shiftId))) return refuse330(lang, "timeOff.shiftNotAffected", "That shift is not one this request affects.", "Ese turno no es uno de los que afecta esta solicitud.", { keys: ["shifts"], shiftId: c.shiftId });
+      if (["reassign", "post", "cancel"].indexOf(c.action) < 0) return refuse330(lang, "timeOff.badAction", "Choose what happens to the shift.", "Elija qu\u00e9 pasa con el turno.", { keys: ["shifts"], shiftId: c.shiftId });
+      if (c.action === "reassign" && !c.userId) return refuse330(lang, "timeOff.userRequired", "Choose who takes this shift.", "Elija qui\u00e9n toma este turno.", { keys: ["shifts"], shiftId: c.shiftId });
+      if (c.action === "reassign" && !CANDIDATES_330.some((p) => p.id === c.userId)) return refuse330(lang, "timeOff.coverConflict", "That person has a shift or time off at that time.", "Esa persona tiene un turno o tiempo libre a esa hora.", { keys: ["shifts"], shiftId: c.shiftId });
+    }
+    shifts.forEach((c) => {
+      const row = state.schedule.find((x) => String(x.id) === String(c.shiftId));
+      if (c.action === "reassign") { const p = CANDIDATES_330.find((x) => x.id === c.userId); row.user_id = p.id; row.user_name = p.name; }
+      else row.status = "cancelled";
+    });
+    return null;
+  };
+  function step330Route(method, path, query, body, lang, base) {
+    if (path === "/api/schedule/calendar" && method === "GET") {
+      const st = s330();
+      const a = base();
+      if (!a || a.status !== 200 || !a.json) return a;
+      const from = query.get("start_date") || "", to = query.get("end_date") || "";
+      const off = st.requests.filter((r) => (r.status === "requested" || r.status === "approved") && day330(r.startsOn) <= to && day330(r.endsOn) >= from);
+      const conflict = (x) => { const r = off.find((q0) => String(q0.userId) === String(x.user_id) && day330(x.scheduled_date) >= day330(q0.startsOn) && day330(x.scheduled_date) <= day330(q0.endsOn)); return r ? { requestId: r.id, status: r.status } : null; };
+      a.json = Object.assign({}, a.json, {
+        scheduled_shifts: (a.json.scheduled_shifts || []).map((x) => (x.status === "scheduled" && conflict(x) ? Object.assign({}, x, { timeOffConflict: conflict(x) }) : x)),
+        timeOff: off.map((r) => ({ id: r.id, userId: r.userId, startsOn: r.startsOn, endsOn: r.endsOn, startTime: r.startTime || null, endTime: r.endTime || null, status: r.status, leaveType: r.leaveType })),
+      });
+      return a;
+    }
+    const m = /^\/api\/time-off\/(to-33[01])(\/[^/]+)?$/.exec(path);
+    if (!m) return base();
+    const st = s330();
+    const r = st.requests.find((x) => x.id === m[1]);
+    const tail = m[2] || "";
+    if (!tail && method === "GET") return ok({ request: view330(r), affectedShifts: affected330(r) });
+    if (tail === "/cover-candidates" && method === "GET") {
+      if (!affected330(r).some((x) => String(x.shiftId) === String(query.get("shiftId")))) return refuse330(lang, "timeOff.shiftNotAffected", "That shift is not one this request affects.", "Ese turno no es uno de los que afecta esta solicitud.", { keys: ["shiftId"] });
+      return ok({ candidates: clone(CANDIDATES_330) });
+    }
+    if ((tail === "/approve" || tail === "/deny") && method === "POST") {
+      if (r.status !== "requested") return { status: 409, json: { error: T327(lang, "Someone else decided this already", "Otra persona ya decidi\u00f3 esto"), code: "already_decided" } };
+      const shifts = tail === "/approve" && body && Array.isArray(body.shifts) ? body.shifts : [];
+      const refused = settle330(r, shifts, lang);
+      if (refused) return refused;
+      st.approvals.push({ id: r.id, kind: tail.slice(1), body: clone(body || {}) });
+      Object.assign(r, { status: tail === "/deny" ? "denied" : "approved", decidedByName: person().firstName + " " + person().lastName, decidedAt: seed.NOW_ISO, decisionNote: (body && body.note) || null });
+      return ok({ request: view330(r) });
+    }
+    if (tail === "/shifts" && method === "POST") {
+      if (r.status !== "approved") return { status: 409, json: { error: T327(lang, "Approve the request first.", "Primero apruebe la solicitud."), code: "timeOff.notApproved" } };
+      const shifts = body && Array.isArray(body.shifts) ? body.shifts : [];
+      const refused = settle330(r, shifts, lang);
+      if (refused) return refused;
+      st.covers.push({ id: r.id, body: clone(body || {}) });
+      return ok({ request: view330(r), affectedShifts: affected330(r) });
+    }
+    return base();
+  }
+
+  // setStep337, task lists kept as a record (part 337): every site read answers checklistMode, the
+  // third site reference and the others tracked; a site's PATCH takes it, refusing any other value 400
+  // sites.badChecklistMode in the API's words, and keeps each save; and Live Ops, Home and Reports'
+  // Task Completion answer the third site notTracked, with no counts.
+  let step337 = false;
+  const s337 = () => state.s337 || (state.s337 = { modes: { [S[2].id]: "reference" }, saves: [] });
+  const mode337 = (id) => s337().modes[String(id)] || "tracked";
+  function step337Route(method, path, query, body, lang, base) {
+    if (path === "/api/sites" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((x) => Object.assign({}, x, { checklistMode: mode337(x.id) }));
+      return a;
+    }
+    if (path.startsWith("/api/sites/profile/") && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && a.json.site) a.json = Object.assign({}, a.json, { site: Object.assign({}, a.json.site, { checklistMode: mode337(a.json.site.id) }) });
+      return a;
+    }
+    const one = /^\/api\/sites\/([^/]+)$/.exec(path);
+    if (one && method === "PATCH" && body && Object.prototype.hasOwnProperty.call(body, "checklistMode")) {
+      if (["tracked", "reference"].indexOf(body.checklistMode) < 0) return { status: 400, json: { error: T327(lang, "Choose whether staff check off tasks here.", "Elija si el personal marca las tareas aqu\u00ed."), code: "sites.badChecklistMode", keys: ["checklistMode"] } };
+      s337().modes[decodeURIComponent(one[1])] = body.checklistMode;
+      s337().saves.push({ id: decodeURIComponent(one[1]), body: clone(body) });
+      const a = base();
+      if (a && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { checklistMode: body.checklistMode });
+      return a;
+    }
+    if (path.startsWith("/api/shift-sessions/by-site") && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.sites)) a.json = Object.assign({}, a.json, { sites: a.json.sites.map((x) => (mode337(x.siteId) === "reference" ? Object.assign({}, x, { notTracked: true, people: (x.people || []).map((p) => Object.assign({}, p, { tasksCompleted: 0, tasksTotal: 0 })) }) : x)) });
+      return a;
+    }
+    if (path === "/api/reports/task-completion" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.sites)) a.json = Object.assign({}, a.json, { sites: a.json.sites.map((x) => (mode337(x.siteId) === "reference" ? Object.assign({}, x, { notTracked: true, completedTasks: 0, assignedTasks: 0 }) : x)) });
+      return a;
+    }
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -6897,7 +7134,11 @@ function createStubs() {
     const over308 = () => (step308 ? step308Route(method, path, u.searchParams, body, record.language, over305) : over305());
     const over312 = () => (step312 ? step312Route(method, path, u.searchParams, body, record.language, over308) : over308());
     const over315 = () => (step315 ? step315Route(method, path, u.searchParams, body, record.language, over312) : over312());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over315) : over315();
+    const over327 = () => (step327 ? step327Route(method, path, u.searchParams, body, record.language, over315) : over315());
+    const over329 = () => (step329 ? step329Route(method, path, u.searchParams, body, record.language, over327) : over327());
+    const over330 = () => (step330 ? step330Route(method, path, u.searchParams, body, record.language, over329) : over329());
+    const over337 = () => (step337 ? step337Route(method, path, u.searchParams, body, record.language, over330) : over330());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over337) : over337();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -7009,6 +7250,25 @@ function createStubs() {
     // schedules, on or off, laid over whichever steps the run arms; and every block save it took.
     setStep315: (v) => { step315 = v !== false; },
     saves315: () => (state.s315 ? state.s315.saves.slice() : []),
+    // The training day round (TRAINING_DAY_CONTRACT.md section 1), each part on or off, laid over
+    // whichever steps the run arms: the supervisor's capabilities and every case opened since (327);
+    // the bell's notices, a notice arriving, and every push subscription posted and deleted (329);
+    // time off on the schedule and every approval and cover sent (330); and the checklist mode and
+    // every save of it (337).
+    setStep327: (v) => { arm327(v !== false); },
+    opened327: () => (state.s327 ? state.s327.opened.slice() : []),
+    setStep329: (v) => { step329 = v !== false; },
+    addNotice329: () => { notices329(); state.notifications.unshift(Object.assign({ readAt: null, createdAt: seed.NOW_ISO }, clone(NEW_NOTICE_329))); return NEW_NOTICE_329.id; },
+    newNotice329: (lang) => shown329(NEW_NOTICE_329, lang),
+    notice329: (id, lang) => shown329(NOTICES_329.find((n) => n.id === id), lang),
+    pushKey329: () => PUSH_KEY_329,
+    subscribed329: () => (state.s329 ? state.s329.subscribed.slice() : []),
+    unsubscribed329: () => (state.s329 ? state.s329.removed.slice() : []),
+    setStep330: (v) => { step330 = v !== false; },
+    approvals330: () => (state.s330 ? state.s330.approvals.slice() : []),
+    covers330: () => (state.s330 ? state.s330.covers.slice() : []),
+    setStep337: (v) => { step337 = v !== false; },
+    saves337: () => (state.s337 ? state.s337.saves.slice() : []),
     // Every purchase order sent since the run armed Step 308, to whom.
     sent308: () => (state.s308 ? state.s308.sent.slice() : []),
     // Every welcome email tried since the run armed Step 292, with whom and how it went.
