@@ -168,6 +168,12 @@
 //     its own route, at 390 in English too; and a site kept as a record reads Not tracked on Live Ops and
 //     its setting saves. Once, before the passes, the worker line runs public/sw.js in a sandbox: a push
 //     shows its alert and a click opens each subject's place.
+//   - against the stub's answers for changing a hire date (the API's part 340, for the dashboard's part
+//     341), armed with setStep341 in the part's own lines: at 1280 in English and in Spanish an admin's
+//     Edit Staff Info sends no hireDate when the date is untouched, keeps a set date from being emptied,
+//     and sends a changed date as hireDate with nothing else changed; a profile's Edit fills a missing
+//     date and draws users.badHireDate under the field; Add Staff sends hireDate only when it is filled;
+//     and a supervisor, in English and in Spanish, sees no Hire Date in either window and no Add Staff.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run side by side, each in a browser context and a stub of its own, and
@@ -241,13 +247,13 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step334: true },
-  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor", step332: "after" },
+  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor", step332: "after", step341: true },
   // The training day round: a supervisor in Spanish with the API's Step 327 answered from the start,
   // its lines alone.
-  { name: "1280 es supervisor", viewport: "wide", lang: "es", who: "supervisor", step332: true, walk: false },
+  { name: "1280 es supervisor", viewport: "wide", lang: "es", who: "supervisor", step332: true, walk: false, step341: true },
   // Step 273: the phone in Spanish, for the key sent to a phone and the Step 269 screens.
   { name: "390 es admin", viewport: "phone", lang: "es", who: "admin", step270: "phone", step269: "phone", step275: "phone" },
 ];
@@ -2745,6 +2751,127 @@ async function step338(d, origin, p, stubs) {
   });
 }
 
+// Part 341, changing a hire date, with the API's part 340 armed here. An admin: Edit Staff Info sends
+// no hireDate when the date is untouched and keeps a set date from being emptied; a changed date goes
+// as hireDate, the one field that changed; a profile's Edit fills a missing date, and users.badHireDate
+// is drawn under the field in the API's words; Add Staff sends hireDate when filled and leaves it out
+// when empty. A supervisor sees no Hire Date in either window and is offered no Add Staff.
+const nameOf341 = (id) => seed.STAFF.find((x) => x.id === id).name;
+const hireOf341 = (id) => seed.STAFF.find((x) => x.id === id).hire_date;
+async function editWindow341(d, id) {
+  await go(d, "staff", null, "table tbody tr");
+  await d.page.getByPlaceholder(d.say("Search name, ID, phone, role")).fill(nameOf341(id));
+  await d.page.locator("table tbody tr").filter({ hasText: nameOf341(id) }).first().getByTitle(d.say("Edit"), { exact: true }).click();
+  await d.page.getByText(d.say("Edit Staff Info"), { exact: true }).waitFor();
+}
+async function saved341(d, stubs, button) {
+  const before = stubs.patches341().length;
+  await button.click();
+  await forCalls(() => stubs.patches341().length, before);
+  return stubs.patches341()[before] || null;
+}
+const saveButton341 = (d) => d.page.getByRole("button", { name: d.say("Save Changes"), exact: true }).first();
+async function profileEdit341(d, id) {
+  await go(d, "staff", [id], "[data-profile-edit]");
+  await d.page.locator("[data-profile-edit]").click();
+  await until(d, '[data-hire-date="profile"], input[type="date"]');
+}
+async function added341(d, stubs, fill) {
+  await go(d, "staff", null, "table tbody tr");
+  await d.page.getByRole("button", { name: d.say("Add Staff"), exact: true }).first().click();
+  await until(d, '[data-hire-date="add"]');
+  const win = d.page.locator('[data-hire-date="add"]').locator("xpath=..");
+  const boxes = win.locator("input");
+  await boxes.nth(0).fill(fill.first);
+  await boxes.nth(1).fill(fill.last);
+  await boxes.nth(2).fill(fill.phone);
+  await boxes.nth(3).fill(fill.email);
+  if (fill.hireDate) await win.locator('[data-hire-date="add"] input').fill(fill.hireDate);
+  const before = stubs.posts341().length;
+  await win.getByRole("button", { name: d.say("Add Staff"), exact: true }).click();
+  await forCalls(() => stubs.posts341().length, before);
+  const sent = stubs.posts341()[before] || null;
+  const done = d.page.getByRole("button", { name: d.say("Done"), exact: true });
+  await done.waitFor().catch(() => {});
+  if (await done.count()) await done.click();
+  return sent;
+}
+async function step341(d, origin, p, stubs) {
+  const check = lineChecker(d, origin, p);
+  stubs.setStep341(true);
+  const own = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+  if (p.who === "supervisor") {
+    await check("a supervisor sees no Hire Date in Edit Staff Info or a profile's Edit, and no Add Staff", async () => {
+      await editWindow341(d, "u-staff-6");
+      if ((await d.page.locator("[data-hire-date]").count()) > 0) return "Edit Staff Info draws Hire Date";
+      const sent = await saved341(d, stubs, saveButton341(d));
+      if (!sent) return "the window saved nothing";
+      if (own(sent.body, "hireDate")) return "the save sent hireDate " + JSON.stringify(sent.body.hireDate);
+      await profileEdit341(d, "u-staff-6");
+      if ((await d.page.locator("[data-hire-date]").count()) > 0) return "the profile's Edit draws Hire Date";
+      await go(d, "staff", null, "table tbody tr");
+      return (await d.page.getByRole("button", { name: d.say("Add Staff"), exact: true }).count()) > 0 ? "Add Staff is offered" : "";
+    });
+    return;
+  }
+  let untouched = null;
+  await check("Edit Staff Info: an untouched hire date is not sent, and a set date cannot be emptied", async () => {
+    await editWindow341(d, "u-staff-6");
+    const box = d.page.locator('[data-hire-date="edit"] input');
+    if ((await box.inputValue()) !== hireOf341("u-staff-6")) return "the field reads " + JSON.stringify(await box.inputValue());
+    await box.fill("");
+    await wait(150);
+    if ((await box.inputValue()) !== hireOf341("u-staff-6")) return "the date was emptied";
+    const sent = await saved341(d, stubs, saveButton341(d));
+    if (!sent || sent.id !== "u-staff-6") return "the save sent " + JSON.stringify(sent);
+    if (own(sent.body, "hireDate")) return "the save sent hireDate " + JSON.stringify(sent.body.hireDate);
+    untouched = sent.body;
+    return "";
+  });
+  await check("Edit Staff Info: a changed hire date goes as hireDate, and nothing else changes", async () => {
+    if (!untouched) return "the untouched save did not run";
+    await editWindow341(d, "u-staff-6");
+    await d.page.locator('[data-hire-date="edit"] input').fill("2025-04-01");
+    const sent = await saved341(d, stubs, saveButton341(d));
+    if (!sent || sent.body.hireDate !== "2025-04-01") return "the save sent " + JSON.stringify(sent && sent.body);
+    const rest = Object.assign({}, sent.body);
+    delete rest.hireDate;
+    if (JSON.stringify(rest) !== JSON.stringify(untouched)) return "the save changed more than the date: " + JSON.stringify(rest);
+    await editWindow341(d, "u-staff-6");
+    const now = await d.page.locator('[data-hire-date="edit"] input').inputValue();
+    return now !== "2025-04-01" ? "the window opens again on " + JSON.stringify(now) : "";
+  });
+  await check("a profile's Edit fills a missing hire date, and users.badHireDate shows under the field", async () => {
+    await profileEdit341(d, "u-staff-7");
+    const box = d.page.locator('[data-hire-date="profile"] input');
+    if ((await box.inputValue()) !== "") return "the field reads " + JSON.stringify(await box.inputValue());
+    const far = (Number(seed.shift(0).slice(0, 4)) + 2) + "-06-01";
+    await box.fill(far);
+    const refused = await saved341(d, stubs, saveButton341(d));
+    if (!refused || refused.body.hireDate !== far || !refused.refused) return "the far date was sent as " + JSON.stringify(refused);
+    await until(d, "[data-hire-date-said]");
+    const said = await d.page.locator('[data-hire-date="profile"] [data-hire-date-said]').innerText();
+    if (said.trim() !== stubs.hireRefusal341(p.lang)) return "under the field: " + JSON.stringify(said);
+    await box.fill("2025-04-17");
+    if ((await d.page.locator("[data-hire-date-said]").count()) > 0) return "the refusal stays once the date changes";
+    const sent = await saved341(d, stubs, saveButton341(d));
+    if (!sent || sent.body.hireDate !== "2025-04-17" || sent.refused) return "the save sent " + JSON.stringify(sent);
+    await d.page.locator('[data-hire-date="profile"]').waitFor({ state: "detached" });
+    await profileEdit341(d, "u-staff-7");
+    const now = await d.page.locator('[data-hire-date="profile"] input').inputValue();
+    if (now !== "2025-04-17") return "the profile opens again on " + JSON.stringify(now);
+    return (await d.page.locator('[data-hire-date="profile"]').innerText()).indexOf(d.say("To fix a wrong date, pick the right one.")) < 0 ? "the line under the set date is not there" : "";
+  });
+  await check("Add Staff sends hireDate when filled and leaves it out when empty", async () => {
+    const empty = await added341(d, stubs, { first: "Avery", last: "Testcase", phone: "2155550142", email: "avery.testcase@example.invalid" });
+    if (!empty) return "Add Staff sent nothing";
+    if (own(empty.body, "hireDate")) return "an empty Hire Date was sent as " + JSON.stringify(empty.body.hireDate);
+    const filled = await added341(d, stubs, { first: "Jordan", last: "Testcase", phone: "2155550143", email: "jordan.testcase@example.invalid", hireDate: "2026-03-02" });
+    if (!filled) return "Add Staff sent nothing the second time";
+    return filled.body.hireDate !== "2026-03-02" ? "a filled Hire Date was sent as " + JSON.stringify(filled.body.hireDate) : "";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -2893,6 +3020,7 @@ async function runPass(browser, origin, p) {
     if (p.step333) await step333(d, origin, p, stubs);
     if (p.step334) await step334(d, origin, p, stubs);
     if (p.step338) await step338(d, origin, p, stubs);
+    if (p.step341) await step341(d, origin, p, stubs);
     if (p.walk === false) return;
 
     // Help, asked one question.

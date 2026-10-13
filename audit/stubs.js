@@ -7074,6 +7074,67 @@ function createStubs() {
     return base();
   }
 
+  // setStep341, changing a hire date (the API's part 340): GET /api/users and a profile answer each
+  // person's hireDate, one active person answering none; PATCH /api/users/:id and POST /api/users take
+  // hireDate from a holder of manage_employment (an admin while the permissions answer does not name
+  // it), refusing a day that is not real or is more than a year ahead 400 users.badHireDate in the API's
+  // words, and drop it, unwritten, for anyone else. Every PATCH and POST is kept as it was sent.
+  let step341 = false;
+  const NO_HIRE_341 = "u-staff-7";
+  const s341 = () => state.s341 || (state.s341 = { dates: { [NO_HIRE_341]: null }, patches: [], posts: [] });
+  const hireOf341 = (id, was) => (Object.prototype.hasOwnProperty.call(s341().dates, String(id)) ? s341().dates[String(id)] : was == null ? null : was);
+  const employs341 = () => {
+    const m = effectiveMap(person(), state.overrides[person().id]);
+    return Object.prototype.hasOwnProperty.call(m, "manage_employment") ? m.manage_employment : person().role === "admin";
+  };
+  const badHire341 = (v, lang) => {
+    const today = seed.shift(0);
+    const limit = (Number(today.slice(0, 4)) + 1) + today.slice(4);
+    if (realDay(v) && v <= limit) return null;
+    return { status: 400, json: { error: T327(lang, "Choose a real date, no more than a year from today.", "Elija una fecha real, a no más de un año de hoy."), code: "users.badHireDate", keys: ["hireDate"] } };
+  };
+  function step341Route(method, path, query, body, lang, base) {
+    if (path === "/api/users" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((x) => Object.assign({}, x, { hireDate: hireOf341(x.id, x.hireDate !== undefined ? x.hireDate : x.hire_date) }));
+      return a;
+    }
+    if (/^\/api\/users\/profile\/[^/]+$/.test(path) && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && a.json.user) a.json = Object.assign({}, a.json, { user: Object.assign({}, a.json.user, { hireDate: hireOf341(a.json.user.id, a.json.user.hireDate) }) });
+      return a;
+    }
+    const one = /^\/api\/users\/([^/]+)$/.exec(path);
+    if (one && method === "PATCH") {
+      const id = decodeURIComponent(one[1]);
+      const sent = clone(body || {});
+      const has = !!body && Object.prototype.hasOwnProperty.call(body, "hireDate");
+      if (has && !employs341()) {
+        s341().patches.push({ id, body: sent, dropped: true });
+        delete body.hireDate;
+        return base();
+      }
+      if (has) {
+        const refused = badHire341(body.hireDate, lang);
+        s341().patches.push({ id, body: sent, refused: !!refused });
+        if (refused) return refused;
+        s341().dates[id] = body.hireDate;
+        return base();
+      }
+      s341().patches.push({ id, body: sent });
+      return base();
+    }
+    if (path === "/api/users" && method === "POST") {
+      const sent = clone(body || {});
+      const has = !!body && Object.prototype.hasOwnProperty.call(body, "hireDate");
+      if (has && !employs341()) { s341().posts.push({ body: sent, dropped: true }); delete body.hireDate; return base(); }
+      const refused = has ? badHire341(body.hireDate, lang) : null;
+      s341().posts.push({ body: sent, refused: !!refused });
+      return refused || base();
+    }
+    return base();
+  }
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -7138,7 +7199,8 @@ function createStubs() {
     const over329 = () => (step329 ? step329Route(method, path, u.searchParams, body, record.language, over327) : over327());
     const over330 = () => (step330 ? step330Route(method, path, u.searchParams, body, record.language, over329) : over329());
     const over337 = () => (step337 ? step337Route(method, path, u.searchParams, body, record.language, over330) : over330());
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over337) : over337();
+    const over341 = () => (step341 ? step341Route(method, path, u.searchParams, body, record.language, over337) : over337());
+    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -7269,6 +7331,11 @@ function createStubs() {
     covers330: () => (state.s330 ? state.s330.covers.slice() : []),
     setStep337: (v) => { step337 = v !== false; },
     saves337: () => (state.s337 ? state.s337.saves.slice() : []),
+    // Changing a hire date (the API's part 340), on or off, and every staff PATCH and POST since, as sent.
+    setStep341: (v) => { step341 = v !== false; },
+    patches341: () => (state.s341 ? state.s341.patches.slice() : []),
+    posts341: () => (state.s341 ? state.s341.posts.slice() : []),
+    hireRefusal341: (lang) => badHire341("", lang).json.error,
     // Every purchase order sent since the run armed Step 308, to whom.
     sent308: () => (state.s308 ? state.s308.sent.slice() : []),
     // Every welcome email tried since the run armed Step 292, with whom and how it went.

@@ -87,7 +87,7 @@ Last checked: 2026-10-07
 Who can do this: admins. A supervisor opens **Staff Management** (**Gestión de personal**) and does not see **Add Staff** (**Agregar persona**).
 1. Click **Staff Management** (**Gestión de personal**).
 2. Click **Add Staff** (**Agregar persona**).
-3. Fill in first name, phone and email, and the role and employment type.
+3. Fill in first name, phone and email, and the role and employment type. **Hire Date** (**Fecha de contratación**) is optional: fill it in with the day the person started.
 4. Click **Add Staff** (**Agregar persona**) to save. The person is active at once, and the welcome email goes to their email by itself.
 5. The window that stays open says **Welcome email sent to {0}.** (**Se envió el correo de bienvenida a {0}.**) with the address, or **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason, such as a placeholder address.
 6. The **Temporary PIN** (**PIN temporal**) stays in the window, hidden, in case the email does not reach them: **Show** (**Mostrar**) reveals it and **Copy** (**Copiar**) copies it for the person's sign-in slip.
@@ -107,12 +107,13 @@ Who can do this: admins
 Picture: staff-pending
 Last checked: 2026-10-07
 ## Edit a staff member's information (admin dashboard)
-Who can do this: admins and supervisors. Only admins change a person's role, and a supervisor changes the information of staff only.
+Who can do this: admins and supervisors. Only admins change a person's role and hire date, and a supervisor changes the information of staff only.
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
-3. Change what is needed and click **Save Changes** (**Guardar los cambios**). A supervisor's window has no role to change.
-4. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**), which shows for anyone who can open HR Records.
-5. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
+3. Change what is needed and click **Save Changes** (**Guardar los cambios**). A supervisor's window has no role and no hire date to change.
+4. **Hire Date** (**Fecha de contratación**) holds the person's date, and once set it cannot be emptied. See Change a staff member's hire date.
+5. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**), which shows for anyone who can open HR Records.
+6. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
 Picture: staff-profile-edit
 Last checked: 2026-10-13
 
@@ -2536,4 +2537,17 @@ Who can do this: admins, and anyone allowed to change site records. Everyone els
 5. The task list stays fully editable either way. Turn the setting back on to have staff check off tasks there again.
 Words people use for this: task list for reference, no check off, schools, record of the work, not tracked, lista de tareas como referencia.
 Picture: site-task-list-record
+Last checked: 2026-10-13
+
+## Change a staff member's hire date (admin dashboard)
+Who can do this: admins. A supervisor sees no hire date to change.
+1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
+2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
+3. Pick the date in **Hire Date** (**Fecha de contratación**). The field is empty for someone whose profile reads **Not set** (**Sin indicar**).
+4. Click **Save Changes** (**Guardar los cambios**). The profile shows the new date, and the change is recorded with the old date, the new date and who made it.
+5. A hire date once set cannot be emptied. To fix a wrong one, pick the right date, as the line under the field says: **To fix a wrong date, pick the right one.** (**Para corregir una fecha equivocada, elija la correcta.**)
+If it does not work: a date that is not a real day, or is more than a year ahead, is refused, and the reason shows in red under the field. Pick a real date and click **Save Changes** (**Guardar los cambios**) again. For someone who left and is coming back, use Rehire someone, which sets their new hire date.
+Words people use for this: hire date, start date, date of hire, update a hire date, change a hire date, fix a hire date, missing hire date, when they started, fecha de contratación.
+Picture: staff-hire-date
+Picture: staff-hire-date-refused
 Last checked: 2026-10-13
