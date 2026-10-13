@@ -170,10 +170,11 @@
 //     shows its alert and a click opens each subject's place.
 //   - against the stub's answers for changing a hire date (the API's part 340, for the dashboard's part
 //     341), armed with setStep341 in the part's own lines: at 1280 in English and in Spanish an admin's
-//     Edit Staff Info sends no hireDate when the date is untouched, keeps a set date from being emptied,
-//     and sends a changed date as hireDate with nothing else changed; a profile's Edit fills a missing
-//     date and draws users.badHireDate under the field; Add Staff sends hireDate only when it is filled;
-//     and a supervisor, in English and in Spanish, sees no Hire Date in either window and no Add Staff.
+//     Edit Staff Info, the list's pencil, sends nothing for a save with nothing changed, keeps a set date
+//     from being emptied, sends a changed date as hireDate and nothing else, and sends a rate typed in
+//     it; a profile's Edit fills a missing date and draws users.badHireDate under the field; Add Staff
+//     sends hireDate only when it is filled; and a supervisor, in English and in Spanish, sees no Hire
+//     Date in either window, sends only the field changed in the pencil, and has no Add Staff.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run side by side, each in a browser context and a stub of its own, and
@@ -2751,11 +2752,13 @@ async function step338(d, origin, p, stubs) {
   });
 }
 
-// Part 341, changing a hire date, with the API's part 340 armed here. An admin: Edit Staff Info sends
-// no hireDate when the date is untouched and keeps a set date from being emptied; a changed date goes
-// as hireDate, the one field that changed; a profile's Edit fills a missing date, and users.badHireDate
-// is drawn under the field in the API's words; Add Staff sends hireDate when filled and leaves it out
-// when empty. A supervisor sees no Hire Date in either window and is offered no Add Staff.
+// Part 341, changing a hire date, with the API's part 340 armed here. Edit Staff Info, the list's
+// pencil, sends only the fields whose value changed from what it opened with, and the list carries no
+// hourly rate, as the API's does not. An admin: a save with nothing changed sends nothing, and a set
+// date cannot be emptied; a changed date sends hireDate and nothing else; a rate typed in the pencil is
+// still sent; a profile's Edit fills a missing date, and users.badHireDate is drawn under the field in
+// the API's words; Add Staff sends hireDate when filled and leaves it out when empty. A supervisor
+// sees no Hire Date in either window, a save sends only the field changed, and no Add Staff is offered.
 const nameOf341 = (id) => seed.STAFF.find((x) => x.id === id).name;
 const hireOf341 = (id) => seed.STAFF.find((x) => x.id === id).hire_date;
 async function editWindow341(d, id) {
@@ -2763,6 +2766,16 @@ async function editWindow341(d, id) {
   await d.page.getByPlaceholder(d.say("Search name, ID, phone, role")).fill(nameOf341(id));
   await d.page.locator("table tbody tr").filter({ hasText: nameOf341(id) }).first().getByTitle(d.say("Edit"), { exact: true }).click();
   await d.page.getByText(d.say("Edit Staff Info"), { exact: true }).waitFor();
+}
+// The window itself: the box its title sits in.
+const editBox341 = (d) => d.page.getByText(d.say("Edit Staff Info"), { exact: true }).locator("xpath=../..");
+// A save that sends nothing: the window closes, and no PATCH reaches the stub.
+async function savedNothing341(d, stubs) {
+  const before = stubs.patches341().length;
+  await saveButton341(d).click();
+  await d.page.getByText(d.say("Edit Staff Info"), { exact: true }).waitFor({ state: "detached" });
+  await wait(400);
+  return stubs.patches341().length === before ? "" : "the save sent " + JSON.stringify(stubs.patches341().slice(before).map((x) => x.body));
 }
 async function saved341(d, stubs, button) {
   const before = stubs.patches341().length;
@@ -2801,12 +2814,12 @@ async function step341(d, origin, p, stubs) {
   stubs.setStep341(true);
   const own = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
   if (p.who === "supervisor") {
-    await check("a supervisor sees no Hire Date in Edit Staff Info or a profile's Edit, and no Add Staff", async () => {
+    await check("a supervisor sees no Hire Date in Edit Staff Info or a profile's Edit, a save sends only the field changed, and no Add Staff", async () => {
       await editWindow341(d, "u-staff-6");
       if ((await d.page.locator("[data-hire-date]").count()) > 0) return "Edit Staff Info draws Hire Date";
+      await editBox341(d).locator("input").nth(2).fill("2155550199");
       const sent = await saved341(d, stubs, saveButton341(d));
-      if (!sent) return "the window saved nothing";
-      if (own(sent.body, "hireDate")) return "the save sent hireDate " + JSON.stringify(sent.body.hireDate);
+      if (!sent || JSON.stringify(sent.body) !== JSON.stringify({ phone: "2155550199" })) return "the save sent " + JSON.stringify(sent && sent.body);
       await profileEdit341(d, "u-staff-6");
       if ((await d.page.locator("[data-hire-date]").count()) > 0) return "the profile's Edit draws Hire Date";
       await go(d, "staff", null, "table tbody tr");
@@ -2814,32 +2827,31 @@ async function step341(d, origin, p, stubs) {
     });
     return;
   }
-  let untouched = null;
-  await check("Edit Staff Info: an untouched hire date is not sent, and a set date cannot be emptied", async () => {
+  await check("Edit Staff Info: a save with nothing changed sends nothing, and a set date cannot be emptied", async () => {
     await editWindow341(d, "u-staff-6");
     const box = d.page.locator('[data-hire-date="edit"] input');
     if ((await box.inputValue()) !== hireOf341("u-staff-6")) return "the field reads " + JSON.stringify(await box.inputValue());
+    const rate = await editBox341(d).locator('input[type="number"]').inputValue();
+    if (rate !== "") return "Hourly Rate opens on " + JSON.stringify(rate) + ", which the list does not carry";
     await box.fill("");
     await wait(150);
     if ((await box.inputValue()) !== hireOf341("u-staff-6")) return "the date was emptied";
-    const sent = await saved341(d, stubs, saveButton341(d));
-    if (!sent || sent.id !== "u-staff-6") return "the save sent " + JSON.stringify(sent);
-    if (own(sent.body, "hireDate")) return "the save sent hireDate " + JSON.stringify(sent.body.hireDate);
-    untouched = sent.body;
-    return "";
+    return savedNothing341(d, stubs);
   });
-  await check("Edit Staff Info: a changed hire date goes as hireDate, and nothing else changes", async () => {
-    if (!untouched) return "the untouched save did not run";
+  await check("Edit Staff Info: a hire date change sends hireDate and nothing else", async () => {
     await editWindow341(d, "u-staff-6");
     await d.page.locator('[data-hire-date="edit"] input').fill("2025-04-01");
     const sent = await saved341(d, stubs, saveButton341(d));
-    if (!sent || sent.body.hireDate !== "2025-04-01") return "the save sent " + JSON.stringify(sent && sent.body);
-    const rest = Object.assign({}, sent.body);
-    delete rest.hireDate;
-    if (JSON.stringify(rest) !== JSON.stringify(untouched)) return "the save changed more than the date: " + JSON.stringify(rest);
+    if (!sent || sent.id !== "u-staff-6" || JSON.stringify(sent.body) !== JSON.stringify({ hireDate: "2025-04-01" })) return "the save sent " + JSON.stringify(sent && sent.body);
     await editWindow341(d, "u-staff-6");
     const now = await d.page.locator('[data-hire-date="edit"] input').inputValue();
     return now !== "2025-04-01" ? "the window opens again on " + JSON.stringify(now) : "";
+  });
+  await check("Edit Staff Info: an hourly rate typed in the pencil is still sent", async () => {
+    await editWindow341(d, "u-staff-6");
+    await editBox341(d).locator('input[type="number"]').fill("19.75");
+    const sent = await saved341(d, stubs, saveButton341(d));
+    return !sent || JSON.stringify(sent.body) !== JSON.stringify({ hourlyRate: "19.75" }) ? "the save sent " + JSON.stringify(sent && sent.body) : "";
   });
   await check("a profile's Edit fills a missing hire date, and users.badHireDate shows under the field", async () => {
     await profileEdit341(d, "u-staff-7");

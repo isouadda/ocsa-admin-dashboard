@@ -243,17 +243,19 @@ stood from 148 to 114 seconds; `SMOKE_LANES` sets how many. Then it checks, one 
     tracked with no percentage, and turning the setting on saves `{ checklistMode: "tracked" }`.
 - against the stub's answers for changing a hire date (the API's part 340, for the dashboard's part 341),
   `setStep341`, armed in the part's own lines at the end of four passes: GET /api/users and a profile
-  answer each person's `hireDate`, one active person answering none, and PATCH /api/users/:id and POST
-  /api/users take `hireDate` from a holder of manage_employment, refusing a day that is not real or is
-  more than a year ahead 400 `users.badHireDate` and dropping it for anyone else, and keep every body sent.
-  - at 1280 in English and in Spanish, an admin: Edit Staff Info opens on the person's date, keeps it from
-    being emptied and sends no `hireDate` when it is untouched; a changed date goes as `hireDate` with
-    every other field as the untouched save sent it, and the window opens again on it; a profile's Edit
+  answer each person's `hireDate`, one active person answering none, and the list carries no
+  `hourlyRate`, as the API's does not; PATCH /api/users/:id and POST /api/users take `hireDate` from a
+  holder of manage_employment, refusing a day that is not real or is more than a year ahead 400
+  `users.badHireDate` and dropping it for anyone else, and keep every body sent.
+  - at 1280 in English and in Spanish, an admin: Edit Staff Info, the list's pencil, opens on the
+    person's date with Hourly Rate empty, keeps the date from being emptied, and a save with nothing
+    changed closes the window with no request; a changed date sends `{ hireDate }` and nothing else, and
+    the window opens again on it; a rate typed in the pencil sends `{ hourlyRate }`; a profile's Edit
     fills the missing date, a date two years ahead draws `users.badHireDate` under the field in the
     stub's words, and the profile opens again on the date saved with the line under it; Add Staff sends
     no `hireDate` when the field is empty and the date when it is filled.
   - at 1280 in English and in Spanish, a supervisor: no Hire Date in Edit Staff Info or in a profile's
-    Edit, a save from the window sends no `hireDate`, and no Add Staff.
+    Edit, a phone changed in the pencil sends `{ phone }` alone, and no Add Staff.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is

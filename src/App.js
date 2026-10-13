@@ -2373,7 +2373,26 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       showToast(tr("Copying is blocked here. The PIN is selected, so copy it with your keyboard."), "error");
     }
   };
-  const submitEdit = async () => { setHireSaid(null); try { const body = withHireDate(Object.assign({}, editForm)); if (!canEmploy) delete body.role; await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); } };
+  // Edit Staff Info, the list's pencil. It opens on the person's row and keeps what it opened with in
+  // was. Since part 341 a save sends only the fields whose value changed from that, so a field the list
+  // never carries, the hourly rate among them, is never sent as blank, and every field left untouched
+  // stays as it is. A save with nothing changed closes the window and sends nothing.
+  const openEdit = (s) => {
+    const opened = { firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null };
+    setHireSaid(null);
+    setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened }, opened));
+  };
+  const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
+  const submitEdit = async () => {
+    setHireSaid(null);
+    const was = editForm.was || {};
+    const body = withHireDate(Object.assign({}, editForm));
+    delete body.id; delete body.was;
+    if (!canEmploy) delete body.role;
+    Object.keys(body).forEach(k => { if (sameValue(body[k], was[k])) delete body[k]; });
+    if (!Object.keys(body).length) { setEditForm(null); return; }
+    try { await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
+  };
 
   // Photo upload
   const handlePhotoUpload = async (file, userId) => {
@@ -2745,7 +2764,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Role"), tdStyle: { color: t.textSec }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
-        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{canEmploy && s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setHireSaid(null); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), hireDateWas: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{canEmploy && s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
       if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? (staffRefused || tr("This page is for admins.")) : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;

@@ -7075,7 +7075,8 @@ function createStubs() {
   }
 
   // setStep341, changing a hire date (the API's part 340): GET /api/users and a profile answer each
-  // person's hireDate, one active person answering none; PATCH /api/users/:id and POST /api/users take
+  // person's hireDate, one active person answering none, and the list carries no hourlyRate, as
+  // routes/users.js's list does not (the profile does); PATCH /api/users/:id and POST /api/users take
   // hireDate from a holder of manage_employment (an admin while the permissions answer does not name
   // it), refusing a day that is not real or is more than a year ahead 400 users.badHireDate in the API's
   // words, and drop it, unwritten, for anyone else. Every PATCH and POST is kept as it was sent.
@@ -7096,7 +7097,13 @@ function createStubs() {
   function step341Route(method, path, query, body, lang, base) {
     if (path === "/api/users" && method === "GET") {
       const a = base();
-      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((x) => Object.assign({}, x, { hireDate: hireOf341(x.id, x.hireDate !== undefined ? x.hireDate : x.hire_date) }));
+      if (a && a.status === 200 && Array.isArray(a.json)) {
+        a.json = a.json.map((x) => {
+          const row = Object.assign({}, x, { hireDate: hireOf341(x.id, x.hireDate !== undefined ? x.hireDate : x.hire_date) });
+          delete row.hourlyRate;
+          return row;
+        });
+      }
       return a;
     }
     if (/^\/api\/users\/profile\/[^/]+$/.test(path) && method === "GET") {
