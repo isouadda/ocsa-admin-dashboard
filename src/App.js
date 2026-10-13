@@ -1203,7 +1203,7 @@ export default function AdminDashboard() {
             by its address, is shown the API's refusal in its own words. */}
         {page === "owner" && <OwnerDashboardPage af={af} t={t} sites={sites} lang={lang} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} canEmploy={canEmploy} canOpenHr={canOpenPage("hr")} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {/* Step 332: #hr/training/... still opens Training for someone HR Records is not open to. */}
         {page === "hr" && (canOpenPage("hr") ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />
           : route[0] === "training" ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />
@@ -8095,6 +8095,50 @@ const notifTarget = (link) => {
   const id = parts[0] || "";
   return PAGE_IDS.includes(id) ? { kind: "page", page: id, hash: parts.length > 1 ? parts.join("/") : "" } : { kind: "external", href: u.href };
 };
+// Where a notice opens, by its subject (Step 333, TRAINING_DAY_CONTRACT.md part 333): { page, hash } for
+// a place inside the dashboard, checked against canOpenPage by the caller, or null, and the notice's link
+// decides. The bell, the new notice's toast and a tapped alert on this computer all read it, so a notice
+// opens in one place wherever it is opened from. Every subject the dashboard has a page for opens here,
+// whatever its link says (each pattern takes the bare word too, issue, inspection, hr_case and shift):
+// an issue_* subject on the Issue Tracker, an inspection_* subject on
+// Inspections (inspection_finding is a ticket, so it keeps opening the Issue Tracker, Step 254), time_off
+// on its request in Schedule, an hr_case_* subject on its case, and a shift_* subject on Schedule. Only a
+// link to the staff app for a subject with no page here opens in a new tab.
+function noticePlace(n) {
+  const st = String((n && n.subjectType) || "");
+  const sid = n && n.subjectId != null && String(n.subjectId) !== "" ? String(n.subjectId) : "";
+  const enc = encodeURIComponent;
+  // A form notice carries the report it is about, so it opens that report rather than the page.
+  if (st === "form" && sid) return { page: "forms", hash: "forms/reports/" + sid };
+  // A chat notice and a tag carry their chat, and an announcement carries itself (Step 179).
+  if ((st === "chat" || st === "chat_mention") && sid) return { page: "chat", hash: "chat/" + sid, always: true };
+  if (st === "announcement" && sid) return { page: "announcements", hash: "announcements/" + sid, announcement: sid };
+  // Step 239: an equipment notice names its item (subjectId, under subjectKey equipment) and opens it;
+  // a periodic work notice names its site (subjectId, under subjectKey site), one notice a site, and
+  // opens that site's checklist.
+  if ((st === "equipment_tagged_out" || st === "equipment_service_due") && sid) return { page: "equipment", hash: "equipment/" + sid };
+  if (st === "periodic_overdue") return { page: "sites", hash: sid ? "sites/" + sid + "/tasks" : "" };
+  // Step 243: a client's concern names its report, the Customer Complaint Log, and opens it.
+  if (st === "customer_concern" && sid) return { page: "forms", hash: "forms/reports/" + sid };
+  // Step 251: a client request's notice opens the Issue Tracker's Client requests tab on that request.
+  if (st === "client_request" && sid) return { page: "issues", hash: "issues/requests/" + sid };
+  // Step 254: a finding's notice opens the Issue Tracker on that ticket.
+  if (st === "inspection_finding" && sid) return { page: "issues", hash: "issues/" + enc(sid) };
+  // Step 263: a sign-off or reteach notice names its attempt and opens it; an expiring record's opens
+  // the person its link names, else Gaps. Since Step 332 through the Training page.
+  if ((st === "training_signoff" || st === "training_reteach") && sid) return { page: "training", hash: "training/attempts/" + enc(sid) };
+  if (st === "training_expiring") { const m = /\/training\/people\/([^/?#]+)/.exec(String((n && n.link) || "")); return { page: "training", hash: m ? "training/people/" + m[1] : "training/gaps" }; }
+  // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
+  // it in Waiting for signatures.
+  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue") && sid) return { page: "hr", hash: "hr/signatures/" + enc(sid) };
+  // Step 333.
+  if (/^issue(_|$)/.test(st) && sid) return { page: "issues", hash: "issues/" + enc(sid) };
+  if (/^inspection(_|$)/.test(st) && sid) return { page: "inspections", hash: "inspections/" + enc(sid) };
+  if (st === "time_off") return { page: "schedule", hash: sid ? "schedule/timeoff/" + enc(sid) : "schedule/timeoff" };
+  if (/^hr_case(_|$)/.test(st)) return { page: "cases", hash: sid ? "cases/" + enc(sid) : "" };
+  if (/^shift(_|$)/.test(st)) return { page: "schedule", hash: "" };
+  return null;
+}
 // An announcement opened from the bell by someone who does not hold send_announcements, read only,
 // from GET /api/announcements/:id, which answers anyone it was sent to.
 function AnnouncementWindow({ af, t, id, onClose }) {
@@ -8164,34 +8208,14 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     setBusy(true);
     if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
     setBusy(false);
-    // A form notice carries the report it is about, so it opens that report rather than the page.
-    if (n.subjectType === "form" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
-    // A chat notice and a tag carry their chat, and an announcement carries itself (Step 179).
-    if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
-    // Someone told of an announcement who cannot open the page reads it in a window of its own.
-    if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { onClose(); if (onOpenAnnouncement) onOpenAnnouncement(n.subjectId); else onRefused(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
-    // Step 239: an equipment notice names its item (subjectId, under subjectKey equipment) and opens it;
-    // a periodic work notice names its site (subjectId, under subjectKey site), one notice a site, and
-    // opens that site's checklist.
-    if ((n.subjectType === "equipment_tagged_out" || n.subjectType === "equipment_service_due") && n.subjectId) { if (!canOpenPage("equipment")) { refuse(); return; } onOpenHash("equipment/" + n.subjectId); onClose(); return; }
-    if (n.subjectType === "periodic_overdue") {
-      if (!canOpenPage("sites")) { refuse(); return; }
-      if (n.subjectId) onOpenHash("sites/" + n.subjectId + "/tasks"); else onOpenPage("sites");
+    const place = noticePlace(n);
+    if (place) {
+      // Someone told of an announcement who cannot open the page reads it in a window of its own.
+      if (place.announcement && !canOpenPage("announcements")) { onClose(); if (onOpenAnnouncement) onOpenAnnouncement(place.announcement); else onRefused(); return; }
+      if (!place.always && !canOpenPage(place.page)) { refuse(); return; }
+      if (place.hash) onOpenHash(place.hash); else onOpenPage(place.page);
       onClose(); return;
     }
-    // Step 243: a client's concern names its report, the Customer Complaint Log, and opens it.
-    if (n.subjectType === "customer_concern" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
-    // Step 251: a client request's notice opens the Issue Tracker's Client requests tab on that request.
-    if (n.subjectType === "client_request" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/requests/" + n.subjectId); onClose(); return; }
-    // Step 254: a finding's notice opens the Issue Tracker on that ticket.
-    if (n.subjectType === "inspection_finding" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
-    // Step 263: a sign-off or reteach notice names its attempt and opens it; an expiring record's opens
-    // the person its link names, else Gaps.
-    if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("training")) { refuse(); return; } onOpenHash("training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
-    if (n.subjectType === "training_expiring") { if (!canOpenPage("training")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "training/people/" + m[1] : "training/gaps"); onClose(); return; }
-    // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
-    // it in Waiting for signatures.
-    if ((n.subjectType === "signature_disputed" || n.subjectType === "signature_declined" || n.subjectType === "signature_overdue") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/signatures/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -8216,7 +8240,7 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
       {!failed && !loading && rows.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Nothing yet.")}</div>}
       {loading && rows.length === 0 && !failed && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>}
       {rows.map(n => (
-        <button key={n.id} onClick={() => openRow(n)} disabled={busy} style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "100%", minHeight: 44, padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid " + t.border, textAlign: "left", cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY }}>
+        <button key={n.id} data-notice-row={String(n.id)} onClick={() => openRow(n)} disabled={busy} style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "100%", minHeight: 44, padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid " + t.border, textAlign: "left", cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: n.readAt ? "transparent" : GO, flexShrink: 0, marginTop: 6 }} />
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ display: "block", fontSize: 13, fontWeight: n.readAt ? 400 : 700, color: t.text }}>{n.title}</span>
@@ -23775,7 +23799,8 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
   </div>);
 }
 
-function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
+// Step 333: #cases/<id>, where an hr_case_* notice points, opens that case once the page is up.
+function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, route = [], onRoute }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
   // A case's status and what the log says a person did, as words. Each stays the code it is on the
@@ -23818,7 +23843,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
     loadAccessLog(d.id);
     af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
   };
-  const closeCase = () => { setDetail(null); setAccessLog([]); };
+  const routeCase = route[0] ? String(route[0]) : "";
+  const closeCase = () => { setDetail(null); setAccessLog([]); if (routeCase && onRoute) onRoute([]); };
+  useEffect(() => { if (routeCase) openCase({ id: encodeURIComponent(routeCase) }); }, [routeCase]);
   // The log as it stands after a change the API logged itself: the answer's own updates when it
   // carries them, else the log read again, the entries in hand drawn meanwhile.
   const refreshLog = async (id) => {
@@ -23931,7 +23958,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
 
-    {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }}>
+    {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Case")}</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Received {0}", ff(detail.createdAt))}</span></div></div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
