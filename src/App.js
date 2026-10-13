@@ -12506,6 +12506,45 @@ const TIME_OFF_ORDER_NOTE = "Soonest first. Deciding a request leaves the schedu
 const TIME_OFF_CAPPED = "Showing the first {0}. Choose a person to narrow the list.";
 
 const TIME_OFF_SHIFT_NOTE = "Deciding this request leaves these shifts as they are. Change or cover them on the schedule.";
+// Step 334 (the API's Step 330, TRAINING_DAY_CONTRACT.md 1.330.1 to 1.330.4): GET /api/time-off/:id
+// answers affectedShifts, every shift of the person still scheduled over the request. Each one is left
+// as it is, reassigned to someone from GET /api/time-off/:id/cover-candidates?shiftId= (people assigned
+// to the site first, overtime flagged), posted to Shift Pickup, or cancelled. Approve sends the choices
+// with the approval as shifts [{ shiftId, action, userId }]; on an approved request with a shift still
+// under the person, Shifts to cover sends them through POST /api/time-off/:id/shifts. A shift with no
+// choice is not sent, so the API leaves it as it is. Until affectedShifts answers the window is as before.
+const TIME_OFF_AFFECTED_NOTE = "Choose what happens to each shift. A shift left as it is stays under this person.";
+const COVER_ACTIONS = [["", "Leave it as it is"], ["reassign", "Reassign to"], ["post", "Post to Shift Pickup"], ["cancel", "Cancel the shift"]];
+const affectedShiftsOf = (d) => { const a = d && (Array.isArray(d.affectedShifts) ? d.affectedShifts : d.request && Array.isArray(d.request.affectedShifts) ? d.request.affectedShifts : null); return a ? a.filter(x => x && x.shiftId != null) : null; };
+// One affected shift: its day, time and site, what to do with it, and the person when it is reassigned.
+function AffectedShift({ af, t, requestId, sh, choice, onChoice, said, disabled }) {
+  const [cands, setCands] = useState(null);
+  const [candsFailed, setCandsFailed] = useState("");
+  const action = (choice && choice.action) || "";
+  useEffect(() => {
+    if (action !== "reassign" || cands) return undefined;
+    let alive = true;
+    af("/api/time-off/" + encodeURIComponent(requestId) + "/cover-candidates?shiftId=" + encodeURIComponent(sh.shiftId))
+      .then(d => { if (alive) setCands(d && Array.isArray(d.candidates) ? d.candidates : []); })
+      .catch(e => { if (alive) { setCands([]); setCandsFailed(e.message || tr("Request failed")); } });
+    return () => { alive = false; };
+  }, [action, af, requestId, sh.shiftId, cands]);
+  const line = timeOffShiftLine({ date: sh.date, startTime: sh.startTime, endTime: sh.endTime, siteName: sh.siteName });
+  const opts = [{ v: "", l: tr("Choose a person") }].concat((cands || []).map(c => ({ v: String(c.id), l: String(c.name || ""), group: c.assignedHere ? tr("Assigned to this site") : tr("Everyone else"),
+    hint: [c.weekHours != null && c.weekHours !== "" ? trn("{0} hour this week|count", Math.round(Number(c.weekHours) * 10) / 10) : "", c.overtime ? tr("Overtime") : ""].filter(Boolean).join(", ") })));
+  const chosen = (cands || []).find(c => choice && String(c.id) === String(choice.userId));
+  return (<div data-affected-shift={String(sh.shiftId)} style={{ padding: "8px 0", borderTop: "1px solid " + t.border }}>
+    <div style={{ fontSize: 12, color: t.text, marginBottom: 6 }}>{line}</div>
+    <Sel t={t} aria-label={tr("What happens to this shift")} data-affected-action="" value={action} disabled={disabled} onChange={e => onChoice({ action: e.target.value, userId: "" })} options={COVER_ACTIONS.map(([v, l]) => ({ v, l: tr(l) }))} />
+    {action === "reassign" && <div style={{ marginTop: 6 }}>
+      {!cands && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+      {cands && <PersonPick t={t} aria-label={tr("Reassign to")} data-cover-pick="" value={(choice && choice.userId) || ""} disabled={disabled} onChange={e => onChoice({ action: "reassign", userId: e.target.value })} options={opts} />}
+      {candsFailed && <div style={{ fontSize: 12, color: RD, marginTop: 4 }}>{candsFailed}</div>}
+      {chosen && chosen.overtime && <div data-cover-overtime="" style={{ fontSize: 11, color: OR, fontWeight: 600, marginTop: 4 }}>{tr("This shift takes them past 40 hours this week.")}</div>}
+    </div>}
+    {said && <div data-affected-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{said}</div>}
+  </div>);
+}
 const TIME_OFF_OWN = "Someone else has to decide your own request.";
 const TIME_OFF_NOTE_HINT = "The person reads your note in the app. Their notice shows only the dates.";
 const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
@@ -12516,6 +12555,11 @@ const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
 // so the window shows what is true now.
 function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
   const [req, setReq] = useState(seed);
+  // Step 334: the shifts the request affects, once the read answers them, and what to do with each.
+  const [affected, setAffected] = useState(null);
+  const [choices, setChoices] = useState({});
+  const [shiftSaid, setShiftSaid] = useState({});
+  const [covering, setCovering] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -12528,8 +12572,41 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
   }, [onClose]);
 
   const reload = async () => {
-    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); }
+    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); }
     catch (e) { setError(e.message || tr("Request failed")); }
+  };
+  // The choices that send something; a reassign with nobody picked is held back with its line.
+  const chosenShifts = () => {
+    const out = []; const held = {};
+    (affected || []).forEach(sh => {
+      const c = choices[String(sh.shiftId)];
+      if (!c || !c.action) return;
+      if (c.action === "reassign" && !c.userId) { held[String(sh.shiftId)] = tr("Choose who takes this shift."); return; }
+      out.push(c.action === "reassign" ? { shiftId: sh.shiftId, action: "reassign", userId: c.userId } : { shiftId: sh.shiftId, action: c.action });
+    });
+    return { out, held };
+  };
+  // A refusal that names a shift is drawn under it, and any other in the window.
+  const sayRefusal = (e) => {
+    const b = (e && e.body) || {};
+    const sid = b.shiftId != null ? String(b.shiftId) : "";
+    if (sid && (affected || []).some(sh => String(sh.shiftId) === sid)) setShiftSaid({ [sid]: e.message || tr("Request failed") });
+    else setError(e.message || tr("Request failed"));
+  };
+  const coverSave = async () => {
+    if (sending.current) return;
+    const { out, held } = chosenShifts();
+    setShiftSaid(held); setError("");
+    if (Object.keys(held).length || !out.length) return;
+    sending.current = true; setCovering(true);
+    try {
+      await af("/api/time-off/" + encodeURIComponent(req.id) + "/shifts", { method: "POST", body: { shifts: out } });
+      setChoices({});
+      showToast(tr("Shifts updated."));
+      await reload();
+      if (onDecided) onDecided();
+    } catch (e) { sayRefusal(e); }
+    sending.current = false; setCovering(false);
   };
   // Step 334: opened from the week or the month, the window holds only what the calendar carries, so
   // the request is read whole when the window opens.
@@ -12540,15 +12617,20 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
     if (sending.current) return;
     const trimmed = note.trim();
     if (kind === "deny" && !trimmed) { setNoteError(tr(TIME_OFF_NOTE_REQUIRED)); return; }
+    const picked = kind === "approve" ? chosenShifts() : { out: [], held: {} };
+    setShiftSaid(picked.held);
+    if (Object.keys(picked.held).length) return;
     sending.current = true; setBusy(true); setError(""); setNoteError("");
     try {
-      const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body: trimmed ? { note: trimmed } : {} });
+      const body = Object.assign(trimmed ? { note: trimmed } : {}, picked.out.length ? { shifts: picked.out } : {});
+      const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body });
       if (d && d.request) setReq(d.request);
-      setNote("");
+      setNote(""); setChoices({});
+      if (affected) await reload();
       showToast(kind === "deny" ? tr("Time off denied. They get a notice in the app.") : tr("Time off approved. They get a notice in the app."));
       if (onDecided) onDecided();
     } catch (e) {
-      setError(e.message || tr("Request failed"));
+      sayRefusal(e);
       if (e.status === 409) { await reload(); if (onDecided) onDecided(); }
     }
     sending.current = false; setBusy(false);
@@ -12574,12 +12656,19 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
     </div>
-    <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Shifts on these days")}</Lbl>
       {shifts.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("No shifts on these days.")}</div>}
       {shifts.map((sh, i) => <div key={sh.id || i} style={{ fontSize: 12, color: t.text, marginBottom: 4 }}>{timeOffShiftLine(sh)}{sh.status && sh.status !== "scheduled" ? <span style={{ color: t.textMut }}> {sh.status}</span> : null}</div>)}
       {shifts.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(TIME_OFF_SHIFT_NOTE)}</div>}
-    </div>
+    </div>}
+    {affected && (req.status === "requested" || (req.status === "approved" && affected.length > 0)) && <div data-time-off-affected={req.status === "approved" ? "cover" : "affects"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + (req.status === "approved" ? t.redBorder : t.border) }}>
+      <Lbl>{req.status === "approved" ? tr("Shifts to cover") : tr("Shifts this affects")}</Lbl>
+      {affected.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("No shifts on these days.")}</div>}
+      {affected.map(sh => <AffectedShift key={String(sh.shiftId)} af={af} t={t} requestId={req.id} sh={sh} disabled={busy || covering || (req.status === "requested" && mine)} choice={choices[String(sh.shiftId)]} said={shiftSaid[String(sh.shiftId)] || ""} onChoice={(c) => { setChoices(prev => ({ ...prev, [String(sh.shiftId)]: c })); setShiftSaid(prev => { const next = { ...prev }; delete next[String(sh.shiftId)]; return next; }); }} />)}
+      {affected.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(req.status === "approved" ? "This person is off for these shifts. Choose who covers each one, or post or cancel it." : TIME_OFF_AFFECTED_NOTE)}</div>}
+      {req.status === "approved" && affected.length > 0 && <div style={{ marginTop: 10 }}><Btn t={t} onClick={coverSave} disabled={covering} data-time-off-cover-save="" style={{ minHeight: 44 }}>{covering ? tr("Saving...") : tr("Save changes")}</Btn></div>}
+    </div>}
     {decided && <div style={{ marginBottom: 14 }}>
       {row("Decided by", req.decidedByName || "")}
       {row("Decided", timeOffMoment(req.decidedAt))}
