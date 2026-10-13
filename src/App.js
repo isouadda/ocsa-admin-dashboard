@@ -1283,7 +1283,7 @@ export default function AdminDashboard() {
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1543,9 +1543,16 @@ const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) =
 
 const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ display: "flex", gap: 12 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>{node}{!last && <div style={{ flex: 1, width: 2, background: t.border, marginTop: 4, minHeight: 12, borderRadius: 1 }} />}</div><div onClick={onClick} onMouseEnter={onClick ? (e => e.currentTarget.style.background = t.hover) : undefined} onMouseLeave={onClick ? (e => e.currentTarget.style.background = "transparent") : undefined} style={{ flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 14, paddingLeft: onClick ? 8 : 0, paddingRight: onClick ? 8 : 0, marginLeft: onClick ? -8 : 0, borderRadius: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.12s" }}>{children}</div></div>;
 
+// Step 338 (the API's Step 337, TRAINING_DAY_CONTRACT.md 1.337): a site whose checklistMode is
+// reference keeps its task list as the record of the work, and nothing is checked off there. Every
+// figure that counts check-offs answers such a site notTracked: true, and the dashboard draws Not
+// tracked for it, never 0%. Until the API answers either, everything is as it was.
+const notTrackedOf = (x) => !!(x && (x.notTracked === true || x.not_tracked === true));
+const siteIsReference = (site) => !!(site && (site.checklistMode === "reference" || site.checklist_mode === "reference"));
+const NotTrackedWord = ({ t, style }) => <span data-not-tracked="" style={{ fontSize: 10, fontWeight: 600, color: t.textMut, ...(style || {}) }}>{tr("Not tracked")}</span>;
 // Shift session helpers. GET /api/shift-sessions/by-site returns { date, sites: [{ siteId, siteName, people: [...] }] }.
 // A session records who started a shift where. There is no end time, so these never claim who is on site right now.
-const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.people || []).map(p => ({ ...p, siteName: site.siteName })));
+const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.people || []).map(p => ({ ...p, siteName: site.siteName, notTracked: notTrackedOf(site) || notTrackedOf(p) })));
 const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "";
 const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", ");
 
@@ -1574,7 +1581,11 @@ function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t 
     <Crd t={t} style={{ marginBottom: 20 }}>
       {failed.started && <LoadFailed t={t} onRetry={loadDash} style={{ padding: 0, textAlign: "left" }} />}
       {!failed.started && started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>{tr("No shifts started yet today.")}</div>}
-      {!failed.started && started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
+      {!failed.started && started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; if (s.notTracked) return (
+        <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
+          <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{tr("Started")} {fmtSessionStart(s.startedAt)}</div><div style={{ marginTop: 3 }}><NotTrackedWord t={t} /></div></div>
+        </div>); return (
         <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
           <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
           <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{tr("Started")} {fmtSessionStart(s.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1}", s.tasksCompleted, s.tasksTotal)}</span></div></div>
@@ -3256,6 +3267,26 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const loadMoreTl = () => { const next = tlOffset + 100; setTlOffset(next); loadTimeline(tlCat, next, true); };
 
   const refreshProfile = async () => { if (selectedSite) { try { const p = await af("/api/sites/profile/" + selectedSite); setSiteProfile(p); } catch (e) { console.warn(e); } } };
+  // Step 338: whether staff check off tasks at this site, once a site read answers checklistMode (the
+  // site's own read, else the list's), set by a holder of manage_sites through PATCH /api/sites/:id.
+  const checklistModeOf = (id) => {
+    const own = siteProfile && siteProfile.site && String(siteProfile.site.id || id) === String(id) ? siteProfile.site : null;
+    const listed = (sites || []).find(x => String(x.id) === String(id));
+    const v = (own && (own.checklistMode || own.checklist_mode)) || (listed && (listed.checklistMode || listed.checklist_mode));
+    return v === "tracked" || v === "reference" ? v : "";
+  };
+  const [modeBusy, setModeBusy] = useState(false);
+  const saveChecklistMode = async (next) => {
+    if (modeBusy || !selectedSite) return;
+    setModeBusy(true);
+    try {
+      await af("/api/sites/" + encodeURIComponent(selectedSite), { method: "PATCH", body: { checklistMode: next } });
+      setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, checklistMode: next } } : p));
+      showToast(next === "reference" ? tr("Staff no longer check off tasks here.") : tr("Staff check off tasks here again."));
+      loadSites();
+    } catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setModeBusy(false);
+  };
 
   const loadSiteChat = async () => {
     if (!selectedSite) return;
@@ -3673,8 +3704,17 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
       {/* SERVICE DETAILS TAB (Tasks) */}
       {siteTab === "tasks" && <div>
-        {/* Step 291: this site's periodic work first, once GET /api/periodic-work?siteId= answers. */}
-        <PeriodicWorkPanel key={selectedSite} af={af} t={t} siteId={selectedSite} />
+        {/* Step 338: Staff check off tasks here, once the site's read answers checklistMode. */}
+        {checklistModeOf(selectedSite) && <div data-checklist-mode={checklistModeOf(selectedSite)} style={{ marginBottom: 18, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: canManageSites && !modeBusy ? "pointer" : "default" }}>
+            <span style={chkWrap}><input type="checkbox" role="switch" data-checklist-mode-switch="" checked={checklistModeOf(selectedSite) === "tracked"} aria-checked={checklistModeOf(selectedSite) === "tracked"} disabled={!canManageSites || modeBusy} onChange={e => saveChecklistMode(e.target.checked ? "tracked" : "reference")} style={{ width: 20, height: 20, accentColor: GO, cursor: canManageSites ? "pointer" : "default" }} /></span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Staff check off tasks here")}</span>
+          </label>
+          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("Off: staff can read the task list as a reference, and nothing is checked off.")}</div>
+        </div>}
+        {/* Step 291: this site's periodic work first, once GET /api/periodic-work?siteId= answers; never at a
+            site whose task list is kept as a record (Step 338). */}
+        {checklistModeOf(selectedSite) !== "reference" && <PeriodicWorkPanel key={selectedSite} af={af} t={t} siteId={selectedSite} />}
         {/* Step 317: the site's schedule by shift, once its blocks answer their end and kind. */}
         <SiteSchedulePanel key={"schedule-" + selectedSite} af={af} t={t} siteId={selectedSite} tasks={st} canEdit={canManageTasks} showToast={showToast} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -4051,11 +4091,12 @@ function OpsPage({ af, t, allStaff }) {
     </div>
     {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></div>
-      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
+      <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
+      {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. Its task list is kept as the record of the work.")}</div>}
+      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); const untracked = notTrackedOf(site) || notTrackedOf(p); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] ? tr(RL[p.role]) : p.role}{place ? ", " + place : ""}</div></div>
-        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{tr("Started")} {fmtSessionStart(p.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</span></div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{tr("Started")} {fmtSessionStart(p.startedAt)}</div>{untracked ? <div style={{ marginTop: 4 }}><NotTrackedWord t={t} /></div> : <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</span></div>}</div>
       </div>; })}
     </Crd>)}
     <button onClick={() => setShowRest(!showRest)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 20, marginBottom: 8, padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>
@@ -10980,8 +11021,11 @@ const PERIODIC_ORDER = ["overdue", "due", "done"];
 const periodicByOf = (x) => (x.lastDoneBy && typeof x.lastDoneBy === "object" ? x.lastDoneBy.name || "" : x.lastDoneBy || "");
 const shownLabel = (x) => (x && x.display && x.display.label) || (x && x.label) || "";
 const shownZone = (x) => (x && x.display && x.display.zone) || (x && x.zone) || "";
-function PeriodicWorkPanel({ af, t, onOpenSite, siteId = "" }) {
-  const [items, setItems] = useState(null);
+// Step 338: notTrackedSites, the ids of the sites whose task list is kept as a record, and any item
+// answered notTracked are left out; nothing is checked off there, so nothing there is overdue.
+function PeriodicWorkPanel({ af, t, onOpenSite, siteId = "", notTrackedSites = [] }) {
+  const [items0, setItems] = useState(null);
+  const items = items0 === null ? null : items0.filter(x => !notTrackedOf(x) && notTrackedSites.indexOf(String(x.siteId)) < 0);
   const [state, setState] = useState("all");
   useEffect(() => {
     let alive = true;
@@ -11567,7 +11611,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
-            <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{trn("{0} done|count", s.completedTasks)}</span>
+            {notTrackedOf(s) ? <span data-report-not-tracked={s.siteId} style={{ fontSize: 12, color: t.textMut, fontWeight: 600 }}>{tr("Not tracked")}</span> : <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{trn("{0} done|count", s.completedTasks)}</span>}
           </div>
         </div>) : null}
         {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No data yet.")}</div> : null}
@@ -11650,7 +11694,8 @@ function OwnerMeasure({ t, m }) {
   const src = ownerSourceLine(m);
   return (<div data-owner-measure={m.key} style={{ padding: 12, borderRadius: R.md, border: "1px solid " + t.border, background: t.cardAlt, minWidth: 0 }}>
     <div style={{ fontSize: 12, fontWeight: 600, color: t.textSec, lineHeight: 1.4, overflowWrap: "anywhere" }}>{m.label}</div>
-    {m.value == null
+    {notTrackedOf(m) ? <div data-owner-not-tracked="" style={{ fontSize: 13, color: t.textMut, marginTop: 6, fontWeight: 600 }}>{tr("Not tracked")}</div>
+      : m.value == null
       ? <div data-owner-needs="" style={{ fontSize: 13, color: t.textMut, marginTop: 6, lineHeight: 1.45, overflowWrap: "anywhere" }}><span style={{ fontWeight: 600 }}>{tr("Needs:")}</span> {m.needs || ""}</div>
       : <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
         <span data-owner-value="" style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: t.text }}>{ownerValueWord(m.value, m.unit)}</span>
@@ -11662,7 +11707,7 @@ function OwnerMeasure({ t, m }) {
       <thead><tr><th style={{ textAlign: "left", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Site")}</th><th style={{ textAlign: "right", padding: "4px 0", color: t.textMut, fontWeight: 600 }}>{tr("Value")}</th></tr></thead>
       <tbody>{bySite.map(x => <tr key={x.siteId} data-owner-site={x.siteId} style={{ borderTop: "1px solid " + t.border }}>
         <td style={{ padding: "5px 8px 5px 0", color: t.text, overflowWrap: "anywhere" }}>{x.siteName}</td>
-        <td style={{ padding: "5px 0", textAlign: "right", whiteSpace: "nowrap", color: x.value == null ? t.textMut : t.text }}>{x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit)}</td>
+        <td style={{ padding: "5px 0", textAlign: "right", whiteSpace: "nowrap", color: x.value == null || notTrackedOf(x) ? t.textMut : t.text }}>{notTrackedOf(x) ? tr("Not tracked") : x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit)}</td>
       </tr>)}</tbody>
     </table>}
     {src && <div data-owner-source="" style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{src}</div>}
@@ -11675,8 +11720,8 @@ function ownerPages(d, siteWord) {
   (d.sections || []).forEach(sec => {
     const rows = [];
     (sec.measures || []).forEach(m => {
-      rows.push([m.label, m.value == null ? tr("Needs:") + " " + (m.needs || "") : ownerValueWord(m.value, m.unit), m.previous == null ? "" : ownerValueWord(m.previous, m.unit), m.value == null ? "" : ownerChangeWord(m), ownerSourceLine(m)]);
-      (Array.isArray(m.bySite) ? m.bySite : []).forEach(x => rows.push(["    " + x.siteName, x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit), "", "", ""]));
+      rows.push([m.label, notTrackedOf(m) ? tr("Not tracked") : m.value == null ? tr("Needs:") + " " + (m.needs || "") : ownerValueWord(m.value, m.unit), m.previous == null ? "" : ownerValueWord(m.previous, m.unit), m.value == null || notTrackedOf(m) ? "" : ownerChangeWord(m), ownerSourceLine(m)]);
+      (Array.isArray(m.bySite) ? m.bySite : []).forEach(x => rows.push(["    " + x.siteName, notTrackedOf(x) ? tr("Not tracked") : x.value == null ? tr("No value") : ownerValueWord(x.value, m.unit), "", "", ""]));
     });
     parts.push({ h: sec.title, cols: ["Measure", "This period", "Previous period", "Change|trend", "Source"], rows });
   });
@@ -12872,7 +12917,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       (d.sites || []).forEach(site => (site.people || []).forEach(p => {
         if (!p.sessionDate) return;
         if (!byDay[p.sessionDate]) byDay[p.sessionDate] = [];
-        byDay[p.sessionDate].push({ ...p, siteId: site.siteId, siteName: site.siteName });
+        byDay[p.sessionDate].push({ ...p, siteId: site.siteId, siteName: site.siteName, notTracked: notTrackedOf(site) || notTrackedOf(p) });
       }));
       setStartedByDay(byDay);
     } catch (e) {
@@ -13120,7 +13165,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
             {tr("Started")} {fmtSessionStart(p.startedAt)}
             {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " " + tr("F{0}", p.floorNumber) : ""}</span>}
             {p.siteName && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.siteName}</div>}
-            {p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</div>}
+            {p.notTracked ? <div style={{ fontSize: 8, opacity: 0.8 }}>{tr("Not tracked")}</div> : p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</div>}
           </button>))}
           {openHere.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ ...chipBtn, background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
@@ -13345,7 +13390,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <div><div style={startedLbl}>{tr("Building")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.buildingName || "-"}</div></div>
         <div><div style={startedLbl}>{tr("Floor")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.floorNumber ? tr("Floor {0}", startedDetail.floorNumber) : "-"}</div></div>
         <div><div style={startedLbl}>{tr("Started")}</div><div style={{ fontSize: 13, fontWeight: 600, color: GR }}>{fmtSessionStart(startedDetail.startedAt) || "-"}</div></div>
-        <div><div style={startedLbl}>{tr("Task progress")}</div>{(() => { const total = startedDetail.tasksTotal || 0; const done = startedDetail.tasksCompleted || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 70, height: 5, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 13, color: t.text }}>{tr("{0} of {1}", done, total)}</span></div>); })()}</div>
+        <div><div style={startedLbl}>{tr("Task progress")}</div>{startedDetail.notTracked ? <NotTrackedWord t={t} style={{ fontSize: 13 }} /> : (() => { const total = startedDetail.tasksTotal || 0; const done = startedDetail.tasksCompleted || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 70, height: 5, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 13, color: t.text }}>{tr("{0} of {1}", done, total)}</span></div>); })()}</div>
       </div>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 16 }}>{tr("Recorded when the person started the shift in the portal. There is no end time and no hours here.")}</div>
       <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setStartedDetail(null)}>{tr("Close")}</Btn></div>
