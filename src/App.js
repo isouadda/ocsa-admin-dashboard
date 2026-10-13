@@ -1278,7 +1278,7 @@ export default function AdminDashboard() {
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
-        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -12697,13 +12697,16 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
 // The list of requests, with the status buttons and the person picker above it. Every change of a
 // filter is one call. A refused call puts the API's words where the table would be and leaves the
 // filters working, so the person can try another status without reloading the page.
-function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
+// Step 334: openId, from #schedule/timeoff/<id>, opens that request's window over the list, read whole by
+// the window; onOpened says when it closes, so the address goes back to the list.
+function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange, openId = "", onOpened }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("requested");
   const [userId, setUserId] = useState("");
-  const [open, setOpen] = useState(null);
+  const [open, setOpen] = useState(() => (openId ? { id: openId } : null));
+  useEffect(() => { if (openId) setOpen({ id: openId }); }, [openId]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -12736,7 +12739,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
     {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(r)} empty={empty} />}
     {!loading && !error && rows.length >= TIME_OFF_LIMIT && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr(TIME_OFF_CAPPED, TIME_OFF_LIMIT)}</div>}
-    {open && <TimeOffWindow af={af} t={t} seed={open} myId={myId} showToast={showToast} onClose={() => setOpen(null)} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
+    {open && <TimeOffWindow key={String(open.id)} af={af} t={t} seed={open} myId={myId} showToast={showToast} onClose={() => { setOpen(null); if (onOpened) onOpened(); }} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
   </div>);
 }
 
@@ -12757,7 +12760,9 @@ const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand"
 const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr(k.code + "|pattern reason"); if (w !== k.code) return w; } const key = PATTERN_REASON_WORDS[k.reason]; return key ? tr(key) : (k.reason || ""); };
 // The line under a Time off button someone cannot open (Step 185).
 const TIME_OFF_LOCKED_LINE = "Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.";
-function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
+// Step 334: #schedule/timeoff opens the Time off view, and #schedule/timeoff/<id> that request's window,
+// where the approver's time_off notice points.
+function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   // A code on this page is drawn as a word: a role and a pickup's reason read the pick list's shown
   // label, then the table's word; a pickup's and an inspection's status read the table's word.
   const staffRoleShown = lkMap("staff_roles", true);
@@ -12770,7 +12775,12 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   // shift's saved service is drawn by its shown word.
   const SERVICE_CATS = [{ v: "", l: tr("No specific service") }, ...getOpts("service_categories", undefined, true)];
   const serviceWord = serviceWordOf(lkMap);
-  const [view, setView] = useState("week");
+  const timeOffRoute = route[0] === "timeoff";
+  const timeOffRouteId = timeOffRoute && route[1] ? String(route[1]) : "";
+  const [view, setViewState] = useState(() => (timeOffRoute ? "timeoff" : "week"));
+  useEffect(() => { if (timeOffRoute) setViewState("timeoff"); }, [timeOffRoute, timeOffRouteId]);
+  // Leaving Time off lets go of its address, so the page does not open on it again.
+  const setView = (v) => { setViewState(v); if (v !== "timeoff" && timeOffRoute && onRoute) onRoute([]); };
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
   const [searchStaff, setSearchStaff] = useState("");
@@ -13211,7 +13221,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div>
     {timeOffWaiting === null && timeOffLocked && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr(TIME_OFF_LOCKED_LINE)}</div>}
     {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
-    {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} />}
+    {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} openId={timeOffRouteId} onOpened={() => { if (timeOffRouteId && onRoute) onRoute(["timeoff"]); }} />}
     {view !== "patterns" && view !== "timeoff" && <>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: tr("This Week") }, { key: "lastWeek", label: tr("Last Week") }, { key: "nextWeek", label: tr("Next Week") }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
