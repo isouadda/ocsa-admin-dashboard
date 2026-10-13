@@ -805,6 +805,31 @@ export default function AdminDashboard() {
     document.addEventListener("visibilitychange", back);
     return () => { window.removeEventListener("focus", back); document.removeEventListener("visibilitychange", back); };
   }, [token, loadUnread]);
+  // Step 333: the worker says a notice came (ocsa-notice), so the count and the toast do not wait for the
+  // next minute, and where a clicked alert points (ocsa-open), which opens once the person is signed in.
+  const [openAsk, setOpenAsk] = useState(null);
+  useEffect(() => {
+    const sw = typeof navigator !== "undefined" ? navigator.serviceWorker : null;
+    if (!sw || !sw.addEventListener) return undefined;
+    const onMsg = (e) => {
+      const d = e && e.data;
+      if (!d || typeof d !== "object") return;
+      if (d.type === "ocsa-notice") loadUnread();
+      else if (d.type === "ocsa-open") setOpenAsk({ subjectType: d.subjectType == null ? null : String(d.subjectType), subjectId: d.subjectId == null ? null : String(d.subjectId), place: typeof d.place === "string" ? d.place : "" });
+    };
+    sw.addEventListener("message", onMsg);
+    return () => sw.removeEventListener("message", onMsg);
+  }, [loadUnread]);
+  useEffect(() => {
+    if (!openAsk || !token) return;
+    const ask = openAsk;
+    setOpenAsk(null);
+    const n = { subjectType: ask.subjectType, subjectId: ask.subjectId };
+    if (!noticePlace(n)) { if (ask.place) window.location.hash = ask.place; return; }
+    goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+  }, [openAsk, token, canOpenPage, showToast]);
+  // A subscription this computer already holds moves to the person signed in.
+  useEffect(() => { if (token) repostComputerAlerts(af); }, [token, af]);
   // The browser tab's title, in the language of the screen, with the unread count before it (Step 333).
   useEffect(() => { try { document.title = (token && unread > 0 ? "(" + (unread > 99 ? "99+" : unread) + ") " : "") + clientConfig.company.brandTag + " " + tr("Admin Dashboard"); } catch (e) { /* no document */ } }, [lang, unread, token]);
   // What a badge on the side panel is made of. The light arm is the only thing that changed.
@@ -833,6 +858,14 @@ export default function AdminDashboard() {
   const [mustSetPin, setMustSetPin] = useState(false);
   const signOut = useCallback((words) => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
   useEffect(() => { const h = (ev) => signOut(ev && ev.detail && ev.detail.words); window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, [signOut]);
+  // Step 333: a sign-out control deletes this computer's alerts on the API before the token is let go,
+  // so the next person at a shared computer never gets the last person's alerts, the way the staff app
+  // signs out. A browser that never allowed alerts asks nothing, and a delete that fails or takes more
+  // than four seconds never holds signing out.
+  const signOutHere = async () => {
+    if (pushSupported() && pushPermission() === "granted") { try { await Promise.race([turnOffComputerAlerts(af), new Promise(resolve => setTimeout(resolve, SIGN_OUT_PUSH_MS))]); } catch (e) {} }
+    signOut();
+  };
   // A 403 auth.mustSetPin from any route draws Choose your PIN and nothing else (STEP283_CONTRACT.md
   // section 1.1), for the person signed in.
   useEffect(() => { const h = () => setMustSetPin(true); window.addEventListener("ocsa-must-set-pin", h); return () => window.removeEventListener("ocsa-must-set-pin", h); }, []);
@@ -941,7 +974,7 @@ export default function AdminDashboard() {
   </div></ThemeCtx.Provider>);
   if (!token) return authCard(<LoginForm onLogin={handleLogin} onForgot={forgotPin} say={cardSay || (signedOutWords ? { text: signedOutWords, bad: true } : null)} wrongTries={wrongTries} loading={loading} t={t} second={second} onSecondDone={(d, remember) => { setSecond(null); signedIn(d, remember); }} onSecondBack={() => setSecond(null)} />);
   // While the API says mustSetPin, Choose your PIN is all there is, whatever the address names.
-  if (mustSetPin) return authCard(<ChoosePinForm t={t} token={token} onDone={pinChosen} onSignOut={() => signOut()} />);
+  if (mustSetPin) return authCard(<ChoosePinForm t={t} token={token} onDone={pinChosen} onSignOut={() => signOutHere()} />);
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
@@ -1132,10 +1165,10 @@ export default function AdminDashboard() {
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
               <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? tr("Admin") : tr("Supervisor")}</div></div>
             </div>
-            <button onClick={signOut} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
+            <button onClick={signOutHere} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
           </div>
         ) : (
-          <button onClick={signOut} title={tr("Logout")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
+          <button onClick={signOutHere} title={tr("Logout")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
         )}
       </div>
     </div>)}
@@ -1177,7 +1210,7 @@ export default function AdminDashboard() {
                 </button>
                 {alertSettings && <button onClick={() => { setMoreOpen(false); setAlertsOpen(true); }} style={menuRow}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={menuRow}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />} {themeMode === "dark" ? tr("Light mode") : tr("Dark mode")}</button>
-                <button onClick={signOut} style={{ ...menuRow, color: RD }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
+                <button onClick={signOutHere} style={{ ...menuRow, color: RD }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
               </div>
             </div>
           )}
@@ -1213,7 +1246,7 @@ export default function AdminDashboard() {
                 {alertSettings && <button onClick={() => { setAlertsOpen(true); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{languageChoice(true)}</div>
-                <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
+                <button onClick={signOutHere} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
               </div>
             )}
           </div>
@@ -6628,8 +6661,141 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
   </div>);
 }
 
+// ===== ALERTS ON THIS COMPUTER (Step 333, TRAINING_DAY_CONTRACT.md part 333, item 3) =====
+// The staff app's pattern: these answer whether this browser can take alerts and what it has decided,
+// and turn them on and off. The browser's permission is asked only from the person's own press of Turn
+// on alerts on this computer; the subscription is made with GET /api/push/key's public key and posted to
+// POST /api/push/subscriptions with app "dashboard", so the API pushes a notice once, here, to a person
+// whose phone and computer are the same browser. Turn off unsubscribes here and deletes it there. Nothing
+// here ever throws to a screen; each call answers a word. The worker, public/sw.js, shows each alert and
+// opens its place when it is clicked.
+const pushSupported = () => { try { return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; } catch (e) { return false; } };
+const pushPermission = () => { try { return window.Notification && window.Notification.permission ? window.Notification.permission : "denied"; } catch (e) { return "denied"; } };
+// The worker's registration: the one already there, or, on a first load while it is still registering,
+// the one ready within a few seconds.
+async function pushRegistration() {
+  try {
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) reg = await Promise.race([navigator.serviceWorker.ready, new Promise(resolve => setTimeout(() => resolve(null), 3000))]);
+    return reg && reg.pushManager ? reg : null;
+  } catch (e) { return null; }
+}
+async function pushSubscriptionHere() {
+  if (!pushSupported()) return null;
+  const reg = await pushRegistration();
+  if (!reg) return null;
+  try { return await reg.pushManager.getSubscription(); } catch (e) { return null; }
+}
+// The API's public key, as the browser wants it.
+function vapidKeyBytes(key) {
+  const s0 = String(key).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(s0 + "=".repeat((4 - s0.length % 4) % 4));
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+// The API's public key: a string, or null when the server has none or does not answer, and then My
+// alerts offers nothing for this computer.
+async function readPushKey(af) {
+  try { const d = await af("/api/push/key"); return d && typeof d.publicKey === "string" && d.publicKey.trim() ? d.publicKey.trim() : null; } catch (e) { return null; }
+}
+const subscriptionBody = (sub) => { const j = sub.toJSON ? sub.toJSON() : { endpoint: sub.endpoint, keys: {} }; return { endpoint: j.endpoint, keys: j.keys || {}, userAgent: window.navigator.userAgent, app: "dashboard" }; };
+// What this browser says right now: unsupported, denied, on, or off. Nothing is asked of the browser.
+async function computerAlertsState() {
+  if (!pushSupported()) return "unsupported";
+  if (pushPermission() === "denied") return "denied";
+  const reg = await pushRegistration();
+  if (!reg) return "unsupported";
+  const sub = pushPermission() === "granted" ? await pushSubscriptionHere() : null;
+  return sub ? "on" : "off";
+}
+// Turns alerts on for this computer, from the person's press. Answers on, denied, failed or unsupported.
+async function turnOnComputerAlerts(af, publicKey) {
+  if (!pushSupported()) return "unsupported";
+  let perm = pushPermission();
+  if (perm === "default") {
+    try { const r = window.Notification.requestPermission(); perm = r && typeof r.then === "function" ? await r : pushPermission(); } catch (e) { perm = pushPermission(); }
+  }
+  if (perm !== "granted") return "denied";
+  const reg = await pushRegistration();
+  if (!reg) return "unsupported";
+  let sub = null;
+  try {
+    sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKeyBytes(publicKey) });
+  } catch (e) { return "failed"; }
+  try { await af("/api/push/subscriptions", { method: "POST", body: subscriptionBody(sub) }); return "on"; }
+  catch (e) {
+    // A subscription the API never took is dropped, so the browser holds nothing the API does not know.
+    try { await sub.unsubscribe(); } catch (x) {}
+    return "failed";
+  }
+}
+// After a sign-in, a subscription this browser already holds is posted again under the person now
+// signed in, so a shared computer's alerts move to them. Nothing is asked of the browser, and a failure
+// is silent.
+async function repostComputerAlerts(af) {
+  try {
+    if (!pushSupported() || pushPermission() !== "granted") return;
+    const sub = await pushSubscriptionHere();
+    if (!sub || !sub.endpoint) return;
+    await af("/api/push/subscriptions", { method: "POST", body: subscriptionBody(sub) });
+  } catch (e) {}
+}
+// Turns alerts off for this computer: unsubscribes here, deletes there. Answers whether the API took it.
+async function turnOffComputerAlerts(af) {
+  const sub = await pushSubscriptionHere();
+  if (!sub) return true;
+  const endpoint = sub.endpoint;
+  try { await sub.unsubscribe(); } catch (e) {}
+  try { await af("/api/push/subscriptions", { method: "DELETE", body: { endpoint } }); return true; } catch (e) { return false; }
+}
+const SIGN_OUT_PUSH_MS = 4000;
+// My alerts' part for this computer: drawn once GET /api/push/key answers a key.
+function ComputerAlerts({ af, t }) {
+  const [key, setKey] = useState(undefined);
+  const [state, setState] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState("");
+  useEffect(() => {
+    let alive = true;
+    readPushKey(af).then(k => { if (!alive) return; setKey(k); if (k) computerAlertsState().then(st => { if (alive) setState(st); }); });
+    return () => { alive = false; };
+  }, [af]);
+  if (!key) return null;
+  const on = async () => {
+    if (busy) return;
+    setBusy(true); setSaid("");
+    const r = await turnOnComputerAlerts(af, key);
+    if (r === "on") setState("on");
+    else if (r === "denied") setState("denied");
+    else if (r === "unsupported") setState("unsupported");
+    else setSaid(tr("Alerts did not turn on. Try again."));
+    setBusy(false);
+  };
+  const off = async () => {
+    if (busy) return;
+    setBusy(true); setSaid("");
+    const ok = await turnOffComputerAlerts(af);
+    setState("off");
+    if (!ok) setSaid(tr("Alerts are off here. The office may still list this computer until you turn alerts on and off again."));
+    setBusy(false);
+  };
+  return (<div data-computer-alerts={state || "reading"} style={{ marginBottom: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    <Lbl>{tr("Alerts on this computer")}</Lbl>
+    {state === "on" && <div style={{ fontSize: 12, color: t.text, marginBottom: 8, lineHeight: 1.5 }}>{tr("Alerts are on for this computer. A notice shows here even when the dashboard is closed.")}</div>}
+    {state === "off" && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Your browser asks once whether the dashboard may show alerts.")}</div>}
+    {state === "denied" && <div data-computer-alerts-blocked="" style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("This browser blocks alerts from the dashboard. Allow them in the browser's site settings, then try again.")}</div>}
+    {state === "unsupported" && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("This browser cannot show alerts.")}</div>}
+    {(state === "off" || state === "denied") && <Btn t={t} onClick={on} disabled={busy} data-computer-alerts-on="" style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Turn on alerts on this computer")}</Btn>}
+    {state === "on" && <Btn t={t} v="ghost" onClick={off} disabled={busy} data-computer-alerts-off="" style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Turn off|computer alerts")}</Btn>}
+    {said && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said}</div>}
+  </div>);
+}
+
 // My alerts: the same settings as the staff app's Phone alerts (Step 179). They decide what is pushed
-// to a person's phones; the bell keeps every notice whatever they say. Each change is saved at once.
+// to a person's phones, and since Step 333 to this computer too; the bell keeps every notice whatever
+// they say. Each change is saved at once.
 const ALERT_SWITCHES = [["schedule", "Schedule and time off"], ["pickups", "Shift pickups and drops"], ["supplies", "Supply requests"], ["issues", "Problems reported"], ["forms", "Forms filed"]];
 function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
   // Each change shows at once and is sent on its own PATCH, one at a time in the order made, so a
@@ -6664,7 +6830,8 @@ function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("My alerts")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("These decide what buzzes your phone in the staff app. The bell here keeps everything.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("These decide what alerts your phone in the staff app and this computer. The bell here keeps everything.")}</div>
+    <ComputerAlerts af={af} t={t} />
     <div style={{ marginBottom: 16 }}><Lbl>{tr("Chat messages")}</Lbl><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{chatChoice("all", tr("Every message"))}{chatChoice("mentions", tr("Only when I'm tagged"))}{chatChoice("off", tr("Off|alerts"))}</div></div>
     {ALERT_SWITCHES.map(([k, l]) => (<label key={k} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, cursor: "pointer", borderTop: "1px solid " + t.border }}>
       <input type="checkbox" role="switch" checked={settings[k] !== false} aria-checked={settings[k] !== false} onChange={e => save({ [k]: e.target.checked })} style={{ width: 20, height: 20 }} />
