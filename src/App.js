@@ -12531,6 +12531,9 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
     try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); }
     catch (e) { setError(e.message || tr("Request failed")); }
   };
+  // Step 334: opened from the week or the month, the window holds only what the calendar carries, so
+  // the request is read whole when the window opens.
+  useEffect(() => { reload(); }, []);
   // One send at a time. The ref closes the gap before the disabled buttons redraw, so a double
   // click is one request.
   const decide = async (kind) => {
@@ -12556,7 +12559,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
   const decided = req.status === "approved" || req.status === "denied";
   const mine = !!myId && req.userId != null && String(req.userId) === myId;
 
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-time-off-window={String(req.id)} data-time-off-status={req.status || ""}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Time off request")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
@@ -12698,6 +12701,8 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   const [inspForm, setInspForm] = useState({ assigned_to: "", scheduled_date: "" });
   const [schedSupervisors, setSchedSupervisors] = useState([]);
   const [pickupDetail, setPickupDetail] = useState(null);
+  // Step 334: the time off request opened from the week or the month, in the window Time off opens.
+  const [timeOffOpen, setTimeOffOpen] = useState(null);
   const [patternError, setPatternError] = useState("");
   const [patternConflictId, setPatternConflictId] = useState("");
   const [patternSkipped, setPatternSkipped] = useState(null);
@@ -12815,6 +12820,15 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   const calInspections = (calData.inspections || []).filter(s => s && s.status !== "cancelled");
   const getInspForDay = (dateStr) => calInspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
   const getPickupsForDay = (dateStr) => openShifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
+  // Step 334 (the API's Step 330, TRAINING_DAY_CONTRACT.md 1.330.5): GET /api/schedule/calendar answers
+  // timeOff, the range's requested and approved time off, and each shift timeOffConflict when its person
+  // has asked for or been given time off over it. Until it does, nothing new is drawn.
+  const calTimeOff = (Array.isArray(calData.timeOff) ? calData.timeOff : []).filter(x => x && x.id != null && (x.status === "requested" || x.status === "approved"));
+  const timeOffForDay = (dateStr) => calTimeOff.filter(x => { const a = String(x.startsOn || "").slice(0, 10); const b = String(x.endsOn || x.startsOn || "").slice(0, 10); return a && a <= dateStr && dateStr <= b; });
+  const timeOffWord = (st) => (st === "approved" ? tr("Off|time off") : tr("Time off requested"));
+  const timeOffInk = (st) => (st === "approved" ? "#7A8A9A" : OR);
+  const timeOffName = (x) => { const p = staffList.find(u => String(u.id) === String(x.userId)); return p ? (p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim()) : ""; };
+  const openTimeOff = (x) => setTimeOffOpen({ id: x.id, userId: x.userId, userName: timeOffName(x), leaveType: x.leaveType, startsOn: x.startsOn, endsOn: x.endsOn, startTime: x.startTime, endTime: x.endTime, partDay: !!(x.startTime && x.endTime), status: x.status });
 
   // One matcher for both staff searches, the toolbar box and the picker in the Schedule Shift modal.
   // Both sides are lowercased. It reads first name, last name, the two joined, and the employee id.
@@ -12988,15 +13002,21 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         const openHere = dayPickups.filter(p => p.status === "open" && String(p.original_user_id) === String(staff.id));
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
         const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
-        const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
+        const offHere = timeOffForDay(d).filter(x => String(x.userId) === String(staff.id));
+        const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0 || offHere.length > 0;
         const items = (<>
-          {sched.map(s => (<button type="button" key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ ...chipBtn, background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+          {offHere.map(x => (<button type="button" key={"off-" + x.id} data-time-off-chip={x.id} data-time-off-status={x.status} onClick={e => { e.stopPropagation(); openTimeOff(x); }} style={{ ...chipBtn, background: timeOffInk(x.status) + "1F", color: x.status === "approved" ? t.textSec : OR, border: "1px dashed " + timeOffInk(x.status) }}>
+            {timeOffWord(x.status)}
+            {x.startTime && x.endTime ? <div style={{ fontSize: 9, opacity: 0.85 }}>{tr("{0} to {1}", patternTime(String(x.startTime).slice(0, 5)), patternTime(String(x.endTime).slice(0, 5)))}</div> : null}
+          </button>))}
+          {sched.map(s => { const off = s.timeOffConflict && s.timeOffConflict.requestId != null ? s.timeOffConflict : null; return (<button type="button" key={s.id} data-shift-chip={String(s.id)} data-shift-time-off={off ? off.status || "requested" : undefined} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ ...chipBtn, background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: off ? "2px solid " + timeOffInk(off.status) : "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+            {off && <div data-shift-time-off-word="" style={{ fontSize: 8, fontWeight: 700, color: off.status === "approved" ? RD : OR, textTransform: "uppercase" }}>{off.status === "approved" ? tr("Off, needs cover") : tr("Time off requested")}</div>}
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " " + tr("F{0}", s.floor_number) : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{serviceWord(s.service_category)}</div>}
             {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>{tr("Repeats")}</div>}
-          </button>))}
+          </button>); })}
           {startedHere.map(p => (<button type="button" key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ ...chipBtn, background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
             {tr("Started")} {fmtSessionStart(p.startedAt)}
             {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " " + tr("F{0}", p.floorNumber) : ""}</span>}
@@ -13073,8 +13093,11 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase" }}>{tr(d)}</div>)}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1, gridAutoRows: "1fr" }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const startedHere = getStartedForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
-        return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
+        const offs = timeOffForDay(d); const offShifts = sched.filter(s => s.timeOffConflict && s.timeOffConflict.requestId != null).length;
+        return (<div key={d} data-month-day={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? t.goldText : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
+          {offs.map(x => (<button type="button" key={"off-" + x.id} data-time-off-chip={x.id} data-time-off-status={x.status} onClick={e => { e.stopPropagation(); openTimeOff(x); }} title={timeOffWord(x.status)} style={{ display: "block", width: "100%", textAlign: "left", minHeight: 24, padding: "2px 4px", marginBottom: 2, borderRadius: 4, fontSize: 8, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, background: timeOffInk(x.status) + "1F", color: x.status === "approved" ? t.textSec : OR, border: "1px dashed " + timeOffInk(x.status), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{timeOffWord(x.status)}{timeOffName(x) ? ": " + timeOffName(x) : ""}</button>))}
+          {offShifts > 0 && <div data-month-time-off-shifts="" style={{ fontSize: 8, fontWeight: 700, color: RD, marginBottom: 1 }}>{trn("{0} shift under time off|count", offShifts)}</div>}
           {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.goldText, marginBottom: 1 }}>{tr("{0} scheduled", sched.length)}</div>}
           {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: GR, marginBottom: 1 }}>{trn("{0} started|count", startedHere.length)}</div>}
           {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.textMut, marginBottom: 1 }}>{tr("{0} open", pks.filter(p => p.status === "open").length)}</div>}
@@ -13246,6 +13269,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* PICKUP DETAIL MODAL */}
+    {timeOffOpen && <TimeOffWindow af={af} t={t} seed={timeOffOpen} myId={myId} showToast={showToast} onClose={() => setTimeOffOpen(null)} onDecided={() => { loadCalendar(); loadTimeOffCount(); }} />}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.")}</div>}
