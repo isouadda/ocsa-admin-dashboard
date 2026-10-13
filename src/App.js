@@ -1231,7 +1231,7 @@ export default function AdminDashboard() {
         {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
         {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -17488,8 +17488,12 @@ function SignatureImage({ t, token, responseId, signKey, path }) {
 const ACK_METHODS = [{ v: "phone", l: "Phone call", said: "phone call|acknowledged" }, { v: "text", l: "Text message", said: "text message|acknowledged" }, { v: "email", l: "Email", said: "email|acknowledged" }, { v: "in_person", l: "In person", said: "in person|acknowledged" }];
 const ACK_FIELDS = ["method", "note"];
 const TELL_FIELDS = ["whatHappened", "whatWasDone", "prevention"];
-function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null }) {
+// Step 332: openCase, { me }, for a holder of manage_cases, draws Open a case on a filed report, which
+// opens the Open a case window with the report named in What happened and its id sent with the case.
+function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null, openCase = null }) {
   const [data, setData] = useState(null);
+  const [caseOpening, setCaseOpening] = useState(false);
+  const [caseOpened, setCaseOpened] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // What the footer's own calls say. The report itself is still read once per opening.
@@ -18019,7 +18023,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     </div>);
   };
 
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<><Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || tr("Report")}</div>
@@ -18047,6 +18051,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       {monthly.status === "overdue" && <div style={{ fontSize: 12, color: RD, fontWeight: 600, marginTop: 6 }}>{tr("Sent {0} and not acknowledged yet.", monthly.sentAt ? irDay(monthly.sentAt) : "--")}</div>}
       {monthly.acknowledgedBy && <div style={{ fontSize: 13, color: t.text, marginTop: 6 }}>{tr("Acknowledged by {0} on {1}", monthlyWho(monthly.acknowledgedBy), monthly.acknowledgedAt ? irWhen(monthly.acknowledgedAt) : "--")}</div>}
       {monthly.acknowledgedBy && monthly.comments ? <div style={{ fontSize: 13, color: t.textSec, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{String(monthly.comments)}</div> : null}
+    </div>}
+    {!loading && !error && draft && submitted && openCase && <div data-report-case="" style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ flex: "1 1 220px", fontSize: 13, color: t.text, lineHeight: 1.5 }}>{caseOpened ? tr("Case opened.") : tr("Start a case with this report linked.")}</span>
+      {!caseOpened && <Btn t={t} v="ghost" data-report-open-case="" onClick={() => setCaseOpening(true)} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open a case")}</Btn>}
     </div>}
     {!loading && !error && draft && filedInspectionIdOf(data) && <div data-filed-inspection={filedInspectionIdOf(data)} style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <span style={{ flex: "1 1 220px", fontSize: 13, color: t.text, lineHeight: 1.5 }}>{tr("Filed as the safety walk of a scheduled inspection.")}</span>
@@ -18196,7 +18204,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       {!loading && !error && canResend && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setVoiding(false); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>{tr("Send again")}</Btn>}
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
     </div>
-  </div></Mdl>);
+  </div></Mdl>
+  {caseOpening && openCase && draft && <OpenCaseWindow af={af} t={t} allStaff={people} me={openCase.me} report={{ id: String(draft.id || id), name: draft.formName || "", code: draft.formCode || "", site: draft.siteName || "", at: draft.submittedAt || draft.createdAt || "" }} onClose={() => setCaseOpening(false)} onOpened={() => { setCaseOpening(false); setCaseOpened(true); }} />}
+  </>);
 }
 
 // ===== STARTING AND FILING A FORM FROM THE DASHBOARD (Step 166) =====
@@ -20238,7 +20248,7 @@ function complaintDue(r) {
   return { text: irDay(r.dueAt), color: left != null && left <= 1 ? OR : null };
 }
 
-function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished, onOpenLinks }) {
+function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished, onOpenLinks, openCase = null }) {
   const [status, setStatus] = useState("submitted");
   // Void reports are listed for an admin once the API lists them (Step 179): one quiet read asks,
   // and a refusal or a 404 leaves the switch undrawn.
@@ -20451,7 +20461,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : status === "void" ? voidCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : status === "void" ? tr("No void reports.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
-    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} />}
+    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} openCase={openCase} />}
     {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
@@ -20497,7 +20507,7 @@ const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added
 // Where an alias came from, as the API stores it (user_aliases.source), drawn as its word.
 const ALIAS_SOURCE_WORDS = { manual_link: "Linked by hand", admin_added: "Added by an admin", auto_learned: "Learned from a match" };
 const aliasSourceWord = (v) => (ALIAS_SOURCE_WORDS[v] ? tr(ALIAS_SOURCE_WORDS[v]) : String(v || ""));
-function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false }) {
+function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false, canOpenCase = false }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
   // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
@@ -21747,7 +21757,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ FILED FORMS ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} allStaff={allStaff} canManageSettings={canManageSettings} onOpenLinks={() => pickTab("links")} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} allStaff={allStaff} canManageSettings={canManageSettings} openCase={canOpenCase ? { me: user } : null} onOpenLinks={() => pickTab("links")} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
       {tab === "links" && canManageSettings && <CustomerLinksTab af={af} token={token} t={t} sites={sites} siteFilter={linkSite} onSiteFilter={v => { if (onRoute) onRoute(v ? ["links", "site", v] : ["links"]); }} />}
 
       {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
@@ -23464,8 +23474,13 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
 // happened, on behalf of a staff member who reported it in person, whether it is about someone in
 // management, and who holds it. The same case the staff side makes, with the API's rules. A refusal
 // is drawn word for word under the field its keys name.
-function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast }) {
-  const [f, setF] = useState({ summary: "", subjects: [], pick: "", onBehalfOf: "", aboutManagement: "", assignedTo: "" });
+// Step 332: opened from a filed report, report ({ id, name, code, site, at }) fills What happened with a
+// line naming the report, its site and when it was filed, and the report's id goes with the case as
+// formResponseId, which the API's Step 327 links the case by (the contract names no key, see the pull
+// request).
+const caseReportLine = (r) => tr("From the filed report: {0}", [r.name + (r.code ? " (" + r.code + ")" : ""), r.site, r.at ? irWhen(r.at) : ""].filter(Boolean).join(", "));
+function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast, report = null }) {
+  const [f, setF] = useState(() => ({ summary: report ? caseReportLine(report) + "\n\n" : "", subjects: [], pick: "", onBehalfOf: "", aboutManagement: "", assignedTo: "" }));
   const [refusal, setRefusal] = useState({ text: "", field: "" });
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -23479,7 +23494,7 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
     if (busyRef.current || !f.summary.trim() || !f.aboutManagement) return;
     busyRef.current = true; setBusy(true); setRefusal({ text: "", field: "" });
     try {
-      const d = await af("/api/hr-cases", { method: "POST", body: { summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null } });
+      const d = await af("/api/hr-cases", { method: "POST", body: Object.assign({ summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null }, report ? { formResponseId: report.id } : {}) });
       if (showToast) showToast(tr("Case opened."));
       onOpened(d && d.case ? d.case : d);
     } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => FIELDS.indexOf(k) >= 0) || "" }); }
@@ -23493,6 +23508,7 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
     </div>
     {refusal.text && !refusal.field && <div data-case-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {report && <div data-open-case-report={report.id} style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The filed report is linked to this case.")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("What happened")}</Lbl><TArea t={t} rows={4} aria-label={tr("What happened")} value={f.summary} onChange={e => set("summary", e.target.value)} style={box("summary")} />{under("summary")}</div>
     <div style={{ marginBottom: 12 }}>
       <Lbl>{tr("About whom")}</Lbl>
@@ -23820,7 +23836,8 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const [opening, setOpening] = useState(false);
   const [caseWarning, setCaseWarning] = useState(null);
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setOfficeCases(d.steps.length > 0); }).catch(() => { if (alive) setOfficeCases(false); }); return () => { alive = false; }; }, [af]);
-  // The case's own subject is never offered: the route answers 400 for that choice.
+  // The case's own subject is never offered: the route answers 400 for that choice. Since Step 332 the
+  // list is every active admin and supervisor, and the escalation contacts the API lists after them.
   const escalateOptions = detail ? subjects.filter(p => !detail.subject || String(p.id) !== String(detail.subject.id)) : [];
   const save = async () => {
     if (!detail) return;
@@ -23866,8 +23883,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const myId = user && user.id != null ? String(user.id) : "";
   const holderId = detail && detail.assignedTo && detail.assignedTo.id != null ? String(detail.assignedTo.id) : "";
   const iHold = !!myId && holderId === myId;
-  // Every active admin the dashboard already loaded, minus the case's subject and minus the caller.
-  const handOptions = detail ? allStaff.filter(p => p && p.role === "admin" && (!p.status || p.status === "active") && String(p.id) !== myId && !(detail.subject && String(p.id) === String(detail.subject.id))) : [];
+  // Step 332: every active admin and supervisor the dashboard already loaded (a case can be held by any
+  // of them since the API's Step 327), minus the people the case is about and minus the caller.
+  const aboutIds = detail ? [].concat(detail.subject && detail.subject.id != null ? [String(detail.subject.id)] : [], (Array.isArray(detail.subjects) ? detail.subjects : []).map(x => String(x && x.id != null ? x.id : x))) : [];
+  const officePeople = allStaff.filter(p => p && (p.role === "admin" || p.role === "supervisor") && (!p.status || p.status === "active") && aboutIds.indexOf(String(p.id)) < 0);
+  const handOptions = detail ? officePeople.filter(p => String(p.id) !== myId) : [];
+  const personName = (p) => ((p.firstName || "") + " " + (p.lastName || "")).trim() || p.name || "";
   const handChosen = handOptions.find(p => String(p.id) === handTo);
 
   const isOpen = c => OPEN_STATUSES.includes(c.status);
@@ -23929,7 +23950,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
         </div>
         <div style={{ marginTop: 12 }}><Lbl>{tr("Hand to")}</Lbl>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <PersonPick t={t} aria-label={tr("Hand to")} value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
+            <PersonPick t={t} aria-label={tr("Hand to")} data-case-hand-to="" value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: personName(p), hint: roleWord(p.role) }))]} />
             <Btn t={t} onClick={() => handChosen && holdSave(handChosen.id)} disabled={holdBusy || !handChosen} style={{ whiteSpace: "nowrap" }}>{tr("Hand over")}</Btn>
           </div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("They will get an email. The email carries no case text.")}</div>
@@ -23950,7 +23971,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
       {caseLogUpdates(detail) && form.status !== detail.status && CASE_LOG_CLOSING.indexOf(form.status) >= 0 && <div style={{ marginBottom: 12 }}><Lbl>{tr("Closing note")}</Lbl><TArea t={t} rows={4} value={form.closingNote} onChange={e => { setForm({ ...form, closingNote: e.target.value }); setClosingSaid(""); }} aria-label={tr("Closing note")} aria-required="true" data-case-closing-note="" style={closingSaid ? { borderColor: RD } : {}} />
         {closingSaid ? <div data-case-closing-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{closingSaid}</div> : <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Required. It goes into the case log as the case's last entry.")}</div>}
       </div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><PersonPick t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><PersonPick t={t} aria-label={tr("Escalate to")} data-case-escalate-to="" value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...officePeople.filter(p => String(p.id) !== myId).map(p => ({ v: String(p.id), l: personName(p), hint: roleWord(p.role) })), ...escalateOptions.filter(p => !officePeople.some(o => String(o.id) === String(p.id))).map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
       {!caseLogUpdates(detail) && <div style={{ marginBottom: 14 }}><Lbl>{tr("Resolution notes")}</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>{tr("Close")}</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : tr("Save changes")}</Btn></div>
       <div><Lbl>{tr("Access log")}</Lbl>
