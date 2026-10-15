@@ -973,7 +973,7 @@ has and no suite drives yet. It prints as KNOWN while the fix round writes its c
 which fails the run, the day the row stops appearing. A NO CASE row no entry names fails the run as it
 always has. A window the coverage gate has no claim for is named by its component and the state that
 closes it, which hold while the file grows; the claims in `inventory.js` were re-anchored the same way.
-Each October entry carries `finding`, the key of its finding in `audit/FINDINGS_2026-10.md`.
+Each October entry carries `finding`, the id of its finding in `audit/FINDINGS_2026-10.md` (DASH-01 to DASH-98).
 
 ## The browser
 
