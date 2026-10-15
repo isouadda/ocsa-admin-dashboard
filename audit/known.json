@@ -173,6 +173,13 @@
       "shows": "The source finder counts 83 strings on pages taken as done as English.",
       "why": "72 of the 83 are keys the word table holds Spanish for, translated where they are used in shapes the finder does not follow (a list walked with .map(c => ({ l: tr(c.l) })), a table read through a helper); the other 11 are CSS, a query string, an SVG, a document code and a language's own name. The Spanish screen pass reads these pages with no English left.",
       "where": "audit/lib/strings.js translatedShapes; the strings are listed in audit/FINDINGS_2026-10.md"
+    },
+    {
+      "match": "^page/staff/onboarding-steps/(en|es)$",
+      "finding": "duplication",
+      "shows": "HR Records' Onboarding tab draws the day a step was done as 2026-02-25 on an English and a Spanish screen alike (Completed 2026-02-25 by ..., Completado el 2026-02-25 por ...), where the profile's HR Files tab drew Feb 25, 2026 and 25 feb 2026 before Step 291 took it off.",
+      "why": "HRRecordsPage keeps a fmtDate of its own that returns the first ten characters of the value, one of the six local date helpers the duplication finding lists; every other screen formats the day in the screen's language.",
+      "where": "src/App.js:24566 (fmtDate), drawn at 24864"
     }
   ]
 }

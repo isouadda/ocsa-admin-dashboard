@@ -96,7 +96,11 @@ function sheetOf(print) {
   const tables = htmlTables(print.html);
   const people = tables.find((t) => t.headers.length >= 3 && String(t.headers[0]).trim() === "#")
     || tables.find((t) => t.headers.length === 3 && t.rows.every((r) => r.length === 3));
-  return { lines: printLines(print.html), people: people ? people.rows.map((r) => r[1]) : [], printed: print.printed };
+  // The kept record pads its grid with blank numbered lines to twenty, for names written in by hand;
+  // the blank lines after the last name are left out, and a blank between two names still shows.
+  const names = people ? people.rows.map((r) => r[1]) : [];
+  while (names.length && !String(names[names.length - 1] || "").trim()) names.pop();
+  return { lines: printLines(print.html), people: names, printed: print.printed };
 }
 const longDay = (d, day) => d.page.evaluate(({ day: x, tag }) => {
   const [y, m, dd] = x.split("-").map(Number);
@@ -565,9 +569,17 @@ async function run(ctx) {
           addPeople = await d.modal().locator("select").first().locator("option").evaluateAll((els) => els.filter((o) => o.value).map((o) => (o.textContent || "").trim()));
         }
       }
-      check("add-training-lists-the-active-people", lang, addOpened && sameSet(addPeople, W.active),
+      // Since Step 203 the list holds everyone, since a record is kept for a person who has left too:
+      // the active people first, unmarked, then everyone else marked with their status word in brackets
+      // (the October audit, part 343, held the case to that).
+      const marked = (x) => / \([^()]+\)$/.test(x);
+      const unmarked = addPeople.filter((x) => !marked(x));
+      const firstMarked = addPeople.findIndex(marked);
+      const activeFirst = firstMarked < 0 || addPeople.slice(firstMarked).every(marked);
+      check("add-training-lists-the-active-people", lang, addOpened && sameSet(unmarked, W.active) && activeFirst,
         !addOpened ? "the window did not open from " + JSON.stringify(d.say("+ Add Training"))
-          : "+ Add Training offers " + JSON.stringify(addPeople) + " where the active people are " + JSON.stringify(W.active));
+          : !sameSet(unmarked, W.active) ? "+ Add Training offers " + JSON.stringify(unmarked) + " unmarked where the active people are " + JSON.stringify(W.active)
+            : "+ Add Training lists a marked person before an active one: " + JSON.stringify(addPeople));
       await closeRoom(d);
     } catch (e) {
       results.fail("page", "page/hr/training-room/suite/" + lang, "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]);

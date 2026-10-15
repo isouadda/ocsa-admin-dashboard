@@ -901,6 +901,30 @@ suite. Every case it fails today is in `known.json` with the finding it proves.
 AUDIT_ONLY=october npm run audit
 ```
 
+The full audit had not run since Sept 28, and the app moved in the meantime. The October audit held each
+case that drifted to the screen as it is now, where the change was meant (the commit or the code's own
+comment says so), and kept each expectation as strict as it was; every such case carries a comment that
+names what moved. The changes the cases follow:
+
+- Step 291's searchable people picker (`PersonPick`) in place of a select: `d.pickPerson(name)` tries a
+  select first and then the picker. Schedule Shift picks the site first and then the person.
+- Step 291 took the profile's HR Files and Certifications tabs off: a person's papers, filed forms,
+  certifications and expiry days are read in their HR folder (`#hr/<id>`, Open HR file), and their
+  onboarding steps on HR Records' Onboarding tab. The two view claims came off `inventory.js`.
+- Since part 341 Edit Staff Info sends only the fields that changed; the language goes only when it
+  changes (Step 243).
+- Since Step 243 customer links are a tab on Forms (`#forms/links`) with Make a link, and since Step 250
+  a link is On or Off.
+- The Sept 29 behaviors (d1a2306): the Void switch shows once a void report is listed, Void report waits
+  for a reason, a refused builder turn leaves the conversation, and a refused staff list draws the
+  API's words (Step 332).
+- The kept records (15f0207): a training session saved with a site sends its id, and the attendance
+  sheet is OCSA-FRM-033, padded to twenty lines.
+- `lib/english.js` takes a controlled document's code (OCSA-QMS-018) and the record languages' own
+  names out of a Spanish line before reading what is left as English.
+
+The page layout was recorded again (`AUDIT_RECORD_LAYOUT=1`) after the side panel grew.
+
 ## How much is left in English
 
 ```
