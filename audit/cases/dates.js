@@ -15,8 +15,9 @@
 //   shift dates: the first site's upcoming shifts on Shifts & Schedule;
 //   the hire date on a person's HR folder, and the folder's training and onboarding lines, which
 //     carry the day and no clock;
-//   expiry dates: a Jotform filing's Expiry in the Inbox and in its window, and a certification's on
-//     Staff Management, which read the day from its parts before this build as well;
+//   expiry dates: a Jotform filing's Expiry in the Inbox and in its window, and a certification's in
+//     the folder Staff Management's Open HR file opens, which read the day from its parts before this
+//     build as well;
 //   weekly buckets: the issue report's two trend charts and its printed trend tables, and the months
 //     of Shift Pickup's Monthly Totals, which read Invalid Date before;
 //   every today: Live Operations' day, the week's today column on Schedule, the day Schedule Shift
@@ -112,6 +113,20 @@ const partsAfter = async (d, prefix) => {
   }));
   return out;
 };
+
+// What follows a word in every part of the lines a person's folder draws its certifications in, the
+// Certifications card Open HR file reaches since Step 291, or null with no such card.
+const certsAfter = (d, prefix) => d.page.evaluate((p) => {
+  const box = document.querySelector("[data-folder-certifications]");
+  if (!box) return null;
+  const head = String(p).replace(/\s+/g, " ").trim() + " ";
+  const out = [];
+  String(box.innerText || "").replace(/\u00a0/g, " ").split("\n").forEach((line) => line.split(" | ").forEach((part) => {
+    const x = part.replace(/\s+/g, " ").trim();
+    if (x.indexOf(head) === 0) out.push(x.slice(head.length));
+  }));
+  return out;
+}, prefix);
 
 // The rows under a card's title: the first two lines of each, a name and a day.
 const rowsUnder = (d, title) => d.page.evaluate((ti) => {
@@ -355,16 +370,26 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.closeModal();
 
   // ---- Staff Management: a certification's expiry, and the name of the person's timeline file
+  // Since Step 291 (e387886) a profile has no Certifications tab: Open HR file in its banner opens the
+  // person's folder at #hr/<id>, whose Certifications card reads the same GET /api/users/profile/:id, and
+  // the expiry is read there, in that card alone (the October audit, part 343, moved the read there).
   await d.goto("staff");
   await d.clickRow(0);
   await d.settle(500);
-  const staffRead = stubs.calls.filter((c) => /^\/api\/users\/profile\/[^/]+$/.test(c.path) && c.json && c.json.certifications).pop();
-  await d.clickText(d.say("Certifications"), { exact: true }).catch(() => false);
+  const openHr = d.page.locator("[data-open-hr-file]").first();
+  const offered = (await openHr.count()) > 0;
+  if (offered) await openHr.click({ timeout: 8000 }).catch(() => {});
+  await d.page.locator("[data-folder-certification]").first().waitFor({ timeout: 8000 }).catch(() => {});
   await d.settle(300);
-  const certDays = await partsAfter(d, w.exp);
+  const staffRead = stubs.calls.filter((c) => /^\/api\/users\/profile\/[^/]+$/.test(c.path) && c.json && c.json.certifications).pop();
+  const certDays = offered ? await certsAfter(d, w.exp) : null;
   results.check("page", "page/staff/certification-expiry-is-the-day-sent" + tail, same(certDays, day.cert),
-    "the certifications read " + say(certDays.map((x) => w.exp + x)) + " where the API sent " + say(staffRead ? staffRead.json.certifications.map((c) => c.expiry_date) : [])
-      + ", which reads " + say(day.cert.map((x) => w.exp + x)));
+    !offered ? "the profile offers no Open HR file" : certDays === null ? "the folder Open HR file opened draws no Certifications card"
+      : "the certifications read " + say(certDays.map((x) => w.exp + x)) + " where the API sent " + say(staffRead ? staffRead.json.certifications.map((c) => c.expiry_date) : [])
+        + ", which reads " + say(day.cert.map((x) => w.exp + x)));
+  await d.goto("staff");
+  await d.clickRow(0);
+  await d.settle(500);
   await d.clickText(d.say("Timeline"), { exact: true }).catch(() => false);
   await d.settle(500);
   await d.clearCaptures();

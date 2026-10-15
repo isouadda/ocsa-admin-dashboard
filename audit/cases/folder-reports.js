@@ -438,7 +438,7 @@ async function run({ d, results, stubs, lang }) {
   await d.closeModal();
 
   stubs.reset();
-  results.note("Reports about a person in " + lang + ": the folder, HR Files, View PDF, a void report's mark, and the person picker");
+  results.note("Reports about a person in " + lang + ": the folder from HR Records and from Open HR file, View PDF, a void report's mark, and the person picker");
 }
 
 module.exports = { run };
