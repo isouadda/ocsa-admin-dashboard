@@ -147,6 +147,14 @@
     },
     {
       "noCase": true,
+      "match": "^coverage page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records) in light$",
+      "finding": "coverage-backlog",
+      "shows": "The same 10 pages are driven in light mode by no case: the light-mode pass walks the pages the pages suite claims, and these 10 have no claim yet.",
+      "why": "The light-mode coverage row follows the page's own claim, so it comes off with the page's case.",
+      "where": "audit/inventory.js PAGES; audit/cases/coverage.js (the light-mode rows)"
+    },
+    {
+      "noCase": true,
       "match": "^coverage views for page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records|training)$",
       "finding": "coverage-backlog",
       "shows": "Eleven pages have no view case: the ten above and Training.",

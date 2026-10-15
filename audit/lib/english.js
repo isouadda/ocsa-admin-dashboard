@@ -192,14 +192,19 @@ function englishLeftOn(texts, calls) {
     // bell's short age, would otherwise swallow any word ending in h. A run can open with the mark
     // a screen puts between two things, as a folder's " . " before the hire date does, so the shape
     // is tried on the run with that mark taken off too.
-    const bare = line.replace(/^[\s.,;:|/-]+/, "");
-    const fits = shapes.some((re) => [line, bare].some((text) => {
-      const m = re.exec(text);
-      if (!m) return false;
-      return m.slice(1).every((gap) => !/[A-Za-z]{2}/.test(residue(gap, sorted)));
-    }));
-    if (fits) return;
-    const left = residue(line, sorted);
+    const fitsShape = (whole) => {
+      const bare = whole.replace(/^[\s.,;:|/-]+/, "");
+      return shapes.some((re) => [whole, bare].some((text) => {
+        const m = re.exec(text);
+        if (!m) return false;
+        return m.slice(1).every((gap) => !/[A-Za-z]{2}/.test(residue(gap, sorted)));
+      }));
+    };
+    if (fitsShape(line)) return;
+    // A sentence set in brackets after a figure, as Help insights' By site draws "4 (2 sin respuesta)",
+    // is read as a run of its own (the October audit, part 343).
+    const unwrapped = line.replace(/\(([^()]*)\)/g, (m, inner) => (fitsShape(inner.trim()) ? " " : m));
+    const left = residue(unwrapped, sorted);
     if (left && /[A-Za-z]{2}/.test(left)) bad.push({ line: line.slice(0, 80), left: left.slice(0, 60) });
   });
   return bad;
