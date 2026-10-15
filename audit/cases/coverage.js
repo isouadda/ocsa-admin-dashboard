@@ -18,7 +18,9 @@ function run({ app, inventory, results }) {
   const claimedLines = new Map();
   inventory.WINDOWS.forEach((w) => w.lines.forEach((l) => claimedLines.set(l, w.id)));
   app.modals.forEach((m) => {
-    if (!claimedLines.has(m.line)) results.noCase("coverage", "window in " + m.owner, m.at);
+    // Named by its component and the state that closes it, which hold while the file grows, so a known
+    // entry can name exactly this window (part 343). The line is beside it.
+    if (!claimedLines.has(m.line)) results.noCase("coverage", "window in " + m.owner + " (" + m.closer + ")", m.at);
   });
   Array.from(claimedLines.keys()).forEach((l) => {
     if (!app.modals.some((m) => m.line === l)) {

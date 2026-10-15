@@ -183,6 +183,10 @@ const SUITES = [
   // Spanish at 1024.
   { name: "small-things", mod: "./cases/small-things", widths: ["wide", "narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es", only: "narrow" }] },
+  // The October audit (part 343): the proof of each finding in audit/FINDINGS_2026-10.md, against the stub
+  // laid out as the API is built in #146 and as the supervisor contract 1 describes. The suite makes its
+  // own passes, each with a stub of its own.
+  { name: "october", mod: "./cases/october", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

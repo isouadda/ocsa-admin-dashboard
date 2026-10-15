@@ -3,18 +3,19 @@
 // A read that fails says so where its rows would have been, with Try again, through one line,
 // LoadFailed: This did not load., or the words the place has for it. The build names every read it
 // covers: the Dashboard's figures, Started today and Inspection scores by site; Staff Management, which
-// says This page is for admins. with nothing to press when the API refuses the list to the person; a
-// site's Timeline and Chat; Schedule's calendar; Shift Pickup's list and analytics; the Reports library
-// and its three run views; Inspections' templates, lists and analytics; Settings' Company and Dropdown
-// Options; HR Compliance; a person's HR folder, with a Back button; the Jotform Inbox, Forms and PDF
-// access log and the submission window; Vendors; Services; Messages, its conversations and a
-// conversation; and the Issue Tracker. The suite refuses each of those reads in turn with the API's
-// server error, holds the place to the line and to Try again, then lets the read through, presses Try
-// again and holds the place to the rows the stub served, with the line gone. It holds the two lines the
-// build added where there is nothing to show: a chip on the Issue Tracker whose state has no rows, and
-// Schedule's week when nobody matches the search. Schedule and Shift Pickup show Loading only before
-// their first list arrives, so a Refresh while the stub holds the read open keeps the week and the list
-// on screen. The words are written out here by hand, so a wrong entry in the table turns the case red.
+// says the API's refusal in its own words with nothing to press when the API refuses the list to the
+// person; a site's Timeline and Chat; Schedule's calendar; Shift Pickup's list and analytics; the
+// Reports library and its three run views; Inspections' templates, lists and analytics; Settings'
+// Company and Dropdown Options; HR Compliance; a person's HR folder, with a Back button; the Jotform
+// Inbox, Forms and PDF access log and the submission window; Vendors; Services; Messages, its
+// conversations and a conversation; and the Issue Tracker. The suite refuses each of those reads in turn
+// with the API's server error, holds the place to the line and to Try again, then lets the read through,
+// presses Try again and holds the place to the rows the stub served, with the line gone. It holds the
+// two lines the build added where there is nothing to show: a chip on the Issue Tracker whose state has
+// no rows, and Schedule's week when nobody matches the search. Schedule and Shift Pickup show Loading
+// only before their first list arrives, so a Refresh while the stub holds the read open keeps the week
+// and the list on screen. The words are written out here by hand, so a wrong entry in the table turns
+// the case red.
 "use strict";
 
 const CONTENT = "div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']";
@@ -25,14 +26,14 @@ const q = (s) => JSON.stringify(s);
 // admin who signs in, and 10 people are active.
 const WORDS = {
   en: {
-    failed: "This did not load.", again: "Try again", staff: "Could not load staff.", admins: "This page is for admins.",
+    failed: "This did not load.", again: "Try again", staff: "Could not load staff.",
     messages: "Messages did not load.", folder: "Could not load folder.", back: "Back",
     noneInState: "No issues in this state.", nobody: "No staff to show for this filter.",
     loadingSchedule: "Loading schedule...", loading: "Loading...",
     welcome: "Welcome back, Dana", active: "of 10 active",
   },
   es: {
-    failed: "Esto no se carg\u00f3.", again: "Intentar de nuevo", staff: "No se pudo cargar el personal.", admins: "Esta p\u00e1gina es para administradores.",
+    failed: "Esto no se carg\u00f3.", again: "Intentar de nuevo", staff: "No se pudo cargar el personal.",
     messages: "Los mensajes no se cargaron.", folder: "No se pudo cargar la carpeta.", back: "Volver",
     noneInState: "No hay problemas en este estado.", nobody: "No hay personal para mostrar con este filtro.",
     loadingSchedule: "Cargando el horario...", loading: "Cargando...",
@@ -177,7 +178,7 @@ const READS = [
       return sites.length === 0 ? "the stub served no site" : gone.length ? "the chart draws no bar for " + named(gone) : "";
     } },
 
-  // ---- Staff Management: the list, and the admin line when the API refuses it to the person
+  // ---- Staff Management: the list, and the API's refusal when it refuses the list to the person
   { id: "page/staff/load-failed/list", read: "GET /api/users", path: /^\/api\/users$/, line: "staff",
     place: "Staff Management", from: "No staff match these filters.",
     open: async (d) => { await d.goto("staff"); return true; },
@@ -187,7 +188,12 @@ const READS = [
       const strangers = rows.filter((r) => !names.some((n) => r.indexOf(n) >= 0));
       return rows.length === 0 ? "the list draws no row" : strangers.length ? "a row names nobody the read served: " + q(strangers[0]) : "";
     } },
-  { id: "page/staff/load-refused/admins-line", read: "GET /api/users", path: /^\/api\/users$/, line: "admins", status: 403, noRetry: true,
+  // Since Step 332 (786398a) a refused list draws the API's refusal in its own words, in one line with
+  // nothing to press, where it drew This page is for admins. (d1a2306); the refusal is the API's one
+  // shape, 403 access.insufficientPermissions naming manage_staff, which gates the list (the October
+  // audit, part 343, held the case to that).
+  { id: "page/staff/load-refused/admins-line", read: "GET /api/users", path: /^\/api\/users$/, line: "refusal", status: 403, noRetry: true,
+    capability: "manage_staff",
     place: "Staff Management", from: "No staff match these filters.",
     open: async (d) => { await d.goto("staff"); return true; } },
 
@@ -426,13 +432,15 @@ async function hold(ctx, r) {
   const { d, results, stubs, lang, w } = ctx;
   const kind = r.inModal ? "window" : "page";
   const id = r.id + "/" + lang;
-  const line = w[r.line || "failed"];
   const refusal = r.status === 403 ? NO_PERMISSION : SERVER_ERROR;
+  // A line of "refusal" is the API's own words for the refusal, in the language the call asked for.
+  const line = r.line === "refusal" ? refusal[lang] || refusal.en : w[r.line || "failed"];
   stubs.clearRefusals();
   stubs.clearDelays();
   await d.ensureSignedIn("admin");
   const mark = d.mark();
-  stubs.setRefusal({ method: "GET", path: r.path, status: r.status || 500, code: refusal.code, error: refusal[lang] || refusal.en });
+  stubs.setRefusal({ method: "GET", path: r.path, status: r.status || 500, code: refusal.code, error: refusal[lang] || refusal.en,
+    body: r.capability ? { capability: r.capability } : undefined });
   let reached = false;
   try { reached = await r.open(d); } catch (e) { reached = false; }
   await d.settle(500);

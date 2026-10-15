@@ -352,14 +352,24 @@ async function run({ d, results, seed, stubs, lang }) {
   const firstName = TYPES[kind.type] ? d.say(TYPES[kind.type]) : kind.label;
   const newcomer = seed.STAFF[4];
   mark = d.mark();
-  const picker = d.page.locator('select[aria-label="' + d.say("Add a person to {0}").replace("{0}", firstName) + '"]').first();
+  // Since Step 291 the person is chosen in the searchable picker (PersonPick), whose field carries the
+  // label the select carried; the Add button follows the picker's box.
+  const pickLabel = d.say("Add a person to {0}").replace("{0}", firstName);
+  const pickField = d.page.locator('[data-person-pick-field][aria-label="' + pickLabel + '"]').first();
   let chosen = false;
-  if ((await picker.count()) > 0) {
-    try { await picker.selectOption({ label: newcomer.name + " (" + roleWordFor(newcomer.role) + ")" }); chosen = true; } catch (e) { chosen = false; }
+  if ((await pickField.count()) > 0) {
+    try {
+      await pickField.click();
+      const box = d.page.locator("[data-person-pick-box]").last();
+      await box.locator("[data-person-pick-search]").fill(newcomer.name);
+      const want = newcomer.name + " (" + roleWordFor(newcomer.role) + ")";
+      const row = box.locator("[data-person-pick-option]").filter({ hasText: want }).first();
+      if ((await row.count()) > 0) { await row.click(); chosen = true; }
+    } catch (e) { chosen = false; }
   }
   if (chosen) {
     await d.settle(200);
-    await picker.locator("xpath=../following-sibling::button[1]").click().catch(() => {});
+    await pickField.locator("xpath=ancestor::div[@data-person-pick][1]/parent::div/following-sibling::button[1]").click().catch(() => {});
   }
   await d.settle(500);
   hold("add-person", chosen ? sentSince(d, mark, "POST", /^\/api\/notification-recipients$/) : null, { subjectType: kind.type, userId: newcomer.id });

@@ -164,7 +164,14 @@ async function run({ d, results, stubs, lang }) {
     await until((t) => answers(t).length >= 2 && flat(lastAnswer(t).words).indexOf("dashboard shows") >= 0, 8000);
     const calls = streamCalls(mark);
     const [one, two] = calls;
-    const bodyIs = (c, want) => !!c && JSON.stringify(c.body) === JSON.stringify(want);
+    // Since the dashboard names each question with a requestId of its own, so a question sent twice is
+    // answered once, the body is the question's fields and that id (the October audit, part 343).
+    const bodyIs = (c, want) => {
+      if (!c || !c.body) return false;
+      const b = Object.assign({}, c.body);
+      const id = b.requestId; delete b.requestId;
+      return (id === undefined || (typeof id === "string" && id.length >= 8)) && JSON.stringify(b) === JSON.stringify(want);
+    };
     const sentAs = (c) => !!c && c.query === "" && c.headers["content-type"] === "application/json"
       && c.headers.authorization === "Bearer audit-token-admin" && c.language === lang;
     const id0 = metaOf(one).conversationId;

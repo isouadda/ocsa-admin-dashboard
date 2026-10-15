@@ -212,7 +212,8 @@ stood from 148 to 114 seconds; `SMOKE_LANES` sets how many. Then it checks, one 
     named in What happened and sends the case with `formResponseId`, after which the report says Case
     opened. The stub names `manage_employment`, `read_hr_records` and `manage_cases`, gives a supervisor
     `manage_staff`, `manage_cases` and `read_incident_reports` by default, refuses them the HR employees
-    summary 403 `auth.capabilityRequired` naming `read_hr_records`, answers the discipline steps, and keeps
+    summary 403 `access.insufficientPermissions` naming `read_hr_records` (`auth.capabilityRequired`
+    until the October audit, which the API never sends), answers the discipline steps, and keeps
     every case opened.
   - part 333, at 1280 in English and in Spanish, an admin: the bell opens `issue_assigned`, whose link is
     the staff app, at `#issues/i-1` with no new tab, and a notice about something the dashboard has no
@@ -874,7 +875,31 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four`, `form-builder`, `builder`, `removals` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four`, `form-builder`, `builder`, `removals`, `october` and `house-style`.
+
+## The October audit
+
+`cases/october.js` (part 343) is the proof of each finding in `audit/FINDINGS_2026-10.md` that a browser
+can show. It makes its own drivers, each with a stub of its own, so nothing it arms reaches another
+suite. Every case it fails today is in `known.json` with the finding it proves.
+
+- `stubs.setApiAsBuilt()` lays every step's answers from 247 to 341 over each other, the way the smoke
+  check's admin pass does, with the training day round's on top, and adds what the API as built in #146
+  does and the stub did not: the employment history card, HR documents, compliance, folders and
+  onboarding refuse a caller without `read_hr_records`; adding or approving a person refuses one without
+  `manage_employment`; no answer to a non-holder of `manage_employment` carries an hourly rate; and a
+  holder of `read_incident_reports` lists filed reports. Step 283's sign-in answers stay off.
+- `seed.PEOPLE.supervisor146` (u-sup-146) holds exactly contract 1's supervisor column: `manage_staff`,
+  `manage_cases` and `read_incident_reports`, and neither `manage_employment` nor `read_hr_records`. It is
+  not one of `PERSONAS`, so no other suite signs in as it.
+- `stubs.addNotices(rows)` lays notices on the bell as the API writes them; the suite lays one of every
+  subject type in AUDIT_CONTRACT.md section 3 on top just before it taps it, as the admin and as that
+  supervisor, and holds the service worker's `placeOf` (read from `public/sw.js`) to where the bell went.
+- `createDriver({ timezoneId })` drives a browser on another clock, the office laptop set to UTC.
+
+```
+AUDIT_ONLY=october npm run audit
+```
 
 ## How much is left in English
 
@@ -917,6 +942,14 @@ nothing in `src/` changes. Each entry says what the app shows, one line on why, 
 
 An entry matches a case id exactly through `case`, or by a regular expression through `match` when
 one finding shows up under several case ids.
+
+Since the October audit (part 343) an entry may also name a NO CASE row exactly, through `noCase` with
+the row's kind and id (`"coverage window in WarningWindow (onClose)"`): a page, view or window the app
+has and no suite drives yet. It prints as KNOWN while the fix round writes its case, and it is stale,
+which fails the run, the day the row stops appearing. A NO CASE row no entry names fails the run as it
+always has. A window the coverage gate has no claim for is named by its component and the state that
+closes it, which hold while the file grows; the claims in `inventory.js` were re-anchored the same way.
+Each October entry carries `finding`, the key of its finding in `audit/FINDINGS_2026-10.md`.
 
 ## The browser
 

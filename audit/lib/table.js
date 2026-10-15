@@ -2,7 +2,7 @@
 "use strict";
 
 const pad = (s, n) => String(s) + " ".repeat(Math.max(0, n - String(s).length));
-const label = (k) => k.id || k.case || k.match;
+const label = (k) => k.id || k.case || k.match || k.noCase;
 
 function covered(c) {
   if (!c) return "0 of 0";

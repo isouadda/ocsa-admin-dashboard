@@ -47,6 +47,8 @@ function createStubs() {
     Object.keys(seed.PEOPLE).forEach((k) => {
       const p = seed.PEOPLE[k];
       if (p.singleCapability) out[p.id] = { [p.singleCapability]: true };
+      // A seeded set of overrides, the October audit's supervisor's five (seed.js).
+      if (p.overrides) out[p.id] = Object.assign({}, out[p.id] || {}, p.overrides);
     });
     return out;
   }
@@ -809,7 +811,10 @@ function createStubs() {
     { code: "OCSA-FRM-006", titles: { en: "Facility Cleanliness Evaluation Checklist", es: "Lista de evaluaci\u00f3n de limpieza del edificio" }, apps: ["customer"] },
     { code: "OCSA-FRM-007", titles: { en: "Client Satisfaction Survey", es: "Encuesta de satisfacci\u00f3n del cliente" }, apps: ["customer"] },
   ];
-  const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true;
+  // With the API as built (setApiAsBuilt, the October audit) a holder of read_incident_reports is let in
+  // as well, the way API #146 lets a supervisor read filed OCSA-FRM-016 and OCSA-FRM-017 (contract 1).
+  const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true
+    || (asBuilt && effectiveMap(person(), state.overrides[person().id]).read_incident_reports === true);
 
   // Step 166: a form a person starts at a desk, with every type the window draws, shaped the way
   // GET /api/forms sends a form: fields with a section key, an appliesWhen rule, help on a field
@@ -1667,7 +1672,10 @@ function createStubs() {
   const helpIsMiss = (r) => r.kind === "noProcedure" || r.kind === "degraded";
   const helpWindow = (q) => ({
     from: q("from") || seed.shift(-29), to: q("to") || seed.TODAY, site: q("siteId") || null, role: q("role") || null,
-    locale: q("locale") === "en" || q("locale") === "es" ? q("locale") : null,
+    // The Language filter has its own name, language (STEP195_CONTRACT.md section 5), and locale is only
+    // the language the words come back in; the stub read locale as the filter until the October audit
+    // (part 343, Stub drift), which hid that the dashboard had moved to language.
+    locale: q("language") === "en" || q("language") === "es" ? q("language") : null,
     app: q("app") === "portal" || q("app") === "dashboard" ? q("app") : null,
   });
   const helpRowsIn = (w) => HELP_ROWS.filter((r) => {
@@ -6887,8 +6895,11 @@ function createStubs() {
       return a;
     }
     if (path === "/api/forms/responses/" + IR_327 && method === "GET") return ok(incidentRead327(lang));
+    // The refusal is the API's one shape (AUDIT_CONTRACT.md section 1, API #146): 403
+    // access.insufficientPermissions naming the capability. There is no auth.capabilityRequired; the
+    // stub answered that code until the October audit (part 343, Stub drift).
     if (path === "/api/hr/employees-summary" && person().role !== "admin") {
-      return { status: 403, json: { error: T327(lang, "You need HR Records access to open this.", "Necesita acceso a Expedientes de personal para abrir esto."), code: "auth.capabilityRequired", capability: "read_hr_records" } };
+      return { status: 403, json: { error: T327(lang, "You need HR Records access to open this.", "Necesita acceso a Expedientes de personal para abrir esto."), code: "access.insufficientPermissions", capability: "read_hr_records" } };
     }
     if (path === "/api/discipline/steps" && method === "GET") return pictures278(method, path, query, body, lang, base) || base();
     if (path === "/api/hr-cases" && method === "POST") { s327().opened.push(clone(body || {})); return base(); }
@@ -7142,6 +7153,36 @@ function createStubs() {
     return base();
   }
 
+  // The API as built in #146, where the stub lagged it (the October audit, part 343, Stub drift). On
+  // only with setApiAsBuilt. AUDIT_CONTRACT.md section 1 puts the employment history card, HR Records'
+  // documents, compliance, folder and onboarding under read_hr_records, and adding or approving a person
+  // under manage_employment; the stub answered every persona. A caller without the capability is
+  // refused the API's one way: 403 access.insufficientPermissions naming it.
+  let asBuilt = false;
+  const READ_HR_ROUTES = [/^\/api\/users\/[^/]+\/employment$/, /^\/api\/hr\/documents/, /^\/api\/hr\/compliance/, /^\/api\/hr\/employee-folder\//, /^\/api\/hr\/onboarding/];
+  const EMPLOY_ROUTES = [/^\/api\/users$/, /^\/api\/users\/[^/]+\/approve$/];
+  function asBuiltRefusal(method, path, lang) {
+    const me = person();
+    if (!me || me.isSuperAdmin) return null;
+    const caps = effectiveMap(me, state.overrides[me.id]);
+    const refuse = (capability) => ({ status: 403, json: { error: lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions", code: "access.insufficientPermissions", capability } });
+    if (method === "GET" && caps.read_hr_records === false && READ_HR_ROUTES.some((re) => re.test(path))) return refuse("read_hr_records");
+    if (method === "POST" && caps.manage_employment === false && EMPLOY_ROUTES.some((re) => re.test(path))) return refuse("manage_employment");
+    return null;
+  }
+  // Every pay figure is manage_employment's (contract 1's Guards column, contract 2.1): the API as built
+  // sends no hourly rate to anyone without it. The stub's rows carry one for every staff row from the
+  // fifth on, so an answer to a non-holder has it taken off, at any depth.
+  const PAY_KEYS = ["hourlyRate", "hourly_rate", "payRate", "pay_rate"];
+  function withoutPay(json) {
+    if (!json || typeof json !== "object") return json;
+    if (Array.isArray(json)) return json.map(withoutPay);
+    const out = {};
+    Object.keys(json).forEach((k) => { if (PAY_KEYS.indexOf(k) < 0) out[k] = withoutPay(json[k]); });
+    return out;
+  }
+  const holdsPay = () => { const me = person(); return !!me && (me.isSuperAdmin || effectiveMap(me, state.overrides[me.id]).manage_employment !== false); };
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
@@ -7207,7 +7248,13 @@ function createStubs() {
     const over330 = () => (step330 ? step330Route(method, path, u.searchParams, body, record.language, over329) : over329());
     const over337 = () => (step337 ? step337Route(method, path, u.searchParams, body, record.language, over330) : over330());
     const over341 = () => (step341 ? step341Route(method, path, u.searchParams, body, record.language, over337) : over337());
+    // The October audit's layer (part 343), on only with setApiAsBuilt: the refusals contract 1 says the
+    // API makes and the stub did not, so the suites already written keep the answers they were written
+    // against and only cases/october.js reads these.
+    const builtRefusal = asBuilt ? asBuiltRefusal(method, path, record.language) : null;
+    if (builtRefusal) { record.status = builtRefusal.status; record.json = builtRefusal.json; return builtRefusal; }
     const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341();
+    if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -7340,6 +7387,24 @@ function createStubs() {
     saves337: () => (state.s337 ? state.s337.saves.slice() : []),
     // Changing a hire date (the API's part 340), on or off, and every staff PATCH and POST since, as sent.
     setStep341: (v) => { step341 = v !== false; },
+    // The October audit (part 343): the API as built in #146, as near as the stub has it, every step's
+    // answers from 247 to 341 laid over each other the way the smoke check's admin pass lays them, with
+    // the training day round's on top. Step 283's sign-in answers stay off, so a case signs in the way
+    // every suite does. Off puts every one back.
+    setApiAsBuilt: (v) => {
+      const on = v !== false;
+      step247 = on; step250 = on; step253 = on; step256 = on; step262 = on; step266 = on; step270 = on; step269 = on;
+      step275 = on; step278 = on; step280 = on; step289 = on; step299 = on; step292 = on; step305 = on; step308 = on;
+      step312 = on; step315 = on; arm327(on); step329 = on; step330 = on; step337 = on; step341 = on;
+      asBuilt = on;
+    },
+    // Notices laid on the bell as the API writes them, for the October audit's walk over every subject
+    // type in AUDIT_CONTRACT.md section 3. Each is unread and keeps the title, body, link and subject it
+    // is given.
+    addNotices: (rows) => {
+      if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+      [].concat(rows || []).slice().reverse().forEach((n) => state.notifications.unshift(Object.assign({ readAt: null, createdAt: seed.NOW_ISO }, clone(n))));
+    },
     patches341: () => (state.s341 ? state.s341.patches.slice() : []),
     posts341: () => (state.s341 ? state.s341.posts.slice() : []),
     hireRefusal341: (lang) => badHire341("", lang).json.error,

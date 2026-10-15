@@ -2,10 +2,177 @@
   "note": "Failures the app has today that the commit adding the case does not fix. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
   "failures": [
     {
-      "match": "^page/help-insights/all-languages-reads-every-language/",
-      "shows": "Help insights with All languages draws the screen's own language alone: By language lists English alone on an English screen and Espanol alone on a Spanish one, and every tile counts that language's questions only.",
-      "why": "The Language filter and the language every signed-in call names are one parameter on the address, locale=, and the API reads it as the filter (routes/helpInsights.js readWindow) as well as the answer's language (helpers/language.js). The dashboard cannot leave the language off: every signed-in call names it, and the audit turns away one that does not. The API has to read the filter under a name of its own; the page then sends that name.",
-      "where": "src/App.js HelpInsightsPage (the query it builds) and withLocale; ocsa-api routes/helpInsights.js readWindow"
+      "match": "^october/links/no-vercel-address-in-the-build$",
+      "finding": "vercel-portal",
+      "shows": "A build made without REACT_APP_PORTAL_URL holds https://ocsa-staff-portal.vercel.app, and Help reads the staff app pictures from it.",
+      "why": "clientConfig defaults the staff app address to the Vercel address; contract 2.6 says no link is built on it. The default should be https://staff.ocsaco.com.",
+      "where": "src/clientConfig.js:29; read by src/App.js:7014-7021, 7059-7060, 7663-7664"
+    },
+    {
+      "match": "^october/supervisor/(profile-shows-no-hourly-rate|print-report-prints-no-hourly-rate)$",
+      "finding": "pay-supervisor-sees",
+      "shows": "A supervisor opening a person in Staff Management reads Hourly Rate on the profile card (Not set once the API leaves the rate out) and Print Report prints an Hourly Rate line.",
+      "why": "Neither the card nor the print is gated by manage_employment, which holds every pay figure (contract 1 and 2.1); the role and hire date beside them are.",
+      "where": "src/App.js:2543 (card), 2298 (print), 2499 (Print Report)"
+    },
+    {
+      "case": "october/supervisor/profile-edit-offers-and-sends-no-hourly-rate",
+      "finding": "pay-profile-save",
+      "shows": "A supervisor who changes nothing and presses Save Changes on a profile sends hourlyRate \"\" with every other field of the form; the window also offers an Hourly Rate box.",
+      "why": "saveProfileInfo sends the whole form (contract 2.2), and the form loads hourlyRate as \"\" when the profile answer carries none, as the API as built answers a supervisor. The list pencil was made diff-only in #101; this editor was not.",
+      "where": "src/App.js:2413-2422 (save), 2533 (load), 2569 (the box)"
+    },
+    {
+      "case": "october/supervisor/profile-reads-no-refusal",
+      "finding": "employment-refusal-card",
+      "shows": "Every profile a supervisor opens draws the API refusal (Insufficient permissions) where the employment history card goes.",
+      "why": "Staff Management reads GET /api/users/:id/employment for everyone; contract 1 puts the employment history card under read_hr_records.",
+      "where": "src/App.js:2064, 2137, 2149, 2524-2528"
+    },
+    {
+      "case": "october/supervisor/waiting-for-signatures-opens",
+      "finding": "signatures-supervisor",
+      "shows": "A supervisor at #hr/signatures reads This page is for admins.; signature notices tell them That one is for admins.",
+      "why": "Waiting for signatures is only a tab of HR Records, which closes when the API answers read_hr_records false, and only #hr/training is let through. Contract 1 keeps Waiting for signatures with supervisors.",
+      "where": "src/App.js:619, 665, 1269-1271, 24686, 8412; public/sw.js:56"
+    },
+    {
+      "case": "october/supervisor/clearance-row-opens-its-dates",
+      "finding": "clearances-supervisor",
+      "shows": "A supervisor pressing a row on Clearances lands on #hr/<id>/clearances and reads This page is for admins.",
+      "why": "Recording and correcting clearance dates lives only in the HR folder, which read_hr_records closes. Contract 1 keeps clearance status and dates with supervisors.",
+      "where": "src/App.js:22632, 22865, 22914, 23719"
+    },
+    {
+      "case": "october/supervisor/discipline-can-issue-a-warning",
+      "finding": "discipline-issue",
+      "shows": "Discipline offers a supervisor no Issue a warning; the only ways in are the HR folder (closed to them) and a case.",
+      "why": "Issue a warning is drawn in PersonDiscipline inside the HR folder alone. Contract 1 keeps Discipline with supervisors.",
+      "where": "src/App.js:23437, 23720, 23860-23920"
+    },
+    {
+      "match": "^october/notices/(task_assigned|training_assigned|training_session|site_assigned|workspace_member|document_to_sign)/(admin|supervisor146|alert-opens-where-the-bell-does)$",
+      "finding": "notice-six-types",
+      "shows": "A task_assigned, training_assigned, training_session, site_assigned, workspace_member or document_to_sign notice opens the staff app in a new tab from the bell, and the front page from an alert.",
+      "why": "noticePlace and the service worker placeOf have no place for the six types API #146 added, so the notice link decides; contract 2.6 says a tap opens the item in the app the reader uses, never a sign-in.",
+      "where": "src/App.js:8386-8420, 8432-8434; public/sw.js:44-63"
+    },
+    {
+      "match": "^october/notices/support_ticket(_new)?/alert-opens-where-the-bell-does$",
+      "finding": "support-ticket-notice",
+      "shows": "A support ticket notice opens Tickets from the bell (through its link) and the front page from an alert, and no address opens the ticket itself.",
+      "why": "Neither noticePlace nor placeOf knows support_ticket or support_ticket_new, and TicketsPage takes no route.",
+      "where": "src/App.js:8386-8420, 1285, 7225; public/sw.js:62"
+    },
+    {
+      "match": "^october/notices/shift_(drop|claim)/(admin|supervisor146)$",
+      "finding": "shift-drop-notice",
+      "shows": "A shift_drop or shift_claim notice opens this week on Schedule with nothing open; the request is decided on Shift Pickup or from the shift in its own week.",
+      "why": "noticePlace sends every shift_* subject to #schedule.",
+      "where": "src/App.js:8418; public/sw.js:61"
+    },
+    {
+      "match": "^october/notices/unknown-type/(admin|supervisor146)$",
+      "finding": "unknown-notice",
+      "shows": "A notice of a type the dashboard does not know, with no link, closes the bell and is marked read, and nothing opens and nothing is said.",
+      "why": "goToNotice falls through to notifTarget, which answers none for no link and does nothing.",
+      "where": "src/App.js:8423-8435, 8350-8352"
+    },
+    {
+      "match": "^october/prints/staff-(timeline|record-detail)-escapes-what-staff-typed$",
+      "finding": "xss-prints",
+      "shows": "Printing a person timeline or a Record Detail writes an issue title typed in the staff app into the print window as markup.",
+      "why": "Seven print builders (Staff and Sites timelines and record details, the staff profile print, the inspections print) concatenate API text into HTML with no escaping and document.write it into a window on the dashboard origin, where the session token is kept in localStorage.",
+      "where": "src/App.js:2201-2252, 2256-2271, 2300-2323, 3400, 3496-3543, 3550-3598, 14626"
+    },
+    {
+      "case": "october/double-press/schedule-shift-sends-once",
+      "finding": "schedule-double",
+      "shows": "A double press on Schedule Shift sends two POST /api/schedule, so the person holds the same shift twice.",
+      "why": "submitCreate has no busy flag or ref and the button is never disabled.",
+      "where": "src/App.js:13087-13124, 13374"
+    },
+    {
+      "case": "october/time/site-last-inspection-is-the-day-sent",
+      "finding": "last-inspection-day",
+      "shows": "A site whose last inspection the API sends as 2026-03-10 reads Mar 9 on its Shifts tab.",
+      "why": "fd() parses a date-only value as UTC midnight and draws it in the browser zone, the day before.",
+      "where": "src/App.js:3791 (fd at 318)"
+    },
+    {
+      "case": "october/time/log-training-day-is-the-company-day/utc",
+      "finding": "browser-today",
+      "shows": "At 9:30 PM in New York, on a browser set to UTC, Log training for several people starts on 2026-03-18 where the company day is 2026-03-17.",
+      "why": "todayISO and toISO(new Date()) read the browser clock; nothing in src reads clientConfig.company.timeZone for today.",
+      "where": "src/App.js:445, 12384, 25238 and every todayISO default"
+    },
+    {
+      "match": "^october/phone/tall-window-reaches-its-last-button/(390-standard|1024-largest)$",
+      "finding": "tall-windows",
+      "shows": "Add equipment on a 390 phone at Standard text, and on a 1024 laptop at the Largest size, puts Save below the window bottom with no scroller in the window; the wheel does not move it.",
+      "why": "Mdl gives a tall window the screen height with overflow hidden, and Add equipment, Issue PPE, the Warning window, Issue property and a Workspace post draw no scroller of their own.",
+      "where": "src/App.js:405 (Mdl); 10908-10931 (Add equipment); 10749-10783, 23262-23369, 28297-28329, 5645-5659"
+    },
+    {
+      "noCase": true,
+      "match": "^coverage window in (EmploymentWindow|BlockWindowWindow|RequestWindow|SupplyRequestWindow|TicketWindow|TicketsExportWindow|HolidaysPanel|LinkQrWindow|OpenCaseWindow|TrainingTopicWindow|PersonTrainingWindow|UploadCertificateWindow|AssignTrainingWindow|SignOffWindow|SignHereWindow|SignatureRequestWindow|IssuePropertyWindow|ReturnPropertyWindow|TurnOffLinkWindow) \\(onClose\\)$|^coverage window in TrainingMatrix \\(setOpen\\)$",
+      "finding": "coverage-backlog",
+      "shows": "20 windows added since the full audit was paused on Sept 28 have no case in the windows suite; the smoke check opens each of them: EmploymentWindow, BlockWindowWindow, RequestWindow, SupplyRequestWindow, TicketWindow, TicketsExportWindow, HolidaysPanel, LinkQrWindow, OpenCaseWindow, TrainingTopicWindow, PersonTrainingWindow, UploadCertificateWindow, AssignTrainingWindow, SignOffWindow, SignHereWindow, SignatureRequestWindow, IssuePropertyWindow, ReturnPropertyWindow, TurnOffLinkWindow, TrainingMatrix.",
+      "why": "The full audit was paused while the app grew from 22,500 to 28,406 lines; the smoke check carried each step, and nobody claimed the windows in audit/inventory.js or wrote their routes in cases/windows.js.",
+      "where": "audit/inventory.js WINDOWS, audit/cases/windows.js ROUTES; the windows are named with their lines by the coverage rows"
+    },
+    {
+      "noCase": true,
+      "match": "^coverage window in EquipmentWindow \\(onClose\\)$",
+      "finding": "coverage-backlog",
+      "shows": "Add equipment and Edit equipment have no case in the windows suite; cases/october.js opens Add equipment to prove its Save cannot be reached.",
+      "why": "Added in Step 239 while the full audit was paused.",
+      "where": "src/App.js:10908 (EquipmentWindow)"
+    },
+    {
+      "noCase": true,
+      "match": "^coverage window in (ShiftNamesPanel|NewMessageWindow|ProjectWindow|MembersWindow|PostWindow|TodoListWindow|TodoWindow|AnnouncementWindow|MonthlySendWindow|MonthlyReportsView|IssuePpeWindow|EquipmentEventWindow|PdfWindow|QuoteSendWindow|RenameLinkWindow|LinkSurveyWindow|ClearanceWindow|ClearanceMissingWindow|WarningWindow|PastWarningWindow|StartSessionWindow|VoidAttemptWindow) \\(onClose\\)$",
+      "finding": "coverage-backlog",
+      "shows": "22 windows have no case anywhere, neither in a suite nor in the smoke check: ShiftNamesPanel, NewMessageWindow, ProjectWindow, MembersWindow, PostWindow, TodoListWindow, TodoWindow, AnnouncementWindow, MonthlySendWindow, MonthlyReportsView, IssuePpeWindow, EquipmentEventWindow, PdfWindow, QuoteSendWindow, RenameLinkWindow, LinkSurveyWindow, ClearanceWindow, ClearanceMissingWindow, WarningWindow, PastWarningWindow, StartSessionWindow, VoidAttemptWindow. The written warning, its old-form record, clearance dates and PPE are among them.",
+      "why": "Added while the full audit was paused, after the smoke check had moved on to newer steps.",
+      "where": "audit/inventory.js WINDOWS, audit/cases/windows.js ROUTES; each window is named with its line by the coverage rows"
+    },
+    {
+      "noCase": true,
+      "match": "^coverage page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records)$",
+      "finding": "coverage-backlog",
+      "shows": "Ten pages in PAGE_IDS have no entry in the inventory, so the pages suite never opens them: workspace, tickets, quotes, periodic, owner, library, equipment, discipline, clearances, chat-records.",
+      "why": "Added since Sept 28 (Steps 208 to 306) while the full audit was paused; the smoke check opens every side panel item instead.",
+      "where": "audit/inventory.js PAGES; src/App.js PAGE_IDS"
+    },
+    {
+      "noCase": true,
+      "match": "^coverage views for page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records|training)$",
+      "finding": "coverage-backlog",
+      "shows": "Eleven pages have no view case: the ten above and Training.",
+      "why": "The views suite claims tabs and sub-screens page by page; none was written for these.",
+      "where": "audit/inventory.js VIEWS"
+    },
+    {
+      "case": "house-style/the-table-and-the-csv-agree",
+      "finding": "word-drift",
+      "shows": "22 pairs in the word table have no row in the CSV, and 40 CSV rows have no pair in the table.",
+      "why": "40 rows of the CSV write the English with its context after the bar (Valid until|quote), where the comparer and the other context keys write it without. The Spanish agrees in all 40.",
+      "where": "translation/dashboard_words.csv (the 40 rows are listed in audit/FINDINGS_2026-10.md, Appendix: words); audit/lib/words.js"
+    },
+    {
+      "case": "house-style/the-finder-reads-every-printed-page",
+      "finding": "finder-limits",
+      "shows": "The finder names 18 printed pages where src/App.js holds 20 page openings.",
+      "why": "Three of the 20 are the error page a print writes in its catch when its read fails (printTrainingAttempt, printSessionRoster, printDocumentSignatures), and two of those sit in a function that already opens its page, so a plain count of openings is 2 over the finder's count of printing functions. No printed page is missed.",
+      "where": "src/App.js:27446, 27721, 27981; audit/cases/house-style.js (the count of <!DOCTYPE html)"
+    },
+    {
+      "case": "house-style/a-page-taken-as-done-reads-no-english",
+      "finding": "finder-limits",
+      "shows": "The source finder counts 83 strings on pages taken as done as English.",
+      "why": "72 of the 83 are keys the word table holds Spanish for, translated where they are used in shapes the finder does not follow (a list walked with .map(c => ({ l: tr(c.l) })), a table read through a helper); the other 11 are CSS, a query string, an SVG, a document code and a language's own name. The Spanish screen pass reads these pages with no English left.",
+      "where": "audit/lib/strings.js translatedShapes; the strings are listed in audit/FINDINGS_2026-10.md"
     }
   ]
 }

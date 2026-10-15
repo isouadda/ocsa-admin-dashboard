@@ -51,6 +51,19 @@ const PEOPLE = {
     login: { phone: "2155550104", pin: "4444" },
     isSuperAdmin: true,
   },
+  // The October audit (part 343): a supervisor who holds exactly the supervisor column of the API as
+  // built in #146 (AUDIT_CONTRACT.md section 1): manage_staff, manage_cases and read_incident_reports,
+  // and neither manage_employment nor read_hr_records. The five are held as overrides, which the stub
+  // applies only to the capabilities its permissions answer names: manage_employment, read_hr_records and
+  // manage_cases are named once Step 327 is armed, which setApiAsBuilt does. Without it the person holds
+  // manage_staff and read_incident_reports alone. Not one of PERSONAS: only cases/october.js signs in as
+  // this person, so no other suite's run grows.
+  supervisor146: {
+    id: "u-sup-146", firstName: "Imani", lastName: "Castellanos", role: "supervisor",
+    phone: "2155550146", email: "imani.castellanos@example.invalid",
+    login: { phone: "2155550146", pin: "1460" },
+    overrides: { manage_staff: true, manage_employment: false, read_hr_records: false, manage_cases: true, read_incident_reports: true },
+  },
 };
 
 const PERSONAS = ["admin", "supervisor", "capability", "superAdmin"];

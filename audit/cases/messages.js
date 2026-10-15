@@ -464,7 +464,12 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.settle(600);
   const posted = d.callsSince(mark).filter((c) => c.method === "POST" && c.path === "/api/chat/channels/ch-1/messages").pop();
   const wantBody = JSON.stringify({ text: wantText, mentions: TAGS.map((t) => t.id) });
-  results.check("page", "page/chat/a-send-carries-its-mentions" + tail, !!posted && JSON.stringify(posted.body) === wantBody && posted.status === 201,
+  // A send carries a clientId of its own since the dashboard keeps a message from going twice; it is
+  // left out of the comparison and held to a non-empty string (the October audit, part 343).
+  const postedBody = posted && posted.body ? Object.assign({}, posted.body) : null;
+  const clientIdOk = !postedBody || postedBody.clientId === undefined || (typeof postedBody.clientId === "string" && postedBody.clientId.length >= 8);
+  if (postedBody) delete postedBody.clientId;
+  results.check("page", "page/chat/a-send-carries-its-mentions" + tail, !!posted && clientIdOk && JSON.stringify(postedBody) === wantBody && posted.status === 201,
     !pickedFirst || !pickedSecond ? "the case could not pick " + (!pickedFirst ? TAGS[0].name : TAGS[1].name) + " in the picker; the box holds " + JSON.stringify(inBox)
       : !pressedSend ? "the chat offers no button named " + JSON.stringify(w.send)
         : !posted ? "the send posted nothing; the box holds " + JSON.stringify(inBox)

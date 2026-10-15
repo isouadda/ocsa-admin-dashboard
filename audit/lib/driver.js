@@ -82,15 +82,16 @@ const THEME_SEED = (mode, size, lang) => '(() => { try { localStorage.setItem("o
   + '); localStorage.setItem("ocsa-text-size", ' + JSON.stringify(size)
   + '); localStorage.setItem("ocsa-lang", ' + JSON.stringify(lang) + '); } catch (e) {} })();';
 
-async function createDriver({ browser, origin, stubs, viewport, theme, textSize, lang }) {
+async function createDriver({ browser, origin, stubs, viewport, theme, textSize, lang, timezoneId }) {
   const mode = theme === "light" ? "light" : "dark";
   const size = textSize || "standard";
   const tongue = lang === "es" ? "es" : "en";
   // The browser is given the language's own locale, so a date the app does not format itself is
-  // still the date a person in that language reads.
+  // still the date a person in that language reads. The clock is the company's, America/New_York,
+  // unless a case names another: the October audit's office laptop set to another zone (part 343).
   const context = await browser.newContext({
     viewport: VIEWPORTS[viewport] || VIEWPORTS.wide,
-    timezoneId: seed.TIMEZONE,
+    timezoneId: timezoneId || seed.TIMEZONE,
     locale: localeTagFor(tongue),
     colorScheme: mode,
     acceptDownloads: true,
@@ -531,9 +532,28 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       return false;
     },
 
-    // The same thing, for a picker whose options carry a person's name.
+    // The same thing, for a picker whose options carry a person's name. Since Step 291 most people are
+    // picked in PersonPick, a searched list with no select: its field is pressed, the name typed in its
+    // search, and the row reading it pressed. A plain select is still tried first, for the three people
+    // dropdowns that are one (the October audit, part 343, found every PersonPick caller picking nobody).
     async pickPerson(nameFragment) {
-      return this.pickOption(nameFragment);
+      if (await this.pickOption(nameFragment)) return true;
+      const useModal = await this.modalOpen();
+      const scope = useModal ? this.modal() : page;
+      const fields = scope.locator("[data-person-pick-field]");
+      const n = await fields.count();
+      for (let i = 0; i < n; i += 1) {
+        const f = fields.nth(i);
+        if (!(await f.isVisible().catch(() => false))) continue;
+        await f.click().catch(() => {});
+        const box = page.locator("[data-person-pick-box]").last();
+        if ((await box.count()) === 0) continue;
+        await box.locator("[data-person-pick-search]").fill(String(nameFragment)).catch(() => {});
+        const row = box.locator("[data-person-pick-option]", { hasText: String(nameFragment) }).first();
+        if ((await row.count()) > 0) { await row.click(); await this.settle(260); return true; }
+        await page.keyboard.press("Escape").catch(() => {});
+      }
+      return false;
     },
 
     // The Run button on a named report card in the library.

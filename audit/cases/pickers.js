@@ -43,34 +43,66 @@ const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
 
 // The choices a picker offers under a label, the empty choice left out: the label as drawn (upper case
 // is by style only, so textContent is read), then the select beside it. In the open window when one is
-// open, on the page otherwise.
-function optionsUnder(d, label, inModal) {
-  return d.page.evaluate(([lbl, modal, sel]) => {
+// open, on the page otherwise. Since Step 291 most people pickers are PersonPick, a searched list with no
+// select: its field beside the label is pressed and the rows it draws are read, then it is closed (the
+// October audit, part 343, found every check here reading no picker).
+async function optionsUnder(d, label, inModal) {
+  const got = await d.page.evaluate(([lbl, modal, sel]) => {
     const roots = Array.from(document.querySelectorAll(sel));
     const root = modal ? (roots.length ? roots[roots.length - 1] : null) : document;
     if (!root) return null;
     const clean = (s) => String(s || "").replace(/\s+/g, " ").trim();
+    document.querySelectorAll("[data-audit-picking]").forEach((x) => x.removeAttribute("data-audit-picking"));
     const labels = Array.from(root.querySelectorAll("label, div")).filter((el) => el.children.length === 0 && clean(el.textContent) === lbl);
     for (const l of labels) {
       const box = l.parentElement && l.parentElement.querySelector("select");
       if (box) return Array.from(box.options).filter((o) => o.value).map((o) => ({ v: o.value, l: clean(o.textContent) }));
+      const field = l.parentElement && l.parentElement.querySelector("[data-person-pick-field]");
+      if (field) { field.setAttribute("data-audit-picking", "1"); return "person-pick"; }
     }
     return null;
   }, [label, !!inModal, WINDOW]);
+  return got === "person-pick" ? readPersonPick(d) : got;
 }
 // The choices of the picker whose empty choice reads a given word, for a picker that stands without a
-// label, such as HR Records' person filter.
-function optionsOfPicker(d, emptyWord, inModal) {
-  return d.page.evaluate(([word, modal, sel]) => {
+// label, such as HR Records' person filter: a select whose first option is that word, or a PersonPick
+// whose field reads it while nobody is picked.
+async function optionsOfPicker(d, emptyWord, inModal) {
+  const got = await d.page.evaluate(([word, modal, sel]) => {
     const roots = Array.from(document.querySelectorAll(sel));
     const root = modal ? (roots.length ? roots[roots.length - 1] : null) : document;
     if (!root) return null;
     const clean = (s) => String(s || "").replace(/\s+/g, " ").trim();
+    document.querySelectorAll("[data-audit-picking]").forEach((x) => x.removeAttribute("data-audit-picking"));
     const box = Array.from(root.querySelectorAll("select")).find((s0) => s0.options.length > 0 && clean(s0.options[0].textContent) === word && !s0.options[0].value);
-    return box ? Array.from(box.options).filter((o) => o.value).map((o) => ({ v: o.value, l: clean(o.textContent) })) : null;
+    if (box) return Array.from(box.options).filter((o) => o.value).map((o) => ({ v: o.value, l: clean(o.textContent) }));
+    const field = Array.from(root.querySelectorAll("[data-person-pick-field]")).find((f) => clean(f.textContent).indexOf(word) >= 0);
+    if (field) { field.setAttribute("data-audit-picking", "1"); return "person-pick"; }
+    return null;
   }, [emptyWord, !!inModal, WINDOW]);
+  return got === "person-pick" ? readPersonPick(d) : got;
+}
+// The rows of the PersonPick marked by the two readers above, with their ids, the empty row left out.
+async function readPersonPick(d) {
+  const field = d.page.locator("[data-audit-picking]").first();
+  await field.click();
+  const box = d.page.locator("[data-person-pick-box]").last();
+  try { await box.waitFor({ timeout: 4000 }); } catch (e) { return null; }
+  const rows = await box.locator("[data-person-pick-option]").evaluateAll((els) => els
+    .map((b) => {
+      // The name is the first span's own text; a role or a status rides beside it in a span of its own.
+      const first = b.querySelector("span");
+      const own = first ? Array.from(first.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join("") : b.textContent;
+      return { v: b.getAttribute("data-person-pick-option") || "", l: String(own || "").replace(/\s+/g, " ").trim() };
+    })
+    .filter((o) => o.v));
+  await d.page.keyboard.press("Escape").catch(() => {});
+  await d.settle(150);
+  return rows;
 }
 const namesOf = (opts) => (opts || []).map((o) => o.l);
+// The rows with no status mark, "(inactive)" or "(pending)" in either language.
+const activeOf = (opts) => namesOf(opts).filter((l) => !/\([^)]*\)\s*$/.test(l));
 // What a picker holds, said in one line: its count and its first three names.
 const said = (opts) => (opts === null ? "no such picker" : (opts.length + ": " + namesOf(opts).slice(0, 3).join(", ") + (opts.length > 3 ? ", ..." : "")));
 // The one line a check gives when a list is off: what it offers and what the seed says.
@@ -122,7 +154,7 @@ async function run({ d, results, seed, stubs, lang }) {
     await d.pickOption(seed.SITES[0].name, { inModal: true });
     await d.fillByLabel(d.say("Task Description *"), "Wipe the lobby glass");
     await d.fillByLabel(d.say("Zone *"), "Lobby");
-    await d.pickOption(who.name, { inModal: true });
+    await d.pickPerson(who.name);
     await d.clickText(d.say("Create and Assign"), { inModal: true, exact: true }).catch(() => false);
     await d.settle(300);
     sent = d.callsSince(before).find((c) => c.method === "POST" && /^\/api\/sites\/[^/]+\/tasks$/.test(c.path)) || null;
@@ -138,8 +170,11 @@ async function run({ d, results, seed, stubs, lang }) {
   const shiftStaff = opened ? await optionsUnder(d, d.say("Staff Member *"), true) : null;
   note("supervisor", "Schedule, Schedule Shift, Staff Member", shiftStaff);
   // Break: the shell's fallback taken out; the list is empty.
-  check("schedule-lists-the-staff", opened && shiftStaff !== null && sameSet(namesOf(shiftStaff), W.staff),
-    !opened ? "the shift window did not open from " + JSON.stringify(d.say("Schedule Shift")) : offWhy("Staff Member", shiftStaff, W.staff));
+  // Since Step 291 the window offers everyone active, office accounts included, so an admin can be
+  // scheduled by typing their name (the smoke check's line); the October audit (part 343) moved this
+  // check from the staff alone to everyone.
+  check("schedule-lists-the-staff", opened && shiftStaff !== null && sameSet(namesOf(shiftStaff), W.everyone),
+    !opened ? "the shift window did not open from " + JSON.stringify(d.say("Schedule Shift")) : offWhy("Staff Member", shiftStaff, W.everyone));
   await d.closeModal().catch(() => {});
   // The site filter. A supervisor's people carry no site assignments, so the page reads the site's
   // people from its record and keeps those, and every admin, the way it does for an admin's list.
@@ -152,11 +187,11 @@ async function run({ d, results, seed, stubs, lang }) {
   const siteStaff = opened ? await optionsUnder(d, d.say("Staff Member *"), true) : null;
   note("supervisor", "Schedule, " + site.name + ", Schedule Shift, Staff Member", siteStaff);
   // Break: the site's people not read for a list without assignments, so the filter keeps admins alone.
-  check("schedule-site-filter-keeps-the-sites-people", filtered && opened && siteRead.length > 0 && siteStaff !== null && sameSet(namesOf(siteStaff), W.atSite(site.name)),
+  check("schedule-site-filter-keeps-the-sites-people", filtered && opened && siteRead.length > 0 && siteStaff !== null && sameSet(namesOf(siteStaff).slice(0, W.atSite(site.name).length), W.atSite(site.name)) && sameSet(namesOf(siteStaff), W.everyone),
     !filtered ? "the site filter did not take " + JSON.stringify(site.name)
       : !opened ? "the shift window did not open under the site filter"
         : siteRead.length === 0 ? "the site's record was never read for a list without site assignments"
-          : offWhy("Staff Member under " + site.name, siteStaff, W.atSite(site.name)));
+          : offWhy("Staff Member under " + site.name + " (the site's people first, then everyone else, since Step 291)", siteStaff, W.atSite(site.name)));
   await d.closeModal().catch(() => {});
 
   // ---- Schedule: the open pickup's Reassign To lists the staff ------------------------------------
@@ -176,13 +211,15 @@ async function run({ d, results, seed, stubs, lang }) {
   const filter = opened ? await optionsOfPicker(d, d.say("All Employees"), false) : null;
   note("supervisor", "HR Records, Documents, person filter", filter);
   // Break: HR Records reading the staff list alone; the filter is empty.
-  check("hr-filter-lists-the-active-people", opened && filter !== null && sameSet(namesOf(filter), W.everyone),
+  // HR Records lists every status, active first and the others marked with their status, so the active
+  // people are read as the rows with no mark (the October audit, part 343).
+  check("hr-filter-lists-the-active-people", opened && filter !== null && sameSet(activeOf(filter), W.everyone),
     !opened ? "the Documents tab did not open from " + JSON.stringify(d.say("Documents")) : offWhy("the person filter", filter, W.everyone));
   const person = W.byName["Elena Barbosa"];
   let narrowed = null;
   if (filter && filter.length) {
     const before = d.mark();
-    await d.pickOption(person.name, { anywhere: true });
+    await d.pickPerson(person.name);
     await d.settle(400);
     narrowed = d.callsSince(before).find((c) => c.method === "GET" && c.path === "/api/hr/documents") || null;
   }
@@ -193,12 +230,12 @@ async function run({ d, results, seed, stubs, lang }) {
   const employee = opened ? await optionsUnder(d, d.say("Employee"), true) : null;
   note("supervisor", "HR Records, + Add Document, Employee", employee);
   // Break: HR Records reading the staff list alone; the list is empty.
-  check("add-document-lists-the-active-people", opened && employee !== null && sameSet(namesOf(employee), W.everyone),
+  check("add-document-lists-the-active-people", opened && employee !== null && sameSet(activeOf(employee), W.everyone),
     !opened ? "the document window did not open from " + JSON.stringify(d.say("+ Add Document")) : offWhy("Employee", employee, W.everyone));
   let upload = null;
   if (opened && employee && employee.length) {
     const before = d.mark();
-    await d.pickOption(who.name, { inModal: true });
+    await d.pickPerson(who.name);
     await d.pickOption(d.say("Training"), { inModal: true });
     await d.modal().locator("input[type=file]").setInputFiles({ name: "signed-form.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 audit") });
     await d.clickText(d.say("Add"), { inModal: true, exact: true }).catch(() => false);
@@ -225,7 +262,7 @@ async function run({ d, results, seed, stubs, lang }) {
     const before = d.mark();
     await d.pickOption(stubs.fixtures.INSPECTION_TEMPLATES[0].name, { inModal: true });
     await d.pickOption(seed.SITES[1].name, { inModal: true });
-    await d.pickOption(sup.name, { inModal: true });
+    await d.pickPerson(sup.name);
     await d.fillByLabel(d.say("Scheduled Date *"), "2026-03-20");
     await d.clickText(d.say("Schedule|verb"), { inModal: true, exact: true }).catch(() => false);
     await d.settle(400);

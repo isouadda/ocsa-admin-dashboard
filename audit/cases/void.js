@@ -151,12 +151,16 @@ async function run({ d, results, stubs, lang }) {
     await openFiled(d, "admin");
     const probe = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/forms/responses" && c.query === "?status=void&limit=1").pop();
     const sw = await switches(d, w.submitted);
-    const wantSw = [w.submitted, w.unfinished, w.voidStatus];
+    // Since Sept 29 (d1a2306) the switch draws only when the answer holds a void report. Nothing is void
+    // yet, so the switch reads two; once ir-1 is voided below, the list is read again and the Void switch
+    // is pressed there (the October audit, part 343, held the case to that).
+    const probeVoid = !!probe && probe.json && Array.isArray(probe.json.responses) && probe.json.responses.some((r) => r && r.status === "void");
+    const wantSw = probeVoid ? [w.submitted, w.unfinished, w.voidStatus] : [w.submitted, w.unfinished];
     results.check("page", "page/forms/void-switch-for-an-admin" + tail,
       !!probe && probe.status === 200 && !!sw && sw.join("|") === wantSw.join("|"),
       !probe ? "Filed forms never asked GET /api/forms/responses?status=void&limit=1, and the status switch reads " + JSON.stringify(sw)
         : probe.status !== 200 ? "the void list answered " + probe.status
-          : "the status switch reads " + JSON.stringify(sw) + " where it should read " + JSON.stringify(wantSw));
+          : "the status switch reads " + JSON.stringify(sw) + " where it should read " + JSON.stringify(wantSw) + (probeVoid ? ", the answer holding a void report" : ", the answer holding none"));
 
     // ---- where each filing came from, the line under its form's name, by the source the list sent
     const submitted = lastList(d, "submitted");
@@ -231,18 +235,25 @@ async function run({ d, results, stubs, lang }) {
       !pressedVoid ? "no " + JSON.stringify(w.voidButton) + " in the window to press" : !asks ? "pressing it opened nothing that asks why"
         : "the window asks " + JSON.stringify(asks) + " where it should ask " + JSON.stringify(w.question) + " with " + JSON.stringify([w.voidReport, w.notYet]));
 
-    // ---- Void report with no reason: the API refuses it, and its words are drawn
+    // ---- Void report with no reason: since Sept 29 (d1a2306) Void report waits for a reason, so with
+    // nothing typed it is drawn and cannot be pressed, and nothing is sent. The API's refusal of an empty
+    // reason can no longer be reached from the window (the October audit, part 343, held the case to that).
     mark = d.mark();
-    const pressedEmpty = !!asks && (await press(d, w.voidReport));
+    const emptyState = !asks ? null : await d.page.evaluate(([sel, want]) => {
+      const w0 = Array.from(document.querySelectorAll(sel)).pop();
+      const b = w0 && Array.from(w0.querySelectorAll("[data-void-window] button")).find((x) => (x.textContent || "").trim() === want);
+      if (!b) return "missing";
+      b.click();
+      return b.disabled ? "disabled" : "enabled";
+    }, [MODAL, w.voidReport]);
     await pause(400);
     const empty = d.callsSince(mark).filter((c) => c.method === "POST" && c.path === "/api/forms/responses/ir-1/void").pop();
     const w2 = await reportWindow(d);
-    const said = NO_REASON[lang] || NO_REASON.en;
-    results.check("window", "window/forms/a-refused-void-in-the-apis-words" + tail,
-      pressedEmpty && !!empty && empty.status === 400 && !!w2 && w2.lines.indexOf(said) >= 0 && w2.status === w.submitted,
-      !pressedEmpty ? "there was no " + JSON.stringify(w.voidReport) + " to press" : !empty ? "Void report with nothing typed sent nothing"
-        : empty.status !== 400 ? "the API answered " + empty.status : !w2 ? "the window closed on the refusal"
-          : w2.lines.indexOf(said) < 0 ? "the API's words " + JSON.stringify(said) + " are not drawn in the window" : "after a refused void the report reads " + JSON.stringify(w2.status));
+    results.check("window", "window/forms/void-report-waits-for-a-reason" + tail,
+      emptyState === "disabled" && !empty && !!w2 && !!w2.asks && w2.status === w.submitted,
+      !asks ? "the window never asked why" : emptyState === "missing" ? "there was no " + JSON.stringify(w.voidReport) + " in the window"
+        : emptyState === "enabled" ? JSON.stringify(w.voidReport) + " can be pressed with nothing typed" : empty ? "Void report with nothing typed sent " + JSON.stringify(empty.body)
+          : !w2 ? "the window closed" : "with nothing typed the report reads " + JSON.stringify(w2.status));
 
     // ---- the reason typed goes in the body, and the report reads Void after
     if (w2 && !w2.asks && offered(w2, w.voidButton)) await press(d, w.voidButton);
