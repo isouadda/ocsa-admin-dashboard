@@ -1111,7 +1111,7 @@ the size limit raised.
   src/ nor the stub uses it, and the dashboard has no Start an inspection.
 - **A supervisor's people do not come from loadPeople's fallback.** Part 8 says so; since #146 the HR summary it falls
   back to is read_hr_records', and a supervisor fills only through GET /api/users (DASH-28).
-- **The word drift is one cause, not 62.** The 22 and the 40 are exact, and all come from 40 CSV rows that keep the
+- **The word drift has a single cause.** The 22 and the 40 are exact, and all 62 come from 40 CSV rows that keep the
   context after the bar; no pair's Spanish differs.
 - **"A hidden field is still delivered."** True of the stub (every hourly rate reached every persona); whether the API
   as built sends a supervisor the profile's rate is the API audit's to say. The stub now strips it under
