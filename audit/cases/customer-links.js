@@ -173,7 +173,6 @@ async function run({ d, results, inventory, stubs, lang }) {
     // Survey schedule sits beside a survey link once its route answers (Step 196), and cl-2 is the
     // Client Satisfaction Survey's link, so it is held to whether the read was answered.
     const surveyAnswered = d.callsSince(markOpen).some((c) => c.method === "GET" && /^\/api\/sites\/[^/]+\/survey-schedule$/.test(c.path) && !(c.status >= 400));
-    process.stdout.write("DEBUG1 " + JSON.stringify({ surveyAnswered, list }) + "\n");
     const live = list.find((r) => r.id === "cl-1") || { buttons: [] };
     const off = list.find((r) => r.id === "cl-2") || { buttons: [] };
     const expired = list.find((r) => r.id === "cl-3") || { buttons: [] };
@@ -263,7 +262,6 @@ async function run({ d, results, inventory, stubs, lang }) {
     await pressTab(d, say("Show QR code"), "[data-customer-link='cl-1']");
     await pause(700);
     const q3 = await qrScreen(d);
-    process.stdout.write("DEBUG2 " + JSON.stringify({ q3, four: four.map((r) => r.id), r1, r2, r3, under }) + "\n");
     const titles006 = es ? [T006, "Facility Cleanliness Evaluation Checklist"] : [T006, "Lista de evaluaci\u00f3n de limpieza del edificio"];
     check("customer-links/the-qr-screen",
       !!q3 && q3.src === "data:image/png;base64," && q3.width === "512" && q3.text.indexOf(SITE(0)) >= 0 && titles006.every((x) => q3.text.indexOf(x) >= 0)
