@@ -58,6 +58,15 @@ function placeOf(subjectType, subjectId) {
   if (/^inspection(_|$)/.test(st) && id) return "inspections/" + id;
   if (st === "time_off") return id ? "schedule/timeoff/" + id : "schedule/timeoff";
   if (/^hr_case(_|$)/.test(st)) return id ? "cases/" + id : "cases";
+  // The six types API #146 added for staff, a support ticket, and a dropped or claimed shift, where the
+  // bell opens them (DASH-25).
+  if (st === "task_assigned") return "assigned";
+  if (st === "training_assigned" || st === "training_session") return "training";
+  if (st === "site_assigned") return id ? "sites/" + id : "sites";
+  if (st === "workspace_member") return id ? "workspace/" + id : "workspace";
+  if (st === "document_to_sign") return "hr/signatures";
+  if (st === "support_ticket" || st === "support_ticket_new") return "tickets";
+  if (st === "shift_drop" || st === "shift_claim") return "marketplace";
   if (/^shift(_|$)/.test(st)) return "schedule";
   return "";
 }

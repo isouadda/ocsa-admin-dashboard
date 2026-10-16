@@ -329,6 +329,8 @@ async function run({ d, results, inventory, stubs }) {
 
   for (const w of inventory.WINDOWS) {
     const id = "window/" + w.id;
+    // A window another suite opens on a stub of its own, which reports it under the same id.
+    if (w.drivenBy) continue;
     const route = ROUTES[w.id];
     if (!route) { results.noCase("window", id, w.lines.map((l) => "src/App.js:" + l).join(", ")); continue; }
 

@@ -96,6 +96,8 @@ async function supervisor(ctx) {
     const opened = await d.page.locator("[data-profile-edit]").first().click().then(() => true).catch(() => false);
     await d.settle(300);
     const rateBox = opened ? await d.page.evaluate((w) => Array.from(document.querySelectorAll("label, div")).some((el) => el.children.length === 0 && (el.textContent || "").trim() === w), rateWord) : false;
+    // Save sends what changed (DASH-03), so one field is changed for there to be a PATCH to read.
+    if (opened) await d.fillByLabel(d.say("Phone"), "2155550188");
     const saved = opened ? await d.clickText(d.say("Save Changes"), { exact: true }) : false;
     const patch = d.callsSince(markEdit).find((c) => c.method === "PATCH" && c.path === "/api/users/u-staff-5");
     const sentRate = !!(patch && patch.body && Object.prototype.hasOwnProperty.call(patch.body, "hourlyRate"));

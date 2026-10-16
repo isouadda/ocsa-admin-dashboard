@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment, createContext, useContext } from "react";
 import Chart from "react-apexcharts";
 import clientConfig from "./clientConfig";
+// The stamp this bundle was built with, written by scripts/stamp.js on every build.
+import { BUILD_STAMP } from "./buildStamp";
 // The word table, the language the screen is drawn in, and what a formatter is given. Nothing
 // else lives there and nothing else leaves this file.
 import { LOCALES, LANGUAGES, WORDS, tr, trn, setLang, getLang, localeTag, browserLang } from "./words";
@@ -17,8 +19,147 @@ function withLocale(url) {
   if (/[?&]locale=/.test(s)) return s;
   return s + (s.indexOf("?") >= 0 ? "&" : "?") + "locale=" + getLang();
 }
+// Every call has a deadline (DASH-09): an API that has not begun to answer in 30 seconds, or 2 minutes
+// while a file or a photo is being sent, is given up on, and the call is refused in plain words, so a
+// Loading line ends and a window that waits on its Save can be closed. The deadline ends once the
+// answer begins, so a streamed answer and a long download read on as before. A caller's own signal
+// still cancels the call.
+const API_DEADLINE_MS = 30000;
+const API_UPLOAD_DEADLINE_MS = 120000;
+// How many calls are out right now, which the update check asks before it reloads.
+let apiInFlight = 0;
 function apiRequest(url, init = {}) {
-  return fetch(withLocale(url), { ...init, headers: { ...init.headers, "Accept-Language": getLang() } });
+  const ctl = typeof AbortController === "function" ? new AbortController() : null;
+  const b = init.body;
+  const sendsFile = (typeof Blob !== "undefined" && b instanceof Blob) || (typeof FormData !== "undefined" && b instanceof FormData);
+  let timedOut = false;
+  const timer = ctl ? setTimeout(() => { timedOut = true; ctl.abort(); }, sendsFile ? API_UPLOAD_DEADLINE_MS : API_DEADLINE_MS) : null;
+  if (ctl && init.signal) { if (init.signal.aborted) ctl.abort(); else init.signal.addEventListener("abort", () => ctl.abort()); }
+  apiInFlight += 1;
+  return fetch(withLocale(url), { ...init, signal: ctl ? ctl.signal : init.signal, headers: { ...init.headers, "Accept-Language": getLang() } })
+    .then(r => { clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1); return r; }, e => {
+      clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1);
+      if (!timedOut) throw e;
+      const err = new Error(tr("The connection timed out. Try again.")); err.status = 0; err.code = "network.timeout";
+      throw err;
+    });
+}
+// --- The dashboard keeps itself current (Round 1, ported from the staff app) ----------------------
+// An office tab can stay open for days, never asking for index.html again and running the bundle it
+// first loaded. The dashboard carries its own stamp, asks the server for the current one 5 seconds
+// after it loads, every 15 minutes, when the tab is looked at again after a minute or more and when
+// the connection comes back, and reloads itself to the same page when nothing is underway. Something
+// is underway while a call is out, while a window is open with text typed in it, or while the field
+// being typed in holds text. Then a small bar says a new version is ready, with Reload, and the
+// reload is tried again every 20 seconds. It never reloads twice for the same stamp. The service
+// worker is left as it is.
+const UPDATE_FIRST_MS = 5000;
+const UPDATE_PERIOD_MS = 15 * 60 * 1000;
+const UPDATE_GAP_MS = 60 * 1000;
+const UPDATE_RETEST_MS = 20 * 1000;
+const UPDATE_FETCH_MS = 8000;
+const UPDATE_TRIED_KEY = "ocsa-dashboard-update-tried";
+const UPDATE_BAR_ID = "ocsa-update-bar";
+const sessionGet = (k) => { try { return window.sessionStorage.getItem(k); } catch (e) { return null; } };
+const sessionSet = (k, v) => { try { window.sessionStorage.setItem(k, v); } catch (e) {} };
+// A text field with something in it: an input that takes text, or a text area.
+const holdsText = (el) => {
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toUpperCase();
+  if (tag === "TEXTAREA") return String(el.value || "").length > 0;
+  if (tag !== "INPUT") return false;
+  const ty = String(el.type || "text").toLowerCase();
+  if (["checkbox", "radio", "hidden", "file", "button", "submit", "reset", "range", "color"].indexOf(ty) >= 0) return false;
+  return String(el.value == null ? "" : el.value).length > 0;
+};
+// A window is a fixed box pinned to all four edges of the screen, which every window here is (Mdl and
+// the full screen windows), and nothing else is.
+function windowHoldsText() {
+  const all = document.querySelectorAll("div");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.id === UPDATE_BAR_ID) continue;
+    const st = window.getComputedStyle(el);
+    if (st.position !== "fixed" || st.top !== "0px" || st.left !== "0px" || st.right !== "0px" || st.bottom !== "0px") continue;
+    const fields = el.querySelectorAll("input, textarea");
+    for (let j = 0; j < fields.length; j++) if (holdsText(fields[j])) return true;
+  }
+  return false;
+}
+const somethingIsUnderway = () => apiInFlight > 0 || windowHoldsText() || holdsText(document.activeElement);
+// Nothing here makes noise. A check that fails, runs out of time or answers without a stamp leaves the
+// dashboard exactly as it was. version.json is read with fetch itself, outside apiRequest, so it is
+// never counted as a call that is out.
+async function readServerStamp() {
+  const base = process.env.PUBLIC_URL || "";
+  let timer = null;
+  try {
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    if (ctl) timer = setTimeout(() => { try { ctl.abort(); } catch (e) {} }, UPDATE_FETCH_MS);
+    const res = await fetch(base + "/version.json?t=" + Date.now(), ctl ? { cache: "no-store", signal: ctl.signal } : { cache: "no-store" });
+    if (!res || !res.ok) return null;
+    const data = await res.json();
+    const stamp = data && typeof data.stamp === "string" ? data.stamp.trim() : "";
+    return stamp || null;
+  } catch (e) {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+// The stamp is remembered first, so a reload happens once for it. The address keeps its hash, so the
+// reload opens the same page.
+function reloadForUpdate(stamp) {
+  sessionSet(UPDATE_TRIED_KEY, stamp);
+  try { window.location.reload(); } catch (e) {}
+}
+function useSelfUpdate() {
+  const [ahead, setAhead] = useState(null);
+  // The bar shows only once a reload has been held back, so an idle dashboard updates with nothing
+  // shown and nothing pressed.
+  const [showBar, setShowBar] = useState(false);
+  const aheadRef = useRef(null);
+  const goingRef = useRef(false);
+  const lastRef = useRef(0);
+  useEffect(() => { aheadRef.current = ahead; }, [ahead]);
+  const check = useCallback(async () => {
+    lastRef.current = Date.now();
+    const stamp = await readServerStamp();
+    if (!stamp || stamp === BUILD_STAMP) return;
+    setAhead(stamp);
+  }, []);
+  useEffect(() => {
+    const soon = () => { if (!document.hidden) check(); };
+    const first = setTimeout(soon, UPDATE_FIRST_MS);
+    const iv = setInterval(soon, UPDATE_PERIOD_MS);
+    const onShow = () => { if (!document.hidden && Date.now() - lastRef.current > UPDATE_GAP_MS) check(); };
+    const onOnline = () => { check(); };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("online", onOnline);
+    return () => { clearTimeout(first); clearInterval(iv); document.removeEventListener("visibilitychange", onShow); window.removeEventListener("online", onOnline); };
+  }, [check]);
+  const tryNow = useCallback(() => {
+    const stamp = aheadRef.current;
+    if (!stamp || goingRef.current) return;
+    // A reload already happened for this stamp and the two still differ, so another would only loop.
+    if (sessionGet(UPDATE_TRIED_KEY) === stamp) { setShowBar(true); return; }
+    if (somethingIsUnderway()) { setShowBar(true); return; }
+    goingRef.current = true;
+    reloadForUpdate(stamp);
+  }, []);
+  useEffect(() => {
+    if (!ahead) return undefined;
+    tryNow();
+    const iv = setInterval(tryNow, UPDATE_RETEST_MS);
+    return () => clearInterval(iv);
+  }, [ahead, tryNow]);
+  const reloadNow = useCallback(() => {
+    const stamp = aheadRef.current;
+    if (!stamp || goingRef.current) return;
+    goingRef.current = true;
+    reloadForUpdate(stamp);
+  }, []);
+  return { showBar, reloadNow };
 }
 // What a refusal means for the whole session (Step 284, STEP283_CONTRACT.md section 2), read by every
 // helper below. A 401, and a 403 auth.accountNotActive or auth.inactive, end it: ocsa-session-expired
@@ -182,10 +323,16 @@ const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"
 // name yet keeps today's behavior: Cases, HR Records and the employment controls read the API's own
 // answer for those three (capNamed in the shell), never these defaults.
 const CAP_ROLE_DEFAULTS = {
-  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: false, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
   supervisor: { manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
   staff: {},
 };
+// The owner's decision 1 (Round 1, Oct 15, 2026): nobody without manage_employment sees a dollar figure,
+// a rate box or a cost order, on any page, print or export. PayCtx carries that answer to every screen
+// (the shell's canEmploy), and PAY_KEY names a field that carries pay or money, so a screen that lists
+// whatever fields a record has leaves those out for everyone else.
+const PayCtx = createContext(false);
+const PAY_KEY = /(hourly|wage|salary|pay_?rate|^pay$|_pay$|cost|price|amount|budget|labor_?total|overtime_pay|dollars?)/i;
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
 const pageFromHash = () => { const h = hashParts()[0] || ""; return PAGE_IDS.includes(h) ? h : "overview"; };
 // What follows the page id in the hash, for a page that reads one. #forms is unchanged by this.
@@ -402,7 +549,10 @@ const Lbl = ({ children }) => { const t = useT(); return <label style={{ fontSiz
 // A close X is 44 by 44 and named Close. A checkbox sits inside a 44 by 44 label so it can be pressed.
 const xBtn = { minWidth: 44, minHeight: 44, padding: 0, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 const chkWrap = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 44, minHeight: 44, cursor: "pointer", flexShrink: 0 };
-const Mdl = ({ children, onClose: oc, t, tall }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: tall ? "hidden" : "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
+// A window. A tall one takes the screen's height; its box scrolls when what it holds is taller, so Save
+// at the bottom is always reached by finger or wheel (DASH-08). A window that scrolls a part of its own
+// inside never overflows the box, so it draws as before.
+const Mdl = ({ children, onClose: oc, t, tall }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
@@ -617,6 +767,10 @@ export default function AdminDashboard() {
   // everyone who signs in, as it always has, unless the API answers read_hr_records false.
   const casesOn = isAdmin || capNamed("manage_cases") === true;
   const hrRecordsOn = capNamed("read_hr_records") !== false;
+  // Waiting for signatures (DASH-06): contract 1 keeps it with supervisors, who lose HR Records once
+  // the API answers read_hr_records false. It opens for whoever GET /api/signatures answers, with or
+  // without HR Records, at #hr/signatures.
+  const signaturesLive = useTrainingLive(af, "signatures");
   // The manage permissions capability opens the Roles and Permissions screen; manage settings opens
   // Company settings and the customer links on Filed forms; manage admins lets a person change an
   // admin's account, which nobody holds by default.
@@ -663,6 +817,7 @@ export default function AdminDashboard() {
     if (id === "staff") return hasCap("manage_staff");
     if (id === "cases") return casesOn;
     if (id === "hr") return hrRecordsOn;
+    if (id === "signatures") return hrRecordsOn || signaturesLive;
     if (id === "announcements") return hasCap("send_announcements");
     // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
     // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
@@ -672,7 +827,8 @@ export default function AdminDashboard() {
     if (id === "form-builder") return hasCap("build_forms");
     // Quotes opens the same way (Step 208): build_quotes is an admin's on the API's own defaults
     // table, since an estimate shows wages and margin, and the page waits for the API to name it.
-    if (id === "quotes") return hasCap("build_quotes");
+    // Since decision 1 (Round 1) a quote is a dollar document, so it also asks for manage_employment.
+    if (id === "quotes") return hasCap("build_quotes") && canEmploy;
     // Clearances (Step 211) answers the people HR Records answers, admins and supervisors, and opens
     // once GET /api/clearances answers with them.
     if (id === "clearances") return clearancesOn;
@@ -690,24 +846,50 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
+  }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
-  const loadSites = useCallback(async () => { try { const s = await af("/api/sites"); setSites(s); return s; } catch (e) { console.warn("Failed to load sites:", e.message); return []; } }, [af]);
+  // Each of the three session loads answers whether it is done: read, or answered by the API in a way a
+  // second try would not change (a refusal, or a route the API does not have yet). A load that found no
+  // connection, ran out of time or met a server error is tried again (DASH-10).
+  const loadDone = (e) => { const st = Number(e && e.status) || 0; return !(st === 0 || st === 408 || st === 429 || (st >= 500 && st !== 501)); };
+  const loadSites = useCallback(async () => { try { const s = await af("/api/sites"); setSites(s); return true; } catch (e) { console.warn("Failed to load sites:", e.message); return loadDone(e); } }, [af]);
   // The staff list is an admin's (manage_staff). loadPeople reads a supervisor's copy from the HR
   // employees summary when the API refuses the list, so every picker built from allStaff fills for them.
-  const loadStaff = useCallback(async () => { try { const s = await loadPeople(af, "?status=active"); setAllStaff(s); return s; } catch (e) { console.warn("Failed to load staff:", e.message); return []; } }, [af]);
+  const loadStaff = useCallback(async () => { try { const s = await loadPeople(af, "?status=active"); setAllStaff(s); return true; } catch (e) { console.warn("Failed to load staff:", e.message); return loadDone(e); } }, [af]);
   // Every pick list the pages draw. The whole set, inactive lists and values included, is an admin's
   // (manage_lookups). Anyone the API refuses it reads the signed-in route instead, which answers the
   // active lists and values in the same shape, so a supervisor's pick lists fill the way an admin's
   // do. An admin's load does not change.
   const loadLookups = useCallback(async () => {
-    try { const d = await af("/api/lookups/all"); setLookups(d); return; }
-    catch (e) { if (e.status !== 403) { console.warn("Failed to load lookups:", e.message); return; } }
-    try { const d = await af("/api/lookups"); setLookups(d); } catch (e) { console.warn("Failed to load lookups:", e.message); }
+    try { const d = await af("/api/lookups/all"); setLookups(d); return true; }
+    catch (e) { if (e.status !== 403) { console.warn("Failed to load lookups:", e.message); return loadDone(e); } }
+    try { const d = await af("/api/lookups"); setLookups(d); return true; } catch (e) { console.warn("Failed to load lookups:", e.message); return loadDone(e); }
   }, [af]);
-  useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
+  // Sites, people and pick lists are read once a session (DASH-10). One that fails, a weak signal or
+  // the API between deploys, is read again after 10, 20, 40 and 80 seconds and then every 2 minutes,
+  // and at once when the connection comes back or the tab is looked at again, until it is done, so
+  // one bad moment at sign-in does not leave every picker empty until a reload.
+  useEffect(() => {
+    if (!token) return undefined;
+    let alive = true; let timer = null; let tries = 0; let running = false;
+    const left = { sites: loadSites, staff: loadStaff, lookups: loadLookups };
+    const run = async () => {
+      if (running || !alive) return;
+      running = true; clearTimeout(timer);
+      await Promise.all(Object.keys(left).map(k => left[k]().then(done => { if (done) delete left[k]; })));
+      running = false;
+      if (!alive || !Object.keys(left).length) return;
+      tries += 1;
+      timer = setTimeout(run, Math.min(120000, 10000 * Math.pow(2, tries - 1)));
+    };
+    const again = () => { if (Object.keys(left).length && document.visibilityState !== "hidden") run(); };
+    window.addEventListener("online", again);
+    document.addEventListener("visibilitychange", again);
+    run();
+    return () => { alive = false; clearTimeout(timer); window.removeEventListener("online", again); document.removeEventListener("visibilitychange", again); };
+  }, [token]);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
     if (!token || !id) { setCaps(null); return; }
@@ -719,19 +901,24 @@ export default function AdminDashboard() {
       .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => { done(null); console.warn("Own capabilities:", e.message); }); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
+  const [probeRound, setProbeRound] = useState(0);
   useEffect(() => {
     if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); return undefined; }
-    let alive = true;
-    af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
-    af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
-    af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); });
-    af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); });
-    af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); });
-    af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); });
-    af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (alive) setLibraryOn(false); console.warn("Library:", e.message); });
-    af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
-    return () => { alive = false; };
-  }, [token, af]);
+    // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
+    // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
+    let alive = true; let soft = false; let timer = null;
+    const probes = [];
+    probes.push(af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); }));
+    probes.push(af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); }));
+    probes.push(af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); }));
+    probes.push(af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); }));
+    probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
+    probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
+    probes.push(af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLibraryOn(false); console.warn("Library:", e.message); }));
+    probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
+    Promise.all(probes).then(() => { if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
+    return () => { alive = false; clearTimeout(timer); };
+  }, [token, af, probeRound]);
   useEffect(() => {
     if (!token || isAdmin) { setCanReadFiledForms(false); return; }
     let alive = true;
@@ -826,7 +1013,7 @@ export default function AdminDashboard() {
     setOpenAsk(null);
     const n = { subjectType: ask.subjectType, subjectId: ask.subjectId };
     if (!noticePlace(n)) { if (ask.place) window.location.hash = ask.place; return; }
-    goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+    goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error"), nothing: () => showToast(tr("This notice has nothing to open on the dashboard.")) });
   }, [openAsk, token, canOpenPage, showToast]);
   // A subscription this computer already holds moves to the person signed in.
   useEffect(() => { if (token) repostComputerAlerts(af); }, [token, af]);
@@ -957,6 +1144,12 @@ export default function AdminDashboard() {
   // Choose your PIN saved: the new token when the answer carries one (Step 283 ends the other
   // sessions), and the dashboard goes on.
   const pinChosen = (d) => { const tok = d && typeof d.token === "string" && d.token ? d.token : token; const u = d && d.user && typeof d.user === "object" ? { ...user, ...d.user } : user; writeAuth(tok, u, rememberRef.current); setToken(tok); setUser(u); setMustSetPin(false); showToast((d && d.message) || tr("Your PIN is saved.")); };
+  // The dashboard keeps itself current; the bar shows only while a reload waits on something underway.
+  const { showBar: updateWaiting, reloadNow } = useSelfUpdate();
+  const updateBar = updateWaiting ? (<div id={UPDATE_BAR_ID} data-update-bar="" role="status" style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 3000, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box", background: t.card, border: "1px solid " + t.border, borderRadius: 10, boxShadow: t.popShadow, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 10, padding: "4px 6px 4px 14px" }}>
+    <span style={{ fontSize: 12, fontWeight: 600, color: t.text, fontFamily: FONT_HEAD }}>{tr("A new version is ready")}</span>
+    <Btn t={t} v="ghost" data-update-reload="" onClick={reloadNow} style={{ minHeight: 44, padding: "0 12px", fontSize: 12 }}>{tr("Reload")}</Btn>
+  </div>) : null;
   if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>);
   // The card the signed-out screens and Choose your PIN are drawn on.
   const authCard = (inner) => (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
@@ -970,6 +1163,7 @@ export default function AdminDashboard() {
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")}</button></div>
     </div>
     {toast && <Tst t={toast} />}
+    {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
   if (!token) return authCard(<LoginForm onLogin={handleLogin} onForgot={forgotPin} say={cardSay || (signedOutWords ? { text: signedOutWords, bad: true } : null)} wrongTries={wrongTries} loading={loading} t={t} second={second} onSecondDone={(d, remember) => { setSecond(null); signedIn(d, remember); }} onSecondBack={() => setSecond(null)} />);
@@ -998,6 +1192,9 @@ export default function AdminDashboard() {
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       ...(canOpenPage("hr") ? [{ id: "hr", l: tr("HR Records"), i: FolI }] : []),
+      // DASH-06: someone without HR Records whom GET /api/signatures answers opens Waiting for
+      // signatures from its own item; with HR Records it stays a tab there.
+      ...(!canOpenPage("hr") && canOpenPage("signatures") ? [{ id: "signatures", hash: "hr/signatures", l: tr("Waiting for signatures"), i: FolI }] : []),
       // Step 268, the owner's change of October 6: Training has its own item, right under HR Records;
       // it opens the Training area as #hr/training does. Since Step 332 it stays for a supervisor the
       // API answers read_hr_records false, who keeps Training, Sign-offs and Gaps without HR Records.
@@ -1063,7 +1260,7 @@ export default function AdminDashboard() {
   // A row of the More menu, the row the user menu draws.
   const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
 
-  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><PayCtx.Provider value={!!canEmploy}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
     {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
         closed again by a pick, by its own close button and by Escape. */}
@@ -1111,10 +1308,10 @@ export default function AdminDashboard() {
               return (
                 <div key={gi} style={{ marginBottom: 2 }}>
                   {group.items.map(item => {
-                    const active = page === item.id;
+                    const active = item.hash ? page === "hr" && route[0] === "signatures" : page === item.id;
                     const NavI = item.i;
                     return (
-                      <button key={item.id} data-nav-item={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
+                      <button key={item.id} data-nav-item={item.id} title={item.l} onClick={() => { toggleSidebar(); if (item.hash) window.location.hash = item.hash; else setPage(item.id); }}
                         style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                         <NavI sz={18} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                         {item.id === "chat" && <MessagesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
@@ -1136,10 +1333,10 @@ export default function AdminDashboard() {
                 </button>
               )}
               {!isGroupCollapsed && group.items.map(item => {
-                const active = page === item.id;
+                const active = item.hash ? page === "hr" && route[0] === "signatures" : page === item.id;
                 const NavI = item.i;
                 return (
-                  <button key={item.id} data-nav-item={item.id} onClick={() => { setPage(item.id); if (phone) setDrawerOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                  <button key={item.id} data-nav-item={item.id} onClick={() => { if (item.hash) window.location.hash = item.hash; else setPage(item.id); if (phone) setDrawerOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
@@ -1214,7 +1411,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-          {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+          {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onNothing={() => showToast(tr("This notice has nothing to open on the dashboard."))} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
         </div>
       </div>
       ) : (
@@ -1230,7 +1427,7 @@ export default function AdminDashboard() {
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
               {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
-            {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+            {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onNothing={() => showToast(tr("This notice has nothing to open on the dashboard."))} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
           </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
@@ -1265,12 +1462,14 @@ export default function AdminDashboard() {
         {page === "owner" && <OwnerDashboardPage af={af} t={t} sites={sites} lang={lang} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} canEmploy={canEmploy} canOpenHr={canOpenPage("hr")} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {/* Step 332: #hr/training/... still opens Training for someone HR Records is not open to. */}
+        {/* Step 332: #hr/training/... still opens Training for someone HR Records is not open to, and
+            #hr/signatures/... Waiting for signatures for someone GET /api/signatures answers (DASH-06). */}
         {page === "hr" && (canOpenPage("hr") ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />
           : route[0] === "training" ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />
+          : route[0] === "signatures" && canOpenPage("signatures") ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} signaturesPage />
           : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
-        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
+        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes") && canEmploy} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} />}
@@ -1278,7 +1477,7 @@ export default function AdminDashboard() {
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
-        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} canDecideTimeOff={isAdmin || hasCap("approve_time_off")} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1294,24 +1493,25 @@ export default function AdminDashboard() {
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} route={route} onRoute={replaceRoute} hrOpen={canOpenPage("hr")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes") && canEmploy} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
-    {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} />}
+    {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} hrOpen={canOpenPage("hr")} />}
     {noticeToast && <NoticeToast t={t} n={noticeToast} onClose={closeNoticeToast} onOpen={async () => {
       const n = noticeToast;
       setNoticeToast(null);
       try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); }
-      goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+      goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error"), nothing: () => showToast(tr("This notice has nothing to open on the dashboard.")) });
       loadUnread();
     }} />}
     {toast && <Tst t={toast} />}
+    {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></PeopleCtx.Provider></ThemeCtx.Provider>);
+  </div></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
@@ -1516,6 +1716,18 @@ function PersonPick({ t, options = [], value = "", onChange, disabled = false, s
       </div>
     </div>}
   </div>);
+}
+// One press at a time (DASH-05, DASH-11): guard(fn) runs fn unless the last run is still out, so a
+// double press sends once, and busy is true while it runs, for the button to draw disabled.
+function useBusyGuard() {
+  const out = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const guard = useCallback((fn) => async (...args) => {
+    if (out.current) return undefined;
+    out.current = true; setBusy(true);
+    try { return await fn(...args); } finally { out.current = false; setBusy(false); }
+  }, []);
+  return [guard, busy];
 }
 // The same search for a list a screen draws itself (Step 291): a person matches what is typed by name,
 // or by badge number or employee ID, read from the person or else from the shell's people by id.
@@ -1889,7 +2101,7 @@ const ROSTER_FILTERS = [
   { k: "onLeave", l: "On leave", test: p => p.status === "inactive" },
   { k: "clearances", l: "Clearances missing", test: p => Number(p.clearancesMissing) > 0 },
 ];
-function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, reloadKey = 0 }) {
+function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, reloadKey = 0, hrOpen = true }) {
   const [all, setAll] = useState(false);
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState("");
@@ -1930,7 +2142,7 @@ function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, relo
     { header: tr("Role"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => roleWord(p.role) },
     { header: tr("Status"), tdStyle: { minWidth: 110 }, render: p => (<span><Bdg l={statusWord(p)} c={employmentStateColor(p.status)} />{reasonOf(p) ? <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{reasonOf(p)}</div> : null}</span>) },
     { header: tr("Sites"), tdStyle: { minWidth: 130 }, render: p => (<span>{p.noSite || !(p.sites || []).length ? <span style={{ color: OR, fontWeight: 600 }}>{tr("No site")}</span> : <span style={{ color: t.textSec }}>{p.sites.map(s => s.name).join(", ")}</span>}
-      {Number(p.clearancesMissing) > 0 ? <div><button onClick={() => openClearancesOf(p.userId)} style={{ background: "none", border: "none", padding: 0, minHeight: 32, cursor: "pointer", color: RD, fontSize: 11, fontWeight: 600, textAlign: "left" }}>{trn("{0} clearances missing|count", Number(p.clearancesMissing))}</button></div> : null}</span>) },
+      {Number(p.clearancesMissing) > 0 ? <div><button onClick={() => openClearancesOf(p.userId, hrOpen)} style={{ background: "none", border: "none", padding: 0, minHeight: 32, cursor: "pointer", color: RD, fontSize: 11, fontWeight: 600, textAlign: "left" }}>{trn("{0} clearances missing|count", Number(p.clearancesMissing))}</button></div> : null}</span>) },
     { header: tr("Last shift"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => day(p.lastShiftStarted) },
     { header: tr("Last signed in"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => day(p.lastSignIn) },
     { header: tr("Last confirmed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => (p.lastConfirmed ? <span data-roster-confirmed={p.userId}>{day(p.lastConfirmed.at)}{p.lastConfirmed.by && p.lastConfirmed.by.name ? <div style={{ fontSize: 11, color: t.textMut }}>{p.lastConfirmed.by.name}</div> : null}</span> : "--") },
@@ -2044,6 +2256,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // picking the right one. A refusal, users.badHireDate, is drawn under the field in the API's words.
   const hireDayOf = (d) => (d ? String(d).split("T")[0] : "");
   const withHireDate = (body) => { const was = body.hireDateWas || ""; delete body.hireDateWas; if (!canEmploy || !body.hireDate || body.hireDate === was) delete body.hireDate; return body; };
+  // A record's field, on Record Detail and its print: a field that carries pay or money only for a holder
+  // of manage_employment (decision 1, DASH-22).
+  const detailKeyShown = (k) => canEmploy || !PAY_KEY.test(k);
   const isBadHireDate = (e) => !!e && e.code === "users.badHireDate";
   const [hireSaid, setHireSaid] = useState(null);
   const hireDateField = (at, form, setForm, style) => canEmploy ? <div data-hire-date={at} style={style}>
@@ -2203,7 +2418,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const u = profile.user;
     const e = tlDetail.entry;
     const r = tlDetail.record;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("Record Detail") + '</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("Record Detail")) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -2214,41 +2429,41 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += printHeader(tr("Record Detail: {0}", actionOf(e.actionType)), u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content">';
-    html += '<div class="section"><div class="section-title">' + tr("Activity Description") + '</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || tr("N/A")) + '</div></div>';
+    html += '<div class="section"><div class="section-title">' + escHtml(tr("Activity Description")) + '</div><div style="font-size:13px;margin-bottom:8px">' + escHtml(e.description || tr("N/A")) + '</div></div>';
     if (r) {
-      html += '<div class="section"><div class="section-title">' + tr("Record Details") + '</div><div class="grid">';
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Record Details")) + '</div><div class="grid">';
       Object.entries(r).forEach(([k, v]) => {
-        if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
+        if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)) {
           const label = fieldOf(k);
           let val = String(valueOf(k, v));
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
-            html += '<div class="field" style="grid-column:span 2"><div class="label">' + label + '</div><img src="' + v + '" style="max-width:300px;max-height:200px;border-radius:6px;margin-top:4px" /></div>';
+            html += '<div class="field" style="grid-column:span 2"><div class="label">' + escHtml(label) + '</div><img src="' + escUrl(v) + '" style="max-width:300px;max-height:200px;border-radius:6px;margin-top:4px" /></div>';
           } else {
             if (val.length > 200) val = val.substring(0, 200) + "...";
-            html += '<div class="field"><div class="label">' + label + '</div><div class="value">' + val + '</div></div>';
+            html += '<div class="field"><div class="label">' + escHtml(label) + '</div><div class="value">' + escHtml(val) + '</div></div>';
           }
         }
       });
       html += '</div></div>';
     }
     if (tlDetail.photos && tlDetail.photos.length > 0) {
-      html += '<div class="section"><div class="section-title">' + tr("Photos ({0})", tlDetail.photos.length) + '</div>';
-      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || new Date(p.created_at || "").toLocaleString(localeTag()) || "") + '</div></div>'; });
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Photos ({0})", tlDetail.photos.length)) + '</div>';
+      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + escUrl(p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + escHtml(p.caption || p.notes || new Date(p.created_at || "").toLocaleString(localeTag()) || "") + '</div></div>'; });
       html += '</div>';
     }
     if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
-      html += '<div class="section"><div class="section-title">' + tr("Related Items ({0})", tlDetail.relatedItems.length) + '</div><table><tr>';
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Related Items ({0})", tlDetail.relatedItems.length)) + '</div><table><tr>';
       const first = tlDetail.relatedItems[0];
-      const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id"));
-      cols.slice(0, 6).forEach(c => { html += '<th>' + fieldOf(c) + '</th>'; });
+      const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k));
+      cols.slice(0, 6).forEach(c => { html += '<th>' + escHtml(fieldOf(c)) + '</th>'; });
       html += '</tr>';
-      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
+      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + escHtml(v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
     // The company's footer line, with its confidential label in the language the page is printed in.
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr(clientConfig.company.confidentialLabel) + '</div></div></body></html>';
+    html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr(clientConfig.company.confidentialLabel)) + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -2257,7 +2472,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const printTimeline = () => {
     if (timeline.length === 0) { showToast(tr("No data to print"), "error"); return; }
     const u = profile.user;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName) + '</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName)) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -2265,9 +2480,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += printHeader(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + (tlStartDate ? " | " + tr("From: {0}", tlStartDate) : "") + (tlEndDate ? " | " + tr("To: {0}", tlEndDate) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
-    html += '<div class="content"><table><tr><th>' + tr("Date") + '</th><th>' + tr("Time") + '</th><th>' + tr("Category") + '</th><th>' + tr("Action") + '</th><th>' + tr("Description") + '</th><th>' + tr("By") + '</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + entityOf(e.entityType) + '</td><td>' + actionOf(e.actionType) + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || tr("System")) + '</td></tr>'; });
-    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record") + '</div></div></body></html>';
+    html += '<div class="content"><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Time")) + '</th><th>' + escHtml(tr("Category")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag())) + '</td><td>' + escHtml(dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(entityOf(e.entityType)) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
+    html += '</table><div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record")) + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -2276,7 +2491,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const printProfileReport = () => {
     const u = profile.user;
     const fullName = u.firstName + " " + u.lastName;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Employee Report", fullName) + '</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("{0} - Employee Report", fullName)) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:24px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:18px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -2287,37 +2502,39 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += printHeader(fullName, tr("Employee Report") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
     html += '<div class="content">';
-    // Profile info section
-    html += '<div class="section"><div class="section-title">' + tr("Employee Information") + '</div><div class="grid">';
-    html += '<div class="field"><div class="label">' + tr("Role") + '</div><div class="value">' + (u.role ? roleOf(u.role) : tr("N/A")) + '</div></div>';
-    html += '<div class="field"><div class="label">' + tr("Employment Type") + '</div><div class="value">' + (u.employmentType ? employmentOf(u.employmentType) : tr("N/A")) + '</div></div>';
-    html += '<div class="field"><div class="label">' + tr("Status") + '</div><div class="value">' + (u.status ? stateOf(u.status) : tr("N/A")) + '</div></div>';
-    html += '<div class="field"><div class="label">' + tr("Hire Date") + '</div><div class="value">' + (u.hireDate ? fmtDate(u.hireDate) : tr("N/A")) + '</div></div>';
-    html += '<div class="field"><div class="label">' + tr("Phone") + '</div><div class="value">' + (u.phone || tr("N/A")) + '</div></div>';
-    html += '<div class="field"><div class="label">' + tr("Email") + '</div><div class="value">' + (u.email || tr("N/A")) + '</div></div>';
-    html += '<div class="field"><div class="label">' + tr("Hourly Rate") + '</div><div class="value">' + (u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : tr("N/A")) + '</div></div>';
+    // Profile info section. Every value is escaped (DASH-01), and the Hourly Rate line prints only for
+    // a holder of manage_employment (decision 1, DASH-02).
+    const line = (label, value) => '<div class="field"><div class="label">' + escHtml(label) + '</div><div class="value">' + escHtml(value) + '</div></div>';
+    html += '<div class="section"><div class="section-title">' + escHtml(tr("Employee Information")) + '</div><div class="grid">';
+    html += line(tr("Role"), u.role ? roleOf(u.role) : tr("N/A"));
+    html += line(tr("Employment Type"), u.employmentType ? employmentOf(u.employmentType) : tr("N/A"));
+    html += line(tr("Status"), u.status ? stateOf(u.status) : tr("N/A"));
+    html += line(tr("Hire Date"), u.hireDate ? fmtDate(u.hireDate) : tr("N/A"));
+    html += line(tr("Phone"), u.phone || tr("N/A"));
+    html += line(tr("Email"), u.email || tr("N/A"));
+    if (canEmploy) html += line(tr("Hourly Rate"), u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : tr("N/A"));
     html += '</div></div>';
     // Assignments
     const activeAssign = (profile.assignments || []).filter(a => a.is_active);
     if (activeAssign.length > 0) {
-      html += '<div class="section"><div class="section-title">' + tr("Site Assignments ({0})", activeAssign.length) + '</div><table><tr><th>' + tr("Site") + '</th><th>' + tr("Role") + '</th><th>' + tr("Shift") + '</th><th>' + tr("Hours") + '</th></tr>';
-      activeAssign.forEach(a => { html += '<tr><td>' + (a.site_name || "") + '</td><td>' + (a.role_at_site ? (siteRoleShown[a.role_at_site] || a.role_at_site) : "") + '</td><td>' + (a.shift_name ? (shiftShown[a.shift_name] || a.shift_name) : "") + '</td><td>' + (a.shift_start ? a.shift_start + " - " + a.shift_end : "") + '</td></tr>'; });
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Site Assignments ({0})", activeAssign.length)) + '</div><table><tr><th>' + escHtml(tr("Site")) + '</th><th>' + escHtml(tr("Role")) + '</th><th>' + escHtml(tr("Shift")) + '</th><th>' + escHtml(tr("Hours")) + '</th></tr>';
+      activeAssign.forEach(a => { html += '<tr><td>' + escHtml(a.site_name || "") + '</td><td>' + escHtml(a.role_at_site ? (siteRoleShown[a.role_at_site] || a.role_at_site) : "") + '</td><td>' + escHtml(a.shift_name ? (shiftShown[a.shift_name] || a.shift_name) : "") + '</td><td>' + escHtml(a.shift_start ? a.shift_start + " - " + a.shift_end : "") + '</td></tr>'; });
       html += '</table></div>';
     }
     // Certifications
     const certs = profile.certifications || [];
     if (certs.length > 0) {
-      html += '<div class="section"><div class="section-title">' + tr("Certifications ({0})", certs.length) + '</div><table><tr><th>' + tr("Name") + '</th><th>' + tr("Type") + '</th><th>' + tr("Issuer") + '</th><th>' + tr("Expiry") + '</th></tr>';
-      certs.forEach(c => { html += '<tr><td>' + (c.cert_name || "") + '</td><td>' + (c.cert_type ? (certTypeShown[c.cert_type] || c.cert_type) : "") + '</td><td>' + (c.issuing_body || "") + '</td><td>' + (c.expiry_date ? fmtDate(c.expiry_date) : tr("N/A")) + '</td></tr>'; });
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Certifications ({0})", certs.length)) + '</div><table><tr><th>' + escHtml(tr("Name")) + '</th><th>' + escHtml(tr("Type")) + '</th><th>' + escHtml(tr("Issuer")) + '</th><th>' + escHtml(tr("Expiry")) + '</th></tr>';
+      certs.forEach(c => { html += '<tr><td>' + escHtml(c.cert_name || "") + '</td><td>' + escHtml(c.cert_type ? (certTypeShown[c.cert_type] || c.cert_type) : "") + '</td><td>' + escHtml(c.issuing_body || "") + '</td><td>' + escHtml(c.expiry_date ? fmtDate(c.expiry_date) : tr("N/A")) + '</td></tr>'; });
       html += '</table></div>';
     }
     // Timeline (if loaded)
     if (timeline.length > 0) {
-      html += '<div class="section"><div class="section-title">' + trn("Activity Timeline ({1} of {0} entry{2})|count", tlTotal, timeline.length, tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + '</div><table><tr><th>' + tr("Date") + '</th><th>' + tr("Action") + '</th><th>' + tr("Description") + '</th><th>' + tr("By") + '</th></tr>';
-      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + actionOf(e.actionType) + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || tr("System")) + '</td></tr>'; });
+      html += '<div class="section"><div class="section-title">' + escHtml(trn("Activity Timeline ({1} of {0} entry{2})|count", tlTotal, timeline.length, tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "")) + '</div><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
+      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record") + '</div>';
+    html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record")) + '</div>';
     html += '</div></body></html>';
     const w = window.open("", "_blank");
     w.document.write(html); w.document.close();
@@ -2388,7 +2605,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const was = editForm.was || {};
     const body = withHireDate(Object.assign({}, editForm));
     delete body.id; delete body.was;
-    if (!canEmploy) delete body.role;
+    if (!canEmploy) { delete body.role; delete body.employmentType; delete body.hourlyRate; }
     Object.keys(body).forEach(k => { if (sameValue(body[k], was[k])) delete body[k]; });
     if (!Object.keys(body).length) { setEditForm(null); return; }
     try { await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
@@ -2409,16 +2626,26 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     setPhotoUploading(false);
   };
 
-  // Save profile personal info
+  // The profile editor's fields as the profile was read, which the editor opens with and the save is held
+  // to.
+  const profileOpened = (u) => ({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, hireDate: hireDayOf(u.hireDate), hireDateWas: hireDayOf(u.hireDate), employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" });
+  // Save profile personal info. Like the list's pencil, a save sends only the fields whose value changed
+  // from what the editor opened with (DASH-03), so a field left alone is never written back stale and
+  // a box the API left empty is never sent as blank. Role, employment type and hourly rate are
+  // manage_employment's, and go for a holder only (decision 1, DASH-21). A save with nothing changed
+  // closes the editor and sends nothing.
   const saveProfileInfo = async () => {
     if (!profileEdit) return;
     setEmpIdError(""); setHireSaid(null);
     try {
+      const was = profileOpened(profile.user);
       // The language goes only when it was changed, so the one the account holds, French among them,
       // is never written over by the code the picker shows for it (Step 243).
       const body = withHireDate(Object.assign({}, profileEdit));
       if (langCode(body.preferredLanguage) === langCode(profile.user.preferredLanguage)) delete body.preferredLanguage;
-      if (!canEmploy) delete body.role;
+      if (!canEmploy) { delete body.role; delete body.employmentType; delete body.hourlyRate; }
+      Object.keys(body).forEach(k => { if (k !== "preferredLanguage" && sameValue(body[k], was[k])) delete body[k]; });
+      if (!Object.keys(body).length) { setProfileEdit(null); return; }
       await af("/api/users/" + profile.user.id, { method: "PATCH", body });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
@@ -2442,8 +2669,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Shared branded print header builder (Session 18)
   const printHeader = (title, subtitle, photoUrl) => {
     let h = '<div class="header"><div style="display:flex;align-items:center;gap:16px">';
-    if (photoUrl) h += '<img src="' + photoUrl + '" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid ' + GOLD + '" />';
-    h += '<div><h1>' + title + '</h1><div class="sub">' + subtitle + '</div></div></div>';
+    if (escUrl(photoUrl)) h += '<img src="' + escUrl(photoUrl) + '" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid ' + GOLD + '" />';
+    h += '<div><h1>' + escHtml(title) + '</h1><div class="sub">' + escHtml(subtitle) + '</div></div></div>';
     h += '<img src="' + OCSA_LOGO_URL + '" style="height:40px" /></div>';
     return h;
   };
@@ -2530,7 +2757,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, hireDate: hireDayOf(u.hireDate), hireDateWas: hireDayOf(u.hireDate), employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -2540,7 +2767,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.email || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Hire Date")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hireDate ? fmtDate(u.hireDate) : tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Birthday")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.birthday ? fmtDate(u.birthday) : tr("Not set")}</div></div>
-              <div style={{ fontSize: 11, color: t.textMut }}>{tr("Hourly Rate")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : tr("Not set")}</div></div>
+              {canEmploy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Hourly Rate")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : tr("Not set")}</div></div>}
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Preferred Language")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{langLabel(u.preferredLanguage)}</div></div>
             </div>
             <div style={{ marginTop: 14 }}>
@@ -2565,8 +2792,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               {canEmploy && <div><Lbl>{tr("Role")}</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
               {hireDateField("profile", pe, setProfileEdit)}
-              <div><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={pe.employmentType || ""} onChange={e => setProfileEdit({ ...pe, employmentType: e.target.value || null })} options={employmentOpts} /></div>
-              <div><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>
+              {canEmploy && <div><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={pe.employmentType || ""} onChange={e => setProfileEdit({ ...pe, employmentType: e.target.value || null })} options={employmentOpts} /></div>}
+              {canEmploy && <div><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>}
               <div><Lbl>{tr("Birthday")}</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>
             </div>
             <div style={{ marginBottom: 10 }}><Lbl>{tr("Address Line 1")}</Lbl><Inp t={t} value={pe.addressLine1 || ""} onChange={e => setProfileEdit({ ...pe, addressLine1: e.target.value })} placeholder={tr("Street address")} /></div>
@@ -2671,19 +2898,19 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {tlDetail.entry?.metadata && Object.keys(tlDetail.entry.metadata).length > 0 && <div>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6, marginTop: 12 }}>{tr("Available Metadata")}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {Object.entries(tlDetail.entry.metadata).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(valueOf(k, v))}</span></div>)}
+              {Object.entries(tlDetail.entry.metadata).filter(([k]) => detailKeyShown(k)).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(valueOf(k, v))}</span></div>)}
             </div>
           </div>}
         </div>}
         {tlDetail.found && tlDetail.record && <div>
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Record Fields")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-            {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
+            {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)).map(([k, v]) => {
               const isUrl = typeof v === "string" && (v.startsWith("http://") || v.startsWith("https://"));
               const isObj = typeof v === "object" && !Array.isArray(v);
               return <div key={k} style={{ fontSize: 11 }}>
                 <div style={{ color: t.textMut, fontSize: 9, textTransform: "uppercase", marginBottom: 1 }}>{fieldOf(k)}</div>
-                {isUrl ? <a href={v} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
+                {isUrl ? <a href={linkUrl(v)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
                   : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(valueOf(k, v))}</div>}
               </div>;
             })}
@@ -2692,14 +2919,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Photos ({0})", tlDetail.photos.length)}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {tlDetail.photos.map((p, i) => <a key={i} href={p.photo_url || p.file_url || ""} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
+              {tlDetail.photos.map((p, i) => <a key={i} href={linkUrl(p.photo_url || p.file_url || "")} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
             </div>
           </div>}
           {/* Related items */}
           {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Related Items ({0})", tlDetail.relatedItems.length)}</div>
             {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: 10, background: t.hover, borderRadius: 6, marginBottom: 4, fontSize: 11 }}>
-              {Object.entries(item).filter(([k, v]) => v !== null && v !== undefined && k !== "id" && k !== "items" && !k.endsWith("_id")).slice(0, 6).map(([k, v]) => <span key={k} style={{ marginRight: 12 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{typeof v === "object" ? JSON.stringify(v).substring(0, 80) : String(v).substring(0, 80)}</span></span>)}
+              {Object.entries(item).filter(([k, v]) => v !== null && v !== undefined && k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k)).slice(0, 6).map(([k, v]) => <span key={k} style={{ marginRight: 12 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{typeof v === "object" ? JSON.stringify(v).substring(0, 80) : String(v).substring(0, 80)}</span></span>)}
             </div>)}
           </div>}
         </div>}
@@ -2729,7 +2956,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // ============================================================
   // Step 232: the roster check at #staff/roster, once GET /api/users/roster-check answers.
   if (route[0] === "roster" && roster) return (<div>
-    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={canEmploy ? ((p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })) : null} />
+    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} hrOpen={canOpenHr} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={canEmploy ? ((p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })) : null} />
     {rosterWin && <EmploymentWindow af={af} t={t} userId={rosterWin.userId} name={rosterWin.name} mode={rosterWin.mode} data={null} showToast={showToast} onClose={() => setRosterWin(null)} onSaved={() => { setRosterWin(null); setRosterAgain(n => n + 1); load(); if (loadStaff) loadStaff(); }} />}
   </div>);
   return (<div>
@@ -2788,9 +3015,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
       {canEmploy && <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
       {hireDateField("edit", editForm, setEditForm, { marginBottom: 12 })}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={editForm.employmentType || ""} onChange={e => setEditForm({ ...editForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
+      {canEmploy && <div style={{ marginBottom: 12 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={editForm.employmentType || ""} onChange={e => setEditForm({ ...editForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder={`${clientConfig.employee.idPrefix}-0042`} /></div>
-      <div style={{ marginBottom: 16 }}><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
+      {canEmploy && <div style={{ marginBottom: 16 }}><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save Changes")}</Btn></div>
     </div></Mdl>}
   </div>);
@@ -3115,6 +3342,10 @@ const siteDetailsRefusalField = (e) => {
   return "";
 };
 function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute, onOpenLinks }) {
+  // A record's field, on Record Detail and its print: a field that carries pay or money only for a holder
+  // of manage_employment (decision 1, DASH-22).
+  const seesPay = useContext(PayCtx);
+  const detailKeyShown = (k) => seesPay || !PAY_KEY.test(k);
   const [selectedSite, setSelectedSite] = useState(null);
   // Step 218: the site's workload plan, once GET /api/sites/:id/workload-plan answers with the
   // contract's keys. The tab draws it from here, and it is read again after a change.
@@ -3370,7 +3601,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const printSiteChat = () => {
     if (siteChat.length === 0) { showToast(tr("No messages to print"), "error"); return; }
     const siteName = siteProfile?.site?.name || tr("Site");
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Chat History", siteName) + '</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("{0} - Chat History", siteName)) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -3388,15 +3619,15 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       const name = m.senderName || tr("Unknown");
       const initials = name.split(" ").map(w => w[0] || "").join("").toUpperCase();
       html += '<div class="msg">';
-      if (m.profilePhotoUrl) {
-        html += '<img class="avatar" src="' + m.profilePhotoUrl + '" />';
+      if (escUrl(m.profilePhotoUrl)) {
+        html += '<img class="avatar" src="' + escUrl(m.profilePhotoUrl) + '" />';
       } else {
-        html += '<div class="initials">' + initials + '</div>';
+        html += '<div class="initials">' + escHtml(initials) + '</div>';
       }
-      html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</span>';
-      html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div></div>';
+      html += '<div><span class="sender">' + escHtml(name) + '</span><span class="time">' + escHtml(dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</span>';
+      html += '<div class="text">' + escHtml(m.text || "") + '</div></div></div>';
     });
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Communication Record") + '</div></div></body></html>';
+    html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Communication Record")) + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3417,7 +3648,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const submitTask = async () => {
+  const [onceTask, taskBusy] = useBusyGuard();
+  const submitTask = onceTask(async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
       await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
@@ -3425,7 +3657,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
     } catch (e) { showToast(e.message, "error"); }
-  };
+  });
 
   const submitEditTask = async () => {
     try {
@@ -3490,7 +3722,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
   // Branded print helpers (duplicated from StaffPage for site context)
   const sitePrintHeader = (title, subtitle) => {
-    let h = '<div class="header"><div><h1>' + title + '</h1><div class="sub">' + subtitle + '</div></div>';
+    let h = '<div class="header"><div><h1>' + escHtml(title) + '</h1><div class="sub">' + escHtml(subtitle) + '</div></div>';
     h += '<img src="' + OCSA_LOGO_URL + '" style="height:40px" /></div>';
     return h;
   };
@@ -3528,7 +3760,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const printSiteTimeline = () => {
     if (timeline.length === 0) { showToast(tr("No data to print"), "error"); return; }
     const siteName = siteProfile.site.name || tr("Site");
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Site Timeline", siteName) + '</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("{0} - Site Timeline", siteName)) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -3537,9 +3769,9 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     const tlCatLabel = (tlCats.find(c => c.k === tlCat) || {}).l || tlCat;
     html += sitePrintHeader(tr("{0} - Site Timeline", siteName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCat !== "all" ? " | " + tr("Filter: {0}", tlCatLabel) : "") + (tlDateRange.start ? " | " + tr("From: {0}", tlDateRange.start) : "") + (tlDateRange.end ? " | " + tr("To: {0}", tlDateRange.end) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
-    html += '<div class="content"><table><tr><th>' + tr("Date") + '</th><th>' + tr("Time") + '</th><th>' + tr("Category") + '</th><th>' + tr("Action") + '</th><th>' + tr("Description") + '</th><th>' + tr("By") + '</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + entityOf(e.entityType) + '</td><td>' + actionOf(e.actionType) + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || tr("System")) + '</td></tr>'; });
-    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Site Record") + '</div></div></body></html>';
+    html += '<div class="content"><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Time")) + '</th><th>' + escHtml(tr("Category")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag())) + '</td><td>' + escHtml(dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(entityOf(e.entityType)) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
+    html += '</table><div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Site Record")) + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3550,7 +3782,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     const siteName = siteProfile.site.name || tr("Site");
     const e = tlDetail.entry;
     const r = tlDetail.record;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("Record Detail") + '</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("Record Detail")) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -3561,40 +3793,40 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += sitePrintHeader(tr("Record Detail: {0}", actionOf(e.actionType)), siteName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()));
     html += '<div class="content">';
-    html += '<div class="section"><div class="section-title">' + tr("Activity Description") + '</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || tr("N/A")) + '</div></div>';
+    html += '<div class="section"><div class="section-title">' + escHtml(tr("Activity Description")) + '</div><div style="font-size:13px;margin-bottom:8px">' + escHtml(e.description || tr("N/A")) + '</div></div>';
     if (r) {
-      html += '<div class="section"><div class="section-title">' + tr("Record Details") + '</div><div class="grid">';
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Record Details")) + '</div><div class="grid">';
       Object.entries(r).forEach(([k, v]) => {
-        if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
+        if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)) {
           const label = fieldOf(k);
           let val = String(valueOf(k, v));
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
-            html += '<div class="field" style="grid-column:span 2"><div class="label">' + label + '</div><img src="' + v + '" style="max-width:300px;max-height:200px;border-radius:6px;margin-top:4px" /></div>';
+            html += '<div class="field" style="grid-column:span 2"><div class="label">' + escHtml(label) + '</div><img src="' + escUrl(v) + '" style="max-width:300px;max-height:200px;border-radius:6px;margin-top:4px" /></div>';
           } else {
             if (val.length > 200) val = val.substring(0, 200) + "...";
-            html += '<div class="field"><div class="label">' + label + '</div><div class="value">' + val + '</div></div>';
+            html += '<div class="field"><div class="label">' + escHtml(label) + '</div><div class="value">' + escHtml(val) + '</div></div>';
           }
         }
       });
       html += '</div></div>';
     }
     if (tlDetail.photos && tlDetail.photos.length > 0) {
-      html += '<div class="section"><div class="section-title">' + tr("Photos ({0})", tlDetail.photos.length) + '</div>';
-      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || "") + '</div></div>'; });
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Photos ({0})", tlDetail.photos.length)) + '</div>';
+      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + escUrl(p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + escHtml(p.caption || p.notes || "") + '</div></div>'; });
       html += '</div>';
     }
     if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
-      html += '<div class="section"><div class="section-title">' + tr("Related Items ({0})", tlDetail.relatedItems.length) + '</div><table><tr>';
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Related Items ({0})", tlDetail.relatedItems.length)) + '</div><table><tr>';
       const first = tlDetail.relatedItems[0];
-      const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id"));
-      cols.slice(0, 6).forEach(c => { html += '<th>' + fieldOf(c) + '</th>'; });
+      const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k));
+      cols.slice(0, 6).forEach(c => { html += '<th>' + escHtml(fieldOf(c)) + '</th>'; });
       html += '</tr>';
-      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
+      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + escHtml(v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Site Record") + '</div></div></body></html>';
+    html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Site Record")) + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3663,7 +3895,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Type")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{contractOf(s.contract_type) || tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Prime Contractor")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.prime_contractor || tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Client")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_name || tr("N/A")}</div></div>
-            <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Monthly Value")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : tr("N/A")}</div></div>
+            {seesPay && <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Monthly Value")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : tr("N/A")}</div></div>}
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Billing")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{billingOf(s.billing_frequency || "monthly")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fdDay(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fdDay(s.contract_end_date)) : ""}</div></div>
             {siteAnswers(s, "contractReference", "contract_reference") && <div data-site-contract-reference=""><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract reference")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, overflowWrap: "anywhere" }}>{siteContractRef(s) || tr("N/A")}</div></div>}
@@ -3722,7 +3954,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
               <div><div style={{ fontSize: 12, color: t.text }}>{fp.label}</div><div style={{ fontSize: 10, color: t.textMut }}>{fd(fp.uploaded_at)}</div></div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, boxSizing: "border-box", padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
+              <a href={linkUrl(fp.file_url)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, boxSizing: "border-box", padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
               {canManageSites && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
             </div>
           </div>)}
@@ -3788,7 +4020,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: TL }}>{sp.inspectionSummary?.total || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Inspections")}</div></div>
             <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: TL }}>{sp.inspectionSummary?.avg_score || tr("N/A")}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Avg Score")}</div></div>
-            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{sp.inspectionSummary?.last_inspection ? fd(sp.inspectionSummary.last_inspection) : tr("None|inspection")}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Last Inspection")}</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{sp.inspectionSummary?.last_inspection ? fdDay(sp.inspectionSummary.last_inspection) : tr("None|inspection")}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Last Inspection")}</div></div>
           </div>
         </Crd>
 
@@ -3952,7 +4184,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         {tlDetail.record && <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Record Fields")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
+            {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
               if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><img src={v} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
               let val = typeof v === "object" ? JSON.stringify(v) : String(valueOf(k, v));
@@ -3967,7 +4199,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>}
         {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Related Items ({0})", tlDetail.relatedItems.length)}</div>
-          {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3, fontSize: 11, color: t.textSec }}>{Object.entries(item).filter(([k]) => k !== "id" && k !== "items" && !k.endsWith("_id")).slice(0, 4).map(([k, v]) => fieldOf(k) + ": " + (v !== null ? String(v).substring(0, 60) : "")).join(" | ")}</div>)}
+          {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3, fontSize: 11, color: t.textSec }}>{Object.entries(item).filter(([k]) => k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k)).slice(0, 4).map(([k, v]) => fieldOf(k) + ": " + (v !== null ? String(v).substring(0, 60) : "")).join(" | ")}</div>)}
         </div>}
         {!tlDetail.found && !tlDetailLoading && <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>{tr("Source record not found. The original data may have been deleted.")}</div>}
       </div></Mdl>}
@@ -3983,7 +4215,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         {editSite.contractReference !== undefined && <div style={{ marginBottom: 12 }}><Lbl>{tr("Contract reference")}</Lbl><Inp t={t} aria-label={tr("Contract reference")} maxLength={CONTRACT_REFERENCE_MAX} value={editSite.contractReference} onChange={e => { if (siteRefusal.field === "contractReference") setSiteRefusal({ field: "", text: "" }); setEditSite({ ...editSite, contractReference: e.target.value.slice(0, CONTRACT_REFERENCE_MAX) }); }} />
           {siteRefusal.field === "contractReference" && <div data-site-refusal="contractReference" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{siteRefusal.text}</div>}</div>}
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Client Name")}</Lbl><Inp t={t} value={editSite.clientName} onChange={e => setEditSite({ ...editSite, clientName: e.target.value })} /></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Monthly Value ($)")}</Lbl><Inp t={t} type="number" value={editSite.contractValueMonthly} onChange={e => setEditSite({ ...editSite, contractValueMonthly: e.target.value })} /></div><div><Lbl>{tr("Billing")}</Lbl><Sel t={t} value={editSite.billingFrequency} onChange={e => setEditSite({ ...editSite, billingFrequency: e.target.value })} options={[{ v: "monthly", l: tr("Monthly") }, { v: "weekly", l: tr("Weekly") }, { v: "biweekly", l: tr("Bi-Weekly") }, { v: "quarterly", l: tr("Quarterly") }, { v: "annual", l: tr("Annual") }]} /></div><div><Lbl>{tr("Start Date")}</Lbl><Inp t={t} type="date" value={editSite.contractStartDate} onChange={e => setEditSite({ ...editSite, contractStartDate: e.target.value })} /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>{seesPay && <div><Lbl>{tr("Monthly Value ($)")}</Lbl><Inp t={t} type="number" value={editSite.contractValueMonthly} onChange={e => setEditSite({ ...editSite, contractValueMonthly: e.target.value })} /></div>}<div><Lbl>{tr("Billing")}</Lbl><Sel t={t} value={editSite.billingFrequency} onChange={e => setEditSite({ ...editSite, billingFrequency: e.target.value })} options={[{ v: "monthly", l: tr("Monthly") }, { v: "weekly", l: tr("Weekly") }, { v: "biweekly", l: tr("Bi-Weekly") }, { v: "quarterly", l: tr("Quarterly") }, { v: "annual", l: tr("Annual") }]} /></div><div><Lbl>{tr("Start Date")}</Lbl><Inp t={t} type="date" value={editSite.contractStartDate} onChange={e => setEditSite({ ...editSite, contractStartDate: e.target.value })} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("End Date")}</Lbl><Inp t={t} type="date" value={editSite.contractEndDate} onChange={e => setEditSite({ ...editSite, contractEndDate: e.target.value })} /></div></div>
         {editSite.serviceLines !== undefined && <div style={{ marginBottom: 12 }}><Lbl>{tr("Service lines")}</Lbl>
           <div role="group" aria-label={tr("Service lines")} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", columnGap: 10, padding: "2px 10px", border: "1px solid " + (siteRefusal.field === "serviceLines" ? RD : t.border), borderRadius: R.sm }}>
@@ -3999,7 +4231,11 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSite(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={async () => {
           setSiteRefusal({ field: "", text: "" });
           try {
-            await af("/api/sites/" + selectedSite, { method: "PATCH", body: editSite });
+            // The contract's monthly value is a dollar figure, sent by a holder of manage_employment only
+            // (decision 1), so a save by anyone else never writes it back.
+            const siteBody = Object.assign({}, editSite);
+            if (!seesPay) delete siteBody.contractValueMonthly;
+            await af("/api/sites/" + selectedSite, { method: "PATCH", body: siteBody });
             showToast(tr("Site updated")); setEditSite(null); refreshProfile(); load();
           } catch (e) { const field = siteDetailsRefusalField(e); if (field && editSite[field] !== undefined) setSiteRefusal({ field, text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
         }}>{tr("Save")}</Btn></div>
@@ -4019,7 +4255,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v, crit: v ? addTask.crit : false })} />}
         {critLive && addTask.touch && <CriticalToggle t={t} on={addTask.crit} onChange={v => setAddTask({ ...addTask, crit: v })} />}
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><PersonPick t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask}>{tr("Create")}</Btn></div></div></Mdl>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask} disabled={taskBusy}>{tr("Create")}</Btn></div></div></Mdl>}
 
       {/* EDIT TASK MODAL */}
       {editTask && <Mdl t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
@@ -4128,7 +4364,7 @@ function OpsPage({ af, t, allStaff }) {
     {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
       <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
-      {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. Its task list is kept as the record of the work.")}</div>}
+      {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div>}
       {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); const untracked = notTrackedOf(site) || notTrackedOf(p); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] ? tr(RL[p.role]) : p.role}{place ? ", " + place : ""}</div></div>
@@ -4295,7 +4531,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
         {Number(r.reportsCount) > 1 && <Bdg l={trn("Asked {0} times|count", Number(r.reportsCount))} c={OR} />}
       </div>
       {r.note && <div data-request-note="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.note}</div>}
-      {Array.isArray(r.photos) && r.photos.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.map((p, i) => <a key={p.id || i} href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
+      {Array.isArray(r.photos) && r.photos.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.map((p, i) => <a key={p.id || i} href={linkUrl(p.url)} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <div style={cellSt}>{tr("Site")}<div style={valSt}>{r.siteName || "--"}</div></div>
         <div style={cellSt}>{tr("Area")}<div style={valSt}>{r.area || tr("Whole site|request QR")}</div></div>
@@ -4538,6 +4774,7 @@ const issueOfView = (v) => ({
   verified_at: v.verifiedAt, verified_by_name: nameOf(v.verifiedBy) || null, minutes_to_first_response: v.minutesToFirstResponse, minutes_to_fixed: v.minutesToFixed, fixed_by_due: v.fixedByDue,
 });
 function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute }) {
+  const [onceAssign, assignBusy] = useBusyGuard();
   // Since the API's Step 250 the page has two tabs, Staff issues and Client requests, the second with
   // a count of those waiting for approval, drawn once GET /api/issues/requests answers.
   const requestsOn = useRequestsLive(af);
@@ -4637,7 +4874,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const shown = sel ? (view ? Object.assign({}, sel, issueOfView(view)) : sel) : null;
   const photos = view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos;
   const timed = (iss) => isFinding(iss) || iss.minutes_to_first_response != null || iss.minutes_to_fixed != null;
-  const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } });
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
     {onRequests && <ClientRequestsTab af={af} t={t} sites={sites} canViewReports={canViewReports} route={route} onRoute={onRoute} onWaiting={setWaiting} />}
@@ -4718,7 +4955,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask} disabled={assignBusy}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
     </>}
   </div>);
@@ -4976,6 +5213,8 @@ function useSupplyLabelsLive(af, token) {
   return requestsOn && there;
 }
 function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther, sites = [], user = null }) {
+  // Decision 1: a supply's cost per unit is drawn and sent for a holder of manage_employment only.
+  const seesPay = useContext(PayCtx);
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
   // Supply labels (decision 321: a label opens something when scanned). Print label in the edit
   // window saves GET /api/supplies/labels.pdf?ids=<id>, and Print labels for a site saves
@@ -5063,8 +5302,31 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     try { await saveDownload("/api/supplies/requests/approved.csv?" + q, token, name, name); setOrdering(o => ({ ...o, busy: false })); }
     catch (e) { setOrdering(o => ({ ...o, busy: false, error: e.message || tr("Request failed") })); }
   };
-  const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast(tr("Name, category, and unit required"), "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
-  const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Supply updated")); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast(tr("Name, category, and unit required"), "error"); return; } const addBody = Object.assign({}, addForm); if (!seesPay) delete addBody.costPerUnit; try { const d = await af("/api/supplies", { method: "POST", body: addBody }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  // Edit Supply opens on the list's row and keeps what it opened with in was. A save sends only the
+  // fields whose value changed from that (DASH-12), so a rename or a price fix never writes back the
+  // stock count the list was read with while the staff app logs usage, and a row with no low threshold
+  // stays without one. A second press while the first is out sends nothing.
+  const sameSupplyValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
+  const openSupplyEdit = (s) => {
+    const opened = { name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock != null ? s.current_stock : "", lowThreshold: s.low_threshold != null ? s.low_threshold : "", costPerUnit: s.cost_per_unit != null ? s.cost_per_unit : "", isGreenCertified: !!s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "" };
+    setEditForm(Object.assign({ id: s.id, qrCode: s.qr_code, was: opened }, opened));
+  };
+  const supplySaving = useRef(false);
+  const [supplyBusy, setSupplyBusy] = useState(false);
+  const submitEdit = async () => {
+    if (supplySaving.current) return;
+    const was = editForm.was || {};
+    const body = Object.assign({}, editForm);
+    delete body.id; delete body.was; delete body.qrCode;
+    // Cost per unit is a dollar figure, sent by a holder of manage_employment only (decision 1).
+    if (!seesPay) delete body.costPerUnit;
+    Object.keys(body).forEach(k => { if (sameSupplyValue(body[k], was[k])) delete body[k]; });
+    if (!Object.keys(body).length) { setEditForm(null); return; }
+    supplySaving.current = true; setSupplyBusy(true);
+    try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body }); showToast(tr("Supply updated")); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); }
+    supplySaving.current = false; setSupplyBusy(false);
+  };
   const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); loadRemoved(); } catch (e) { showToast(e.message, "error"); } };
   const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
   // The pickers read each choice's shown label and send its code; a card draws a choice's shown label.
@@ -5089,7 +5351,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
       <Btn t={t} v="ghost" onClick={() => printLabels("siteId=" + encodeURIComponent(siteForLabels), "site")} disabled={!!labels.busy || !siteForLabels} style={{ minHeight: 44 }}>{labels.busy === "site" ? tr("Downloading...") : tr("Print labels for a site")}</Btn>
       {labels.error && labels.busy === "" && !editForm && <div data-supply-label-refusal="" role="alert" style={{ flexBasis: "100%", fontSize: 12, color: RD }}>{labels.error}</div>}
     </div></Crd>}
-    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div data-supply-card="" style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{qrs[s.id] ? <img src={qrs[s.id]} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /> : <span style={{ fontSize: 9, fontWeight: 600, color: t.goldText }}>{tr("QR")}</span>}</div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
+    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => openSupplyEdit(s) : undefined}><div data-supply-card="" style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{qrs[s.id] ? <img src={qrs[s.id]} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /> : <span style={{ fontSize: 9, fontWeight: 600, color: t.goldText }}>{tr("QR")}</span>}</div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
     {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{canManageSupplies ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
     {tab === "inventory" && removed.length > 0 && <div style={{ marginTop: 18 }}>
       <SecT t={t}>{tr("Removed supplies")}</SecT>
@@ -5108,8 +5370,8 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     </div></Crd>}
     {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}{r.poNumber ? <span data-request-po={r.poNumber} style={{ color: t.goldText, fontWeight: 600 }}>{" | " + r.poNumber}</span> : null}{r.orderedAt ? <span data-request-ordered="" style={{ color: GR, fontWeight: 600 }}>{" | " + tr("Ordered {0}", fd(r.orderedAt))}</span> : null}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && supplyCanDecide(r) && !supplyOrderOf(r).signed && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit} disabled={supplyBusy}>{tr("Save")}</Btn></div></div></Mdl>}
     {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} token={token} r={openReq} user={user} sites={sites} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
     {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
@@ -7181,7 +7443,7 @@ function TicketWindow({ af, t, ticket, showToast, onClose, onSaved }) {
     <div style={{ marginBottom: 12 }}>{ticketDetails(ticket).filter(([l]) => l !== "Kind of ticket" && l !== "Status" && l !== "Note|ticket").map(([l, v]) => row(l, v))}</div>
     <Lbl>{tr("Description")}</Lbl>
     <div data-ticket-description="" style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, overflowWrap: "anywhere" }}>{ticket.description || "--"}</div>
-    {ticket.screenshotUrl ? <a href={ticket.screenshotUrl} target="_blank" rel="noopener noreferrer" data-ticket-screenshot="" style={{ display: "block", marginBottom: 12 }}><img src={ticket.screenshotUrl} alt={tr("Screenshot")} style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border }} /></a>
+    {ticket.screenshotUrl ? <a href={linkUrl(ticket.screenshotUrl)} target="_blank" rel="noopener noreferrer" data-ticket-screenshot="" style={{ display: "block", marginBottom: 12 }}><img src={ticket.screenshotUrl} alt={tr("Screenshot")} style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border }} /></a>
       : ticket.screenshot ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("A screenshot is attached.")}</div> : null}
     <Lbl>{tr("Status")}</Lbl>
     <div role="group" aria-label={tr("Status")} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -8350,6 +8612,8 @@ const notifAgo = (iso) => {
 const notifTarget = (link) => {
   if (!link) return { kind: "none" };
   let u; try { u = new URL(link, window.location.href); } catch { return { kind: "none" }; }
+  // Only a web address is followed, so a javascript: or data: link a notice carries opens nothing.
+  if (!/^https?:$/.test(u.protocol)) return { kind: "none" };
   if (u.origin !== window.location.origin) return { kind: "external", href: u.href };
   // A client request's notice links /requests/<id>, a path the portal serves (Step 251, STEP250_CONTRACT.md
   // section 9); here it opens the Issue Tracker's Client requests tab on that request.
@@ -8368,7 +8632,7 @@ const notifTarget = (link) => {
   // The office's signature notices (Step 272, against the API's Step 270): /signatures/<requestId>
   // opens Waiting for signatures in HR Records with that request open.
   const sg0 = /^\/signatures\/([^/]+)\/?$/.exec(u.pathname || "");
-  if (sg0) return { kind: "page", page: "hr", hash: "hr/signatures/" + sg0[1] };
+  if (sg0) return { kind: "page", page: "hr", hash: "hr/signatures/" + sg0[1], signatures: true };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -8409,12 +8673,21 @@ function noticePlace(n) {
   if (st === "training_expiring") { const m = /\/training\/people\/([^/?#]+)/.exec(String((n && n.link) || "")); return { page: "training", hash: m ? "training/people/" + m[1] : "training/gaps" }; }
   // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
   // it in Waiting for signatures.
-  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue") && sid) return { page: "hr", hash: "hr/signatures/" + enc(sid) };
+  // Since DASH-06 they open for whoever Waiting for signatures opens for, HR Records or not.
+  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue") && sid) return { page: "hr", hash: "hr/signatures/" + enc(sid), signatures: true };
   // Step 333.
   if (/^issue(_|$)/.test(st) && sid) return { page: "issues", hash: "issues/" + enc(sid) };
   if (/^inspection(_|$)/.test(st) && sid) return { page: "inspections", hash: "inspections/" + enc(sid) };
   if (st === "time_off") return { page: "schedule", hash: sid ? "schedule/timeoff/" + enc(sid) : "schedule/timeoff" };
   if (/^hr_case(_|$)/.test(st)) return { page: "cases", hash: sid ? "cases/" + enc(sid) : "" };
+  // DASH-25: the six types API #146 added for staff open their item here, and a dropped or claimed
+  // shift opens Shift Pickup, where it is decided. A document to sign opens Waiting for signatures.
+  if (st === "task_assigned") return { page: "assigned", hash: "" };
+  if (st === "training_assigned" || st === "training_session") return { page: "training", hash: "" };
+  if (st === "site_assigned") return { page: "sites", hash: sid ? "sites/" + enc(sid) : "" };
+  if (st === "workspace_member") return { page: "workspace", hash: sid ? "workspace/" + enc(sid) : "" };
+  if (st === "document_to_sign") return { page: "hr", hash: "hr/signatures", signatures: true };
+  if (st === "shift_drop" || st === "shift_claim") return { page: "marketplace", hash: "" };
   if (/^shift(_|$)/.test(st)) return { page: "schedule", hash: "" };
   return null;
 }
@@ -8425,13 +8698,15 @@ function goToNotice(n, how) {
   if (place) {
     // Someone told of an announcement who cannot open the page reads it in a window of its own.
     if (place.announcement && !how.canOpenPage("announcements")) { if (how.openAnnouncement) how.openAnnouncement(place.announcement); else how.refuse(); return; }
-    if (!place.always && !how.canOpenPage(place.page)) { how.refuse(); return; }
+    if (!place.always && !how.canOpenPage(place.page) && !(place.signatures && how.canOpenPage("signatures"))) { how.refuse(); return; }
     if (place.hash) how.openHash(place.hash); else how.openPage(place.page);
     return;
   }
   const target = notifTarget(n.link);
-  if (target.kind === "page") { if (!how.canOpenPage(target.page)) { how.refuse(); return; } if (target.hash) how.openHash(target.hash); else how.openPage(target.page); }
+  if (target.kind === "page") { if (!how.canOpenPage(target.page) && !(target.signatures && how.canOpenPage("signatures"))) { how.refuse(); return; } if (target.hash) how.openHash(target.hash); else how.openPage(target.page); }
   else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
+  // A notice with no place here and no link says so (DASH-25), so a tap is never met by nothing.
+  else if (how.nothing) how.nothing();
 }
 // A notice that arrived while the dashboard is open (Step 333): its title, its body on one line, Open,
 // which opens it where the bell would, and Close. It goes by itself after twelve seconds.
@@ -8479,7 +8754,7 @@ const NOTIF_PAGE_SIZE = 30;
 // The API writes each notice's title and body in the language of the call's locale, which af puts on
 // every call (STEP204_CONTRACT.md, section 5), so a change of language reads the list again from the
 // top. Only the newest read is drawn, so an answer in the language left behind never lands.
-function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement }) {
+function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement, onNothing }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -8516,7 +8791,7 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
     setBusy(false);
     onClose();
-    goToNotice(n, { canOpenPage, openHash: onOpenHash, openPage: onOpenPage, openAnnouncement: onOpenAnnouncement, refuse: onRefused });
+    goToNotice(n, { canOpenPage, openHash: onOpenHash, openPage: onOpenPage, openAnnouncement: onOpenAnnouncement, refuse: onRefused, nothing: onNothing });
   };
   const markAll = async () => {
     if (busy || unread === 0) return;
@@ -8898,7 +9173,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
       + '</style>';
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Issue Response and Resolution")) + '</title>'
       + style + '</head><body>'
-      + '<div class="brand">' + (logo ? ('<img src="' + esc(logo) + '" />') : '') + '<div class="co">' + esc(cName) + '</div></div>'
+      + '<div class="brand">' + (escUrl(logo) ? ('<img src="' + escUrl(logo) + '" />') : '') + '<div class="co">' + esc(cName) + '</div></div>'
       + '<h1>' + esc(tr("Issue Response and Resolution")) + '</h1>'
       + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(sevLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
@@ -9005,6 +9280,9 @@ const SupplyGreenShareWidget = ({ data, t }) => {
 };
 
 function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap }) {
+  // Decision 1: the estimated cost, and the order by cost, are a holder of manage_employment's. Anyone
+  // else reads the counts and quantities, on screen and in the PDF, with the supplies in name order.
+  const seesPay = useContext(PayCtx);
   const cfg = readSupplyConfig(config);
   const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -9038,11 +9316,13 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
   const filterCatWord = { chemical: tr("Chemical"), supply: tr("Supply"), equipment: tr("Equipment"), ppe: tr("PPE") };
 
   const tiles = sm ? [
-    { label: tr("Estimated cost"), value: money(sm.total_estimated_cost), color: t.text },
+    seesPay ? { label: tr("Estimated cost"), value: money(sm.total_estimated_cost), color: t.text } : null,
     { label: tr("Usage events"), value: String(sm.usage_events), color: t.text },
     { label: tr("Supplies used"), value: String(sm.supplies_used), color: t.text },
     { label: tr("Sites"), value: String(sm.sites_active), color: t.text },
-  ] : [];
+  ].filter(Boolean) : [];
+  const bySupply = (data && data.by_supply ? data.by_supply : []).slice();
+  if (!seesPay) bySupply.sort((a, b) => String(a.supply_name || "").localeCompare(String(b.supply_name || ""), localeTag()));
 
   const exportPdf = () => {
     if (!sm) { showToast(tr("No data to export"), "error"); return; }
@@ -9059,20 +9339,23 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
     const catLabel = catFilter ? (filterCatWord[catFilter] || (catFilter.charAt(0).toUpperCase() + catFilter.slice(1))) : tr("All categories");
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
     const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
-    const summaryCards = card(m(sm.total_estimated_cost), tr("Estimated cost")) + card(String(sm.usage_events), tr("Usage events")) + card(String(sm.supplies_used), tr("Supplies used")) + card(String(sm.sites_active), tr("Sites"));
-    const trendRows = out.trend ? ((data && data.trend ? data.trend : []).filter(b => b.usage_events > 0).map(b => '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + esc(m(b.estimated_cost)) + '</td><td>' + esc(String(b.quantity)) + '</td><td>' + esc(String(b.usage_events)) + '</td></tr>').join("")) : "";
-    const trendTable = trendRows ? ('<h2>' + esc(tr("Estimated cost by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Estimated cost"), tr("Quantity"), tr("Events")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
-    const siteRows = out.by_site ? ((data && data.by_site ? data.by_site : []).map(s => '<tr><td>' + esc(s.site_name) + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.usage_events)) + '</td></tr>').join("")) : "";
-    const siteTable = siteRows ? ('<h2>' + esc(tr("Cost by site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Estimated cost"), tr("Events")) + '</tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
-    const supRows = out.top_supplies ? ((data && data.by_supply ? data.by_supply : []).slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(supplyCatOf(s.category)) + '</td><td>' + esc(s.is_green_certified ? tr("Yes") : tr("No")) + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.quantity) + " " + (s.unit ? supplyUnitOf(s.unit) : "")) + '</td></tr>').join("")) : "";
-    const supTable = supRows ? ('<h2>' + esc(tr("Top supplies by cost")) + '</h2><table><thead><tr>' + heads(tr("Supply"), tr("Category"), tr("Green"), tr("Estimated cost"), tr("Quantity")) + '</tr></thead><tbody>' + supRows + '</tbody></table>') : "";
-    const greenLine = out.green_share && data && data.green_split ? ('<p class="meta">' + esc(tr("Green-certified share of estimated cost: {0} of {1}", m(data.green_split.green_cost), m(sm.total_estimated_cost))) + (sm.green_cost_pct != null ? ' (' + esc(String(sm.green_cost_pct)) + '%)' : '') + '</p>') : "";
+    // A cost cell, and its heading, for a holder of manage_employment only (decision 1).
+    const costTd = (v) => (seesPay ? '<td>' + esc(m(v)) + '</td>' : "");
+    const costTh = seesPay ? [tr("Estimated cost")] : [];
+    const summaryCards = (seesPay ? card(m(sm.total_estimated_cost), tr("Estimated cost")) : "") + card(String(sm.usage_events), tr("Usage events")) + card(String(sm.supplies_used), tr("Supplies used")) + card(String(sm.sites_active), tr("Sites"));
+    const trendRows = out.trend ? ((data && data.trend ? data.trend : []).filter(b => b.usage_events > 0).map(b => '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td>' + costTd(b.estimated_cost) + '<td>' + esc(String(b.quantity)) + '</td><td>' + esc(String(b.usage_events)) + '</td></tr>').join("")) : "";
+    const trendTable = trendRows ? ('<h2>' + esc(seesPay ? tr("Estimated cost by period") : tr("Quantity")) + '</h2><table><thead><tr>' + heads(tr("Period"), ...costTh, tr("Quantity"), tr("Events")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
+    const siteRows = out.by_site ? ((data && data.by_site ? data.by_site : []).map(s => '<tr><td>' + esc(s.site_name) + '</td>' + costTd(s.estimated_cost) + '<td>' + esc(String(s.usage_events)) + '</td></tr>').join("")) : "";
+    const siteTable = siteRows ? ('<h2>' + esc(seesPay ? tr("Cost by site") : tr("Site")) + '</h2><table><thead><tr>' + heads(tr("Site"), ...costTh, tr("Events")) + '</tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
+    const supRows = out.top_supplies ? (bySupply.slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(supplyCatOf(s.category)) + '</td><td>' + esc(s.is_green_certified ? tr("Yes") : tr("No")) + '</td>' + costTd(s.estimated_cost) + '<td>' + esc(String(s.quantity) + " " + (s.unit ? supplyUnitOf(s.unit) : "")) + '</td></tr>').join("")) : "";
+    const supTable = supRows ? ('<h2>' + esc(seesPay ? tr("Top supplies by cost") : tr("Supplies used")) + '</h2><table><thead><tr>' + heads(tr("Supply"), tr("Category"), tr("Green"), ...costTh, tr("Quantity")) + '</tr></thead><tbody>' + supRows + '</tbody></table>') : "";
+    const greenLine = seesPay && out.green_share && data && data.green_split ? ('<p class="meta">' + esc(tr("Green-certified share of estimated cost: {0} of {1}", m(data.green_split.green_cost), m(sm.total_estimated_cost))) + (sm.green_cost_pct != null ? ' (' + esc(String(sm.green_cost_pct)) + '%)' : '') + '</p>') : "";
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Supply Usage and Cost")) + '</title>' + style + '</head><body>'
-      + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
+      + '<div class="brand">' + (escUrl(logo) ? '<img src="' + escUrl(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
       + '<h1>' + esc(tr("Supply Usage and Cost")) + '</h1>'
       + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(catLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
-      + '<p class="meta">' + esc(tr("Cost is estimated using each supply current cost per unit. Supplies without a price contribute zero cost.")) + '</p>'
+      + (seesPay ? '<p class="meta">' + esc(tr("Cost is estimated using each supply current cost per unit. Supplies without a price contribute zero cost.")) + '</p>' : "")
       + '<div class="grid">' + summaryCards + '</div>'
       + greenLine + trendTable + siteTable + supTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
@@ -9086,7 +9369,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
   return (<div>
     <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ marginBottom: 16 }}>
-      <ChartCard t={t} title={tr("Supply Usage and Cost")} sub={tr("Estimated cost from logged usage at current prices")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
+      <ChartCard t={t} title={tr("Supply Usage and Cost")} sub={seesPay ? tr("Estimated cost from logged usage at current prices") : tr("Supplies used")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
             <option value="">{tr("All sites")}</option>
@@ -9112,11 +9395,11 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
               {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} sub={s.sub} color={s.color} />)}
             </div>
-            <div style={{ fontSize: 11, color: t.textMut }}>{tr("Cost is estimated using its current cost per unit. Supplies without a price contribute zero cost.")}</div>
+            {seesPay && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Cost is estimated using its current cost per unit. Supplies without a price contribute zero cost.")}</div>}
           </div>}
       </ChartCard>
     </div>
-    {hasActivity ? <div>
+    {hasActivity && seesPay ? <div>
       {out.trend ? <div style={{ marginBottom: 16 }}><SupplyCostTrendWidget data={data} t={t} /></div> : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, marginBottom: 16 }}>
         {out.by_site ? <SupplyCostBySiteWidget data={data} t={t} /> : null}
@@ -9235,7 +9518,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
     const inspListTable = inspListRows ? ('<h2>' + esc(tr("Inspections in period")) + '</h2><table><thead><tr>' + heads(tr("Date"), tr("Site"), tr("Score")) + '</tr></thead><tbody>' + inspListRows + '</tbody></table>') : "";
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Inspection Scores and Quality")) + '</title>' + style + '</head><body>'
-      + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
+      + '<div class="brand">' + (escUrl(logo) ? '<img src="' + escUrl(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
       + '<h1>' + esc(tr("Inspection Scores and Quality")) + '</h1>'
       + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
@@ -9364,7 +9647,7 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
     };
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}.quiet{font-size:11px;color:#B45F06;font-weight:700;margin:4px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left;vertical-align:top}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Client ratings")) + '</title>' + style + '</head><body>'
-      + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
+      + '<div class="brand">' + (escUrl(logo) ? '<img src="' + escUrl(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
       + '<h1>' + esc(tr("Client ratings")) + '</h1>'
       + '<p class="meta">' + esc(doubledLine) + '</p>'
       + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(tr("{0} to {1}", fdLong(dateRange.start), fdLong(dateRange.end))) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
@@ -10996,7 +11279,7 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
           </div>
           {ev.kind === "moved" && (ev.fromSiteId || ev.toSiteId) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("From {0} to {1}", ev.fromSiteName || siteName(ev.fromSiteId) || "--", ev.toSiteName || siteName(ev.toSiteId) || "--")}</div> : null}
           {ev.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
-          {ev.photoUrl ? <a href={ev.photoUrl} target="_blank" rel="noreferrer"><img src={ev.photoUrl} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
+          {ev.photoUrl ? <a href={linkUrl(ev.photoUrl)} target="_blank" rel="noreferrer"><img src={ev.photoUrl} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
         </div>))}
     </Crd>
     {act && <EquipmentEventWindow af={af} t={t} item={x} action={act} sites={sites} onClose={() => setAct(null)} onSaved={() => { setAct(null); if (showToast) showToast(tr("Recorded.")); load(); }} />}
@@ -11764,6 +12047,7 @@ function ownerPages(d, siteWord) {
   return [{ code: "", title: "Owner's dashboard", site: siteWord, range: d.period ? { start: d.period.start, end: d.period.end } : null, parts }];
 }
 function OwnerDashboardPage({ af, t, sites = [], lang = "en" }) {
+  const seesPay = useContext(PayCtx);
   const periods = useMemo(() => ownerPeriods(todayISO()), []);
   const [period, setPeriod] = useState(periods[0]);
   const [siteId, setSiteId] = useState("");
@@ -11778,9 +12062,11 @@ function OwnerDashboardPage({ af, t, sites = [], lang = "en" }) {
     setD(null); setRefusal(null);
     try {
       const x = await af("/api/owner/dashboard?period=" + encodeURIComponent(period) + (siteId ? "&siteId=" + encodeURIComponent(siteId) : ""));
-      if (n === seq.current) setD(x && Array.isArray(x.sections) ? x : { period: null, asOf: "", site: null, sections: [] });
+      // Decision 1: a measure in dollars is a holder of manage_employment's, on screen and on paper.
+      const kept = x && Array.isArray(x.sections) ? Object.assign({}, x, { sections: x.sections.map(sec => Object.assign({}, sec, { measures: (sec.measures || []).filter(m => seesPay || !m || m.unit !== "dollars") })) }) : null;
+      if (n === seq.current) setD(kept || { period: null, asOf: "", site: null, sections: [] });
     } catch (e) { if (n === seq.current) setRefusal({ text: e.message || tr("This did not load."), code: e.code || "", status: e.status || 0 }); }
-  }, [af, period, siteId]);
+  }, [af, period, siteId, seesPay]);
   // Read again when the screen's language changes, since the API writes the titles and labels in it.
   useEffect(() => { load(); }, [load, lang]);
   const siteWord = d && d.site ? d.site.name : siteId ? ((sites.find(s0 => String(s0.id) === siteId) || {}).name || "") : tr("All sites");
@@ -11810,6 +12096,7 @@ function OwnerDashboardPage({ af, t, sites = [], lang = "en" }) {
 }
 
 function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, sites, allStaff, uf, getOpts }) {
+  const [onceAssign, assignBusy] = useBusyGuard();
   const [tasks, setTasks] = useState([]);
   const [filters, setFilters] = useState({ site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" });
   const staffList = allStaff;
@@ -11821,8 +12108,8 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   const updateFilter = (key, val) => { const nf = { ...filters, [key]: val }; setFilters(nf); load(nf); };
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
   const openDetail = async (task) => { setSel(task); try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); } };
-  const submitReassign = async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { showToast(e.message, "error"); } };
-  const submitCreate = async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const submitReassign = onceAssign(async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { showToast(e.message, "error"); } });
+  const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } });
   const buildings = [...new Set(tasks.map(tk => tk.building_name).filter(Boolean))];
   const floors = [...new Set(tasks.map(tk => tk.floor_number).filter(Boolean))];
   const zones = [...new Set(tasks.map(tk => tk.zone).filter(Boolean))];
@@ -11887,7 +12174,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><PersonPick t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign}>{tr("Reassign")}</Btn></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign} disabled={assignBusy}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Create Assigned Task")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
@@ -11902,7 +12189,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         {createForm.mediaUrl && (createForm.mediaType === "video" ? <div style={{ marginTop: 8 }}><video src={createForm.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 160 }} /></div> : <div style={{ marginTop: 8 }}><img src={createForm.mediaUrl} alt={tr("Attached")} style={{ width: "100%", borderRadius: 8, maxHeight: 160, objectFit: "cover" }} /></div>)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitCreate}>{tr("Create and Assign")}</Btn></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitCreate} disabled={assignBusy}>{tr("Create and Assign")}</Btn></div>
     </div></Mdl>}
   </div>);
 }
@@ -11910,6 +12197,8 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
 // A vendor's editor holds every field the add form does, the ones a supply order uses among them.
 const vendorEditForm = (v) => ({ id: v.id, name: v.name, contactName: v.contact_name || "", contactPhone: v.contact_phone || "", contactEmail: v.contact_email || "", website: v.website || "", addressLine1: v.address_line1 || "", city: v.city || "", state: v.state || "", zipCode: v.zip_code || "", productsServices: v.products_services || "", certificationStatus: v.certification_status || "", contractTerms: v.contract_terms || "", approvalStatus: v.approval_status, lastReviewDate: v.last_review_date ? String(v.last_review_date).slice(0, 10) : "" });
 function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], onRoute }) {
+  // Decision 1: a supply's unit cost from a vendor is drawn and sent by a holder of manage_employment only.
+  const seesPay = useContext(PayCtx);
   const [vendors, setVendors] = useState([]);
   const [supplies, setSupplies] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -11958,7 +12247,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
 
   const submitLinkSupply = async () => {
     if (!linkSupply.supplyId) { showToast(tr("Select a supply"), "error"); return; }
-    try { await af("/api/vendors/" + linkSupply.vendorId + "/link-supply", { method: "POST", body: { supplyId: linkSupply.supplyId, isPreferred: linkSupply.isPreferred, unitCost: linkSupply.unitCost || null, leadTimeDays: linkSupply.leadTime || null, notes: linkSupply.notes } }); showToast(tr("Supply linked")); setLinkSupply(null); loadDetail(linkSupply.vendorId); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/vendors/" + linkSupply.vendorId + "/link-supply", { method: "POST", body: { supplyId: linkSupply.supplyId, isPreferred: linkSupply.isPreferred, ...(seesPay ? { unitCost: linkSupply.unitCost || null } : {}), leadTimeDays: linkSupply.leadTime || null, notes: linkSupply.notes } }); showToast(tr("Supply linked")); setLinkSupply(null); loadDetail(linkSupply.vendorId); } catch (e) { showToast(e.message, "error"); }
   };
 
   const unlinkSupply = async (vendorId, supplyId) => {
@@ -12064,7 +12353,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
           {detail.vendor.contact_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Contact")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_name}</div></div>}
           {detail.vendor.contact_phone && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_phone}</div></div>}
           {detail.vendor.contact_email && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_email}</div></div>}
-          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Website")}<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, color: BL, fontSize: 11 }}>{tr("View Site")}</a></div></div>}
+          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Website")}<div style={{ marginTop: 2 }}><a href={linkUrl(detail.vendor.website)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, color: BL, fontSize: 11 }}>{tr("View Site")}</a></div></div>}
           {(detail.vendor.address_line1 || detail.vendor.city) && <div style={{ fontSize: 11, color: t.textMut, gridColumn: "1 / -1" }}>{tr("Address")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{[detail.vendor.address_line1, detail.vendor.city, detail.vendor.state, detail.vendor.zip_code].filter(Boolean).join(", ")}</div></div>}
         </div>
         {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Products and Services")}</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
@@ -12079,7 +12368,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
           {(!detail.linkedSupplies || detail.linkedSupplies.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No supplies linked yet")}</div>}
           {detail.linkedSupplies?.map((ls, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-              <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? tr("${0}/unit", parseFloat(ls.unit_cost).toFixed(2)) : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + tr("{0}d lead", ls.lead_time_days) : ""}{ls.is_preferred ? <span style={{ color: t.goldText, marginLeft: 6 }}>{tr("Preferred")}</span> : null}</div></div>
+              <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{seesPay && ls.unit_cost ? tr("${0}/unit", parseFloat(ls.unit_cost).toFixed(2)) : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + tr("{0}d lead", ls.lead_time_days) : ""}{ls.is_preferred ? <span style={{ color: t.goldText, marginLeft: 6 }}>{tr("Preferred")}</span> : null}</div></div>
               {canManageVendors && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
             </div>
           ))}
@@ -12138,7 +12427,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Supply to Vendor")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Supply *")}</Lbl><Sel t={t} value={linkSupply.supplyId} onChange={e => setLinkSupply({ ...linkSupply, supplyId: e.target.value })} options={[{ v: "", l: tr("Select a supply...") }, ...supplies.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>{tr("Unit Cost")}</Lbl><Inp t={t} type="number" value={linkSupply.unitCost} onChange={e => setLinkSupply({ ...linkSupply, unitCost: e.target.value })} placeholder="$0.00" /></div>
+          {seesPay && <div><Lbl>{tr("Unit Cost")}</Lbl><Inp t={t} type="number" value={linkSupply.unitCost} onChange={e => setLinkSupply({ ...linkSupply, unitCost: e.target.value })} placeholder="$0.00" /></div>}
           <div><Lbl>{tr("Lead Time (days)")}</Lbl><Inp t={t} type="number" value={linkSupply.leadTime} onChange={e => setLinkSupply({ ...linkSupply, leadTime: e.target.value })} /></div>
         </div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={linkSupply.notes} onChange={e => setLinkSupply({ ...linkSupply, notes: e.target.value })} placeholder={tr("Min order, availability notes...")} /></div>
@@ -12149,6 +12438,10 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
   </div>);
 }
 function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap }) {
+  // Decision 1: a service's rate structure says how it is priced, so it is drawn, exported and sent by
+  // a holder of manage_employment only.
+  const seesPay = useContext(PayCtx);
+  const withoutRate = (b) => { const x = Object.assign({}, b); if (!seesPay) { delete x.rateStructure; delete x.rate_structure; } return x; };
   // A category on this page is the cims_categories lookup's shown label, then the plain word.
   const catShown = lkMap ? lkMap("cims_categories", true) : {};
   const [services, setServices] = useState([]);
@@ -12167,11 +12460,11 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
 
   const submitAdd = async () => {
     if (!addForm.name) { showToast(tr("Service name required"), "error"); return; }
-    try { await af("/api/services", { method: "POST", body: addForm }); showToast(tr("Service added")); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/services", { method: "POST", body: withoutRate(addForm) }); showToast(tr("Service added")); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   const submitEdit = async () => {
-    try { await af("/api/services/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Service updated")); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/services/" + editForm.id, { method: "PATCH", body: withoutRate(editForm) }); showToast(tr("Service updated")); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
   };
 
   const deactivate = async id => {
@@ -12190,8 +12483,8 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
   const exportCatalog = () => {
     if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
     dlCSV("OCSA_Service_Catalog_" + todayISO() + ".csv",
-      ["Service Name", "Description", "Rate Structure", "Required Certifications", "Service Category", "Active Sites"],
-      services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", CIMS_LABELS[s.cims_category] || s.cims_category || "", s.linked_site_count || 0])
+      ["Service Name", "Description"].concat(seesPay ? ["Rate Structure"] : [], ["Required Certifications", "Service Category", "Active Sites"]),
+      services.map(s => [s.name, s.description || ""].concat(seesPay ? [s.rate_structure || ""] : [], [s.required_certifications || "", CIMS_LABELS[s.cims_category] || s.cims_category || "", s.linked_site_count || 0]))
     );
     showToast(tr("Service catalog exported"));
   };
@@ -12212,7 +12505,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
   const formFields = (form, setForm) => (<>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Service Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. Office Cleaning")} /></div>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} placeholder={tr("Describe what this service covers...")} /></div>
-    <div style={{ marginBottom: 12 }}><Lbl>{tr("Rate Structure")}</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder={tr("How is this service priced?")} /></div>
+    {seesPay && <div style={{ marginBottom: 12 }}><Lbl>{tr("Rate Structure")}</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder={tr("How is this service priced?")} /></div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Required Certifications")}</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder={tr("Certifications staff must hold...")} /></div>
     <div style={{ marginBottom: 16 }}><Lbl>{tr("Service Category")}</Lbl>
       <Sel t={t} value={form.cimsCategory || form.cims_category || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
@@ -12267,7 +12560,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
           <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.description}</div>
         </div>}
 
-        {detail.service.rate_structure && <div style={{ marginBottom: 14 }}>
+        {seesPay && detail.service.rate_structure && <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Rate Structure")}</div>
           <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.rate_structure}</div>
         </div>}
@@ -12634,7 +12927,11 @@ const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
 // only things it sends. A refusal is shown in the window word for word and nothing closes, so the
 // person can read it and try again. A decision that lost a race, answered 409, reloads the request
 // so the window shows what is true now.
-function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
+// The owner's decision 3 (Round 1, Oct 15, 2026): time off is approved and denied by admins, who hold
+// approve_time_off by role, and by anyone the API grants it on their own. Anyone else reads the request
+// and is told who decides. An admin is offered it before the API's defaults say so, so nothing stops
+// while the API's round ships.
+function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDecide = false }) {
   const [req, setReq] = useState(seed);
   // Step 334: the shifts the request affects, once the read answers them, and what to do with each.
   const [affected, setAffected] = useState(null);
@@ -12760,7 +13057,8 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
       <div style={{ color: t.textSec }}>{timeOffMoment(req.cancelledAt)}</div>
     </div>}
     {req.status === "requested" && mine && <div style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{tr(TIME_OFF_OWN)}</div>}
-    {req.status === "requested" && !mine && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    {req.status === "requested" && !mine && !canDecide && <div data-time-off-admins="" style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{tr("An admin approves or denies time off.")}</div>}
+    {req.status === "requested" && !mine && canDecide && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Note")}</Lbl>
       <TArea t={t} rows={3} aria-label={tr("Note")} value={note} onChange={e => { setNote(e.target.value); if (noteError) setNoteError(""); }} placeholder={tr("Optional when approving. Required when denying.")} />
       {noteError && <div style={{ fontSize: 12, color: RD, marginTop: 6 }}>{noteError}</div>}
@@ -12780,7 +13078,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
 // filters working, so the person can try another status without reloading the page.
 // Step 334: openId, from #schedule/timeoff/<id>, opens that request's window over the list, read whole by
 // the window; onOpened says when it closes, so the address goes back to the list.
-function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange, openId = "", onOpened }) {
+function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange, openId = "", onOpened, canDecide = false }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -12820,7 +13118,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange, ope
     {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(r)} empty={empty} />}
     {!loading && !error && rows.length >= TIME_OFF_LIMIT && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr(TIME_OFF_CAPPED, TIME_OFF_LIMIT)}</div>}
-    {open && <TimeOffWindow key={String(open.id)} af={af} t={t} seed={open} myId={myId} showToast={showToast} onClose={() => { setOpen(null); if (onOpened) onOpened(); }} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
+    {open && <TimeOffWindow key={String(open.id)} af={af} t={t} seed={open} myId={myId} showToast={showToast} canDecide={canDecide} onClose={() => { setOpen(null); if (onOpened) onOpened(); }} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
   </div>);
 }
 
@@ -12843,7 +13141,7 @@ const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr
 const TIME_OFF_LOCKED_LINE = "Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.";
 // Step 334: #schedule/timeoff opens the Time off view, and #schedule/timeoff/<id> that request's window,
 // where the approver's time_off notice points.
-function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
+function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap, route = [], onRoute, canDecideTimeOff = false }) {
   // A code on this page is drawn as a word: a role and a pickup's reason read the pick list's shown
   // label, then the table's word; a pickup's and an inspection's status read the table's word.
   const staffRoleShown = lkMap("staff_roles", true);
@@ -13083,7 +13381,8 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   };
   const toggleRepeatDay = (dayNum) => { setCreateForm(prev => { const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum]; return { ...prev, repeatDays: days }; }); };
 
-  const submitCreate = async () => {
+  const [onceShift, shiftBusy] = useBusyGuard();
+  const submitCreate = onceShift(async () => {
     if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) { showToast(tr("Staff, site, start time, and end time are required"), "error"); return; }
     setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     try {
@@ -13122,7 +13421,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       }
       setCreateModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
-  };
+  });
 
   const openEdit = (shift) => {
     if (shift.site_id) loadSiteLocations(shift.site_id);
@@ -13302,7 +13601,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div>
     {timeOffWaiting === null && timeOffLocked && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr(TIME_OFF_LOCKED_LINE)}</div>}
     {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
-    {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} openId={timeOffRouteId} onOpened={() => { if (timeOffRouteId && onRoute) onRoute(["timeoff"]); }} />}
+    {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} canDecide={canDecideTimeOff} onCountChange={loadTimeOffCount} openId={timeOffRouteId} onOpened={() => { if (timeOffRouteId && onRoute) onRoute(["timeoff"]); }} />}
     {view !== "patterns" && view !== "timeoff" && <>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: tr("This Week") }, { key: "lastWeek", label: tr("Last Week") }, { key: "nextWeek", label: tr("Next Week") }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -13371,7 +13670,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
           </div>}
         </div>)}
       </div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitCreate}>{createForm.repeat ? tr("Schedule All") : tr("Schedule Shift")}</Btn></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitCreate} disabled={shiftBusy}>{createForm.repeat ? tr("Schedule All") : tr("Schedule Shift")}</Btn></div>
     </div></Mdl>}
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
@@ -13449,7 +13748,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* PICKUP DETAIL MODAL */}
-    {timeOffOpen && <TimeOffWindow af={af} t={t} seed={timeOffOpen} myId={myId} showToast={showToast} onClose={() => setTimeOffOpen(null)} onDecided={() => { loadCalendar(); loadTimeOffCount(); }} />}
+    {timeOffOpen && <TimeOffWindow af={af} t={t} seed={timeOffOpen} myId={myId} showToast={showToast} canDecide={canDecideTimeOff} onClose={() => setTimeOffOpen(null)} onDecided={() => { loadCalendar(); loadTimeOffCount(); }} />}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.")}</div>}
@@ -14232,7 +14531,7 @@ const inspectionPhotosOf = (sr) => {
 const inspectionOverallPhotosOf = (d) => (d && d.result && Array.isArray(d.result.photo_urls) ? d.result.photo_urls.filter(u => typeof u === "string" && u) : []);
 // Photos as thumbnails, each opening full size in a new tab.
 const InspectionThumbs = ({ t, urls, mark }) => (<div data-inspection-photos={mark} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-  {urls.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
+  {urls.map((u, i) => <a key={i} href={linkUrl(u)} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
 </div>);
 
 // A filed inspection's review line (Step 232, STEP217_CONTRACT_A v2 section 6): signed, with the
@@ -14618,10 +14917,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
 
   // The analytics report, printed from a window of its own.
   const printAnalytics = () => {
-    const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${sc.site_name}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${sc.latest_score_pct}%</td><td style="padding:8px;text-align:center">${sc.avg_score_pct}%</td><td style="padding:8px;text-align:center">${sc.inspection_count}</td><td style="padding:8px;font-size:12px;color:#666">${fmtDate(sc.latest_date)}</td></tr>`).join("");
-    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${catWord(c.cims_category)}</td><td style="padding:8px;text-align:center;font-weight:700">${c.avg_score_pct}%</td><td style="padding:8px;text-align:center">${c.total_items}</td><td style="padding:8px;text-align:center">${c.total_score}/${c.total_max}</td></tr>`).join("");
-    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${shownItem(l).label}</td><td style="padding:8px">${zoneWord(l)}</td><td style="padding:8px">${catWord(l.cims_category)}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${l.avg_score_pct}%</td><td style="padding:8px;text-align:center">${l.occurrences}</td></tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>${tr("Inspection Analytics Report")}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">${tr("Inspection Analytics Report")}</div><div style="font-size:14px;color:#555;margin-top:4px">${tr("Last {0} to {1}", analyticsRange.start, analyticsRange.end)}${analyticsSite ? "" : " " + tr("(All Sites)")}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${tr("Site Performance")}</h3><table><thead><tr><th>${tr("Site")}</th><th style="text-align:center">${tr("Latest Score")}</th><th style="text-align:center">${tr("Average")}</th><th style="text-align:center">${tr("Inspections")}</th><th>${tr("Latest Date")}</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${tr("Category Breakdown")}</h3><table><thead><tr><th>${tr("Category")}</th><th style="text-align:center">${tr("Avg Score")}</th><th style="text-align:center">${tr("Items Scored")}</th><th style="text-align:center">${tr("Points")}</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${tr("Areas Needing Improvement")}</h3><table><thead><tr><th>${tr("Item")}</th><th>${tr("Zone")}</th><th>${tr("Category")}</th><th style="text-align:center">${tr("Avg Score")}</th><th style="text-align:center">${tr("Occurrences")}</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div></body></html>`;
+    const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(sc.site_name)}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(sc.latest_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(sc.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(sc.inspection_count)}</td><td style="padding:8px;font-size:12px;color:#666">${escHtml(fmtDate(sc.latest_date))}</td></tr>`).join("");
+    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(catWord(c.cims_category))}</td><td style="padding:8px;text-align:center;font-weight:700">${escHtml(c.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(c.total_items)}</td><td style="padding:8px;text-align:center">${escHtml(c.total_score)}/${escHtml(c.total_max)}</td></tr>`).join("");
+    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(shownItem(l).label)}</td><td style="padding:8px">${escHtml(zoneWord(l))}</td><td style="padding:8px">${escHtml(catWord(l.cims_category))}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(l.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(l.occurrences)}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>${escHtml(tr("Inspection Analytics Report"))}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">${escHtml(tr("Inspection Analytics Report"))}</div><div style="font-size:14px;color:#555;margin-top:4px">${escHtml(tr("Last {0} to {1}", analyticsRange.start, analyticsRange.end))}${escHtml(analyticsSite ? "" : " " + tr("(All Sites)"))}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${escHtml(clientConfig.company.name)}</div><div style="font-size:12px;color:#666;margin-top:2px">${escHtml(new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" }))}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Site Performance"))}</h3><table><thead><tr><th>${escHtml(tr("Site"))}</th><th style="text-align:center">${escHtml(tr("Latest Score"))}</th><th style="text-align:center">${escHtml(tr("Average"))}</th><th style="text-align:center">${escHtml(tr("Inspections"))}</th><th>${escHtml(tr("Latest Date"))}</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Category Breakdown"))}</h3><table><thead><tr><th>${escHtml(tr("Category"))}</th><th style="text-align:center">${escHtml(tr("Avg Score"))}</th><th style="text-align:center">${escHtml(tr("Items Scored"))}</th><th style="text-align:center">${escHtml(tr("Points"))}</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Areas Needing Improvement"))}</h3><table><thead><tr><th>${escHtml(tr("Item"))}</th><th>${escHtml(tr("Zone"))}</th><th>${escHtml(tr("Category"))}</th><th style="text-align:center">${escHtml(tr("Avg Score"))}</th><th style="text-align:center">${escHtml(tr("Occurrences"))}</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${escHtml(tr("Generated by {0} Operations Platform", clientConfig.company.shortName))}</div></body></html>`;
     const w = window.open("", "_blank");
     w.document.write(html); w.document.close();
     setTimeout(() => w.print(), 600);
@@ -14783,7 +15082,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                         )) : sr.photo_url ? (
                           <div>
                             <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Attached Photo")}</div>
-                            <a href={sr.photo_url} target="_blank" rel="noreferrer">
+                            <a href={linkUrl(sr.photo_url)} target="_blank" rel="noreferrer">
                               <img src={sr.photo_url} alt={tr("Inspection photo")} style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
                             </a>
                             <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
@@ -15998,7 +16297,7 @@ function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, bo
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
       {!oneLanguage && <><span style={{ fontSize: 12, color: t.textMut, marginRight: 4 }}>{tr("Language")}</span>{LANGUAGES.map(langBtn)}</>}
       <div style={{ flex: 1 }} />
-      {pdf.url && <a href={pdf.url} download={pdf.filename || fallbackName} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a>}
+      {pdf.url && <a href={linkUrl(pdf.url)} download={pdf.filename || fallbackName} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a>}
     </div>
     {pdf.loading && !pdf.url && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading the PDF...")}</div>}
     {pdf.error && <LoadFailed t={t} text={pdf.error} onRetry={() => setAgain(n => n + 1)} />}
@@ -17518,6 +17817,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
         <div style={{ fontSize: 10, color: t.textMut, marginBottom: 12, padding: "6px 10px", background: t.cardAlt, borderRadius: 4 }}>{tr("Changing the type will reclassify this value. For example, changing from \"Building\" to \"Zone\" moves it between categories.")}</div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSiteVal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditSiteVal}>{tr("Save")}</Btn></div>
       </div></Mdl>}
+      {/* The build this dashboard runs, so the office can say which version they have (Round 1). */}
+      <div data-build-stamp="" style={{ marginTop: 24, fontSize: 11, color: t.textMut, fontFamily: "monospace", overflowWrap: "anywhere" }}>{tr("Version {0}", BUILD_STAMP)}</div>
     </div>
   );
 }
@@ -19803,7 +20104,7 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
           {pdf.loading && !pdf.url && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading the PDF...")}</div>}
           {pdf.error && <LoadFailed t={t} text={pdf.error} onRetry={() => setPdfKey(k => k + 1)} />}
           {pdf.url && <iframe title={tr("PDF")} src={pdf.url} style={{ width: "100%", height: 640, maxHeight: "calc(100vh / var(--zoom, 1) - 160px)", border: "1px solid " + t.border, borderRadius: 8, background: "#FFFFFF" }} />}
-          {pdf.url && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}><a href={pdf.url} download={pdf.filename || "sample.pdf"} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a></div>}
+          {pdf.url && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}><a href={linkUrl(pdf.url)} download={pdf.filename || "sample.pdf"} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a></div>}
         </Crd>)}
 
         <Crd t={t} style={{ marginTop: 16 }}>
@@ -19989,7 +20290,24 @@ async function sheetLinesFor(af, link, company) {
 const linkStateWord = (s) => (s === "live" ? tr("On|link") : tr("Off|link"));
 const linkStateColor = (s) => (s === "live" ? GR : RD);
 
-const escHtml = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// Text written into a page built as a string, a print window above all: every value a person typed or
+// the API sent goes through escHtml, so it is drawn as text and never read as markup (DASH-01). Quotes
+// are escaped too, so a value inside an attribute cannot leave it.
+const escHtml = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+// An address from the API or a person, read the way the browser reads it (tabs and line breaks taken out,
+// spaces and controls trimmed from the ends). One that names a scheme other than a web address, a blob or
+// an image's data, javascript: above all, is refused (null). An address with no scheme, a path on this
+// site or nothing at all, opens what it opened before.
+const safeUrl = (v) => {
+  const u = String(v == null ? "" : v).replace(/[\t\n\r]/g, "").replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "");
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(u);
+  if (!scheme) return u;
+  return /^(https?|blob)$/i.test(scheme[1]) || /^data:image\//i.test(u) ? u : null;
+};
+// An address written into src or href in a page built as a string, escaped, and "" when it is refused.
+const escUrl = (v) => { const u = safeUrl(v); return u == null ? "" : escHtml(u); };
+// The same rule for a link drawn on screen: a refused address draws no link at all.
+const linkUrl = (v) => { const u = safeUrl(v); return u == null ? undefined : u; };
 // One sheet: the logo, the site, the title in each language, a request QR's area set large, the QR
 // code at its full size, the scan line in each language, the address in small type and the company.
 function customerLinkSheetBody({ link, qr, titles, scanLines }, cName) {
@@ -22522,7 +22840,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                       <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} disabled={pdfBusy} onClick={() => printPdf(detailSub.meta.id)}>{tr("Print")}</Btn>
                     </>
                   )}
-                  {detailSub.meta.jotform_view_url && <a href={detailSub.meta.jotform_view_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontSize: 11, color: BL, textDecoration: "none", padding: "8px 12px", border: "1px solid " + t.border, borderRadius: 6 }}>{tr("Open in Jotform")}</a>}
+                  {detailSub.meta.jotform_view_url && <a href={linkUrl(detailSub.meta.jotform_view_url)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontSize: 11, color: BL, textDecoration: "none", padding: "8px 12px", border: "1px solid " + t.border, borderRadius: 6 }}>{tr("Open in Jotform")}</a>}
                   <Btn t={t} onClick={() => setDetailSub(null)}>{tr("Close")}</Btn>
                 </div>
               </div>
@@ -22629,11 +22947,13 @@ const ClearanceChip = ({ state }) => <Bdg l={clearanceStateWord(state)} c={(CLEA
 const clearancePeopleOf = (d) => (d && Array.isArray(d.people) ? d.people : null);
 // A person's record in HR Records, from anywhere: #hr/<id>, and #hr/<id>/clearances to bring the
 // Clearances section into view.
-const openClearancesOf = (userId) => { if (userId != null) window.location.hash = "hr/" + encodeURIComponent(String(userId)) + "/clearances"; };
+// Someone HR Records is open to goes to the person's folder; anyone else, a supervisor among them, to
+// the person's clearances on the Clearances page, status and dates only (DASH-07, decision 4).
+const openClearancesOf = (userId, hrOpen = true) => { if (userId != null) window.location.hash = hrOpen ? "hr/" + encodeURIComponent(String(userId)) + "/clearances" : "clearances/" + encodeURIComponent(String(userId)); };
 
 // Add or renew a clearance, record the Act 168 review, or correct a date entered wrongly. A refusal
 // is drawn under the box its code or keys name, and anything else at the top.
-function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSaved }) {
+function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSaved, datesOnly = false }) {
   const today = toISO(new Date());
   const [f, setF] = useState(() => ({ date: mode === "correct" && row && row.issuedDate ? String(row.issuedDate).slice(0, 10) : "", documentId: "", notes: "", reason: "", disclosure: "no" }));
   const [docs, setDocs] = useState(null);
@@ -22641,7 +22961,8 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   useEffect(() => {
-    if (mode === "correct") return undefined;
+    // The file picker reads the person's HR documents, which are read_hr_records'; dates only reads none.
+    if (mode === "correct" || datesOnly) return undefined;
     let alive = true;
     af("/api/hr/documents?user_id=" + encodeURIComponent(userId)).then(d => { if (alive) setDocs(Array.isArray(d) ? d : []); }).catch(e => { if (alive) setDocs([]); console.warn("Documents:", e.message); });
     return () => { alive = false; };
@@ -22700,12 +23021,12 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
       <TArea t={t} rows={3} maxLength={500} aria-label={tr("Reason")} value={f.reason} onChange={e => set("reason", e.target.value)} style={refusal.field === "reason" ? { borderColor: RD } : {}} />
       {under("reason")}
     </div>) : (<>
-      <div style={{ marginBottom: 12 }}>
+      {!datesOnly && <div style={{ marginBottom: 12 }}>
         <Lbl>{tr("Document")}</Lbl>
         <Sel t={t} aria-label={tr("Document")} value={f.documentId} onChange={e => set("documentId", e.target.value)} options={docs === null ? [{ v: "", l: tr("Loading...") }] : docOpts} />
         <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("From this person's HR documents. Optional.")}</div>
         {under("documentId")}
-      </div>
+      </div>}
       <div style={{ marginBottom: 12 }}>
         <Lbl>{tr("Notes")}</Lbl>
         <TArea t={t} rows={2} aria-label={tr("Notes")} value={f.notes} onChange={e => set("notes", e.target.value)} />
@@ -22723,7 +23044,10 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
 // state, the earlier ones of a kind under it as history, and the Act 168 review. All of it comes from
 // GET /api/clearances?userId=, the person's row with their history, each clearance they have held
 // with its corrections. state=all goes with it so a person who has left still has their record.
-function PersonClearances({ af, t, userId, name, focus = false }) {
+// datesOnly (DASH-07, decision 4): a clearance's status and dates, Add or renew and Correct a date, for
+// someone without read_hr_records. The Act 168 disclosure, a correction's reason and the files stay
+// with read_hr_records, so they are not drawn or offered.
+function PersonClearances({ af, t, userId, name, focus = false, datesOnly = false }) {
   const [person, setPerson] = useState(undefined);
   const [win, setWin] = useState(null);
   const [open, setOpen] = useState({});
@@ -22759,7 +23083,7 @@ function PersonClearances({ af, t, userId, name, focus = false }) {
             <div style={{ flex: "1 1 220px", minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(k.label)}</div>
               <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{c.issuedDate ? tr("Issued {0}, expires {1}", fdLong(c.issuedDate), c.expiresOn ? fdLong(c.expiresOn) : "--") : tr("None on file")}</div>
-              {currentCorrections(k.key, c).map(correctedLine)}
+              {!datesOnly && currentCorrections(k.key, c).map(correctedLine)}
             </div>
             <ClearanceChip state={c.state || "missing"} />
             <Btn t={t} onClick={() => setWin({ mode: "add", kind: k.key })} style={small}>{tr("Add or renew")}</Btn>
@@ -22769,7 +23093,7 @@ function PersonClearances({ af, t, userId, name, focus = false }) {
           {open[k.key] && earlier.length > 0 && <div data-clearance-history={k.key} style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid " + t.border }}>
             {earlier.map((h, i) => (<div key={h.certificationId != null ? String(h.certificationId) : "h" + i} style={{ fontSize: 12, color: t.textSec, padding: "4px 0" }}>
               {tr("Issued {0}, expires {1}", h.issuedDate ? fdLong(h.issuedDate) : "--", h.expiresOn ? fdLong(h.expiresOn) : "--")}
-              {corrections(h).map(correctedLine)}
+              {!datesOnly && corrections(h).map(correctedLine)}
             </div>))}
           </div>}
         </div>);
@@ -22778,14 +23102,14 @@ function PersonClearances({ af, t, userId, name, focus = false }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 220px", minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(ACT168_LABEL)}</div>
-            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{act.completedOn ? tr("Completed on {0}. Disclosure: {1}.", fdLong(act.completedOn), act.disclosure ? tr("Yes") : tr("No")) : tr("None on file")}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{act.completedOn ? (datesOnly ? tr("Completed on {0}", fdLong(act.completedOn)) : tr("Completed on {0}. Disclosure: {1}.", fdLong(act.completedOn), act.disclosure ? tr("Yes") : tr("No"))) : tr("None on file")}</div>
           </div>
           <ClearanceChip state={act.state === "done" ? "done" : "missing"} />
-          <Btn t={t} onClick={() => setWin({ mode: "act168" })} style={small}>{tr("Record the review")}</Btn>
+          {!datesOnly && <Btn t={t} onClick={() => setWin({ mode: "act168" })} style={small}>{tr("Record the review")}</Btn>}
         </div>
       </div>
     </div>
-    {win && <ClearanceWindow af={af} t={t} userId={userId} name={name} mode={win.mode} kind={win.kind} row={win.row} onClose={() => setWin(null)} onSaved={() => { setWin(null); load(); }} />}
+    {win && <ClearanceWindow af={af} t={t} userId={userId} name={name} mode={win.mode} kind={win.kind} row={win.row} datesOnly={datesOnly} onClose={() => setWin(null)} onSaved={() => { setWin(null); load(); }} />}
   </Crd>);
 }
 
@@ -22802,7 +23126,7 @@ const CLEARANCE_FILTERS = [
   { v: "all", l: "Everyone, inactive and terminated included" },
 ];
 const clearanceSoonest = (p) => CLEARANCE_KINDS.map(k => (p && p[k.key] && p[k.key].expiresOn ? String(p[k.key].expiresOn).slice(0, 10) : "0000-00-00")).sort()[0];
-function ClearancesPage({ af, token, t, sites = [] }) {
+function ClearancesPage({ af, token, t, sites = [], route = [], onRoute, hrOpen = true }) {
   const [state, setState] = useState("");
   const [siteId, setSiteId] = useState("");
   const [rows, setRows] = useState(null);
@@ -22862,7 +23186,15 @@ function ClearancesPage({ af, token, t, sites = [] }) {
     {printNote && <div role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{printNote}</div>}
     {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
-      <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId)} empty={tr("No one matches.")} />}
+      <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId, hrOpen)} empty={tr("No one matches.")} />}
+    {/* #clearances/<id>: one person's clearances for someone HR Records is closed to (DASH-07). */}
+    {route[0] && <Mdl t={t} onClose={() => { if (onRoute) onRoute([]); load(); }}><div style={{ padding: 20 }} data-clearances-person={route[0]}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, minWidth: 0 }}>{((rows || []).find(p => String(p.userId) === String(route[0])) || {}).name || tr("Clearances")}</div>
+        <button onClick={() => { if (onRoute) onRoute([]); load(); }} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <PersonClearances af={af} t={t} userId={String(route[0])} name={((rows || []).find(p => String(p.userId) === String(route[0])) || {}).name || ""} datesOnly />
+    </div></Mdl>}
   </div>);
 }
 
@@ -22894,7 +23226,7 @@ const clearanceRefusedPeople = (refusal, people) => {
     return { id: hit ? String(hit.id) : null, name: n };
   });
 };
-function ClearanceMissingWindow({ t, refusal, people, onClose }) {
+function ClearanceMissingWindow({ t, refusal, people, onClose, hrOpen = true }) {
   const who = clearanceRefusedPeople(refusal, people);
   const missing = Array.isArray(refusal && refusal.missing) ? refusal.missing.map(String) : [];
   const names = who.map(p => p.name).filter(Boolean);
@@ -22911,7 +23243,7 @@ function ClearanceMissingWindow({ t, refusal, people, onClose }) {
     <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 14 }}>{tr("Nobody works at a school site without current clearances. If a date was entered wrongly, correct it on their Clearances, then try again.")}</div>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
-      {who.filter(p => p.id).map(p => <Btn key={p.id} t={t} onClick={() => { onClose(); openClearancesOf(p.id); }} style={{ minHeight: 44 }}>{p.name ? tr("Open the clearances of {0}", p.name) : tr("Open their clearances")}</Btn>)}
+      {who.filter(p => p.id).map(p => <Btn key={p.id} t={t} onClick={() => { onClose(); openClearancesOf(p.id, hrOpen); }} style={{ minHeight: 44 }}>{p.name ? tr("Open the clearances of {0}", p.name) : tr("Open their clearances")}</Btn>)}
     </div>
   </div></Mdl>);
 }
@@ -23171,6 +23503,22 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     language: (r && r.language) || (person && (person.language || person.preferredLanguage)) || "en",
   });
   const [f, setF] = useState(() => draftOf(row));
+  // DASH-04: the draft is the warning as the API keeps it. A list row may lack fields, so a window
+  // opened on one reads GET /api/discipline/:id and takes its answer, unless something was typed
+  // first; an answer with no warning leaves the row as it was. touched marks a typed change.
+  const touched = useRef(false);
+  useEffect(() => {
+    const rid = row && row.id != null ? String(row.id) : "";
+    if (!rid) return undefined;
+    let alive = true;
+    af("/api/discipline/" + encodeURIComponent(rid)).then(d => {
+      const got = warningOf(d);
+      if (!alive || !got || got.id == null || String(got.id) !== rid) return;
+      setW(got);
+      if (!touched.current && !warningIssued(got)) { const nf = draftOf(got); setF(nf); setSavedBody(JSON.stringify(bodyOf(nf))); }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [issue, setIssue] = useState({ issuerSignature: "", employeeSignature: "", declined: false, witnessName: "", employeeAccount: "" });
   // Step 272: Who signs for the person's signature, once the API's Step 270 answers; Send to their
   // phone is the default, and the issuer still signs here.
@@ -23187,7 +23535,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const [endOpen, setEndOpen] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
-  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const set = (k, v) => { touched.current = true; setF(p => ({ ...p, [k]: v })); };
   const id = w && w.id != null ? String(w.id) : "";
   const issued = warningIssued(w);
   const rescinded = warningRescinded(w);
@@ -23204,23 +23552,36 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     setRefusal({ text: (e && e.message) || tr("Request failed"), field });
   };
   const run = async (what, fn) => { if (busyRef.current) return; busyRef.current = true; setBusy(what); setRefusal({ text: "", field: "" }); try { await fn(); } catch (e) { refuse(e, ""); } busyRef.current = false; setBusy(""); };
-  const body = () => ({
-    userId, type: f.type, category: f.category || null, incidentDate: f.incidentDate || null, description: f.description.trim() || null,
-    policyRef: f.policyRef.trim() || null, expectations: f.expectations.trim() || null, expectedBy: f.expectedBy || null,
-    suspensionStart: f.type === "final_warning" ? (f.suspensionStart || null) : null, suspensionEnd: f.type === "final_warning" ? (f.suspensionEnd || null) : null,
-    followsProtectedActivity: f.follows === "yes", controllerDiscussedOn: f.follows === "yes" ? (f.controllerDiscussedOn || null) : null,
-    caseId: initial.caseId || (w && (w.caseId || w.case_id)) || null, language: f.language || "en",
+  const bodyOf = (x) => ({
+    userId, type: x.type, category: x.category || null, incidentDate: x.incidentDate || null, description: String(x.description || "").trim() || null,
+    policyRef: String(x.policyRef || "").trim() || null, expectations: String(x.expectations || "").trim() || null, expectedBy: x.expectedBy || null,
+    suspensionStart: x.type === "final_warning" ? (x.suspensionStart || null) : null, suspensionEnd: x.type === "final_warning" ? (x.suspensionEnd || null) : null,
+    followsProtectedActivity: x.follows === "yes", controllerDiscussedOn: x.follows === "yes" ? (x.controllerDiscussedOn || null) : null,
+    caseId: initial.caseId || (w && (w.caseId || w.case_id)) || null, language: x.language || "en",
   });
-  const saveDraft = () => run("draft", async () => {
-    const d = id ? await af("/api/discipline/" + encodeURIComponent(id), { method: "PUT", body: body() }) : await af("/api/discipline", { method: "POST", body: body() });
+  const body = () => bodyOf(f);
+  // The draft as it was last saved or read, so Issue knows whether the screen holds edits the API
+  // has not been sent.
+  const [savedBody, setSavedBody] = useState(() => (row && row.id != null ? JSON.stringify(bodyOf(draftOf(row))) : ""));
+  const putDraft = async () => {
+    const sent = body();
+    const d = id ? await af("/api/discipline/" + encodeURIComponent(id), { method: "PUT", body: sent }) : await af("/api/discipline", { method: "POST", body: sent });
     const got = warningOf(d);
-    setW(got && got.id != null ? got : Object.assign({}, w || {}, body(), { id: (got && got.id) || id, status: "draft" }));
+    const next = got && got.id != null ? got : Object.assign({}, w || {}, sent, { id: (got && got.id) || id, status: "draft" });
+    setW(next); setSavedBody(JSON.stringify(sent));
+    return next;
+  };
+  const saveDraft = () => run("draft", async () => {
+    await putDraft();
     if (showToast) showToast(tr("Draft saved."));
     if (onChanged) onChanged();
   });
   const draftReady = !!(f.type && f.category && f.incidentDate && f.description.trim() && (f.follows === "no" || (f.follows === "yes" && f.controllerDiscussedOn)));
   const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || phone || !!issue.employeeSignature || issue.declined)));
+  // Issue sends the draft first when the screen holds edits not yet saved (DASH-04), so the warning
+  // issued is the one on screen: a Step changed to written after the last save is issued as written.
   const doIssue = () => run("issue", async () => {
+    if (JSON.stringify(body()) !== savedBody) await putDraft();
     const d = await af("/api/discipline/" + encodeURIComponent(id) + "/issue", { method: "POST", body: Object.assign({
       issuerSignature: verbal ? null : (issue.issuerSignature || null),
       employeeSignature: personSigns && !phone && !issue.declined ? (issue.employeeSignature || null) : null,
@@ -23373,7 +23734,10 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
 // closed entry dated when it was given and linked to its original PDF, with no signature, delivery or
 // email (POST /api/discipline/record-past). The date starts as the form's.
 function PastWarningWindow({ af, t, userId, name, item, steps, onClose, onSaved, showToast }) {
-  const [f, setF] = useState({ type: "", actionDate: item && item.submittedAt ? String(item.submittedAt).slice(0, 10) : "", summary: "" });
+  // Date given opens on the day the row shows for the filing (DASH-14): the day of the instant here, so a
+  // form filed in the evening is not dated the next day by its UTC time. A bare day is kept as sent.
+  const filedDay = (x) => { const v = String(x || ""); if (!v) return ""; if (v.length <= 10) return v.slice(0, 10); const d = new Date(v); return isNaN(d.getTime()) ? v.slice(0, 10) : toISO(d); };
+  const [f, setF] = useState({ type: "", actionDate: item && item.submittedAt ? filedDay(item.submittedAt) : "", summary: "" });
   const [refusal, setRefusal] = useState({ text: "", field: "" });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -24433,7 +24797,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "", trainingPage = false }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "", trainingPage = false, signaturesPage = false }) {
   // Step 257: #hr/training opens the Training area, and #hr/training/<view> one of its tabs.
   const trainingRoute = route[0] === "training";
   // Step 272: #hr/signatures opens Waiting for signatures, and #hr/signatures/<requestId> one request.
@@ -24704,7 +25068,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
-        {!trainingPage && tabs.map(tb => (
+        {!trainingPage && !signaturesPage && tabs.map(tb => (
           <button key={tb.id} data-hr-tab={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
         {tab !== "employees" && tab !== "signatures" && !(tab === "training" && trCur !== "records") && (
@@ -24799,6 +25163,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
+      {signaturesPage && <SecT t={t}>{tr("Waiting for signatures")}</SecT>}
       {tab === "signatures" && signaturesLive && <SignatureRequests af={af} t={t} sites={sites} showToast={showToast} focusId={signaturesRoute && route[1] ? String(route[1]) : ""} onFocusDone={() => { if (onRoute && signaturesRoute && route[1]) onRoute(["signatures"]); }} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}

@@ -17,7 +17,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "node scripts/stamp.js && react-scripts build",
     "audit": "node audit/run.js",
     "guide-check": "node scripts/guide-check.js",
     "smoke": "node audit/smoke.js",

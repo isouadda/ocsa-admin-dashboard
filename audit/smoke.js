@@ -175,6 +175,9 @@
 //     it; a profile's Edit fills a missing date and draws users.badHireDate under the field; Add Staff
 //     sends hireDate only when it is filled; and a supervisor, in English and in Spanish, sees no Hire
 //     Date in either window, sends only the field changed in the pencil, and has no Add Staff.
+//   - Round 1 (part 347), last in the 1280 English admin pass: a new stamp in version.json reloads an
+//     idle dashboard once, to the same page, and never twice for that stamp; with typed text in a window
+//     it holds, the bar says a new version is ready, and its Reload reloads.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 // Since Step 273 the passes run side by side, each in a browser context and a stub of its own, and
@@ -248,7 +251,7 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", selfUpdate: true, wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true },
   { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step334: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor", step332: "after", step341: true },
@@ -2884,6 +2887,62 @@ async function step341(d, origin, p, stubs) {
   });
 }
 
+// Round 1 (part 347): the dashboard keeps itself current. A new stamp from version.json reloads an idle
+// dashboard once, to the same page, and never again for that stamp; a window holding typed text holds
+// the reload and the bar says a new version is ready, whose Reload reloads. The check is nudged with
+// the online event, which asks at once, rather than waited out.
+async function stepUpdate(d, origin, p) {
+  const check = lineChecker(d, origin, p);
+  const serve = async (stamp) => {
+    await d.page.unroute("**/version.json*").catch(() => {});
+    await d.page.route("**/version.json*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ stamp }) }));
+  };
+  const mark = () => d.page.evaluate(() => { window.__smokeSameLoad = 1; });
+  const sameLoad = () => d.page.evaluate(() => window.__smokeSameLoad === 1).catch(() => false);
+  const nudge = () => d.page.evaluate(() => window.dispatchEvent(new Event("online")));
+  const reloadSeen = async (ms) => { for (let i = 0; i < ms / 100; i++) { await wait(100); if (!(await sameLoad())) return true; } return false; };
+  try {
+    await check("a new version reloads an idle dashboard once, to the same page", async () => {
+      await go(d, "issues", null, "[data-nav-item]");
+      const before = await hashNow(d);
+      await serve("smoke-new-1");
+      await mark();
+      await nudge();
+      if (!(await reloadSeen(6000))) return "the dashboard did not reload";
+      await until(d, "[data-nav-item]");
+      const after = await hashNow(d);
+      if (after !== before) return "it reloaded to " + after + " from " + before;
+      await mark();
+      await nudge();
+      if (await reloadSeen(2500)) return "it reloaded a second time for the same stamp";
+      return (await d.page.locator("[data-update-bar]").count()) === 0 ? "after one reload for the stamp the bar does not say a new version is ready" : "";
+    });
+    await check("a new version waits while a window holds typed text, and Reload reloads", async () => {
+      await d.page.evaluate(() => { try { sessionStorage.removeItem("ocsa-dashboard-update-tried"); } catch (e) {} });
+      await d.page.unroute("**/version.json*").catch(() => {});
+      await go(d, "staff", null, "table tbody tr");
+      await d.page.getByRole("button", { name: d.say("Add Staff"), exact: true }).first().click();
+      const box = d.page.locator("div[style*='z-index: 500'] input").first();
+      await box.waitFor();
+      await box.fill("Typed");
+      await serve("smoke-new-2");
+      await mark();
+      await nudge();
+      if (await reloadSeen(2500)) return "the dashboard reloaded with typed text in a window";
+      const bar = d.page.locator("[data-update-bar]");
+      if ((await bar.count()) === 0) return "no bar says a new version is ready";
+      if ((await bar.innerText()).indexOf(d.say("A new version is ready")) < 0) return "the bar reads " + JSON.stringify(await bar.innerText());
+      await d.page.unroute("**/version.json*").catch(() => {});
+      await bar.getByRole("button", { name: d.say("Reload"), exact: true }).click();
+      if (!(await reloadSeen(6000))) return "Reload did not reload";
+      await until(d, "[data-nav-item]");
+      return "";
+    });
+  } finally {
+    await d.page.unroute("**/version.json*").catch(() => {});
+  }
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -3055,6 +3114,8 @@ async function runPass(browser, origin, p) {
     if (p.step278) { stubs.setStep278(true); await step278(d, origin, p, stubs); }
     // Step 284's screens read the answers Step 278's pictures are taken from.
     if (p.step283) await step284Screens(d, origin, p, stubs);
+    // Last, so the bar it raises is never in another line's way.
+    if (p.selfUpdate) await stepUpdate(d, origin, p);
   } finally {
     await d.close();
   }
