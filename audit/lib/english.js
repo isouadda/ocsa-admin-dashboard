@@ -30,6 +30,14 @@ function clientNames() {
   return out;
 }
 
+// The build's own stamp, which Settings draws on its last line (Round 1): the commit the dashboard was
+// built from, or local and the time, written by scripts/stamp.js into the build's version.json. It names
+// the code and nobody translates it.
+function buildStamp() {
+  const file = path.resolve(__dirname, "..", "..", "build", "version.json");
+  try { const v = JSON.parse(fs.readFileSync(file, "utf8")).stamp; return v ? [String(v)] : []; } catch (e) { return []; }
+}
+
 // Each language's name as the language writes it, from the list the language control and Staff
 // Management's language choice draw. A person looks for their own language, so each is named in its
 // own tongue whatever the screen is drawn in, and nobody translates one.
@@ -160,6 +168,7 @@ function englishLeftOn(texts, calls) {
   });
   clientNames().forEach((v) => allowed.add(v));
   languageNames().forEach((v) => allowed.add(v));
+  buildStamp().forEach((v) => allowed.add(v));
   localeDateWords("es-US").forEach((v) => allowed.add(v));
   const served = servedValues(calls);
   served.forEach((v) => allowed.add(v));

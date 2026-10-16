@@ -21,7 +21,9 @@ const { englishLeftOn } = require("../lib/english");
 // by-site bars and the lowest items: 3.
 const REPORTS = [
   { id: "issue-timing", name: "Issue response and resolution", charts: 5 },
-  { id: "supply-usage", name: "Supply usage and cost", charts: 4 },
+  // Every one of the supply report's charts is a cost, which a supervisor without manage_employment
+  // does not see (Round 1, the owner's decision 1): the supervisor reads the counts and draws none.
+  { id: "supply-usage", name: "Supply usage and cost", charts: 4, supervisorCharts: 0 },
   { id: "inspection-quality", name: "Inspection scores and quality", charts: 3 },
 ];
 
@@ -165,21 +167,22 @@ async function run({ d, results, lang, stubs }) {
       const charts = await readCharts(d);
       const drawnAll = charts.reduce((a, c) => a.concat(c.drawn, c.tip), []);
       const silent = charts.filter((c) => c.drawn.length === 0 || (c.kind !== "donut" && c.tip.length === 0)).length;
+      const wantCharts = who === "supervisor" && r.supervisorCharts != null ? r.supervisorCharts : r.charts;
       if (spanish) {
         const left = englishLeftOn(screen, stubs.calls);
         results.check("page", id, left.length === 0,
           left.length + " lines of the report are not Spanish: " + left.slice(0, 4).map((x) => JSON.stringify(x.left)).join(", "));
         const cleft = englishLeftOn(drawnAll, stubs.calls);
         results.check("page", "page/report-screens/" + r.id + "/charts/" + who + "/" + lang,
-          charts.length === r.charts && silent === 0 && cleft.length === 0,
-          charts.length !== r.charts ? charts.length + " charts drew, the seed draws " + r.charts
+          charts.length === wantCharts && silent === 0 && cleft.length === 0,
+          charts.length !== wantCharts ? charts.length + " charts drew, the seed draws " + wantCharts
             : silent ? silent + " charts drew no words or showed no tooltip"
             : cleft.length + " words in the charts are not Spanish: " + cleft.slice(0, 4).map((x) => JSON.stringify(x.left)).join(", "));
       } else {
         results.check("page", id, screen.length > 0 && (await d.has(d.say("Export PDF"))), "the report drew no words or no Export PDF");
         results.check("page", "page/report-screens/" + r.id + "/charts/" + who + "/" + lang,
-          charts.length === r.charts && silent === 0,
-          charts.length !== r.charts ? charts.length + " charts drew, the seed draws " + r.charts
+          charts.length === wantCharts && silent === 0,
+          charts.length !== wantCharts ? charts.length + " charts drew, the seed draws " + wantCharts
             : silent + " charts drew no words or showed no tooltip");
       }
       if (who === "admin") {

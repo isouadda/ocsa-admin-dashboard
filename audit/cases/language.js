@@ -220,17 +220,32 @@ async function run({ d, results, inventory, stubs }) {
         await card.click({ timeout: 5000 }).catch(() => {});
         await d.settle(300);
         const held = await d.modal().locator("select").evaluateAll((els) => els.map((e) => ({ v: e.value, l: e.options[e.selectedIndex] ? (e.options[e.selectedIndex].textContent || "").trim() : "" })));
+        // Save sends only what changed (Round 1, DASH-12), so another category is picked by its word,
+        // and Save is to send that category's code and nothing for the unit it left alone.
+        const catBox = d.modal().locator("select").first();
+        const other = await catBox.evaluate((e) => { const o = Array.from(e.options).find((x) => x.value && x.value !== e.value); return o ? { v: o.value, l: (o.textContent || "").trim() } : null; }).catch(() => null);
+        if (other) await catBox.selectOption({ label: other.l }).catch(() => {});
         const mark2 = d.mark();
         await d.clickText(d.say("Save"), { inModal: true, exact: true });
         const saved = d.callsSince(mark2).filter((c) => c.method === "PATCH" && c.path === "/api/supplies/" + first.id).pop();
         const holdsCodes = held.length >= 2 && held[0].v === first.category && held[1].v === first.unit
           && held[0].l === catWords[first.category] && held[1].l === unitWords[first.unit];
-        const savesCodes = !!saved && saved.body && saved.body.category === first.category && saved.body.unit === first.unit;
+        const savesCodes = !!other && !!saved && !!saved.body && saved.body.category === other.v && other.l === catWords[other.v]
+          && !Object.prototype.hasOwnProperty.call(saved.body, "unit");
         invOk = holdsCodes && savesCodes;
         invWhy = !holdsCodes ? "Edit Supply holds " + JSON.stringify(held) + " where the codes are " + JSON.stringify([first.category, first.unit]) + " shown as " + JSON.stringify([catWords[first.category], unitWords[first.unit]])
-          : !saved ? "Edit Supply sent nothing"
-            : "Edit Supply sent category " + JSON.stringify(saved.body && saved.body.category) + " and unit " + JSON.stringify(saved.body && saved.body.unit) + " where the codes are " + JSON.stringify([first.category, first.unit]);
+          : !other ? "Edit Supply offers no other category"
+            : !saved ? "Edit Supply sent nothing for a category changed to " + JSON.stringify(other.l)
+              : "Edit Supply, with the category changed to " + JSON.stringify(other.l) + ", sent " + JSON.stringify(saved.body) + " where the code is " + JSON.stringify(other.v);
         await d.closeModal().catch(() => {});
+        // The supply goes back to its own category, so no later case reads the change.
+        if (saved) {
+          await card.click({ timeout: 5000 }).catch(() => {});
+          await d.settle(300);
+          await d.modal().locator("select").first().selectOption(first.category).catch(() => {});
+          await d.clickText(d.say("Save"), { inModal: true, exact: true }).catch(() => {});
+          await d.closeModal().catch(() => {});
+        }
       }
     }
   }

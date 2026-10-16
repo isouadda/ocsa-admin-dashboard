@@ -280,8 +280,8 @@ async function run({ d, results, seed, stubs, lang }) {
   if ((p0.employment_type || "") !== "supplemental") editWant.employmentType = "supplemental";
   hold("edit", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + p0.id + "$")), editWant);
 
-  // The first person's profile, edited: a role, an employment type, a language and a city. Everything
-  // else goes back as the profile was served.
+  // The first person's profile, edited: a role, an employment type, a language and a city. Since Round 1
+  // (DASH-03) Save sends only the fields whose value changed from the profile it opened on.
   stubs.reset();
   await openFirst(null);
   const profileCall = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/users/profile/" + p0.id && c.json && c.json.user).pop();
@@ -296,13 +296,10 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.fillByLabel(d.say("City"), "Riverton");
   await d.clickText(d.say("Save Changes"), { exact: true });
   await d.settle(400);
-  hold("profile", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + p0.id + "$")), {
-    firstName: p0.first_name, lastName: p0.last_name, phone: p0.phone, email: p0.email,
-    role: "day_porter", employmentType: "part_time", employeeId: p0.employee_id, hourlyRate: u.hourlyRate || "",
-    birthday: "", addressLine1: "", addressLine2: "", city: "Riverton", state: "", zipCode: "",
-    emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "",
-    preferredLanguage: newLang, personalNotes: "",
-  });
+  const profileWant = { city: "Riverton", preferredLanguage: newLang };
+  if (u.role !== "day_porter") profileWant.role = "day_porter";
+  if ((u.employmentType || "") !== "part_time") profileWant.employmentType = "part_time";
+  hold("profile", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + p0.id + "$")), profileWant);
 
   // A site, with a role at the site and a shift chosen from their lists.
   stubs.reset();

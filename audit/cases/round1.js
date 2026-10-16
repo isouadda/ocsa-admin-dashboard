@@ -263,6 +263,12 @@ async function supervisorWork(ctx) {
       await d.clickRow(0);
       await d.settle(600);
       const box = d.page.locator("[data-clearances-person]");
+      // The window itself, which the inventory claims for this suite (drivenBy round1): its title, and a
+      // way out.
+      const shown = (await box.count()) > 0 ? await box.innerText() : "";
+      const closes = (await box.locator("button[aria-label='" + d.say("Close") + "']").count()) > 0;
+      results.check("window", "window/clearances/person-dates", shown.indexOf(d.say("Act 34 PA State Police check")) >= 0 && closes,
+        !shown ? "a Clearances row opened no window" : !closes ? "the window has no Close" : "the window does not say " + JSON.stringify(d.say("Act 34 PA State Police check")));
       if ((await box.count()) === 0) says = "a row opens no clearances window";
       else {
         const text = await box.innerText();

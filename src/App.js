@@ -20294,12 +20294,20 @@ const linkStateColor = (s) => (s === "live" ? GR : RD);
 // the API sent goes through escHtml, so it is drawn as text and never read as markup (DASH-01). Quotes
 // are escaped too, so a value inside an attribute cannot leave it.
 const escHtml = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-// An address written into src or href: a web address, a blob or an image's data only, escaped, and ""
-// for anything else, so a javascript: address never reaches the page.
-const escUrl = (v) => { const u = String(v == null ? "" : v).trim(); return /^(https?:|blob:|data:image\/)/i.test(u) ? escHtml(u) : ""; };
-// The same rule for a link drawn on screen from an address the API sent or a person typed: anything but a
-// web, blob or image address draws no link at all.
-const linkUrl = (v) => { const u = String(v == null ? "" : v).trim(); return /^(https?:|blob:|data:image\/)/i.test(u) ? u : undefined; };
+// An address from the API or a person, read the way the browser reads it (tabs and line breaks taken out,
+// spaces and controls trimmed from the ends). One that names a scheme other than a web address, a blob or
+// an image's data, javascript: above all, is refused (null). An address with no scheme, a path on this
+// site or nothing at all, opens what it opened before.
+const safeUrl = (v) => {
+  const u = String(v == null ? "" : v).replace(/[\t\n\r]/g, "").replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "");
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(u);
+  if (!scheme) return u;
+  return /^(https?|blob)$/i.test(scheme[1]) || /^data:image\//i.test(u) ? u : null;
+};
+// An address written into src or href in a page built as a string, escaped, and "" when it is refused.
+const escUrl = (v) => { const u = safeUrl(v); return u == null ? "" : escHtml(u); };
+// The same rule for a link drawn on screen: a refused address draws no link at all.
+const linkUrl = (v) => { const u = safeUrl(v); return u == null ? undefined : u; };
 // One sheet: the logo, the site, the title in each language, a request QR's area set large, the QR
 // code at its full size, the scan line in each language, the address in small type and the company.
 function customerLinkSheetBody({ link, qr, titles, scanLines }, cName) {

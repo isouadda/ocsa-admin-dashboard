@@ -141,7 +141,7 @@ const WINDOWS = [
   { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [2882] },
   { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [2937] },
   { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [2944] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [23887] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [23895] },
   { id: "staff/add", page: "staff", title: "Add New Staff", lines: [3000] },
   // Step 181: the Temporary PIN window Add New Staff opens once the API has saved the person.
   { id: "staff/temporary-pin", page: "staff", title: "Temporary PIN", lines: [2683] },
@@ -203,13 +203,13 @@ const WINDOWS = [
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [17810] },
 
   { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [18775] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [22677] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [22730] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [22883] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [22685] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [22738] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [22891] },
   // Step 166: the picker Start a form opens, and the window a form is filled in.
-  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [21223] },
+  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [21231] },
   { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [19611] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [22846] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [22854] },
   // Step 169's customer links window is gone: since Step 187 Customer links is a view of Forms
   // (#forms/links), which cases/customer-links.js drives, and its windows are claimed below. Every other
   // line here was re-anchored by the October audit (part 343) from the App.js of 24c775d, where these
@@ -224,15 +224,16 @@ const WINDOWS = [
   // page once GET /api/notifications/settings has answered.
   { id: "shell/my-alerts", page: "overview", title: "My alerts", lines: [7167] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [24741] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [24749] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [25384] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [25406] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [25440] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [25738] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [25392] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [25414] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [25448] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [25746] },
   // Round 1 (DASH-07, decision 4): a person's clearance dates, opened on the Clearances page for
-  // someone HR Records is closed to, at #clearances/<id>.
-  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [23183] },
+  // someone HR Records is closed to, at #clearances/<id>. The shared stub has no clearances, so the
+  // round1 suite drives it on the stub as the API is built (drivenBy), and the windows suite leaves it.
+  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [23191], drivenBy: "round1" },
 ];
 
 // ---------------------------------------------------------------------------
