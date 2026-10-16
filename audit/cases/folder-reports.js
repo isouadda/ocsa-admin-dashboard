@@ -6,30 +6,36 @@
 // status and the report's id. HR Records' folder draws it under its category with the mark FRM, the title
 // in the screen's language, Filed form, Filed by and the day, a Void badge once it is void, and View PDF,
 // which reads GET /api/forms/responses/:id/pdf; pressing the row opens the report's review window. Staff
-// Management's HR Files tab reads the same route and draws the same reports in a Filed forms card. A person
+// Management's HR Files tab read the same route and drew the same reports in a Filed forms card. Since
+// Step 291 a profile has no HR Files tab: Open HR file in its banner opens the person's folder at
+// #hr/<id>, and the page/staff/hr-files and window/staff/hr-files checks read the folder's rows reached
+// that way (the October audit, part 343, moved them from the tab's card to the folder). A person
 // question is answered through a list of the active staff searched by name, and the answer is { id, name }.
 // The stub publishes a form made with the builder, OCSA-FRM-039, a follow-up talk whose person question
 // names the employee and files under HR - Ongoing / Annual, with one report filed from the staff app by the
 // supervisor about Tomasz Wisniewski at 9:10 PM in New York on March 16, which is March 17 in UTC. The
-// suite reads that report in his folder and on his HR Files tab, opens it from each row, downloads its PDF
-// from each, voids it and reads the mark in both places, and holds the folder row's status to the table's
-// word and the card's day to the day it was filed in New York. It then starts the form, searches for a
-// person by name, picks one, changes to another, and holds the save to { id, name } and the review step
-// and the filed report's window to the name. The words are written out here by hand.
+// suite reads that report in his folder from HR Records and from Staff Management's Open HR file, opens
+// it from each, downloads its PDF from each, voids it and reads the mark both ways, and holds the folder
+// row's status to the table's word and the row's day to the day it was filed in New York. It then starts
+// the form, searches for a person by name, picks one, changes to another, and holds the save to { id, name }
+// and the review step and the filed report's window to the name. The words are written out here by hand.
 "use strict";
 
 const MODAL = "div[style*='z-index: 500']";
 const CONTENT = "div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']";
 
 // What the screen has to say, by hand, and the lines the API sends for the form in each language.
+// Since Step 291 (9eba929) the person question searches badge numbers and employee IDs as well as names,
+// and its box says so; the Filed forms card went with the HR Files tab (the October audit, part 343,
+// held search to the box's new words and took card off).
 const WORDS = {
   en: { title: "Follow-up talk", category: "HR - Ongoing / Annual", source: "Filed form", mark: "FRM", filedBy: "Filed by Marcus Ferreira",
-    void: "Void", viewPdf: "View PDF", card: "Filed forms (1)", voidIt: "Void", why: "Why is this report being voided?",
-    voidReport: "Void report", start: "Start a form", search: "Search by name", noMatch: "No one matches.", change: "Change", review: "Review",
+    void: "Void", viewPdf: "View PDF", voidIt: "Void", why: "Why is this report being voided?",
+    voidReport: "Void report", start: "Start a form", search: "Search by name, badge number or employee ID", noMatch: "No one matches.", change: "Change", review: "Review",
     employee: "Employee", topic: "What was talked about", tag: "en-US" },
   es: { title: "Charla de seguimiento", category: "RR. HH. - Continuo / Anual", source: "Formulario presentado", mark: "FRM", filedBy: "Presentado por Marcus Ferreira",
-    void: "Anulado", viewPdf: "Ver el PDF", card: "Formularios presentados (1)", voidIt: "Anular", why: "\u00bfPor qu\u00e9 se anula este reporte?",
-    voidReport: "Anular reporte", start: "Iniciar un formulario", search: "Buscar por nombre", noMatch: "Nadie coincide.", change: "Cambiar", review: "Revisar",
+    void: "Anulado", viewPdf: "Ver el PDF", voidIt: "Anular", why: "\u00bfPor qu\u00e9 se anula este reporte?",
+    voidReport: "Anular reporte", start: "Iniciar un formulario", search: "Buscar por nombre, n\u00famero de empleado o ID de la persona", noMatch: "Nadie coincide.", change: "Cambiar", review: "Revisar",
     employee: "Empleado", topic: "De qu\u00e9 se habl\u00f3", tag: "es-US" },
 };
 // The report the stub serves about Tomasz Wisniewski, the name of its PDF, and the day it was filed in New
@@ -67,19 +73,23 @@ const folderRow = (d, title) => d.page.evaluate(([scope, t0]) => {
     pointer: (row.getAttribute("style") || "").indexOf("cursor: pointer") >= 0,
   };
 }, [CONTENT, title]);
-// The card on the HR Files tab headed by these words, and its rows as the browser drew them.
-const filedCard = (d, head) => d.page.evaluate(([scope, h]) => {
+// The rows of a person's folder that are filed forms, the rows whose source column carries the mark, as
+// the browser drew them. The HR Files tab drew these in a Filed forms card with its count; since Step 291
+// the folder Open HR file opens is where Staff Management shows them, and these rows are that card's
+// rows (the October audit, part 343, moved the read from the card to the folder).
+const filedRows = (d, mark) => d.page.evaluate(([scope, m]) => {
   const box = document.querySelector(scope) || document.body;
-  const label = Array.from(box.querySelectorAll("div")).find((el) => el.children.length === 0 && (el.textContent || "").trim() === h);
-  const card = label && label.parentElement;
-  if (!card) return null;
   const words = (el) => { const out = []; const walk = (n) => { if (n.nodeType === 3) { const v = (n.textContent || "").replace(/\s+/g, " ").trim(); if (v) out.push(v); return; } Array.from(n.childNodes).forEach(walk); }; walk(el); return out.join(" "); };
-  return Array.from(card.children).filter((el) => el !== label && el.querySelector("button")).map((el) => ({
+  return Array.from(box.querySelectorAll("div[style*='padding: 12px 16px']")).filter((el) => {
+    const first = el.firstElementChild;
+    const span = first && first.children.length === 1 ? first.querySelector("span") : null;
+    return !!span && (span.textContent || "").trim() === m;
+  }).map((el) => ({
     text: words(el),
     badges: Array.from(el.querySelectorAll("span")).filter((s) => (s.getAttribute("style") || "").indexOf("letter-spacing") >= 0).map((s) => (s.textContent || "").trim()),
     buttons: Array.from(el.querySelectorAll("button")).map((b) => (b.textContent || "").trim()),
   }));
-}, [CONTENT, head]);
+}, [CONTENT, mark]);
 // Presses the title of a row, which is where a person presses a row, or a button inside it by its words.
 const pressIn = (d, head, title, word) => d.page.evaluate(([scope, h, t0, w]) => {
   const box = document.querySelector(scope) || document.body;
@@ -169,16 +179,27 @@ async function openFolder(d, name) {
   await d.settle(700);
   return { ok, read: d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/hr/employee-folder/" + ABOUT.id).pop() || null };
 }
+// Since Step 291 (e387886) a profile has no HR Files tab: Open HR file in its banner opens the person's
+// folder at #hr/<id>, which reads the same route (the October audit, part 343, moved this from the tab
+// to the button).
 async function openHrFiles(d) {
   await d.goto("staff");
   await d.settle(400);
   const opened = await clickRowWith(d, ABOUT.name);
   await d.settle(600);
   const mark = d.mark();
-  const tab = opened ? await d.clickText(d.say("HR Files"), { exact: true }) : false;
+  const button = d.page.locator("[data-open-hr-file='" + ABOUT.id + "']").first();
+  const offered = opened && (await button.count()) > 0;
+  if (offered) await button.click({ timeout: 8000 }).catch(() => {});
   await d.settle(700);
-  return { ok: opened && tab, read: d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/hr/employee-folder/" + ABOUT.id).pop() || null };
+  const at = await d.page.evaluate(() => window.location.hash);
+  return { ok: offered && at === "#hr/" + ABOUT.id, opened, offered, at,
+    read: d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/hr/employee-folder/" + ABOUT.id).pop() || null };
 }
+// Why Open HR file did not land on the folder, in words.
+const notOpened = (s) => (!s.opened ? "Staff Management lists no row for " + ABOUT.name
+  : !s.offered ? "the profile of " + ABOUT.name + " offers no Open HR file"
+    : "Open HR file on the profile of " + ABOUT.name + " led to " + JSON.stringify(s.at) + " where the folder is #hr/" + ABOUT.id);
 // Void from the open window: Void, the reason, and Void report. The request it sent, or null.
 async function voidOpen(d, w) {
   if (!(await press(d, w.voidIt))) return null;
@@ -249,33 +270,35 @@ async function run({ d, results, stubs, lang }) {
         : "the file saved as " + JSON.stringify(file.name) + " and starts " + JSON.stringify(String(file.body).slice(0, 8)));
   await d.closeModal();
 
-  // ---- Staff Management, HR Files: the Filed forms card, and the day it was filed in New York
+  // ---- Staff Management, Open HR file: the filed form in the folder it opens, and the day it was filed
+  // in New York. The HR Files tab's Filed forms card held one row; the folder's rows marked FRM are held
+  // to the same one (the October audit, part 343, moved these checks from the tab to the folder).
   let s = await openHrFiles(d);
-  let card = s.ok ? await filedCard(d, w.card) : null;
+  let card = s.ok ? await filedRows(d, w.mark) : null;
   let cardRow = card && card.length === 1 ? card[0] : null;
   results.check("page", "page/staff/hr-files/the-report-is-in-the-filed-forms-card" + tail,
     !!s.read && !!cardRow && cardRow.text.indexOf(w.title) >= 0 && cardRow.text.indexOf(w.category) >= 0 && cardRow.text.indexOf(w.filedBy) >= 0 && cardRow.buttons.indexOf(w.viewPdf) >= 0,
-    !s.ok ? "the HR Files tab of " + ABOUT.name + " did not open" : !s.read ? "the HR Files tab read no GET /api/hr/employee-folder/" + ABOUT.id
-      : !card ? "the tab draws no card headed " + JSON.stringify(w.card) : !cardRow ? "the card holds " + card.length + " rows"
-        : "the card's row reads " + JSON.stringify(cardRow.text));
+    !s.ok ? notOpened(s) : !s.read ? "the folder Open HR file opened read no GET /api/hr/employee-folder/" + ABOUT.id
+      : !card.length ? "the folder Open HR file opened draws no row marked " + JSON.stringify(w.mark) : !cardRow ? "the folder holds " + card.length + " rows marked " + JSON.stringify(w.mark)
+        : "the folder's row reads " + JSON.stringify(cardRow.text));
   results.check("page", "page/staff/hr-files/the-day-it-was-filed-in-new-york" + tail,
     !!cardRow && cardRow.text.indexOf(nyDay) >= 0 && cardRow.text.indexOf(utcDay) < 0,
-    !cardRow ? "no row in a " + JSON.stringify(w.card) + " card to read a day from"
+    !cardRow ? "no row marked " + JSON.stringify(w.mark) + " in the folder Open HR file opened to read a day from"
       : "the row reads " + JSON.stringify(cardRow.text) + " where it was filed on " + JSON.stringify(nyDay) + " in New York, " + JSON.stringify(utcDay) + " in UTC");
 
-  // ---- the card's row opens the report, and its View PDF downloads it
+  // ---- that row opens the report, and its View PDF downloads it
   mark = d.mark();
-  const cardPressed = cardRow ? await pressIn(d, w.card, w.title) : false;
+  const cardPressed = cardRow ? await pressIn(d, "", w.title) : false;
   await d.settle(700);
   const cardRead = d.callsSince(mark).some((c) => c.method === "GET" && c.path === "/api/forms/responses/" + REPORT);
   lines = (await d.modalOpen()) ? await windowLines(d) : [];
   results.check("window", "window/staff/hr-files/the-row-opens-the-report" + tail,
     cardPressed && cardRead && lines.length > 0 && lines[0] === w.title && lines.join(" ").indexOf(w.filedBy) >= 0,
-    !cardPressed ? "no row in the card to press" : !cardRead ? "pressing the row read no report" : "the window reads " + JSON.stringify(lines.slice(0, 10)));
+    !cardPressed ? "no row in the folder Open HR file opened to press" : !cardRead ? "pressing the row read no report" : "the window reads " + JSON.stringify(lines.slice(0, 10)));
   await d.closeModal();
   await d.clearCaptures();
   mark = d.mark();
-  const cardPdf = cardRow ? await pressIn(d, w.card, w.title, w.viewPdf) : false;
+  const cardPdf = cardRow ? await pressIn(d, "", w.title, w.viewPdf) : false;
   await d.settle(700);
   pdf = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/forms/responses/" + REPORT + "/pdf").pop() || null;
   files = await d.downloads();
@@ -283,19 +306,19 @@ async function run({ d, results, stubs, lang }) {
   const cardWindow = await d.modalOpen();
   results.check("page", "page/staff/hr-files/view-pdf-downloads-the-report" + tail,
     cardPdf && !!pdf && !!file && file.name === PDF_NAME && String(file.body).indexOf("%PDF") === 0 && !cardWindow,
-    !cardPdf ? "the card's row has no " + JSON.stringify(w.viewPdf) : !pdf ? "View PDF read no GET /api/forms/responses/" + REPORT + "/pdf"
+    !cardPdf ? "the folder's row has no " + JSON.stringify(w.viewPdf) : !pdf ? "View PDF read no GET /api/forms/responses/" + REPORT + "/pdf"
       : !file ? "no file was saved" : cardWindow ? "View PDF opened the report's window as well"
         : "the file saved as " + JSON.stringify(file.name) + " and starts " + JSON.stringify(String(file.body).slice(0, 8)));
   await d.closeModal();
 
-  // ---- void it from the card's row, and the mark on the card and in the folder
-  const fromRow = cardRow ? await pressIn(d, w.card, w.title) : false;
+  // ---- void it from that row, and the mark in the folder reached both ways
+  const fromRow = cardRow ? await pressIn(d, "", w.title) : false;
   await d.settle(700);
   let voided = (await d.modalOpen()) ? await voidOpen(d, w) : null;
   const marked = voided ? await windowBadges(d) : [];
   results.check("window", "window/staff/hr-files/void-from-the-row" + tail,
     fromRow && !!voided && JSON.stringify(voided.body) === JSON.stringify({ reason: REASON }) && voided.status === 200 && marked.indexOf(w.void) >= 0,
-    !fromRow ? "no row in the card opens the report, so nothing was voided from it"
+    !fromRow ? "no row in the folder Open HR file opened opens the report, so nothing was voided from it"
       : !voided ? "the report's window offers no " + JSON.stringify(w.voidIt) + " or sent nothing"
         : "Void report sent " + JSON.stringify(voided.body) + ", was answered " + voided.status + " and the window's badges read " + JSON.stringify(marked));
   await d.closeModal();
@@ -310,11 +333,12 @@ async function run({ d, results, stubs, lang }) {
     await d.goto("staff");
   }
   s = await openHrFiles(d);
-  card = s.ok ? await filedCard(d, w.card) : null;
+  card = s.ok ? await filedRows(d, w.mark) : null;
   cardRow = card && card.length === 1 ? card[0] : null;
   results.check("page", "page/staff/hr-files/a-void-report-is-marked" + tail, !!voided && !!cardRow && cardRow.badges.indexOf(w.void) >= 0,
-    !voided ? "the report could not be voided" : !cardRow ? "no row in a " + JSON.stringify(w.card) + " card"
-      : "the card's row reads " + JSON.stringify(cardRow.text) + " with the badges " + JSON.stringify(cardRow.badges));
+    !voided ? "the report could not be voided" : !s.ok ? notOpened(s)
+      : !cardRow ? "the folder Open HR file opened holds " + card.length + " rows marked " + JSON.stringify(w.mark)
+        : "the folder's row reads " + JSON.stringify(cardRow.text) + " with the badges " + JSON.stringify(cardRow.badges));
   await openFolder(d, ABOUT.name);
   const after = await folderRow(d, w.title);
   // The line under the title: where the item came from, who filed it, and its status last.
@@ -414,7 +438,7 @@ async function run({ d, results, stubs, lang }) {
   await d.closeModal();
 
   stubs.reset();
-  results.note("Reports about a person in " + lang + ": the folder, HR Files, View PDF, a void report's mark, and the person picker");
+  results.note("Reports about a person in " + lang + ": the folder from HR Records and from Open HR file, View PDF, a void report's mark, and the person picker");
 }
 
 module.exports = { run };

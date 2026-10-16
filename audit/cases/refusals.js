@@ -5,6 +5,14 @@
 // again. A window that vanishes and takes the typing with it fails here.
 "use strict";
 const seed = require("../seed");
+// Since Step 291 Schedule Shift picks the site first and then the person in the searchable picker
+// (PersonPick), which lists the site's people; pickOption finds no select for the person.
+const pickShiftPerson = async (d) => {
+  await d.page.locator("[data-schedule-shift-site]").first().selectOption(seed.SITES[0].id);
+  await d.page.locator("[data-schedule-shift-staff] [data-person-pick-field]").first().click();
+  await d.page.locator("[data-schedule-shift-staff] [data-person-pick-option]", { hasText: "Tomasz" }).first().click();
+  await d.settle(200);
+};
 
 // The three paths the new refusals are met on: the delivery switch on Settings, and the two calls
 // the filed report window makes from its footer.
@@ -325,8 +333,7 @@ const REFUSALS = {
     act: async (d) => {
       await d.goto("schedule");
       await d.clickText("Schedule Shift", { exact: false });
-      await d.pickOption("Tomasz Wisniewski");
-      await d.pickOption(seed.SITES[0].name);
+      await pickShiftPerson(d);
       await d.fillByLabel("Start Time", "18:00");
       await d.fillByLabel("End Time", "02:00");
       await d.toggleSwitch("Repeat this shift");
@@ -344,8 +351,7 @@ const REFUSALS = {
       await d.clickText("Schedule Shift", { exact: false });
       // Staff, site and both times are required at src/App.js:4810, and the window refuses an empty
       // form before anything is sent, so the API refusal would never be reached.
-      await d.pickOption("Tomasz Wisniewski");
-      await d.pickOption(seed.SITES[0].name);
+      await pickShiftPerson(d);
       await d.fillByLabel("Start Time", "18:00");
       await d.fillByLabel("End Time", "02:00");
       return d.clickText("Schedule Shift", { inModal: true, exact: true });

@@ -207,14 +207,23 @@ async function run({ d, results, inventory, stubs }) {
   });
   stubs.reset();
 
+  // Since Step 291 Schedule Shift asks for the Site first, and the person is picked in PersonPick, a
+  // searched list with no select, where pickOption finds nothing (the October audit, part 343, found
+  // both decisions sending nothing).
+  const pickShiftPerson = async (dd) => {
+    await dd.page.locator("[data-schedule-shift-site]").first().selectOption(seed.SITES[0].id);
+    await dd.page.locator("[data-schedule-shift-staff] [data-person-pick-field]").first().click();
+    await dd.page.locator("[data-schedule-shift-staff] [data-person-pick-option]", { hasText: "Tomasz" }).first().click();
+    await dd.settle(200);
+  };
+
   // ---- schedule one shift ---------------------------------------------
   await decide("decisions/schedule-shift", {
     method: "POST", path: "/api/schedule",
     act: async (dd) => {
       await dd.goto("schedule");
       await dd.clickText("Schedule Shift", { exact: false });
-      await dd.pickOption("Tomasz Wisniewski");
-      await dd.pickOption(seed.SITES[0].name);
+      await pickShiftPerson(dd);
       await dd.fillByLabel("Start Time", "18:00");
       await dd.fillByLabel("End Time", "02:00");
       return dd.clickText("Schedule Shift", { inModal: true, exact: true });
@@ -229,8 +238,7 @@ async function run({ d, results, inventory, stubs }) {
     act: async (dd) => {
       await dd.goto("schedule");
       await dd.clickText("Schedule Shift", { exact: false });
-      await dd.pickOption("Tomasz Wisniewski");
-      await dd.pickOption(seed.SITES[0].name);
+      await pickShiftPerson(dd);
       await dd.fillByLabel("Start Time", "18:00");
       await dd.fillByLabel("End Time", "02:00");
       await dd.toggleSwitch("Repeat this shift");

@@ -146,11 +146,14 @@ async function run({ d, results, stubs, lang }) {
   const picked = await pickIn(d, d.say("Language"), other);
   const byLang = lastReads(d, markLang);
   const wantQuery = RANGE + "&siteId=s-1&role=custodial_lead&app=portal";
+  // The Language filter goes as language, beside the other filters, and locale stays the screen's
+  // (STEP195_CONTRACT.md section 5; the October audit, part 343, brought this check to it).
+  const wantLangQuery = RANGE + "&siteId=s-1&role=custodial_lead&language=" + (lang === "es" ? "en" : "es") + "&app=portal";
   const off = [];
   if (!site || bySite.some((c) => !c || c.query !== RANGE + "&siteId=s-1")) off.push("the site: " + bySite.map((c) => c && c.query).join(", "));
   if (!role || byRole.some((c) => !c || c.query !== RANGE + "&siteId=s-1&role=custodial_lead")) off.push("the role: " + byRole.map((c) => c && c.query).join(", "));
   if (!app || byApp.some((c) => !c || c.query !== wantQuery)) off.push("the app: " + byApp.map((c) => c && c.query).join(", "));
-  if (!picked || byLang.some((c) => !c || c.query !== wantQuery || c.locale !== (lang === "es" ? "en" : "es"))) off.push("the language: " + byLang.map((c) => c && (c.query + " locale=" + c.locale)).join(", "));
+  if (!picked || byLang.some((c) => !c || c.query !== wantLangQuery || c.locale !== lang)) off.push("the language: " + byLang.map((c) => c && (c.query + " locale=" + c.locale)).join(", "));
   results.check("page", "page/help-insights/every-filter-on-the-address" + tail, off.length === 0, off.join("; "));
 
   stubs.reset();

@@ -29,7 +29,9 @@ const ROUTES = {
   "staff/edit": {
     // The pencil in the list's Actions column, which is an icon button titled Edit.
     open: async (d) => { await d.goto("staff"); return d.clickTitle("Edit"); },
-    send: { press: "Save", expect: { path: "/api/users/", method: "PATCH", toast: /updated|saved/i } },
+    // Since #101 the pencil sends only the fields that changed, so a Save with nothing changed sends
+    // nothing; the phone is changed first (the October audit, part 343).
+    send: { fillLabels: [["Phone", "2155550177"]], press: "Save", expect: { path: "/api/users/", method: "PATCH", toast: /updated|saved/i } },
   },
   // The second row, the first account an admin may change: since Step 181 an admin's own and another
   // admin's account offer Reset PIN only to a holder of manage_admins.
@@ -40,8 +42,17 @@ const ROUTES = {
   "staff/assign-site": {
     open: async (d) => { await d.goto("staff"); await d.clickRow(0); await d.clickText("Assignments", { exact: false }); return d.clickText("Assign", { exact: true }); },
   },
+  // Since Step 291 a profile has no Certifications tab: Add Certification lives in the person's HR folder
+  // (FolderCertifications), reached at #hr/<id>. The October audit (part 343) moved the route there.
   "staff/add-cert": {
-    open: async (d) => { await d.goto("staff"); await d.clickRow(0); await d.clickText("Certifications", { exact: false }); return d.clickText("Add", { exact: true }); },
+    open: async (d) => {
+      await d.goto("hr", "u-staff-5");
+      const add = d.page.locator("[data-folder-certification-add]").first();
+      try { await add.waitFor({ timeout: 8000 }); } catch (e) { return false; }
+      await add.click();
+      await d.settle(300);
+      return d.modalOpen();
+    },
   },
   "staff/timeline-detail": {
     open: async (d) => {
@@ -300,7 +311,15 @@ const ROUTES = {
     open: async (d) => { await d.goto("hr"); await d.clickText("Training", { exact: false }); return d.clickText("Log training for several people", { exact: true }); },
   },
   "hr/onboarding-step-window": {
-    open: async (d) => { await d.goto("hr"); await d.clickText("Onboarding", { exact: false }); await d.pickPerson("Tomasz"); return d.clickText("Custom Step", { exact: false }); },
+    // Since Step 291 the person is picked in PersonPick, a searched list, where pickPerson's select finds
+    // nothing (the October audit, part 343).
+    open: async (d) => {
+      await d.goto("hr"); await d.clickText("Onboarding", { exact: false });
+      await d.page.locator("[data-person-pick-field]").first().click();
+      await d.page.locator("[data-person-pick-option]", { hasText: "Tomasz" }).first().click();
+      await d.settle(300);
+      return d.clickText("Custom Step", { exact: false });
+    },
   },
 };
 

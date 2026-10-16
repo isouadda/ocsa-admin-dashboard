@@ -201,14 +201,27 @@ const PRINTS = {
   // hand: Bloodborne pathogens was given on three days, one person each: Dana Whitlock on 2025-11-17,
   // Tomasz Wisniewski on 2025-12-15 and Yuki Tanabe on 2026-01-12. The list puts the newest first, so its
   // first sheet is Yuki Tanabe's, one person on it.
+  // Since 15f0207 the sheet is the kept record OCSA-FRM-033, whose Attendance grid is numbered and runs
+  // to 20 lines, the people logged first and the rest left blank to sign by hand, and whose Total
+  // attendees this session gives the count. So a person is a line with a name in its name column, every
+  // line after the last name is blank, and the total says the same (the October audit, part 343, held
+  // the case to that).
   "exports/attendance-sheet-print": {
     act: async (d) => { await d.goto("hr"); await d.clickText("Training", { exact: true }); await d.pickOption("Bloodborne pathogens"); return d.clickText("Print attendance sheet", { exact: true }); },
     title: "Attendance sheet",
     expect: (tables) => {
       const people = tables.find((t) => t.headers.indexOf("Signature") >= 0);
       if (!people) return "no table on the sheet has a column to sign in";
-      if (people.rows.length !== 1) return "the sheet lists " + people.rows.length + " people, and the newest session has one";
-      return people.rows[0][1] === "Yuki Tanabe" ? null : "the sheet lists " + JSON.stringify(people.rows[0]) + " where the newest session is Yuki Tanabe's";
+      const nameAt = people.headers.indexOf("Employee Name (print)");
+      if (nameAt < 0) return "the sheet's attendance table has no Employee Name (print) column; its headers read " + JSON.stringify(people.headers);
+      const named = people.rows.filter((r) => (r[nameAt] || "") !== "");
+      if (named.length !== 1) return "the sheet lists " + named.length + " people, and the newest session has one";
+      if (people.rows[0][nameAt] !== "Yuki Tanabe") return "the sheet lists " + JSON.stringify(people.rows[0]) + " where the newest session is Yuki Tanabe's";
+      const blankAfter = people.rows.slice(1).filter((r) => r.slice(1).some((c) => c !== "")).length;
+      if (blankAfter) return blankAfter + " of the lines after the first carry something, where only blank lines to sign follow the one person";
+      const total = tables.find((t) => t.headers.indexOf("Total attendees this session") >= 0);
+      const said = total ? (total.rows[total.headers.indexOf("Total attendees this session")] || [])[0] : null;
+      return said === "1" ? null : "the sheet's Total attendees this session reads " + JSON.stringify(said) + ", and the newest session has one";
     },
   },
   "exports/permissions-matrix-pdf": {

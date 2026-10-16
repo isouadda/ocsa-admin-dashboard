@@ -336,7 +336,10 @@ async function run({ d, results, seed, stubs, lang }) {
   results.check("page", "page/form-builder/builder/no-publish-with-problems" + tail, fixLine && offPublish.length === 1 && offPublish[0].disabled,
     !fixLine ? "with a problem left the page does not say " + JSON.stringify(w.fixFirst) : "with a problem left the publish buttons are " + JSON.stringify(offPublish));
 
-  // ---- a refused turn: the API's words under the person's line, and the words back in the box
+  // ---- a refused turn: the API's words under the conversation, and the words back in the box
+  // Since Sept 29 (d1a2306) a refused turn leaves the conversation and goes back into the box, so
+  // sending it again draws it once: the conversation reads as it did before the turn, the API's words
+  // under its last line (the October audit, part 343, held the case to that).
   stubs.setRefusal({ method: "POST", path: draftPath + "/message", status: 503, code: MODEL_FAILED.code, error: MODEL_FAILED[lang], once: true });
   const typedAgain = await typeInto(d, w.write, REFUSED[lang]);
   mark = d.mark();
@@ -349,10 +352,11 @@ async function run({ d, results, seed, stubs, lang }) {
   const lastLine = afterRefusal && afterRefusal.lines.length ? afterRefusal.lines[afterRefusal.lines.length - 1] : null;
   results.check("page", "page/form-builder/builder/a-refused-turn-says-the-apis-words" + tail,
     sentAgain && !!refused && refused.status === 503 && !!afterRefusal && afterRefusal.refusal === MODEL_FAILED[lang] && afterRefusal.refusalUnderLast
-      && same(lastLine, { head: w.you + " . " + NOW_AT[lang], text: REFUSED[lang] }) && !!refusedBox && refusedBox.value === REFUSED[lang],
+      && !!answered && same(afterRefusal.lines, answered.lines) && !!refusedBox && refusedBox.value === REFUSED[lang],
     !sentAgain ? "no live Send for a second turn" : !refused || refused.status !== 503 ? "the refused turn was not sent"
       : !afterRefusal || afterRefusal.refusal !== MODEL_FAILED[lang] ? "the refusal draws " + JSON.stringify(afterRefusal && afterRefusal.refusal) + " where the API wrote " + JSON.stringify(MODEL_FAILED[lang])
-        : !afterRefusal.refusalUnderLast || !same(lastLine, { head: w.you + " . " + NOW_AT[lang], text: REFUSED[lang] }) ? "the refusal is not under the person's line, which reads " + JSON.stringify(lastLine)
+        : !afterRefusal.refusalUnderLast ? "the refusal is not under the conversation's last line, which reads " + JSON.stringify(lastLine)
+          : !answered || !same(afterRefusal.lines, answered.lines) ? "after the refusal the conversation holds " + afterRefusal.lines.length + " lines and ends " + JSON.stringify(lastLine) + " where it should read as it did before the turn, " + (answered ? answered.lines.length : 0) + " lines"
           : "the box holds " + JSON.stringify(refusedBox && refusedBox.value) + " where the words should be back");
 
   // ---- the other language: the draft read again with locale= that language, and its questions drawn

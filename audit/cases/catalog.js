@@ -13,31 +13,38 @@
 // to every form the catalog holds, 038 and the customer forms among them, each builder form by its title
 // in the screen's language; Customer links to 037 beside the two customer forms, and a link made for it;
 // and the report's window to the version it was filed on. The words are written out here by hand.
+//
+// Since Step 243 (6edf2c7) Customer links is a tab on Forms, #forms/links, where it was a window Filed
+// forms opened: its Form select is the one in Make a link across the top, which sends what New link
+// sent, the QR window over the tab is closed with Close where it had Back, and the new link's row is
+// the tab's table row (the October audit, part 343, moved these two checks to the tab).
 "use strict";
 
 const MODAL = "div[style*='z-index: 500']";
 const CONTENT = "div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']";
+// Make a link on the Customer links tab.
+const BAR = "[data-customer-links-tab] [data-make-link]";
 
 // The words the screen has to say, and the titles the catalog sends in each language, by hand.
 const WORDS = {
-  en: { form: "Form", site: "Site", start: "Start a form", links: "Customer links", newLink: "New link", back: "Back", version: "Version 1",
+  en: { form: "Form", site: "Site", start: "Start a form", links: "Customer links", makeLink: "Make a link", close: "Close", version: "Version 1",
     t037: "Lobby walkthrough with the tenant", t038: "Dock door check", desk: "Complaint log",
     t006: "Facility Cleanliness Evaluation Checklist", t007: "Client Satisfaction Survey" },
-  es: { form: "Formulario", site: "Sitio", start: "Iniciar un formulario", links: "Enlaces para clientes", newLink: "Nuevo enlace", back: "Volver", version: "Versi\u00f3n 1",
+  es: { form: "Formulario", site: "Sitio", start: "Iniciar un formulario", links: "Enlaces para clientes", makeLink: "Crear un enlace", close: "Cerrar", version: "Versi\u00f3n 1",
     t037: "Recorrido del vest\u00edbulo con el inquilino", t038: "Revisi\u00f3n de las puertas del muelle", desk: "Registro de quejas",
     t006: "Lista de evaluaci\u00f3n de limpieza del edificio", t007: "Encuesta de satisfacci\u00f3n del cliente" },
 };
 
-// The options of the select whose name is label, on the page or in the open window, as the browser
-// drew them, or null when there is no such select.
-const optionsOf = (d, label, inModal) => d.page.evaluate(([l, scope]) => {
-  const root = Array.from(document.querySelectorAll(scope)).pop();
+// The options of the select whose name is label, inside scope (the page's content, the open window or
+// Make a link), as the browser drew them, or null when there is no such select.
+const optionsOf = (d, label, scope) => d.page.evaluate(([l, where]) => {
+  const root = Array.from(document.querySelectorAll(where)).pop();
   const sel = root && Array.from(root.querySelectorAll("select")).find((s) => s.getAttribute("aria-label") === l);
   return sel ? Array.from(sel.options).map((o) => ({ v: o.value, l: (o.textContent || "").trim() })) : null;
-}, [label, inModal ? MODAL : CONTENT]);
+}, [label, scope]);
 // Chooses an option of that select by its words or its value, the way a person picks one.
-const choose = async (d, label, inModal, pick) => {
-  const root = inModal ? d.modal() : d.contentBox();
+const choose = async (d, label, scope, pick) => {
+  const root = scope === MODAL ? d.modal() : scope === CONTENT ? d.contentBox() : d.page.locator(scope).last();
   const sel = root.locator("select[aria-label='" + label + "']").first();
   if ((await sel.count()) === 0) return false;
   try { await sel.selectOption(pick, { timeout: 3000 }); } catch (e) { return false; }
@@ -45,15 +52,14 @@ const choose = async (d, label, inModal, pick) => {
   return true;
 };
 const named = (list, code) => ((list || []).find((o) => o.v === code) || {}).l || null;
-// A button in the open window, pressed by its words.
-const press = (d, word, within) => d.page.evaluate(([sel, w, scope]) => {
-  const root = Array.from(document.querySelectorAll(sel)).pop();
-  const box = root && scope ? root.querySelector(scope) : root;
+// A button inside scope, the open window when none is named, pressed by its words.
+const press = (d, word, scope) => d.page.evaluate(([where, w]) => {
+  const box = Array.from(document.querySelectorAll(where)).pop();
   const b = box && Array.from(box.querySelectorAll("button")).find((x) => x.offsetParent !== null && !x.disabled && (x.textContent || "").trim() === w);
   if (!b) return false;
   b.click();
   return true;
-}, [MODAL, word, within || ""]);
+}, [scope || MODAL, word]);
 const listRows = (d) => d.page.evaluate(() => Array.from(document.querySelectorAll("table tbody tr")).map((r) => r.innerText.replace(/\s+/g, " ").trim()));
 const clickRowWith = (d, text) => d.page.evaluate((txt) => {
   const row = Array.from(document.querySelectorAll("table tbody tr")).find((r) => r.innerText.indexOf(txt) >= 0);
@@ -85,11 +91,11 @@ async function run({ d, results, stubs, lang }) {
   const reads = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/forms");
   const full = reads.find((c) => c.query === "") || null;
   const offered = reads.find((c) => c.query === "?app=dashboard") || null;
-  const filter = await optionsOf(d, w.form, false);
+  const filter = await optionsOf(d, w.form, CONTENT);
   const served = full && full.json && Array.isArray(full.json.forms) ? full.json.forms.map((f) => f.code) : [];
   const listed = (filter || []).filter((o) => o.v).map((o) => o.v);
   mark = d.mark();
-  const chose = filter ? await choose(d, w.form, false, { label: w.t038 }) : false;
+  const chose = filter ? await choose(d, w.form, CONTENT, { label: w.t038 }) : false;
   await d.settle(300);
   const byForm = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/forms/responses").pop() || null;
   const rows = await listRows(d);
@@ -107,7 +113,7 @@ async function run({ d, results, stubs, lang }) {
             : !chose ? "no " + JSON.stringify(w.t038) + " to choose in the filter"
               : !byForm || byForm.query.indexOf("formCode=OCSA-FRM-038") < 0 ? "choosing it read the list with " + JSON.stringify(byForm ? byForm.query : null)
                 : "filtered by it the list reads " + JSON.stringify(rows));
-  await choose(d, w.form, false, { value: "" });
+  await choose(d, w.form, CONTENT, { value: "" });
 
   // ---- Start a form: the forms offered in the dashboard, read by app
   mark = d.mark();
@@ -125,12 +131,13 @@ async function run({ d, results, stubs, lang }) {
             + (items.indexOf(w.t038) >= 0 ? ", " + JSON.stringify(w.t038) + " among them, which only the staff app offers" : "")));
   await d.closeModal();
 
-  // ---- Customer links: every form whose apps names customer
+  // ---- Customer links: every form whose apps names customer, in Make a link on the tab
   mark = d.mark();
   const linksOpen = await d.clickText(w.links, { exact: true });
+  await d.page.waitForSelector(BAR, { timeout: 5000 }).catch(() => {});
   await d.settle(500);
   const custRead = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/forms").pop() || null;
-  const forms = await optionsOf(d, w.form, true);
+  const forms = await optionsOf(d, w.form, BAR);
   const codes = (forms || []).map((o) => o.v).sort();
   const customer = ["OCSA-FRM-006", "OCSA-FRM-007", "OCSA-FRM-037"];
   results.check("window", "window/forms/catalog/customer-links-offers-the-builder-form" + tail,
@@ -142,22 +149,27 @@ async function run({ d, results, stubs, lang }) {
           : "the Form select offers " + JSON.stringify(forms) + " where every form whose apps names customer is " + JSON.stringify([w.t006, w.t007, w.t037]));
 
   // ---- a link made for the builder form
-  const picked = forms ? await choose(d, w.form, true, { label: w.t037 }) : false;
-  await choose(d, w.site, true, { value: site.id });
+  const picked = forms ? await choose(d, w.form, BAR, { label: w.t037 }) : false;
+  await choose(d, w.site, BAR, { value: site.id });
   mark = d.mark();
-  const pressed = picked ? await press(d, w.newLink) : false;
+  const pressed = picked ? await press(d, w.makeLink, BAR) : false;
   await d.settle(700);
   const made = d.callsSince(mark).filter((c) => c.method === "POST" && c.path === "/api/customer-links").pop() || null;
   const qr = await d.page.evaluate((sel) => { const s = document.querySelector(sel + " [data-qr-screen]"); return s ? s.innerText.replace(/\s+/g, " ").trim() : ""; }, MODAL);
-  await press(d, w.back, "[data-qr-screen]");
+  await press(d, w.close, MODAL + " [data-qr-screen]");
   await d.settle(300);
   const newId = made && made.json && made.json.link ? made.json.link.id : "";
-  const newRow = newId ? await d.page.evaluate(([sel, id]) => { const r = document.querySelector(sel + " [data-customer-link='" + id + "']"); return r ? r.innerText.replace(/\s+/g, " ").trim() : ""; }, [MODAL, newId]) : "";
+  // The link's row on the tab: the table's row on a wide screen, whose last cell holds its buttons.
+  const newRow = newId ? await d.page.evaluate((id) => {
+    const el = document.querySelector("[data-customer-links-tab] [data-customer-link='" + id + "']");
+    const r = el ? el.closest("tr") || el : null;
+    return r ? r.innerText.replace(/\s+/g, " ").trim() : "";
+  }, newId) : "";
   const wantBody = JSON.stringify({ formCode: "OCSA-FRM-037", siteId: site.id });
   results.check("window", "window/forms/catalog/a-link-for-the-builder-form" + tail,
     picked && pressed && !!made && made.status === 201 && JSON.stringify(made.body) === wantBody && qr.indexOf(w.t037) >= 0 && newRow.indexOf(w.t037) >= 0 && newRow.indexOf(site.name) >= 0,
     !picked ? "the Form select has no " + JSON.stringify(w.t037) + ", so no link could be made for it"
-      : !made ? "New link sent nothing" : made.status !== 201 || JSON.stringify(made.body) !== wantBody ? "New link sent " + JSON.stringify(made.body) + " and was answered " + made.status
+      : !made ? "Make a link sent nothing" : made.status !== 201 || JSON.stringify(made.body) !== wantBody ? "Make a link sent " + JSON.stringify(made.body) + " and was answered " + made.status
         : qr.indexOf(w.t037) < 0 ? "the QR screen reads " + JSON.stringify(qr.slice(0, 160))
           : "the new link's row reads " + JSON.stringify(newRow));
   await d.closeModal();

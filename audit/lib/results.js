@@ -53,11 +53,22 @@ function createResults() {
     fail: (kind, id, detail) => record(kind, id, false, detail),
     check: (kind, id, ok, detail) => record(kind, id, !!ok, detail),
 
-    // A page, view or window the app has and the suite does not drive.
+    // A page, view or window the app has and the suite does not drive. Since the October audit (part
+    // 343) a known entry may name one, by `noCase` with the exact id, while the fix round writes its
+    // case: it prints as KNOWN and does not fail the run. The entry is stale, and fails the run, the
+    // day the row stops appearing, so a case written for it takes the entry off with it. A NO CASE no
+    // entry names fails the run as it always has.
     noCase: (kind, id, where) => {
-      rows.push({ kind, id, state: "NO CASE", detail: where || "" });
+      const k = known.find((x) => x.noCase && (x.noCase === kind + " " + id || (x.match && new RegExp(x.match).test(kind + " " + id))));
       if (!counters[kind]) counters[kind] = { total: 0, pass: 0, fail: 0, known: 0, fixed: 0 };
       counters[kind].total += 1;
+      if (k) {
+        k.seen = true; k.hits += 1; k.stillBroken = true;
+        rows.push({ kind, id, state: "KNOWN", detail: "no case yet: " + (where || "") });
+        counters[kind].known += 1;
+        return;
+      }
+      rows.push({ kind, id, state: "NO CASE", detail: where || "" });
       counters[kind].fail += 1;
       unclaimed.push({ kind, id, where: where || "" });
     },

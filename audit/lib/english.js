@@ -1,9 +1,10 @@
 // English left on a Spanish screen.
 //
-// On a Spanish pass every piece of text a person reads has to be one of five things: a Spanish value
+// On a Spanish pass every piece of text a person reads has to be one of six things: a Spanish value
 // from the word table, a value the API served, a number or a date or a time, the company's own name,
-// which nobody translates, or a language's own name. Anything else is a string somebody forgot, and it is named here by
-// the page, the person and the words themselves.
+// which nobody translates, a language's own name, or a controlled document's code (OCSA-QMS-018),
+// which is printed the same on every edition. Anything else is a string somebody forgot, and it is
+// named here by the page, the person and the words themselves.
 //
 // A line is checked by taking the allowed pieces out of it, longest first, along with the numbers
 // and the punctuation. What is left is what nobody accounted for.
@@ -42,6 +43,19 @@ function languageNames() {
   const re = /label:\s*"((?:[^"\\]|\\.)*)"/g;
   let m;
   while ((m = re.exec(block))) out.add(JSON.parse('"' + m[1] + '"'));
+  // The languages a kept record may be written in add their own names to that list in src/App.js
+  // (RECORD_LANGUAGES, French as Francais in its own spelling), and are allowed the same way (the
+  // October audit, part 343: Help insights' language filter read that name as English).
+  const APP = path.resolve(__dirname, "..", "..", "src", "App.js");
+  if (fs.existsSync(APP)) {
+    const app = fs.readFileSync(APP, "utf8");
+    const at2 = app.indexOf("const RECORD_LANGUAGES");
+    if (at2 >= 0) {
+      const line = app.slice(at2, app.indexOf("\n", at2));
+      let m2;
+      while ((m2 = re.exec(line))) out.add(JSON.parse('"' + m2[1] + '"'));
+    }
+  }
   return out;
 }
 
@@ -91,6 +105,10 @@ function localeDateWords(tag) {
 }
 
 const NUMBERS = /(\d+[\d.,:/%$-]*)/g;
+// A controlled document's code: letters in two or three parts and a number, OCSA-QMS-018 or
+// OCSA-FRM-033. Taken out whole, so its middle part is not read as an English word (the October
+// audit, part 343: Reports' Management review card read "QMS" as English).
+const DOC_CODES = /(?<![A-Za-z0-9])[A-Z]{2,6}(?:-[A-Z]{2,6}){1,2}-\d{2,4}(?![A-Za-z0-9])/g;
 const PUNCT = /[\s.,:;!?()[\]{}<>|/\\_+*&#%$@"'`~^=-]+/g;
 
 // A value with {0} in it is a sentence built from pieces, so it is matched as a shape rather than
@@ -114,7 +132,7 @@ function wordRe(word) {
 
 // What is left of a line once everything allowed is taken out of it.
 function residue(line, allowedSorted) {
-  let left = " " + String(line) + " ";
+  let left = (" " + String(line) + " ").replace(DOC_CODES, " ");
   for (let i = 0; i < allowedSorted.length; i += 1) {
     const word = allowedSorted[i];
     if (!word || word.length < 2) continue;
@@ -174,14 +192,19 @@ function englishLeftOn(texts, calls) {
     // bell's short age, would otherwise swallow any word ending in h. A run can open with the mark
     // a screen puts between two things, as a folder's " . " before the hire date does, so the shape
     // is tried on the run with that mark taken off too.
-    const bare = line.replace(/^[\s.,;:|/-]+/, "");
-    const fits = shapes.some((re) => [line, bare].some((text) => {
-      const m = re.exec(text);
-      if (!m) return false;
-      return m.slice(1).every((gap) => !/[A-Za-z]{2}/.test(residue(gap, sorted)));
-    }));
-    if (fits) return;
-    const left = residue(line, sorted);
+    const fitsShape = (whole) => {
+      const bare = whole.replace(/^[\s.,;:|/-]+/, "");
+      return shapes.some((re) => [whole, bare].some((text) => {
+        const m = re.exec(text);
+        if (!m) return false;
+        return m.slice(1).every((gap) => !/[A-Za-z]{2}/.test(residue(gap, sorted)));
+      }));
+    };
+    if (fitsShape(line)) return;
+    // A sentence set in brackets after a figure, as Help insights' By site draws "4 (2 sin respuesta)",
+    // is read as a run of its own (the October audit, part 343).
+    const unwrapped = line.replace(/\(([^()]*)\)/g, (m, inner) => (fitsShape(inner.trim()) ? " " : m));
+    const left = residue(unwrapped, sorted);
     if (left && /[A-Za-z]{2}/.test(left)) bad.push({ line: line.slice(0, 80), left: left.slice(0, 60) });
   });
   return bad;

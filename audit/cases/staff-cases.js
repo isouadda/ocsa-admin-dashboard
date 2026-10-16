@@ -144,8 +144,10 @@ async function run({ d, results, seed, stubs, lang }) {
   });
   results.check("page", "page/staff/codes-are-words/list/" + lang, rows.length > 0 && wrong.length === 0,
     rows.length === 0 ? "the list drew no rows" : wrong.length + " of " + (rows.length * 3) + " cells: " + wrong.slice(0, 3).join("; "));
-  // The column's heading, written out here by hand in each language, after the name.
-  const BADGE = { en: "Badge", es: "Credencial" };
+  // The column's heading, written out here by hand in each language, after the name. Since 9389cc6
+  // (Oct 1, "one word for badge") the Spanish is the staff portal's word, Numero de empleado; the October
+  // audit (part 343) brought the case to it.
+  const BADGE = { en: "Badge", es: "N\u00famero de empleado" };
   // Chromium's innerText applies the heading's text-transform, so the heading is compared without case.
   const headers = ((await d.tableAt(0)) || { headers: [] }).headers;
   const badgeAt = headers.map((h) => h.toLowerCase()).indexOf((BADGE[lang] || BADGE.en).toLowerCase());
@@ -177,7 +179,7 @@ async function run({ d, results, seed, stubs, lang }) {
   // profile route sent it.
   const badgeCall = stubs.calls.filter((c) => c.method === "GET" && /^\/api\/users\/profile\/[^/]+$/.test(c.path) && c.json && c.json.user).pop();
   const servedBadge = badgeCall ? (badgeCall.json.user.badgeNumber || "") : "";
-  const BADGE_NUMBER = { en: "Badge number", es: "N\u00famero de credencial" };
+  const BADGE_NUMBER = { en: "Badge number", es: "N\u00famero de empleado" };
   const badgeLine = await d.page.evaluate((label) => {
     const box = document.querySelector("div[style*='z-index: 500']") || document.body;
     const cell = Array.from(box.querySelectorAll("div")).find((el) => el.firstChild && el.firstChild.nodeType === 3 && el.firstChild.textContent.trim() === label && el.children.length === 1);
@@ -188,37 +190,43 @@ async function run({ d, results, seed, stubs, lang }) {
       : badgeLine === null ? "the profile window has no line labelled " + JSON.stringify(BADGE_NUMBER[lang] || BADGE_NUMBER.en)
         : "the profile window says the badge is " + JSON.stringify(badgeLine) + " where the profile sent " + JSON.stringify(servedBadge));
 
-  // ---- the onboarding steps on the first person's HR Files tab
-  await d.clickText(d.say("HR Files"), { exact: true });
+  // ---- the onboarding steps of the first person, on HR Records' Onboarding tab
+  // Since Step 291 a profile has no HR Files tab; the person's onboarding checklist is drawn on HR
+  // Records' Onboarding tab once the person is picked there (the October audit, part 343, moved it).
+  await d.goto("hr");
+  await d.clickText(d.say("Onboarding"), { exact: true });
+  await d.settle(300);
+  await d.pickPerson(first.name);
   await d.settle(500);
   const onbCall = stubs.calls.filter((c) => c.method === "GET" && /^\/api\/hr\/onboarding\/[^/]+$/.test(c.path) && Array.isArray(c.json)).pop();
   const stepsServed = onbCall ? onbCall.json : [];
-  const onb = await d.page.evaluate(([head, completed, tag, served]) => {
-    const title = Array.from(document.querySelectorAll("div")).find((el) => el.children.length === 0 && el.textContent.trim() === head);
-    const card = title && title.parentElement;
-    if (!card) return null;
+  const onb = await d.page.evaluate(([completed, by, tag, served]) => {
+    const boxes = Array.from(document.querySelectorAll("label > input[type=checkbox]"));
+    if (!boxes.length) return null;
     // The day a step was done, formatted the way the page formats it.
     const day = (ymd) => { const [y, m, dd] = String(ymd).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, dd).toLocaleDateString(tag, { month: "short", day: "numeric", year: "numeric" }); };
+    const drawn = boxes.map((box) => {
+      const row = box.parentElement.parentElement;
+      const lines = row.children[1] ? Array.from(row.children[1].children).map((el) => el.textContent.trim()) : [];
+      return { name: lines[0] || "", done: !!box.checked, line: lines[1] || "" };
+    });
     return {
-      drawn: Array.from(card.children).slice(1).map((row) => {
-        const lines = row.children[1] ? Array.from(row.children[1].children).map((el) => el.textContent.trim()) : [];
-        return { name: lines[0] || "", done: !!(row.children[0] && row.children[0].querySelector("svg")), line: lines[1] || "" };
-      }),
+      drawn,
       want: served.map((st) => ({ name: st.step_name, done: !!st.is_completed,
-        line: st.is_completed && st.completed_date ? completed.replace("{0}", day(st.completed_date)) : "" })),
+        line: st.is_completed && st.completed_date ? completed.replace("{0}", day(st.completed_date)) + (st.completed_by_name ? " " + by.replace("{0}", st.completed_by_name) : "") : "" })),
     };
-  }, [d.say("Onboarding Steps"), d.say("Completed {0}"), require("../lib/words").localeTagFor(lang), stepsServed]);
-  const onbWrong = !onb ? [] : onb.want.map((w, i) => {
-    const got = onb.drawn[i];
+  }, [d.say("Completed {0}"), d.say("by {0}"), require("../lib/words").localeTagFor(lang), stepsServed]);
+  // The tab groups the steps by category, so each step served is found by its name.
+  const onbWrong = !onb ? [] : onb.want.map((w) => {
+    const got = onb.drawn.find((x) => x.name === w.name);
     if (!got) return JSON.stringify(w.name) + " is not drawn";
-    if (got.name !== w.name) return "step " + (i + 1) + " is " + JSON.stringify(got.name) + " where the API sent " + JSON.stringify(w.name);
     if (got.done !== w.done) return JSON.stringify(w.name) + (w.done ? " is done and carries no tick" : " is not done and carries a tick");
     if (got.line !== w.line) return JSON.stringify(w.name) + " says " + JSON.stringify(got.line) + " where it should say " + JSON.stringify(w.line);
     return null;
   }).filter(Boolean);
   const doneServed = stepsServed.filter((st) => st.is_completed).length;
   results.check("page", "page/staff/onboarding-steps/" + lang, !!onb && stepsServed.length > 0 && doneServed > 0 && onbWrong.length === 0,
-    !onb ? "the HR Files tab drew no onboarding steps" : stepsServed.length === 0 ? "no onboarding steps were served"
+    !onb ? "HR Records' Onboarding tab drew no onboarding steps for " + first.name : stepsServed.length === 0 ? "no onboarding steps were served"
       : onbWrong.length ? onbWrong.length + " of " + stepsServed.length + " steps: " + onbWrong.slice(0, 3).join("; ")
         : doneServed + " of " + stepsServed.length + " steps drawn as done, each with its day");
 
@@ -265,10 +273,12 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.fillByLabel(d.say("Hourly Rate"), "19.25");
   await d.clickText(d.say("Save Changes"), { inModal: true, exact: true });
   await d.settle(400);
-  hold("edit", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + p0.id + "$")), {
-    id: p0.id, firstName: p0.first_name, lastName: p0.last_name, phone: p0.phone, email: p0.email,
-    role: "custodial_lead", employeeId: p0.employee_id, hourlyRate: "19.25", employmentType: "supplemental",
-  });
+  // Since part 341 the pencil sends only the fields whose value changed from the row it opened on, and
+  // the list's row carries no hourly rate, so the rate always goes.
+  const editWant = { hourlyRate: "19.25" };
+  if (p0.role !== "custodial_lead") editWant.role = "custodial_lead";
+  if ((p0.employment_type || "") !== "supplemental") editWant.employmentType = "supplemental";
+  hold("edit", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + p0.id + "$")), editWant);
 
   // The first person's profile, edited: a role, an employment type, a language and a city. Everything
   // else goes back as the profile was served.
@@ -280,7 +290,9 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.clickText(d.say("Edit"), { exact: true });
   await pickByLabel(d, d.say("Role"), "day_porter");
   await pickByLabel(d, d.say("Employment Type"), "part_time");
-  await pickByLabel(d, d.say("Preferred Language"), "en");
+  // The language goes only when it changes (Step 243), so the one picked is the one the person lacks.
+  const newLang = String(u.preferredLanguage || "en").slice(0, 2) === "es" ? "en" : "es";
+  await pickByLabel(d, d.say("Preferred Language"), newLang);
   await d.fillByLabel(d.say("City"), "Riverton");
   await d.clickText(d.say("Save Changes"), { exact: true });
   await d.settle(400);
@@ -289,7 +301,7 @@ async function run({ d, results, seed, stubs, lang }) {
     role: "day_porter", employmentType: "part_time", employeeId: p0.employee_id, hourlyRate: u.hourlyRate || "",
     birthday: "", addressLine1: "", addressLine2: "", city: "Riverton", state: "", zipCode: "",
     emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "",
-    preferredLanguage: "en", personalNotes: "",
+    preferredLanguage: newLang, personalNotes: "",
   });
 
   // A site, with a role at the site and a shift chosen from their lists.
@@ -308,11 +320,14 @@ async function run({ d, results, seed, stubs, lang }) {
     siteId: seed.SITES[1].id, roleAtSite: "Porter", shiftName: "Day", shiftStart: "07:00", shiftEnd: "15:30",
   });
 
-  // A certification, with its type chosen from its list.
+  // A certification, with its type chosen from its list. Since Step 291 a profile has no Certifications
+  // tab: Add Certification lives in the person's HR folder (FolderCertifications), at #hr/<id>.
   stubs.reset();
-  await openFirst("Certifications");
+  await d.goto("hr", p0.id);
+  try { await d.page.locator("[data-folder-certification-add]").first().waitFor({ timeout: 8000 }); } catch (e) { /* the save below says nothing was sent */ }
   mark = d.mark();
-  await d.clickText(d.say("Add"), { exact: true });
+  await d.page.locator("[data-folder-certification-add]").first().click().catch(() => {});
+  await d.settle(300);
   await d.fillByLabel(d.say("Certification Name *"), "Floor care basics");
   await pickByLabel(d, d.say("Type"), "license");
   await d.fillByLabel(d.say("Issuing Body"), "In-house");

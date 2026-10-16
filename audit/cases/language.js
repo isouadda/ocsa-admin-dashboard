@@ -76,7 +76,14 @@ async function run({ d, results, inventory, stubs }) {
       await d.fillByLabel(d.say("Task Description *"), "Pulir el piso del pasillo");
       await d.fillByLabel(d.say("Zone *"), "Pasillo");
       await d.pickOption(PRIORITY.spanish, { inModal: true });
-      await d.pickOption(pickers[2][0], { inModal: true });
+      // Since Step 291 the person is picked in PersonPick, a searched list with no select (the October
+      // audit, part 343, found this pass throwing on the missing third select).
+      if (pickers[2]) await d.pickOption(pickers[2][0], { inModal: true });
+      else {
+        await d.modal().locator("[data-person-pick-field]").first().click();
+        await d.page.locator("[data-person-pick-option]", { hasText: "Tomasz" }).first().click();
+        await d.settle(200);
+      }
       const mark = d.mark();
       await d.clickText(d.say("Create and Assign"), { inModal: true });
       const sent = d.callsSince(mark).filter((c) => c.method === "POST" && /\/api\/sites\/[^/]+\/tasks$/.test(c.path)).pop();
