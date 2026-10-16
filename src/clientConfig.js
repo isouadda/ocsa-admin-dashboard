@@ -24,9 +24,10 @@ const clientConfig = {
   },
   // The staff portal's address, the one every portal link the API sends is built on (STAFF_PORTAL_URL
   // as live sets it; Step 284). Help reads the portal's pictures of the screen from it.
-  // REACT_APP_PORTAL_URL still overrides it.
+  // REACT_APP_PORTAL_URL still overrides it. The default is the staff app's own address (DASH-15,
+  // contract 2.6), so no link is built on the old Vercel address.
   portal: {
-    url: process.env.REACT_APP_PORTAL_URL || 'https://ocsa-staff-portal.vercel.app',
+    url: process.env.REACT_APP_PORTAL_URL || 'https://staff.ocsaco.com',
   },
   employee: {
     idPrefix: 'OCSA',

@@ -4933,13 +4933,19 @@ export const WORDS = {
     es: { one: "{0} hora esta semana", other: "{0} horas esta semana" },
   },
   "Not tracked": { es: "Sin seguimiento" },
-  "Staff do not check off tasks at this site. Its task list is kept as the record of the work.": { es: "El personal no marca tareas en este sitio. Su lista de tareas se guarda como el registro del trabajo." },
+  "Staff do not check off tasks at this site. They can read its task list as a reference.": { es: "El personal no marca tareas en este sitio. Puede leer su lista de tareas como referencia." },
   "Staff check off tasks here": { es: "El personal marca las tareas aqu\u00ed" },
   "Off: staff can read the task list as a reference, and nothing is checked off.": { es: "Apagado: el personal puede leer la lista de tareas como referencia, y no se marca nada." },
   "Staff no longer check off tasks here.": { es: "El personal ya no marca tareas aqu\u00ed." },
   "Staff check off tasks here again.": { es: "El personal vuelve a marcar las tareas aqu\u00ed." },
   // Part 341, changing a hire date.
   "To fix a wrong date, pick the right one.": { es: "Para corregir una fecha equivocada, elija la correcta." },
+  // Round 1 (part 347): clearances dates only, time off for admins, a call's deadline, notices, the update bar.
+  "Completed on {0}": { es: "Hecha el {0}" },
+  "An admin approves or denies time off.": { es: "Un administrador aprueba o deniega el tiempo libre." },
+  "The connection timed out. Try again.": { es: "La conexi\u00f3n tard\u00f3 demasiado. Intente de nuevo." },
+  "This notice has nothing to open on the dashboard.": { es: "Este aviso no tiene nada que abrir en el panel." },
+  "A new version is ready": { es: "Hay una versi\u00f3n nueva lista" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

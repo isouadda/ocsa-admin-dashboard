@@ -3,6 +3,9 @@
 
 # production build
 /build
+# Written by scripts/stamp.js on every build, beside the tracked
+# placeholder in src/buildStamp.js.
+public/version.json
 
 # misc
 .DS_Store

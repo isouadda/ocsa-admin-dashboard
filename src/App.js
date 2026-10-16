@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment, createContext, useContext } from "react";
 import Chart from "react-apexcharts";
 import clientConfig from "./clientConfig";
+// The stamp this bundle was built with, written by scripts/stamp.js on every build.
+import { BUILD_STAMP } from "./buildStamp";
 // The word table, the language the screen is drawn in, and what a formatter is given. Nothing
 // else lives there and nothing else leaves this file.
 import { LOCALES, LANGUAGES, WORDS, tr, trn, setLang, getLang, localeTag, browserLang } from "./words";
@@ -24,6 +26,8 @@ function withLocale(url) {
 // still cancels the call.
 const API_DEADLINE_MS = 30000;
 const API_UPLOAD_DEADLINE_MS = 120000;
+// How many calls are out right now, which the update check asks before it reloads.
+let apiInFlight = 0;
 function apiRequest(url, init = {}) {
   const ctl = typeof AbortController === "function" ? new AbortController() : null;
   const b = init.body;
@@ -31,13 +35,131 @@ function apiRequest(url, init = {}) {
   let timedOut = false;
   const timer = ctl ? setTimeout(() => { timedOut = true; ctl.abort(); }, sendsFile ? API_UPLOAD_DEADLINE_MS : API_DEADLINE_MS) : null;
   if (ctl && init.signal) { if (init.signal.aborted) ctl.abort(); else init.signal.addEventListener("abort", () => ctl.abort()); }
+  apiInFlight += 1;
   return fetch(withLocale(url), { ...init, signal: ctl ? ctl.signal : init.signal, headers: { ...init.headers, "Accept-Language": getLang() } })
-    .then(r => { clearTimeout(timer); return r; }, e => {
-      clearTimeout(timer);
+    .then(r => { clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1); return r; }, e => {
+      clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1);
       if (!timedOut) throw e;
       const err = new Error(tr("The connection timed out. Try again.")); err.status = 0; err.code = "network.timeout";
       throw err;
     });
+}
+// --- The dashboard keeps itself current (Round 1, ported from the staff app) ----------------------
+// An office tab can stay open for days, never asking for index.html again and running the bundle it
+// first loaded. The dashboard carries its own stamp, asks the server for the current one 5 seconds
+// after it loads, every 15 minutes, when the tab is looked at again after a minute or more and when
+// the connection comes back, and reloads itself to the same page when nothing is underway. Something
+// is underway while a call is out, while a window is open with text typed in it, or while the field
+// being typed in holds text. Then a small bar says a new version is ready, with Reload, and the
+// reload is tried again every 20 seconds. It never reloads twice for the same stamp. The service
+// worker is left as it is.
+const UPDATE_FIRST_MS = 5000;
+const UPDATE_PERIOD_MS = 15 * 60 * 1000;
+const UPDATE_GAP_MS = 60 * 1000;
+const UPDATE_RETEST_MS = 20 * 1000;
+const UPDATE_FETCH_MS = 8000;
+const UPDATE_TRIED_KEY = "ocsa-dashboard-update-tried";
+const UPDATE_BAR_ID = "ocsa-update-bar";
+const sessionGet = (k) => { try { return window.sessionStorage.getItem(k); } catch (e) { return null; } };
+const sessionSet = (k, v) => { try { window.sessionStorage.setItem(k, v); } catch (e) {} };
+// A text field with something in it: an input that takes text, or a text area.
+const holdsText = (el) => {
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toUpperCase();
+  if (tag === "TEXTAREA") return String(el.value || "").length > 0;
+  if (tag !== "INPUT") return false;
+  const ty = String(el.type || "text").toLowerCase();
+  if (["checkbox", "radio", "hidden", "file", "button", "submit", "reset", "range", "color"].indexOf(ty) >= 0) return false;
+  return String(el.value == null ? "" : el.value).length > 0;
+};
+// A window is a fixed box pinned to all four edges of the screen, which every window here is (Mdl and
+// the full screen windows), and nothing else is.
+function windowHoldsText() {
+  const all = document.querySelectorAll("div");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.id === UPDATE_BAR_ID) continue;
+    const st = window.getComputedStyle(el);
+    if (st.position !== "fixed" || st.top !== "0px" || st.left !== "0px" || st.right !== "0px" || st.bottom !== "0px") continue;
+    const fields = el.querySelectorAll("input, textarea");
+    for (let j = 0; j < fields.length; j++) if (holdsText(fields[j])) return true;
+  }
+  return false;
+}
+const somethingIsUnderway = () => apiInFlight > 0 || windowHoldsText() || holdsText(document.activeElement);
+// Nothing here makes noise. A check that fails, runs out of time or answers without a stamp leaves the
+// dashboard exactly as it was. version.json is read with fetch itself, outside apiRequest, so it is
+// never counted as a call that is out.
+async function readServerStamp() {
+  const base = process.env.PUBLIC_URL || "";
+  let timer = null;
+  try {
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    if (ctl) timer = setTimeout(() => { try { ctl.abort(); } catch (e) {} }, UPDATE_FETCH_MS);
+    const res = await fetch(base + "/version.json?t=" + Date.now(), ctl ? { cache: "no-store", signal: ctl.signal } : { cache: "no-store" });
+    if (!res || !res.ok) return null;
+    const data = await res.json();
+    const stamp = data && typeof data.stamp === "string" ? data.stamp.trim() : "";
+    return stamp || null;
+  } catch (e) {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+// The stamp is remembered first, so a reload happens once for it. The address keeps its hash, so the
+// reload opens the same page.
+function reloadForUpdate(stamp) {
+  sessionSet(UPDATE_TRIED_KEY, stamp);
+  try { window.location.reload(); } catch (e) {}
+}
+function useSelfUpdate() {
+  const [ahead, setAhead] = useState(null);
+  // The bar shows only once a reload has been held back, so an idle dashboard updates with nothing
+  // shown and nothing pressed.
+  const [showBar, setShowBar] = useState(false);
+  const aheadRef = useRef(null);
+  const goingRef = useRef(false);
+  const lastRef = useRef(0);
+  useEffect(() => { aheadRef.current = ahead; }, [ahead]);
+  const check = useCallback(async () => {
+    lastRef.current = Date.now();
+    const stamp = await readServerStamp();
+    if (!stamp || stamp === BUILD_STAMP) return;
+    setAhead(stamp);
+  }, []);
+  useEffect(() => {
+    const soon = () => { if (!document.hidden) check(); };
+    const first = setTimeout(soon, UPDATE_FIRST_MS);
+    const iv = setInterval(soon, UPDATE_PERIOD_MS);
+    const onShow = () => { if (!document.hidden && Date.now() - lastRef.current > UPDATE_GAP_MS) check(); };
+    const onOnline = () => { check(); };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("online", onOnline);
+    return () => { clearTimeout(first); clearInterval(iv); document.removeEventListener("visibilitychange", onShow); window.removeEventListener("online", onOnline); };
+  }, [check]);
+  const tryNow = useCallback(() => {
+    const stamp = aheadRef.current;
+    if (!stamp || goingRef.current) return;
+    // A reload already happened for this stamp and the two still differ, so another would only loop.
+    if (sessionGet(UPDATE_TRIED_KEY) === stamp) { setShowBar(true); return; }
+    if (somethingIsUnderway()) { setShowBar(true); return; }
+    goingRef.current = true;
+    reloadForUpdate(stamp);
+  }, []);
+  useEffect(() => {
+    if (!ahead) return undefined;
+    tryNow();
+    const iv = setInterval(tryNow, UPDATE_RETEST_MS);
+    return () => clearInterval(iv);
+  }, [ahead, tryNow]);
+  const reloadNow = useCallback(() => {
+    const stamp = aheadRef.current;
+    if (!stamp || goingRef.current) return;
+    goingRef.current = true;
+    reloadForUpdate(stamp);
+  }, []);
+  return { showBar, reloadNow };
 }
 // What a refusal means for the whole session (Step 284, STEP283_CONTRACT.md section 2), read by every
 // helper below. A 401, and a 403 auth.accountNotActive or auth.inactive, end it: ocsa-session-expired
@@ -891,7 +1013,7 @@ export default function AdminDashboard() {
     setOpenAsk(null);
     const n = { subjectType: ask.subjectType, subjectId: ask.subjectId };
     if (!noticePlace(n)) { if (ask.place) window.location.hash = ask.place; return; }
-    goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+    goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error"), nothing: () => showToast(tr("This notice has nothing to open on the dashboard.")) });
   }, [openAsk, token, canOpenPage, showToast]);
   // A subscription this computer already holds moves to the person signed in.
   useEffect(() => { if (token) repostComputerAlerts(af); }, [token, af]);
@@ -1022,6 +1144,12 @@ export default function AdminDashboard() {
   // Choose your PIN saved: the new token when the answer carries one (Step 283 ends the other
   // sessions), and the dashboard goes on.
   const pinChosen = (d) => { const tok = d && typeof d.token === "string" && d.token ? d.token : token; const u = d && d.user && typeof d.user === "object" ? { ...user, ...d.user } : user; writeAuth(tok, u, rememberRef.current); setToken(tok); setUser(u); setMustSetPin(false); showToast((d && d.message) || tr("Your PIN is saved.")); };
+  // The dashboard keeps itself current; the bar shows only while a reload waits on something underway.
+  const { showBar: updateWaiting, reloadNow } = useSelfUpdate();
+  const updateBar = updateWaiting ? (<div id={UPDATE_BAR_ID} data-update-bar="" role="status" style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 3000, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box", background: t.card, border: "1px solid " + t.border, borderRadius: 10, boxShadow: t.popShadow, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 10, padding: "4px 6px 4px 14px" }}>
+    <span style={{ fontSize: 12, fontWeight: 600, color: t.text, fontFamily: FONT_HEAD }}>{tr("A new version is ready")}</span>
+    <Btn t={t} v="ghost" data-update-reload="" onClick={reloadNow} style={{ minHeight: 44, padding: "0 12px", fontSize: 12 }}>{tr("Reload")}</Btn>
+  </div>) : null;
   if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>);
   // The card the signed-out screens and Choose your PIN are drawn on.
   const authCard = (inner) => (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
@@ -1035,6 +1163,7 @@ export default function AdminDashboard() {
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")}</button></div>
     </div>
     {toast && <Tst t={toast} />}
+    {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
   if (!token) return authCard(<LoginForm onLogin={handleLogin} onForgot={forgotPin} say={cardSay || (signedOutWords ? { text: signedOutWords, bad: true } : null)} wrongTries={wrongTries} loading={loading} t={t} second={second} onSecondDone={(d, remember) => { setSecond(null); signedIn(d, remember); }} onSecondBack={() => setSecond(null)} />);
@@ -1282,7 +1411,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-          {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+          {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onNothing={() => showToast(tr("This notice has nothing to open on the dashboard."))} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
         </div>
       </div>
       ) : (
@@ -1298,7 +1427,7 @@ export default function AdminDashboard() {
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
               {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
-            {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+            {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onNothing={() => showToast(tr("This notice has nothing to open on the dashboard."))} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
           </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
@@ -1348,7 +1477,7 @@ export default function AdminDashboard() {
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
-        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} canDecideTimeOff={hasCap("approve_time_off")} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} canDecideTimeOff={isAdmin || hasCap("approve_time_off")} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1376,10 +1505,11 @@ export default function AdminDashboard() {
       const n = noticeToast;
       setNoticeToast(null);
       try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); }
-      goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error") });
+      goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error"), nothing: () => showToast(tr("This notice has nothing to open on the dashboard.")) });
       loadUnread();
     }} />}
     {toast && <Tst t={toast} />}
+    {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
@@ -4234,7 +4364,7 @@ function OpsPage({ af, t, allStaff }) {
     {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
       <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
-      {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. Its task list is kept as the record of the work.")}</div>}
+      {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div>}
       {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); const untracked = notTrackedOf(site) || notTrackedOf(p); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] ? tr(RL[p.role]) : p.role}{place ? ", " + place : ""}</div></div>
@@ -8550,6 +8680,14 @@ function noticePlace(n) {
   if (/^inspection(_|$)/.test(st) && sid) return { page: "inspections", hash: "inspections/" + enc(sid) };
   if (st === "time_off") return { page: "schedule", hash: sid ? "schedule/timeoff/" + enc(sid) : "schedule/timeoff" };
   if (/^hr_case(_|$)/.test(st)) return { page: "cases", hash: sid ? "cases/" + enc(sid) : "" };
+  // DASH-25: the six types API #146 added for staff open their item here, and a dropped or claimed
+  // shift opens Shift Pickup, where it is decided. A document to sign opens Waiting for signatures.
+  if (st === "task_assigned") return { page: "assigned", hash: "" };
+  if (st === "training_assigned" || st === "training_session") return { page: "training", hash: "" };
+  if (st === "site_assigned") return { page: "sites", hash: sid ? "sites/" + enc(sid) : "" };
+  if (st === "workspace_member") return { page: "workspace", hash: sid ? "workspace/" + enc(sid) : "" };
+  if (st === "document_to_sign") return { page: "hr", hash: "hr/signatures", signatures: true };
+  if (st === "shift_drop" || st === "shift_claim") return { page: "marketplace", hash: "" };
   if (/^shift(_|$)/.test(st)) return { page: "schedule", hash: "" };
   return null;
 }
@@ -8567,6 +8705,8 @@ function goToNotice(n, how) {
   const target = notifTarget(n.link);
   if (target.kind === "page") { if (!how.canOpenPage(target.page) && !(target.signatures && how.canOpenPage("signatures"))) { how.refuse(); return; } if (target.hash) how.openHash(target.hash); else how.openPage(target.page); }
   else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
+  // A notice with no place here and no link says so (DASH-25), so a tap is never met by nothing.
+  else if (how.nothing) how.nothing();
 }
 // A notice that arrived while the dashboard is open (Step 333): its title, its body on one line, Open,
 // which opens it where the bell would, and Close. It goes by itself after twelve seconds.
@@ -8614,7 +8754,7 @@ const NOTIF_PAGE_SIZE = 30;
 // The API writes each notice's title and body in the language of the call's locale, which af puts on
 // every call (STEP204_CONTRACT.md, section 5), so a change of language reads the list again from the
 // top. Only the newest read is drawn, so an answer in the language left behind never lands.
-function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement }) {
+function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement, onNothing }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -8651,7 +8791,7 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
     setBusy(false);
     onClose();
-    goToNotice(n, { canOpenPage, openHash: onOpenHash, openPage: onOpenPage, openAnnouncement: onOpenAnnouncement, refuse: onRefused });
+    goToNotice(n, { canOpenPage, openHash: onOpenHash, openPage: onOpenPage, openAnnouncement: onOpenAnnouncement, refuse: onRefused, nothing: onNothing });
   };
   const markAll = async () => {
     if (busy || unread === 0) return;
@@ -12787,8 +12927,10 @@ const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
 // only things it sends. A refusal is shown in the window word for word and nothing closes, so the
 // person can read it and try again. A decision that lost a race, answered 409, reloads the request
 // so the window shows what is true now.
-// The owner's decision 3 (Round 1, Oct 15, 2026): time off is approved and denied by a holder of
-// approve_time_off, which by role is an admin. Anyone else reads the request and is told who decides.
+// The owner's decision 3 (Round 1, Oct 15, 2026): time off is approved and denied by admins, who hold
+// approve_time_off by role, and by anyone the API grants it on their own. Anyone else reads the request
+// and is told who decides. An admin is offered it before the API's defaults say so, so nothing stops
+// while the API's round ships.
 function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDecide = false }) {
   const [req, setReq] = useState(seed);
   // Step 334: the shifts the request affects, once the read answers them, and what to do with each.
@@ -17675,6 +17817,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
         <div style={{ fontSize: 10, color: t.textMut, marginBottom: 12, padding: "6px 10px", background: t.cardAlt, borderRadius: 4 }}>{tr("Changing the type will reclassify this value. For example, changing from \"Building\" to \"Zone\" moves it between categories.")}</div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSiteVal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditSiteVal}>{tr("Save")}</Btn></div>
       </div></Mdl>}
+      {/* The build this dashboard runs, so the office can say which version they have (Round 1). */}
+      <div data-build-stamp="" style={{ marginTop: 24, fontSize: 11, color: t.textMut, fontFamily: "monospace", overflowWrap: "anywhere" }}>{tr("Version {0}", BUILD_STAMP)}</div>
     </div>
   );
 }
