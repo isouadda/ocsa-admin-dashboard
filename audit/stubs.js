@@ -1796,6 +1796,15 @@ function createStubs() {
   };
   // hand: 4 people started today, which is OVERVIEW.clockedInNow. Each carries the role
   // routes/shiftSessions.js reads off the person, the seed's role for them.
+  // Yesterday at the first site, ended, so the API's single-date form carries them only on their own
+  // day (part 351). The first person also started today, at another time and with other counts.
+  const SHIFT_SESSIONS_EARLIER = [
+    { siteId: S[0].id, siteName: S[0].name, people: [
+      { sessionId: "ss-y1", userId: "u-staff-5", name: "Tomasz Wisniewski", role: "custodial_lead", sessionDate: seed.shift(-1), startedAt: seed.shift(-1) + "T10:58:00Z", endedAt: seed.shift(-1) + "T19:02:00Z", buildingName: "North Wing", floorNumber: "2", tasksCompleted: 12, tasksTotal: 14 },
+      { sessionId: "ss-y2", userId: "u-staff-6", name: "Ngozi Okonkwo", role: "custodial_laborer", sessionDate: seed.shift(-1), startedAt: seed.shift(-1) + "T11:12:00Z", endedAt: seed.shift(-1) + "T19:30:00Z", buildingName: "North Wing", floorNumber: "1", tasksCompleted: 5, tasksTotal: 9 },
+      { sessionId: "ss-y3", userId: "u-staff-8", name: "Rashid Haddad", role: "custodial_laborer", sessionDate: seed.shift(-1), startedAt: seed.shift(-1) + "T18:40:00Z", endedAt: seed.shift(-1) + "T23:55:00Z", buildingName: "South Wing", floorNumber: "1", tasksCompleted: 8, tasksTotal: 8 },
+    ] },
+  ];
 
   // ---- Step 179: chats, announcements and phone alert settings --------------------------------
   // The API's own words for each refusal these routes make (helpers/words.js at ocsa-api 1c3fb42),
@@ -4519,6 +4528,50 @@ function createStubs() {
     return answer;
   }
 
+  // GET /api/shift-sessions/by-site as routes/shiftSessions.js answers it (ocsa-api 0808827). With
+  // start_date and end_date, both YYYY-MM-DD and at most 31 days apart, it answers the sessions of those
+  // days, one row per person per day, under startDate and endDate. Without them it answers one date,
+  // ?date= or today: that day's sessions and every session still open whatever its day, the most recent
+  // per person, under date. A range that is not right is refused 400 INVALID_DATE_RANGE. The seed's
+  // sessions are today's, still open, and yesterday's, ended; a case's own (setShiftSessions) stand alone.
+  function sessionsBySite(query) {
+    const bad = (error) => ({ status: 400, json: { error, code: "INVALID_DATE_RANGE" } });
+    const DAY = /^\d{4}-\d{2}-\d{2}$/;
+    const rawDate = query.get("date"), rawStart = query.get("start_date"), rawEnd = query.get("end_date");
+    const hasRange = rawStart !== null || rawEnd !== null;
+    let date = null, startDate = null, endDate = null;
+    if (hasRange) {
+      if (rawDate !== null) return bad("date cannot be combined with start_date and end_date");
+      if (rawStart === null || rawEnd === null) return bad("start_date and end_date are both required");
+      if (!DAY.test(rawStart) || !DAY.test(rawEnd)) return bad("start_date and end_date must be YYYY-MM-DD");
+      const a = Date.parse(rawStart + "T00:00:00Z"), b = Date.parse(rawEnd + "T00:00:00Z");
+      if (Number.isNaN(a) || Number.isNaN(b)) return bad("start_date and end_date must be valid dates");
+      if (b < a) return bad("end_date must not be before start_date");
+      if (Math.round((b - a) / 86400000) + 1 > 31) return bad("date range cannot exceed 31 days");
+      startDate = rawStart; endDate = rawEnd;
+    } else {
+      date = DAY.test(String(rawDate || "")) ? rawDate : seed.TODAY;
+    }
+    const sources = shiftSessions ? (shiftSessions.sites || []) : SHIFT_SESSIONS.sites.concat(SHIFT_SESSIONS_EARLIER);
+    const rows = [];
+    sources.forEach((site) => (site.people || []).forEach((p) => rows.push({ site, p })));
+    const keep = rows.filter(({ p }) => (hasRange ? p.sessionDate >= startDate && p.sessionDate <= endDate : p.sessionDate === date || !p.endedAt));
+    // DISTINCT ON the person (and the day, over a range), the latest start first.
+    keep.sort((x, y) => String(y.p.startedAt).localeCompare(String(x.p.startedAt)));
+    const seen = new Set();
+    const bySite = {};
+    keep.forEach(({ site, p }) => {
+      const k = p.userId + (hasRange ? "|" + p.sessionDate : "");
+      if (seen.has(k)) return;
+      seen.add(k);
+      if (!bySite[site.siteId]) bySite[site.siteId] = Object.assign({}, site, { people: [] });
+      bySite[site.siteId].people.push(p);
+    });
+    const sites = Object.values(bySite).sort((x, y) => x.siteName.localeCompare(y.siteName));
+    sites.forEach((x) => x.people.sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt))));
+    return ok(hasRange ? { startDate, endDate, sites } : { date, sites });
+  }
+
   function route(method, path, query, body, lang) {
     const q = (k) => query.get(k);
     const idAfter = (prefix) => path.slice(prefix.length).split("/")[0];
@@ -4968,7 +5021,7 @@ function createStubs() {
         { id: "ta-2", action: "started_work", created_at: seed.shift(-1) + "T18:10:00Z", user_name: "Tomasz Wisniewski", details: "" },
       ]);
     }
-    if (path.startsWith("/api/shift-sessions/by-site")) return ok(shiftSessions || SHIFT_SESSIONS);
+    if (path.startsWith("/api/shift-sessions/by-site")) return sessionsBySite(query);
 
     // --- inspections ------------------------------------------------------
     // The live templates, each with its live item count; ?all=true lists the removed ones too.
@@ -7486,7 +7539,7 @@ function createStubs() {
       NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS, AGENT_CONVERSATIONS, CHECKLIST,
       INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
       HR_DOCUMENTS, HR_TRAINING, HR_ONBOARDING, HR_COMPLIANCE, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
-      INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,
+      INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS, SHIFT_SESSIONS_EARLIER,
       ASSIGNED_TASKS,
     },
     state,

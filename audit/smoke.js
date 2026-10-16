@@ -2904,11 +2904,14 @@ async function stepUpdate(d, origin, p) {
   try {
     await check("a new version reloads an idle dashboard once, to the same page", async () => {
       await go(d, "issues", null, "[data-nav-item]");
+      // Idle: the page's own reads have had time to answer. A call still out when the check asks holds
+      // the reload until the try 20 seconds on, which the wait below covers (part 351: it flaked at 6s).
+      await d.settle(800);
       const before = await hashNow(d);
       await serve("smoke-new-1");
       await mark();
       await nudge();
-      if (!(await reloadSeen(6000))) return "the dashboard did not reload";
+      if (!(await reloadSeen(25000))) return "the dashboard did not reload";
       await until(d, "[data-nav-item]");
       const after = await hashNow(d);
       if (after !== before) return "it reloaded to " + after + " from " + before;
