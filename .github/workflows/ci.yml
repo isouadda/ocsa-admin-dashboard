@@ -1,0 +1,73 @@
+# Build, smoke, guide-check, the secret checks and the dependency report on every pull request and every
+# push to main (Round 1, part 347; the October audit's proposed CI, AUDIT_CONTRACT.md 5.11 and 5.12).
+# Nothing in it needs a secret.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # A key's own shape: a whole three-part token, a secret key with its body, a private key's
+      # header. Written with character classes, so neither this file nor a page that names a kind
+      # of key matches it.
+      KEY_SHAPES: 'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|sk-ant-[A-Za-z0-9_-]{20,}|sb_secret_[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|AIza[0-9A-Za-z_-]{35}'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+        env:
+          GENERATE_SOURCEMAP: "false"
+
+      - name: The bundle holds no key
+        run: |
+          if grep -lE "$KEY_SHAPES" build/static/js/*.js; then
+            echo "::error title=Bundle::a key-shaped string is in the built bundle"; exit 1
+          fi
+
+      - name: No new key in the history of any branch
+        run: |
+          git fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+          n=$(git log -p --all | grep -cE "$KEY_SHAPES" || true)
+          echo "Key-shaped lines in history: $n (baseline 2, the March key added and removed)"
+          test "$n" -le 2
+
+      - name: Chromium for the smoke check
+        run: npx playwright@1.56.0 install --with-deps chromium
+
+      - name: Smoke
+        run: npm run smoke
+
+      - name: Guide check
+        run: npm run guide-check
+        env:
+          GUIDE_CHECK_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || 'HEAD~1' }}
+
+      # Reports without failing the run while react-scripts, which holds 63 high advisories in build
+      # tooling and none in the shipped bundle, sits under dependencies. Once it moves to
+      # devDependencies, take continue-on-error off.
+      - name: Runtime dependencies, high and critical advisories
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
