@@ -58,8 +58,8 @@ Last checked: 2026-09-27
 ## See your notifications (admin dashboard)
 Who can do this: admins and supervisors
 1. Click the bell at the top. A number on it means unread notices, and the browser tab's title starts with the same number, such as (3).
-2. Click a notice to open what it is about, inside the dashboard whatever the notice links to. A notice about a problem opens it in the **Issue Tracker** (**Registro de incidencias**), an inspection's opens it in **Inspections** (**Inspecciones**), a time off request's opens that request in **Schedule** (**Horario**), a case's opens that case in **Cases** (**Casos**), and a shift's opens **Schedule** (**Horario**). A notice about a filed report opens that report. A notice that a piece of equipment was tagged out or is due for service opens the item, one that periodic work is overdue opens the checklist of its site, and one that a client reported a concern opens the report.
-3. A notice about something the dashboard has no page for opens the staff app in a new tab.
+2. Click a notice to open what it is about, inside the dashboard whatever the notice links to. A notice about a problem opens it in the **Issue Tracker** (**Registro de incidencias**), an inspection's opens it in **Inspections** (**Inspecciones**), a time off request's opens that request in **Schedule** (**Horario**), a case's opens that case in **Cases** (**Casos**), and a shift's opens **Schedule** (**Horario**). A notice about a filed report opens that report. A notice that a piece of equipment was tagged out or is due for service opens the item, one that periodic work is overdue opens the checklist of its site, and one that a client reported a concern opens the report. A task's notice opens **Assigned Tasks** (**Tareas asignadas**), a training notice opens **Training** (**Capacitación**), one that you were put on a site opens the site, a project's opens it in **Workspace** (**Espacio de trabajo**), one about a document to sign opens **Waiting for signatures** (**A la espera de firmas**), one about a support ticket opens **Tickets** (**Tickets**), and one that a shift was dropped or claimed opens **Shift Pickup** (**Turnos disponibles**).
+3. A notice about something the dashboard has no page for opens the staff app in a new tab. A notice with nothing to open says **This notice has nothing to open on the dashboard.** (**Este aviso no tiene nada que abrir en el panel.**)
 4. A notice that arrives while the dashboard is open pops up at the bottom right with its title and **Open** (**Abrir**), which opens it the same way. It goes by itself after a few seconds, and stays in the bell.
 5. Click **Mark all read** (**Marcar todo como leído**) to clear the number.
 6. On a phone, or any window narrower than 700 pixels, the bell is inside **More** (**Más**), the three dots at the top right, as **Notifications** (**Avisos**); the unread number shows on the More button.
@@ -67,7 +67,7 @@ Who can do this: admins and supervisors
 If it does not work: a notice about something only admins can open does not move you. The bell closes and says it is for admins. A notice written before notices could be read in either language shows in the words it was written in. To be alerted when the dashboard is closed, see Turn on alerts on this computer.
 Words people use for this: notifications, bell, alerts, new notice, pop up, unread count, avisos.
 Picture: notifications-panel
-Last checked: 2026-10-13
+Last checked: 2026-10-16
 
 ## Change who gets told about reports and requests (admin dashboard)
 Who can do this: admins
@@ -107,15 +107,15 @@ Who can do this: admins
 Picture: staff-pending
 Last checked: 2026-10-07
 ## Edit a staff member's information (admin dashboard)
-Who can do this: admins and supervisors. Only admins change a person's role and hire date, and a supervisor changes the information of staff only.
+Who can do this: admins and supervisors. Only admins change a person's role, employment type, hourly rate and hire date, only admins see the hourly rate, and a supervisor changes the information of staff only.
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
-3. Change what is needed and click **Save Changes** (**Guardar los cambios**). A supervisor's window has no role and no hire date to change.
+3. Change what is needed and click **Save Changes** (**Guardar los cambios**). Only what you changed is saved. A supervisor's window has no role, no **Employment Type** (**Tipo de empleo**), no **Hourly Rate** (**Tarifa por hora**) and no hire date to change.
 4. **Hire Date** (**Fecha de contratación**) holds the person's date, and once set it cannot be emptied. See Change a staff member's hire date.
 5. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**), which shows for anyone who can open HR Records.
 6. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
 Picture: staff-profile-edit
-Last checked: 2026-10-13
+Last checked: 2026-10-16
 
 ## Reset a staff member's PIN (admin dashboard)
 Who can do this: admins
@@ -419,11 +419,12 @@ Who can do this: admins and supervisors
 1. Click **Reports**.
 2. Find the report and click **Run** (**Ejecutar**). The issue report sits under **Issues** (**Problemas**).
 3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**).
-4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A report you no longer need is deactivated with **Deactivate** (**Desactivar**); nothing is deleted.
+4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A built-in report reads **Template** (**Plantilla**) and is changed by duplicating it. To take a report off the list, see Remove a report you no longer need.
+5. **Supply Usage and Cost** (**Uso y costo de suministros**) shows the estimated cost, and puts the supplies in order of cost, for admins only. Anyone else reads the quantities and the events, with the supplies in name order, on screen and in the PDF.
 Words people use for this: hours worked, labor report, payroll numbers, export data, who worked when, csv, spreadsheet.
 Picture: reports-library
 Picture: reports-issue-report
-Last checked: 2026-09-28
+Last checked: 2026-10-16
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
@@ -478,7 +479,7 @@ Words people use for this: keyboard, tab key, without a mouse, where am i on the
 Last checked: 2026-09-21
 
 ## Approve or deny a time off request (admin dashboard)
-Who can do this: anyone allowed to approve and deny time off
+Who can do this: admins, who hold time off approval. A supervisor opens a request and reads it, and in place of **Approve** (**Aprobar**) and **Deny** (**Denegar**) the window says **An admin approves or denies time off.** (**Un administrador aprueba o deniega el tiempo libre.**)
 1. Click **Schedule** (**Horario**) in the menu on the left.
 2. On **Week** (**Semana**) and **Month** (**Mes**), time off shows on the person's day: **Time off requested** (**Tiempo libre solicitado**) in amber while it waits, and **Off** (**Libre**) in gray once approved. A shift under it is marked too. Click the time off to open its request.
 3. Or click **Time off** (**Tiempo libre**) beside **Week**, **Month** and **Patterns**. The number beside it is how many are waiting for a decision. Click a row to open the request. A notice that someone requested time off opens the request too.
@@ -491,7 +492,7 @@ Words people use for this: approve time off, approve pto, paid time off, deny a 
 If it does not work: nobody decides their own request. A shift left as it is stays under the person, and the approved request then lists it under **Shifts to cover** (**Turnos por cubrir**). If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet.
 Picture: time-off-request
 Picture: schedule-time-off-week
-Last checked: 2026-10-13
+Last checked: 2026-10-16
 
 ## See past time off requests (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
@@ -1125,8 +1126,8 @@ Picture: messages-direct-chat
 Last checked: 2026-09-30
 
 ## Record a person's school clearances (admin dashboard)
-Who can do this: admins and supervisors
-1. Click **HR Records** (**Expedientes de personal**) in the side panel and click the person on **Employees** (**Personal**). Or click the person on **Clearances** (**Autorizaciones escolares**).
+Who can do this: admins and supervisors. A supervisor who cannot open HR Records records the dates from **Clearances** (**Autorizaciones escolares**), and the scanned copy and the Act 168 review stay with HR Records.
+1. Click **HR Records** (**Expedientes de personal**) in the side panel and click the person on **Employees** (**Personal**). Or click the person on **Clearances** (**Autorizaciones escolares**). For someone who cannot open HR Records, the person's clearances open in a window over the list, with each clearance's dates and state, **Add or renew** (**Agregar o renovar**) and **Correct a date** (**Corregir una fecha**).
 2. **Clearances** (**Autorizaciones escolares**) is at the top of their record: the **Act 34 PA State Police check** (**Verificación de la Policía Estatal (Act 34)**), the **Act 151 child abuse clearance** (**Verificación de antecedentes de abuso infantil (Act 151)**) and the **FBI fingerprint check** (**Verificación de huellas del FBI**), each with the day it was issued, the day it expires and its state: **Current** (**Vigente**), **Expiring** (**Por vencer**) within 90 days, **Expired** (**Vencida**) or **Missing** (**Falta**). Each is renewed every 60 months from its own date.
 3. To add one or record a renewal, click **Add or renew** (**Agregar o renovar**) on it. Enter the date on the certificate under **Issued on** (**Emitida el**), pick the scanned copy under **Document** (**Documento**) if it is in the person's HR documents, add **Notes** (**Notas**) if needed, and click **Save** (**Guardar**). The one there before stays, listed under History.
 4. For the **Act 168 employment history review** (**Revisión del historial laboral (Act 168)**), click **Record the review** (**Registrar la revisión**), enter **Completed on** (**Hecha el**), answer **Anything disclosed?** (**¿Se divulgó algo?**), and click **Save** (**Guardar**).
@@ -1134,42 +1135,42 @@ If it does not work: a date in the future is refused, and the line under the dat
 Words people use for this: school clearances, act 34, act 151, fbi fingerprints, child abuse clearance, act 168, renew a clearance, autorizaciones escolares.
 Picture: clearances-person
 Picture: clearances-add-window
-Last checked: 2026-10-07
+Last checked: 2026-10-16
 
 ## Correct a clearance date entered wrongly (admin dashboard)
 Who can do this: admins and supervisors
-1. Open the person's record in **HR Records** (**Expedientes de personal**) and find the clearance under **Clearances** (**Autorizaciones escolares**).
+1. Open the person's record in **HR Records** (**Expedientes de personal**) and find the clearance under **Clearances** (**Autorizaciones escolares**). Without HR Records, click the person on the **Clearances** (**Autorizaciones escolares**) page instead.
 2. Click **Correct a date** (**Corregir una fecha**).
 3. Enter **The right date** (**La fecha correcta**) and the **Reason** (**Motivo**), and click **Save** (**Guardar**). The expiry is worked out again from the right date, the correction is recorded with your reason, and it shows under the clearance.
 4. A correction never puts anyone on work by itself. Once the date is right, try the assignment again.
 If it does not work: a reason is required, from 5 to 500 characters, and the line under it says what is wrong. For a new certificate, use **Add or renew** (**Agregar o renovar**) instead.
 Words people use for this: wrong clearance date, fix a clearance, typo in a clearance date, correct an expiry, corregir una fecha.
 Picture: clearances-correct-window
-Last checked: 2026-10-01
+Last checked: 2026-10-16
 
 ## See everyone's clearances and export them for a school (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Clearances** (**Autorizaciones escolares**) in the side panel, under HR Records.
 2. Everyone is listed with the soonest expiry first, and a missing clearance before all. **School site** (**Sitio escolar**) says who works at a school site.
 3. Narrow the list with the state filter, from **Every active person** (**Todas las personas activas**) to **Everyone, inactive and terminated included** (**Todos, incluidas las personas inactivas y dadas de baja**), or with a site.
-4. Click a row to open that person's clearances.
+4. Click a row to open that person's clearances: their record in HR Records, or, for someone who cannot open HR Records, a window with each clearance's dates and state.
 5. To give a school its people's clearances, pick the site and click **Export for a school** (**Exportar para una escuela**). The file lists each person's name, badge number, clearance dates and Act 168 review date, and every export is recorded.
 6. **Print the tracking record** (**Imprimir el registro de seguimiento**) prints the site's **School Clearance Tracking Record** (**Registro de seguimiento de autorizaciones escolares**) as of today, the approved form, OCSA-FRM-035.
 If it does not work: **Export for a school** (**Exportar para una escuela**) waits until a site is picked.
 Words people use for this: clearance report, who is expiring, expired clearances, school district list, export clearances, autorizaciones vencidas.
 Picture: clearances-page
-Last checked: 2026-10-02
+Last checked: 2026-10-16
 
 ## When a person's clearances are missing (admin dashboard)
 Who can do this: admins and supervisors
 1. At a school site, scheduling a shift, setting up or changing a weekly pattern, assigning someone to the site, approving a claimed shift, or giving a shift to someone else is refused while the person's clearances are not in order.
 2. **Clearances missing** (**Faltan autorizaciones escolares**) opens over the screen and says whose clearances, and which are **Missing or out of date:** (**Faltan o están vencidas:**). Nobody works at a school site without current clearances, so there is no way to assign them anyway.
-3. Click **Open the clearances of {0}** (**Abrir las autorizaciones de {0}**) to go to that person's clearances.
+3. Click **Open the clearances of {0}** (**Abrir las autorizaciones de {0}**) to go to that person's clearances, in HR Records or, for someone who cannot open it, on **Clearances** (**Autorizaciones escolares**).
 4. Record the renewed clearance with **Add or renew** (**Agregar o renovar**). When a date was entered wrongly, fix it with **Correct a date** (**Corregir una fecha**). Then go back and try the assignment again.
 5. In the meantime, give the work to someone whose clearances are current.
 Words people use for this: clearances missing, cannot schedule at a school, school site blocked, act 34 missing, fbi expired, faltan autorizaciones.
 Picture: clearances-missing-window
-Last checked: 2026-10-01
+Last checked: 2026-10-16
 
 ## Record when the annual summary was posted, and download it for OSHA (admin dashboard)
 Who can do this: people given Keep the injury log, admins by default; company details need Company settings
@@ -2213,7 +2214,7 @@ Last checked: 2026-10-06
 
 ## See what is waiting for a signature (admin dashboard)
 Who can do this: admins see every request; supervisors see their sites
-1. Click **HR Records** (**Expedientes de personal**), then the **Waiting for signatures** (**A la espera de firmas**) tab.
+1. Click **HR Records** (**Expedientes de personal**), then the **Waiting for signatures** (**A la espera de firmas**) tab. A supervisor who cannot open HR Records clicks **Waiting for signatures** (**A la espera de firmas**) in the side panel.
 2. Every request still open is listed: the **Person** (**Persona**), the **Kind** (**Tipo**) with what was issued, the **Site** (**Sitio**), when it was **Requested** (**Solicitado**) with its age in days and how many reminders went, and its **State** (**Estado**). The ones that read **Not right** (**No es correcto**) come first, each with the person's note, then the oldest.
 3. Narrow the list by **Kind** (**Tipo**), **Site** (**Sitio**) and **State** (**Estado**). **Open** (**Abiertas**) is the waiting and not right ones together; pick a state to see the signed, declined or cancelled ones too.
 4. On a row, click **Remind** (**Recordar**), **Cancel** (**Cancelar**) or **Sign here now** (**Firmar aquí ahora**), as in the entry on sending something to a person's phone to sign. Click the row itself to open the request: what it is, who it went to and when, its state with the person's note, and the same buttons.
@@ -2222,7 +2223,7 @@ If it does not work: the tab shows once the system answers the signature request
 Words people use for this: waiting for signatures, who has not signed, unsigned, pending signatures, reminders, firmas pendientes.
 Picture: signatures-waiting
 Picture: signatures-request-window
-Last checked: 2026-10-06
+Last checked: 2026-10-16
 
 ## Read the owner's dashboard (admin dashboard)
 Who can do this: admins, and anyone else the system gives the owner's dashboard to. Supervisors do not see it.
@@ -2533,11 +2534,11 @@ Who can do this: admins, and anyone allowed to change site records. Everyone els
 1. Click **Sites** (**Sitios**), open the site, and click **Service Details** (**Detalles del servicio**).
 2. At the top, turn off **Staff check off tasks here** (**El personal marca las tareas aquí**). The line under it reads **Off: staff can read the task list as a reference, and nothing is checked off.** (**Apagado: el personal puede leer la lista de tareas como referencia, y no se marca nada.**)
 3. Staff at that site read the task list in the staff app and check nothing off. Everything else they do there works as before.
-4. **Live Ops** (**Operaciones en vivo**), **Dashboard** (**Panel**), the **Task Completion** (**Tareas completadas**) card in **Reports** (**Informes**) and the **Owner's dashboard** (**Tablero del propietario**) read **Not tracked** (**Sin seguimiento**) for the site, never 0%, and **Periodic work** (**Trabajo periódico**) leaves it out.
+4. **Live Ops** (**Operaciones en vivo**), **Dashboard** (**Panel**), the **Task Completion** (**Tareas completadas**) card in **Reports** (**Informes**) and the **Owner's dashboard** (**Tablero del propietario**) read **Not tracked** (**Sin seguimiento**) for the site, never 0%, Live Ops says **Staff do not check off tasks at this site. They can read its task list as a reference.** (**El personal no marca tareas en este sitio. Puede leer su lista de tareas como referencia.**), and **Periodic work** (**Trabajo periódico**) leaves it out.
 5. The task list stays fully editable either way. Turn the setting back on to have staff check off tasks there again.
 Words people use for this: task list for reference, no check off, schools, record of the work, not tracked, lista de tareas como referencia.
 Picture: site-task-list-record
-Last checked: 2026-10-13
+Last checked: 2026-10-16
 
 ## Change a staff member's hire date (admin dashboard)
 Who can do this: admins. A supervisor sees no hire date to change.
@@ -2551,3 +2552,22 @@ Words people use for this: hire date, start date, date of hire, update a hire da
 Picture: staff-hire-date
 Picture: staff-hire-date-refused
 Last checked: 2026-10-13
+
+## Remove a report you no longer need (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**).
+2. Find the report. One made on the dashboard reads **Custom** (**Personalizado**); a built-in one reads **Template** (**Plantilla**).
+3. On a custom report, click **Deactivate** (**Desactivar**) and confirm. The report leaves the list and the screen says **Report deactivated** (**Informe desactivado**). It is kept in the system and its past runs are not lost.
+4. A template has no **Deactivate** (**Desactivar**) and stays on the list. To change one, click **Duplicate** (**Duplicar**), change the copy, save it, and run the copy from then on.
+If it does not work: a deactivated report cannot be brought back from the page. Make it again with **New report** (**Nuevo informe**) or **Duplicate** (**Duplicar**).
+Words people use for this: delete a report, remove a report, get rid of a report, deactivate a report, hide a report, borrar un informe, eliminar un informe.
+Last checked: 2026-10-16
+
+## See which version of the dashboard you run (admin dashboard)
+Who can do this: everyone who signs in to the dashboard
+1. Click **Settings** (**Configuración**). The last line of the page reads **Version {0}** (**Versión {0}**) with the version the dashboard runs. Give it to whoever asks which version you have.
+2. The dashboard keeps itself current. It checks for a new version a few seconds after it opens, every 15 minutes, when you come back to its tab after a minute or more, and when the connection comes back.
+3. When there is a new version and nothing is underway, it reloads by itself and opens the same page.
+4. When a window with typed text is open, or something is still saving, the bar **A new version is ready** (**Hay una versión nueva lista**) shows at the top with **Reload** (**Volver a cargar**). Finish what you are doing and click **Reload** (**Volver a cargar**), or leave it: it tries again every 20 seconds and reloads once nothing is underway.
+Words people use for this: version, which version, update, new version, out of date, refresh, reload, versión.
+Last checked: 2026-10-16

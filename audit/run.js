@@ -187,6 +187,9 @@ const SUITES = [
   // laid out as the API is built in #146 and as the supervisor contract 1 describes. The suite makes its
   // own passes, each with a stub of its own.
   { name: "october", mod: "./cases/october", widths: [] },
+  // Round 1 (part 347): a case for each Now finding that had none, and the owner's decisions 1, 3 and 4
+  // held on screen. Its own passes, like the october suite.
+  { name: "round1", mod: "./cases/round1", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

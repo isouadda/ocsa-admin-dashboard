@@ -321,6 +321,11 @@ const ROUTES = {
       return d.clickText("Custom Step", { exact: false });
     },
   },
+  // Round 1 (DASH-07): the address a Clearances row opens for someone HR Records is closed to, which
+  // draws the window for anyone who goes to it.
+  "clearances/person-dates": {
+    open: async (d) => { await d.goto("clearances", "u-staff-5"); return true; },
+  },
 };
 
 async function run({ d, results, inventory, stubs }) {

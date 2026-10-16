@@ -2359,7 +2359,7 @@ Your settings did not save.,Sus ajustes no se guardaron.,My alerts
 No time off is waiting for a decision.,No hay tiempo libre pendiente de decisión.,"Schedule, Time off tab"
 No time off requests to show.,No hay solicitudes de tiempo libre para mostrar.,"Schedule, Time off tab"
 Something went wrong and the page needs reloading.,Algo salió mal y hay que volver a cargar la página.,The crash screen
-Reload,Volver a cargar,The crash screen
+Reload,Volver a cargar,"The crash screen; the bar at the top, while a reload for a new version waits"
 No records found.,No se encontraron registros.,The table default
 Raw result,Resultado sin procesar,Jotform diagnostic card
 The forms connection is not set up. Ask your administrator.,La conexión de formularios no está configurada. Pídale ayuda a su administrador.,"Jotform, key missing"
@@ -2440,7 +2440,7 @@ Topics,Temas,"Help insights, the people table"
 Question,Pregunta,"Help insights, the misses list; Reports, Client ratings, the printed page"
 Form builder,Creador de formularios,Side panel and the page
 New form,Nuevo formulario,Form builder
-Version {0},Versión {0},A form's row and history
+Version {0},Versión {0},"A form's row and history; Settings, the last line, the version the dashboard runs"
 Published,Publicado,A form's status
 Draft in progress,Borrador en curso,A form's status
 Retired,Retirado,A form's status
