@@ -190,6 +190,8 @@ const SUITES = [
   // Round 1 (part 347): a case for each Now finding that had none, and the owner's decisions 1, 3 and 4
   // held on screen. Its own passes, like the october suite.
   { name: "round1", mod: "./cases/round1", widths: [] },
+  // Live Ops shows the day you pick (part 351): yesterday's sessions on yesterday, today's on today.
+  { name: "live-ops", mod: "./cases/live-ops", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

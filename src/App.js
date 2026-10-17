@@ -4345,15 +4345,29 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
 function OpsPage({ af, t, allStaff }) {
   const [date, setDate] = useState(() => toISO(new Date()));
-  const [board, setBoard] = useState({ date: "", sites: [] });
+  // The board, and the day it answers for, so an answer for a day no longer picked is never drawn.
+  const [board, setBoard] = useState({ day: "", sites: [] });
   const [showRest, setShowRest] = useState(false);
-  const loadOps = () => { af("/api/shift-sessions/by-site?date=" + date).then(d => setBoard({ date: d.date, sites: d.sites || [] })).catch(e => console.warn("Load shift sessions:", e.message)); };
-  useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
+  const dateNow = useRef(date);
+  dateNow.current = date;
+  // Today asks ?date=, as the page always has: that form also carries a session still open from before
+  // midnight, so a night shift stays on today's board. Any other day asks start_date and end_date, both
+  // that day (part 351): the date form answers each person's latest open session whatever the day, so a
+  // past day read as today.
+  const loadOps = () => {
+    const day = date;
+    const q = day === toISO(new Date()) ? "?date=" + day : "?start_date=" + day + "&end_date=" + day;
+    af("/api/shift-sessions/by-site" + q).then(d => { if (day === dateNow.current) setBoard({ day, sites: d.sites || [] }); }).catch(e => console.warn("Load shift sessions:", e.message));
+  };
+  // Today is read again every 30 seconds; a past day does not change, so it is read once.
+  useEffect(() => { loadOps(); if (date !== toISO(new Date())) return undefined; const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
   const isToday = date === toISO(new Date());
+  const ready = board.day === date;
+  const sites = ready ? board.sites : [];
   // The day this board is for. It goes into each sentence whole, since the words around a date sit
   // somewhere else in another language.
   const dayText = new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
-  const startedIds = new Set(board.sites.flatMap(site => site.people.map(p => p.userId)));
+  const startedIds = new Set(sites.flatMap(site => site.people.map(p => p.userId)));
   const rest = allStaff.filter(u => !startedIds.has(u.id));
   return (<div><SecT t={t} action={tr("Refresh")} icon={RfI} onAction={loadOps}>{isToday ? tr("Started today") : tr("Started on {0}", dayText)}</SecT>
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
@@ -4361,8 +4375,8 @@ function OpsPage({ af, t, allStaff }) {
       <div style={{ width: 170 }}><Inp t={t} type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} /></div>
       <span style={{ fontSize: 12, color: t.textSec }}>{isToday ? trn("{0} started today|count", startedIds.size) : trn("{0} started on {1}|count", startedIds.size, dayText)}</span>
     </div>
-    {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
-    {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
+    {ready && sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
+    {sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
       <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
       {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div>}
       {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); const untracked = notTrackedOf(site) || notTrackedOf(p); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>

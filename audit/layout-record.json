@@ -10550,8 +10550,8 @@
       }
     },
     "schedule@wide": {
-      "n": 485,
-      "digest": "07ff783ed811af80",
+      "n": 494,
+      "digest": "16028a9717982fdb",
       "named": {
         "body:Dashboard": [
           0,
@@ -11501,6 +11501,36 @@
           81,
           11
         ],
+        "div:Started 6:58 AMNorth Wing F2": [
+          398,
+          507,
+          120,
+          113
+        ],
+        "button:Started 6:58 AMNorth Wing F2": [
+          404,
+          513,
+          108,
+          53
+        ],
+        "span:North Wing F2": [
+          430,
+          529,
+          70,
+          12
+        ],
+        "div:Harbor Point Center": [
+          410,
+          541,
+          96,
+          11
+        ],
+        "div:12 of 14 tasks": [
+          410,
+          552,
+          96,
+          10
+        ],
         "div:18:00-02:00North Wing F3": [
           519,
           507,
@@ -11518,12 +11548,6 @@
           518,
           91,
           24
-        ],
-        "div:Harbor Point Center": [
-          531,
-          542,
-          96,
-          11
         ],
         "button:Started 6:05 PMNorth Wing F3": [
           525,
@@ -11572,6 +11596,30 @@
           707,
           81,
           11
+        ],
+        "div:Started 7:12 AMNorth Wing F1": [
+          398,
+          633,
+          120,
+          144
+        ],
+        "button:Started 7:12 AMNorth Wing F1": [
+          404,
+          639,
+          108,
+          53
+        ],
+        "span:North Wing F1": [
+          430,
+          655,
+          68,
+          12
+        ],
+        "div:5 of 9 tasks": [
+          410,
+          678,
+          96,
+          10
         ],
         "div:06:00-14:00Clinic F1": [
           519,
@@ -11686,6 +11734,30 @@
           902,
           81,
           26
+        ],
+        "div:Started 2:40 PMSouth Wing F1": [
+          398,
+          881,
+          120,
+          68
+        ],
+        "button:Started 2:40 PMSouth Wing F1": [
+          404,
+          887,
+          108,
+          53
+        ],
+        "span:South Wing F1": [
+          429,
+          903,
+          69,
+          12
+        ],
+        "div:8 of 8 tasks": [
+          410,
+          926,
+          96,
+          10
         ],
         "div:22:00-06:00DROP REQ": [
           640,
@@ -26462,20 +26534,20 @@
       }
     },
     "schedule@narrow": {
-      "n": 409,
-      "digest": "bd30acd3e610235a",
+      "n": 418,
+      "digest": "3d2a2b285ba1f0bc",
       "named": {
         "body:2": [
           0,
           0,
           1024,
-          1453
+          1475
         ],
         "div:2": [
           0,
           0,
           1024,
-          1453
+          1475
         ],
         "button:2": [
           0,
@@ -26511,7 +26583,7 @@
           64,
           0,
           960,
-          1453
+          1475
         ],
         "div:OCSA Cleaning Admin": [
           88,
@@ -26823,7 +26895,7 @@
           88,
           308,
           912,
-          1115
+          1137
         ],
         "div:Mon": [
           242,
@@ -26913,7 +26985,7 @@
           101,
           377,
           886,
-          883
+          905
         ],
         "div:Marcus Ferreira": [
           150,
@@ -26963,6 +27035,36 @@
           81,
           11
         ],
+        "div:Started 6:58 AMNorth Wing F2": [
+          242,
+          507,
+          102,
+          113
+        ],
+        "button:Started 6:58 AMNorth Wing F2": [
+          248,
+          513,
+          90,
+          76
+        ],
+        "span:North Wing F2": [
+          254,
+          529,
+          75,
+          24
+        ],
+        "div:Harbor Point Center": [
+          254,
+          553,
+          78,
+          22
+        ],
+        "div:12 of 14 tasks": [
+          254,
+          575,
+          78,
+          10
+        ],
         "div:18:00-02:00North Wing F3": [
           345,
           507,
@@ -26980,12 +27082,6 @@
           518,
           91,
           24
-        ],
-        "div:Harbor Point Center": [
-          357,
-          542,
-          91,
-          11
         ],
         "button:Started 6:05 PMNorth Wing F3": [
           351,
@@ -27034,6 +27130,30 @@
           707,
           81,
           11
+        ],
+        "div:Started 7:12 AMNorth Wing F1": [
+          242,
+          633,
+          104,
+          144
+        ],
+        "button:Started 7:12 AMNorth Wing F1": [
+          248,
+          639,
+          92,
+          76
+        ],
+        "span:North Wing F1": [
+          254,
+          655,
+          75,
+          24
+        ],
+        "div:5 of 9 tasks": [
+          254,
+          701,
+          80,
+          10
         ],
         "div:06:00-14:00Clinic F1": [
           347,
@@ -27141,19 +27261,43 @@
           101,
           881,
           886,
-          75
+          97
         ],
         "div:Rashid Haddad": [
           150,
-          902,
+          913,
           81,
           26
+        ],
+        "div:Started 2:40 PMSouth Wing F1": [
+          242,
+          881,
+          102,
+          90
+        ],
+        "button:Started 2:40 PMSouth Wing F1": [
+          248,
+          887,
+          90,
+          76
+        ],
+        "span:South Wing F1": [
+          254,
+          903,
+          75,
+          24
+        ],
+        "div:8 of 8 tasks": [
+          254,
+          949,
+          78,
+          10
         ],
         "div:22:00-06:00DROP REQ": [
           448,
           881,
           113,
-          68
+          90
         ],
         "button:22:00-06:00DROP REQ": [
           454,
@@ -27171,7 +27315,7 @@
           562,
           881,
           116,
-          68
+          90
         ],
         "button:14:00-22:00South Wing F2": [
           568,
@@ -27187,145 +27331,145 @@
         ],
         "div:YT": [
           101,
-          962,
+          984,
           886,
           97
         ],
         "div:Yuki Tanabe": [
           150,
-          994,
+          1016,
           71,
           26
         ],
         "div:Started 6:10 PMSouth Wing F2": [
           345,
-          962,
+          984,
           102,
           90
         ],
         "button:Started 6:10 PMSouth Wing F2": [
           351,
-          968,
+          990,
           90,
           76
         ],
         "div:3 of 7 tasks": [
           357,
-          1030,
+          1052,
           78,
           10
         ],
         "div:06:00-14:00CLAIMED": [
           653,
-          962,
+          984,
           128,
           90
         ],
         "button:06:00-14:00CLAIMED": [
           659,
-          968,
+          990,
           116,
           44
         ],
         "span:CLAIMED": [
           730,
-          976,
+          998,
           40,
           11
         ],
         "div:BL": [
           101,
-          1065,
+          1087,
           886,
           59
         ],
         "div:Bertrand Lefevre": [
           150,
-          1078,
+          1100,
           81,
           26
         ],
         "div:SM": [
           101,
-          1130,
+          1152,
           886,
           59
         ],
         "div:Salome Mkhize": [
           150,
-          1143,
+          1165,
           81,
           26
         ],
         "div:KA": [
           101,
-          1195,
+          1217,
           886,
           59
         ],
         "div:Kwabena Asante": [
           150,
-          1208,
+          1230,
           81,
           26
         ],
         "div:Contractor": [
           150,
-          1223,
+          1245,
           81,
           11
         ],
         "div:INSPECTIONS": [
           101,
-          1268,
+          1290,
           886,
           73
         ],
         "div:Monthly quality walk": [
           775,
-          1277,
+          1299,
           106,
           64
         ],
         "button:Monthly quality walk": [
           779,
-          1281,
+          1303,
           98,
           54
         ],
         "div:Showing 1 to 10 of 10": [
           101,
-          1341,
+          1363,
           886,
           69
         ],
         "span:Showing 1 to 10 of 10": [
           117,
-          1369,
+          1391,
           118,
           15
         ],
         "div:Prev": [
           805,
-          1354,
+          1376,
           166,
           44
         ],
         "button:Prev": [
           805,
-          1354,
+          1376,
           51,
           44
         ],
         "span:Page 1 / 1": [
           861,
-          1369,
+          1391,
           53,
           15
         ],
         "button:Next": [
           920,
-          1354,
+          1376,
           51,
           44
         ]
