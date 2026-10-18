@@ -1672,6 +1672,27 @@ const SHOTS = [
       await c.page.locator("[data-schedule-kind-pick]").selectOption("critical");
       await blur(c);
     } },
+  // Round 2 and who opened each HR file (part 353, setStep353): Who opened this beside an HR Records
+  // document, the access report for the super admin, the grant on an admin's account, and a site's
+  // floor plans.
+  { name: "hr-who-opened", entry: "See who opened an HR file",
+    open: "hr", ready: "[data-hr-tab='documents']",
+    act: async (c) => {
+      await click(c, "[data-hr-tab='documents']"); await until(c, "[data-who-opened-id='hd-2']");
+      await click(c, "[data-who-opened-id='hd-2']"); await until(c, "[data-who-opened-list]");
+    } },
+  { name: "hr-access-report", entry: "Read the HR file access report", as: "superAdmin",
+    open: "hr/access-report", ready: "[data-hr-access-report] table tbody tr" },
+  { name: "settings-grant-access-report", entry: "Grant the HR file access report", as: "superAdmin",
+    open: "settings", ready: SHELL,
+    act: async (c) => {
+      await press(c, "Roles and Permissions"); await wait(500); await choose(c, "Dana Whitlock"); await wait(700);
+      // The row's own name, inside the page: the side panel holds the same words.
+      await top(c, "div[style*='padding: 16px 24px 30px'] span:text-is(\"" + c.say("HR file access report") + "\")", 330);
+    } },
+  { name: "site-floor-plans", entry: "Open a site's floor plan",
+    open: "sites/s-1", ready: "[data-floor-plan-view]",
+    act: async (c) => { await wait(900); await top(c, "[data-floor-plan-view]", 220); } },
 ];
 
 
@@ -1735,6 +1756,8 @@ function buildIsFresh() {
 function stubsFor(as) {
   const stubs = createStubs();
   stubs.setStep253(true);
+  // Round 2 (part 353): the API as built at its part 352.
+  stubs.setStep353(true);
   ["setStep256", "setStep262", "setStep266", "setStep270", "setStep269", "setStep275", "setStep278", "setStep280", "setStep283", "setStep289", "setStep299", "setStep292", "setStep305", "setStep308", "setStep312", "setStep315", "setStep327", "setStep329", "setStep330", "setStep337", "setStep341"].forEach((k) => stubs[k](true));
   // A person still on the PIN the office gave, whom the dashboard shows Choose your PIN alone (Step 284).
   if (as === "pin") stubs.setMustSetPin("admin", true);
@@ -1781,7 +1804,7 @@ async function jpeg(page) {
 }
 
 // A session of one kind in one language: signed out, at the code screen's door, or signed in as the
-// stub's admin or supervisor.
+// stub's admin, super admin or supervisor.
 async function openSession(browser, origin, lang, as) {
   const stubs = stubsFor(as);
   const d = await createDriver({ browser, origin, stubs, viewport: "wide", theme: "light", lang });
@@ -1833,9 +1856,9 @@ function chosen(args) {
 const fileFor = (name, lang) => path.join(OUT, name + "." + lang + ".jpg");
 
 async function lane(browser, origin, lang, shots, report) {
-  // Signed out first, then the code screen, then Choose your PIN, then the admin, then the supervisor,
-  // each a session.
-  const order = ["signedOut", "code", "pin", "admin", "supervisor"];
+  // Signed out first, then the code screen, then Choose your PIN, then the admin, the super admin and
+  // the supervisor, each a session.
+  const order = ["signedOut", "code", "pin", "admin", "superAdmin", "supervisor"];
   for (const as of order) {
     const mine = shots.filter((s) => (s.as || "admin") === as);
     if (!mine.length) continue;

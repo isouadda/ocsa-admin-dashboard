@@ -351,7 +351,7 @@ function createStubs() {
     { key: "manage_inspections", label: "Inspection templates and scheduling", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
     { key: "manage_time", label: "Manual time entry and shift edits", group: "Operations", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "manage_schedule", label: "Create, edit and delete scheduled shifts", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
-    { key: "approve_time_off", label: "Approve and deny time off", group: "Operations", enforced: true, defaults: { admin: false, supervisor: false, staff: false } },
+    { key: "approve_time_off", label: "Approve and deny time off", group: "Operations", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "manage_supplies", label: "Supply catalog", group: "Supplies", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "manage_vendors", label: "Vendors and services", group: "Supplies", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "view_reports", label: "Reports, labor, and scheduling", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
@@ -4384,7 +4384,7 @@ function createStubs() {
   const signInFor = (id) => {
     const own = si283().people[id] || {};
     return { lastSignInAt: own.lastSignInAt !== undefined ? own.lastSignInAt : seed.shift(-2) + "T13:10:00Z", mustSetPin: own.mustSetPin === true,
-      lockedUntil: own.lockedUntil || null, emailDeliverable: own.emailDeliverable !== false };
+      lockedUntil: own.lockedUntil || null, emailDeliverable: own.emailDeliverable !== false, heldSince: own.heldSince || null };
   };
   const loginKeyOf = (typed) => {
     const digits = typed.replace(/[^0-9]/g, "");
@@ -4448,9 +4448,11 @@ function createStubs() {
       const id = decodeURIComponent(unlock[1]);
       if (!state.staff.some((x) => x.id === id)) return { status: 404, json: { error: t283(lang, "User not found", "No se encontró el usuario"), code: "common.userNotFound" } };
       const own = st.people[id] || (st.people[id] = {});
-      const had = own.lockedUntil ? 5 : 0;
-      own.lockedUntil = null;
-      return ok({ unlocked: had });
+      const had = own.lockedUntil || own.heldSince ? 5 : 0;
+      // Since the API's part 346 an unlock also lets go of a hold, and says so in released.
+      const released = !!own.heldSince;
+      own.lockedUntil = null; own.heldSince = null;
+      return ok({ unlocked: had, released });
     }
     const a = base();
     if (!a || a.status !== 200 || !a.json) return a;
@@ -6078,6 +6080,8 @@ function createStubs() {
         ? !!overrides[c.key]
         : !!(c.defaults && c.defaults[tier]);
       if (user.role === "admin" && c.key === "manage_permissions") map[c.key] = true;
+      // Every admin decides time off by role since the API's part 346 (middleware/capabilities.js).
+      if (user.role === "admin" && c.key === "approve_time_off") map[c.key] = true;
     });
     return map;
   }
@@ -6131,6 +6135,11 @@ function createStubs() {
     refuse: (status, code, error, extra) => ({ status, json: Object.assign({ error, code }, extra || {}) }),
     signatureOf270: (kind, id) => (step270 ? signatureOf270(kind, id) : null),
     grant: (key) => { granted278.add(key); } });
+  // Round 2 and who opened each HR file (part 353), in audit/round2-stub.js: the API as built at its
+  // part 352, on once a run arms it with setStep353, over every other layer.
+  let step353 = false;
+  const round2 = require("./round2-stub")({ seed, state, ok, created, clone, person, effectiveMap, PDF_BYTES, PNG_BYTES, docRows, plusDays,
+    si283, NOTIFICATIONS, TIME_OFF });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7306,7 +7315,8 @@ function createStubs() {
     // against and only cases/october.js reads these.
     const builtRefusal = asBuilt ? asBuiltRefusal(method, path, record.language) : null;
     if (builtRefusal) { record.status = builtRefusal.status; record.json = builtRefusal.json; return builtRefusal; }
-    const answer = step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341();
+    const inner = () => (step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341());
+    const answer = step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner();
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7390,6 +7400,12 @@ function createStubs() {
     // The routes and words of the API's Step 283, sign-in made simple and closed, on or off, over
     // everything else.
     setStep283: (v) => { step283 = v !== false; },
+    // Round 2 (part 353): the API as built at its part 352 (audit/round2-stub.js); the people it seeds to
+    // be seen; the next n hand-outs of an HR file answered 503 hrFiles.logUnavailable; the log as written.
+    setStep353: (v) => { step353 = v !== false; },
+    setRound2People: (v) => { round2.setPeople(v); },
+    setLogDown: (n) => { round2.setLogDown(n); },
+    hrAccessLog: () => round2.log(),
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
     // over whichever steps the run arms.
     setStep289: (v) => { step289 = v !== false; },
@@ -7532,6 +7548,7 @@ function createStubs() {
       step278 = false;
       step280 = false; state.r280 = false;
       step283 = false; state.si283 = null;
+      step353 = false; state.r2 = null; state.r2pending = null; state.r2people = null; round2.setPeople(false);
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
