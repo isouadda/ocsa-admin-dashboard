@@ -16,7 +16,7 @@
 //
 // Staff Management edits people, so every value it saves is exactly what it saves in English. A pass
 // adds a person, edits one from the list, edits a profile, assigns a site, adds a certification,
-// deactivates a person and resets a PIN. It chooses a role, an employment type, a language, a role at
+// reactivates a person and resets a PIN. It chooses a role, an employment type, a language, a role at
 // the site, a shift and a certification type from their lists, and holds each body to the one written
 // out here by hand. The bodies are the same in both languages, since every list sends the code of the
 // choice whatever word it shows.
@@ -337,13 +337,16 @@ async function run({ d, results, seed, stubs, lang }) {
     issuedDate: "2026-01-10", expiryDate: "2027-01-10",
   });
 
-  // The first person deactivated, which saves the status's code.
+  // The inactive person reactivated, which saves the status's code. Since Round 2 (part 353) there is
+  // no Deactivate: the API refuses that move 409 users.useEmployment, and the Employment card owns it.
+  const idle = seed.STAFF.find((x) => x.status === "inactive");
   stubs.reset();
-  await openFirst(null);
+  await d.goto("staff", idle.id);
+  await d.settle(500);
   mark = d.mark();
-  await d.clickText(d.say("Deactivate"), { exact: true });
+  await d.clickText(d.say("Reactivate"), { exact: true });
   await d.settle(400);
-  hold("deactivate", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + p0.id + "$")), { status: "inactive" });
+  hold("reactivate", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + idle.id + "$")), { status: "active" });
 
   // A new PIN.
   stubs.reset();
