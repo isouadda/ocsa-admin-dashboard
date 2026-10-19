@@ -199,6 +199,9 @@ const SUITES = [
   // list and its CSV, the printed report, a supervisor, the API's refusal and the four ways in, against
   // audit/checklist-stub.js. Its own passes, like the round2 suite.
   { name: "checklist-results", mod: "./cases/checklist-results", widths: [] },
+  // Send the welcome email to everyone who has not signed in (part 361): against the invite route as the
+  // API answers it (audit/welcome-all-stub.js). Its own passes, like the round2 suite.
+  { name: "welcome-all", mod: "./cases/welcome-all", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

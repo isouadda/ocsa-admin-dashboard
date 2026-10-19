@@ -2410,15 +2410,20 @@ Last checked: 2026-10-07
 
 ## Send a welcome email (admin dashboard)
 Who can do this: admins
-1. Click **Staff Management** (**Gestión de personal**) and open the person's profile. The welcome email is for an active person who has never signed in.
-2. Click **Send welcome email** (**Enviar el correo de bienvenida**). When one already went, the button reads **Send it again** (**Enviarlo de nuevo**) and asks **Send a new welcome email? The last link stops working.** (**¿Enviar un nuevo correo de bienvenida? El enlace anterior dejará de funcionar.**) first.
-3. **Welcome email sent.** (**Se envió el correo de bienvenida.**) confirms it, and the line under the person's status says **Welcome email sent {0}** (**Correo de bienvenida enviado el {0}**) with the day.
-4. The email, in English and in Spanish, has a button to set up the account. The link works once, for 7 days. The person chooses a PIN and a language, then signs in with their badge number, phone or email.
-If it does not work: the button is grayed out with **No working email** (**Sin un correo que funcione**) when the person's email is a placeholder; fix the email on their profile first. A refusal says why, such as **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason. Someone who has already signed in gets no welcome email; send them a PIN reset link instead.
-Words people use for this: welcome email, activation email, resend the invite, set up link, they never got the email, correo de bienvenida.
+1. Click **Staff Management** (**Gestión de personal**). The welcome email is for an active person who has never signed in.
+2. To send it to everyone who has never signed in, click **Send welcome emails** (**Enviar correos de bienvenida**) above the list. The window lists everyone it sends to: active, never signed in, with a working email.
+3. Beside the list, **Left out** (**Quedan fuera**) says who does not get it and why, such as **No email on file** (**No tiene correo registrado**), **Placeholder email** (**Correo provisional**) or **Sent one in the last 7 days** (**Recibió uno en los últimos 7 días**), and how many people have already signed in.
+4. A new email stops the last link working, so people sent one in the last 7 days are left out. To send to them as well, turn on **Include people sent one in the last 7 days** (**Incluir a quienes recibieron uno en los últimos 7 días**).
+5. Click **Send to {0} people** (**Enviar a {0} personas**) and confirm. The emails go one at a time, and the window says **Sending {0} of {1}** (**Enviando {0} de {1}**). You can close the window while they go: they keep going, and a message says how many went once they finish.
+6. At the end each person reads **Sent** (**Enviado**) or **Not sent: {0}** (**No se envió: {0}**) with the reason. Click **Try the ones that failed** (**Volver a intentar los que fallaron**) to send to those again, and **Download CSV** (**Descargar CSV**) to save who got it, who did not and why.
+7. To send it to one person, open their profile and click **Send welcome email** (**Enviar el correo de bienvenida**). When one already went, the button reads **Send it again** (**Enviarlo de nuevo**) and asks **Send a new welcome email? The last link stops working.** (**¿Enviar un nuevo correo de bienvenida? El enlace anterior dejará de funcionar.**) first.
+8. **Welcome email sent.** (**Se envió el correo de bienvenida.**) confirms it, and the line under the person's status says **Welcome email sent {0}** (**Correo de bienvenida enviado el {0}**) with the day.
+9. The email, in English and in Spanish, has a button to set up the account. The link works once, for 7 days. The person chooses a PIN and a language, then signs in with their badge number, phone or email.
+If it does not work: the profile's button is grayed out with **No working email** (**Sin un correo que funcione**) when the person's email is a placeholder; fix the email on their profile first, and they join the list. A refusal says why, such as **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason. Someone who has already signed in gets no welcome email; send them a PIN reset link instead. **Send welcome emails** (**Enviar correos de bienvenida**) is for admins.
+Words people use for this: welcome email, activation email, resend the invite, set up link, they never got the email, welcome everyone, send to all, bulk invite, everyone who has not signed in, correo de bienvenida.
 Picture: staff-welcome-email
-Picture: staff-welcome-no-email
-Last checked: 2026-10-07
+Picture: staff-welcome-all
+Last checked: 2026-10-19
 
 ## Find and read a company document (admin dashboard)
 Who can do this: everyone who signs in to the dashboard
