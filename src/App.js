@@ -4948,8 +4948,12 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     job.then(data => { if (keyNow.current === key) setRead({ key, data, error: null, at: Date.now() }); })
       .catch(e => { if (keyNow.current === key) setRead(prev => (quiet && prev.key === key && prev.data ? prev : { key, data: null, error: e, at: Date.now() })); });
   }, [af]);
+  // The shell moves the address just after it draws a page picked in the side panel, so until the
+  // address names this page, the route is the page before's and nothing is read.
+  const here = window.location.hash.replace(/^#/, "").split("/")[0] === "checklist";
   // A new view is read at once, and today again every 30 seconds while the page is on screen.
   useEffect(() => {
+    if (!here) return undefined;
     setZone("");
     readNow(false);
     if (!live) return undefined;
@@ -4957,7 +4961,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     const back = () => { if (!document.hidden) readNow(true); };
     document.addEventListener("visibilitychange", back);
     return () => { clearInterval(iv); document.removeEventListener("visibilitychange", back); };
-  }, [viewKey, live, readNow]);
+  }, [viewKey, live, readNow, here]);
   const ready = read.key === viewKey;
   const data = ready ? read.data : null;
   const refused = ready && read.error ? read.error : null;
