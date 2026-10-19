@@ -2281,7 +2281,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   };
   // The window Add New Staff leaves open after saving, with the temporary PIN.
   const [added, setAdded] = useState(null);
-  const [addedBusy, setAddedBusy] = useState(false);
+  const [addedBusy, setAddedBusy] = useState(false); const [welcomeAll, setWelcomeAll] = useState(false);
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
   const [q, setQ] = useState(""); const [roleF, setRoleF] = useState("all"); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [assignForm, setAssignForm] = useState(null);
@@ -3024,7 +3024,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-      {roster && <Btn t={t} v="ghost" onClick={() => { if (onRoute) onRoute(["roster"]); }} style={{ minHeight: 44 }} data-roster-open="">{tr("Roster check")}</Btn>}
+      {roster && <Btn t={t} v="ghost" onClick={() => { if (onRoute) onRoute(["roster"]); }} style={{ minHeight: 44 }} data-roster-open="">{tr("Roster check")}</Btn>}{welcomeAllShown(user, staff) && <WelcomeAllButton t={t} onOpen={() => setWelcomeAll(true)} />}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -3055,7 +3055,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? (staffRefused || tr("This page is for admins.")) : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
-    {addedWindow}
+    {addedWindow}{welcomeAll && <WelcomeAllWindow af={af} t={t} staff={staff} canChange={canChange} showToast={showToast} onFinished={load} onClose={() => setWelcomeAll(false)} />}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name *")}</Lbl><Inp t={t} value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
@@ -29065,5 +29065,177 @@ function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
       <Btn t={t} v="danger" data-attempt-void-send="" onClick={send} disabled={busy || !reason.trim()} style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Void|attempt")}</Btn>
     </div>
+  </div></Mdl>);
+}
+
+// ============================================================
+// SEND THE WELCOME EMAIL TO EVERYONE WHO HAS NOT SIGNED IN (part 361)
+// ============================================================
+// Staff Management's Send welcome emails, for an admin once the staff list carries welcome (Step 293).
+// The window lists everyone it would send to: active, never signed in, with a working email, and an
+// account the profile's Send welcome email is offered on (canChange). Beside the list, who is left out
+// and why. Anyone sent one in the last 7 days is left out until the switch takes them in, since a new
+// email stops their last link. Send to {0} people asks once, then sends one at a time through POST
+// /api/users/:id/invite, the profile's own route, with a pause between sends so the mail service's limit
+// is never reached. The run is held here, outside the window and the page, so closing either does not
+// stop it, and a second press while it runs does nothing. At the end each person reads Sent or the API's
+// reason, Try the ones that failed sends those again, and Download CSV saves the result.
+const WELCOME_ALL_PAUSE_MS = 1000;
+const WELCOME_RECENT_MS = 7 * 24 * 60 * 60 * 1000;
+// The run, { people, results, ids, done, running }, each result { status, reason, at } with status
+// waiting, sending, sent or failed; null when nothing has been sent or the finished run was put away.
+let welcomeAllRun = null;
+let welcomeAllOpen = 0;
+const welcomeAllWatchers = new Set();
+const setWelcomeAllRun = (next) => { welcomeAllRun = next; welcomeAllWatchers.forEach(fn => fn(next)); };
+function useWelcomeAllRun() {
+  const [run, setRun] = useState(welcomeAllRun);
+  useEffect(() => { welcomeAllWatchers.add(setRun); setRun(welcomeAllRun); return () => { welcomeAllWatchers.delete(setRun); }; }, []);
+  return run;
+}
+const welcomeAllShown = (user, staff) => !!(user && (user.role === "admin" || user.isSuperAdmin === true || user.is_super_admin === true)) && (staff || []).some(s => welcomeOf(s) !== undefined);
+const welcomeSentLately = (w) => welcomeWent(w) && Date.now() - Date.parse(w.sentAt) < WELCOME_RECENT_MS;
+// Who the window would send to, and who it leaves out with the reason. Only active people who have never
+// signed in are weighed; the ones who have signed in are counted.
+function welcomeAllPlan(staff, canChange, withRecent) {
+  const plan = { send: [], test: [], notYours: [], noEmail: [], placeholder: [], recent: [], signedIn: 0 };
+  (staff || []).forEach(s => {
+    const si = signInOf(s);
+    if (!s || s.status !== "active" || !si || welcomeOf(s) === undefined) return;
+    if (si.lastSignInAt) plan.signedIn += 1;
+    else if (s.isTestAccount) plan.test.push(s);
+    else if (!canChange(s)) plan.notYours.push(s);
+    else if (!String(s.email || "").trim()) plan.noEmail.push(s);
+    else if (si.emailDeliverable === false) plan.placeholder.push(s);
+    else if (!withRecent && welcomeSentLately(welcomeOf(s))) plan.recent.push(s);
+    else plan.send.push(s);
+  });
+  return plan;
+}
+// A refusal's reason as the API words it, 422 and 502 alike.
+const welcomeAllReason = (e) => (e && e.body && typeof e.body.reason === "string" && e.body.reason.trim()) || (e && e.message) || tr("Request failed");
+const welcomeAllCounts = (run) => {
+  const c = { sent: 0, failed: 0 };
+  run.people.forEach(p => { const r = run.results[p.id]; if (r && r.status === "sent") c.sent += 1; else if (r && r.status === "failed") c.failed += 1; });
+  return c;
+};
+const welcomeAllSummary = (run) => { const c = welcomeAllCounts(run); return tr("Welcome emails: {0}", trn("{0} sent|welcome emails", c.sent) + ", " + trn("{0} not sent|welcome emails", c.failed)); };
+// One send after another to the people named by ids. A retry keeps every other person's result. A 401
+// ends the session, so whoever is left is marked with its words and not sent to.
+async function startWelcomeAll(af, people, ids, keep, after) {
+  if (welcomeAllRun && welcomeAllRun.running) return;
+  const results = Object.assign({}, keep && welcomeAllRun ? welcomeAllRun.results : {});
+  ids.forEach(id => { results[id] = { status: "waiting" }; });
+  let run = { people, results, ids, done: 0, running: true };
+  const put = (id, r, done) => { run = { ...run, done: done === undefined ? run.done : done, results: { ...run.results, [id]: r } }; setWelcomeAllRun(run); };
+  setWelcomeAllRun(run);
+  let ended = "";
+  for (let i = 0; i < ids.length; i += 1) {
+    const id = ids[i];
+    if (ended) { put(id, { status: "failed", reason: ended }, i + 1); continue; }
+    if (i > 0) await new Promise(r => setTimeout(r, WELCOME_ALL_PAUSE_MS));
+    put(id, { status: "sending" });
+    try {
+      const d = await af("/api/users/" + encodeURIComponent(id) + "/invite", { method: "POST" });
+      const w = d && d.welcome;
+      put(id, w && !welcomeWent(w) ? { status: "failed", reason: welcomeWhy(w), at: new Date().toISOString() } : { status: "sent", at: (w && w.sentAt) || new Date().toISOString() }, i + 1);
+    } catch (e) {
+      put(id, { status: "failed", reason: welcomeAllReason(e), at: new Date().toISOString() }, i + 1);
+      if (e && e.status === 401) ended = welcomeAllReason(e);
+    }
+  }
+  run = { ...run, running: false };
+  setWelcomeAllRun(run);
+  if (after) after(run);
+}
+const welcomeAllCsv = (run) => dlCSV("welcome-emails-" + todayISO() + ".csv", [tr("Name"), tr("Email"), tr("Result"), tr("Time")], run.people.map(p => {
+  const r = run.results[p.id] || {};
+  return [p.name, p.email, r.status === "sent" ? tr("Sent|welcome email") : r.status === "failed" ? r.reason : tr("Waiting|welcome email"), r.at ? new Date(r.at).toLocaleString(localeTag(), { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""];
+}));
+// The list's button, which reads how far a run has got while it goes.
+function WelcomeAllButton({ t, onOpen }) {
+  const run = useWelcomeAllRun();
+  const going = !!(run && run.running);
+  return <Btn t={t} v="ghost" onClick={onOpen} style={{ minHeight: 44 }} data-welcome-all-open={going ? "running" : ""}>{going ? tr("Sending {0} of {1}", Math.min(run.done + 1, run.ids.length), run.ids.length) : tr("Send welcome emails")}</Btn>;
+}
+function WelcomeAllWindow({ af, t, staff = [], canChange, onClose, onFinished, showToast }) {
+  const run = useWelcomeAllRun();
+  const [withRecent, setWithRecent] = useState(false);
+  useEffect(() => { welcomeAllOpen += 1; return () => { welcomeAllOpen -= 1; }; }, []);
+  const plan = welcomeAllPlan(staff, canChange, withRecent);
+  // A finished run is put away once it has been seen; one still going stays for the next opening.
+  const close = () => { if (welcomeAllRun && !welcomeAllRun.running) setWelcomeAllRun(null); onClose(); };
+  const after = (r) => { if (onFinished) onFinished(); if (!welcomeAllOpen && showToast) showToast(welcomeAllSummary(r)); };
+  const send = () => {
+    if (welcomeAllRun || !plan.send.length) return;
+    const again = plan.send.some(s => welcomeWent(welcomeOf(s)));
+    if (!window.confirm(trn("Send the welcome email to {0} people now?|count", plan.send.length) + (again ? " " + tr("Anyone sent one before gets a new link, and the last one stops working.") : ""))) return;
+    const people = plan.send.map(s => ({ id: s.id, name: s.name || [s.firstName, s.lastName].filter(Boolean).join(" "), email: s.email || "" }));
+    startWelcomeAll(af, people, people.map(p => p.id), false, after);
+  };
+  const retry = () => {
+    if (!welcomeAllRun || welcomeAllRun.running) return;
+    const ids = welcomeAllRun.people.map(p => p.id).filter(id => (welcomeAllRun.results[id] || {}).status === "failed");
+    if (ids.length) startWelcomeAll(af, welcomeAllRun.people, ids, true, after);
+  };
+  const head = { fontSize: 11, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 };
+  const who = (s, line, c) => <div key={s.id} data-welcome-all-person={s.id} style={{ padding: "6px 0", borderBottom: "1px solid " + t.border, minWidth: 0 }}>
+    <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{s.name}</div>
+    {line ? <div style={{ fontSize: 12, color: c || t.textMut, overflowWrap: "anywhere" }}>{line}</div> : null}
+  </div>;
+  const left = (k, reason, people, lineOf) => people.length ? <div key={k} data-welcome-all-left={k} style={{ marginBottom: 12 }}>
+    <div style={{ fontSize: 12, fontWeight: 600, color: OR }}>{reason}</div>
+    {people.map(s => who(s, lineOf ? lineOf(s) : ""))}
+  </div> : null;
+  const counts = run ? welcomeAllCounts(run) : null;
+  const statusOf = (r) => (!r || r.status === "waiting" ? { text: tr("Waiting|welcome email"), c: t.textMut } : r.status === "sending" ? { text: tr("Sending..."), c: t.goldText } : r.status === "sent" ? { text: tr("Sent|welcome email"), c: GR } : { text: tr("Not sent: {0}", r.reason), c: RD });
+  return (<Mdl t={t} tall onClose={close}><div style={{ padding: 20 }} data-welcome-all-window={run ? (run.running ? "running" : "done") : "plan"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send welcome emails")}</div><button onClick={close} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {!run ? <>
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Everyone active who has never signed in and has a working email.")}</div>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div data-welcome-all-send-list={plan.send.length} style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <div style={head}>{tr("Will get the email ({0})", plan.send.length)}</div>
+          {plan.send.length ? plan.send.map(s => who(s, s.email)) : <div style={{ fontSize: 13, color: t.textMut }}>{tr("Nobody to send to.")}</div>}
+        </div>
+        <div data-welcome-all-left-out="" style={{ flex: "1 1 220px", minWidth: 0 }}>
+          <div style={head}>{tr("Left out")}</div>
+          {left("noEmail", tr("No email on file"), plan.noEmail)}
+          {left("placeholder", tr("Placeholder email"), plan.placeholder, s => s.email)}
+          {left("recent", tr("Sent one in the last 7 days"), plan.recent, s => tr("Welcome email sent {0}", signInWhen(welcomeOf(s).sentAt)))}
+          {left("test", tr("Test account"), plan.test)}
+          {left("notYours", tr("Accounts you may not change"), plan.notYours)}
+          {plan.signedIn > 0 && <div data-welcome-all-signed-in={plan.signedIn} style={{ fontSize: 12, color: t.textSec }}>{trn("{0} people have already signed in.|count", plan.signedIn)}</div>}
+        </div>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, marginTop: 14, cursor: "pointer" }}>
+        <span style={chkWrap}><input type="checkbox" role="switch" data-welcome-all-recent="" checked={withRecent} aria-checked={withRecent} onChange={e => setWithRecent(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+        <span><span style={{ display: "block", fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Include people sent one in the last 7 days")}</span><span style={{ display: "block", fontSize: 12, color: t.textMut }}>{tr("A new email stops their last link from working.")}</span></span>
+      </label>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        <Btn t={t} v="ghost" onClick={close} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+        <Btn t={t} data-welcome-all-send="" onClick={send} disabled={!plan.send.length} style={{ minHeight: 44 }}>{trn("Send to {0} people|count", plan.send.length)}</Btn>
+      </div>
+    </> : <>
+      {run.running ? <div data-welcome-all-progress={run.done} role="status" style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Sending {0} of {1}", Math.min(run.done + 1, run.ids.length), run.ids.length)}</div>
+        <div style={{ height: 6, borderRadius: 3, background: t.hover, marginTop: 6, overflow: "hidden" }}><div style={{ width: Math.round(100 * run.done / Math.max(1, run.ids.length)) + "%", height: "100%", background: GO }} /></div>
+        <div style={{ fontSize: 12, color: t.textMut, marginTop: 6 }}>{tr("You can close this window. The emails keep going.")}</div>
+      </div> : <div data-welcome-all-summary={counts.sent + "/" + counts.failed} role="status" style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 14, fontWeight: 600, marginBottom: 14 }}>
+        <span style={{ color: GR }}>{trn("{0} sent|welcome emails", counts.sent)}</span>
+        <span style={{ color: counts.failed ? RD : t.textMut }}>{trn("{0} not sent|welcome emails", counts.failed)}</span>
+      </div>}
+      {run.people.map(p => { const r = run.results[p.id]; const st = statusOf(r); return <div key={p.id} data-welcome-all-result={p.id} data-welcome-all-status={(r && r.status) || "waiting"} style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid " + t.border }}>
+        <div style={{ minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.name}</div><div style={{ fontSize: 12, color: t.textMut, overflowWrap: "anywhere" }}>{p.email}</div></div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: st.c, maxWidth: 320, overflowWrap: "anywhere" }}>{st.text}</div>
+      </div>; })}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        {run.running ? <Btn t={t} v="ghost" onClick={close} style={{ minHeight: 44 }}>{tr("Close")}</Btn> : <>
+          {counts.failed > 0 && <Btn t={t} v="ghost" data-welcome-all-retry="" onClick={retry} style={{ minHeight: 44 }}>{tr("Try the ones that failed")}</Btn>}
+          <Btn t={t} v="ghost" data-welcome-all-csv="" onClick={() => welcomeAllCsv(run)} style={{ minHeight: 44 }}>{tr("Download CSV")}</Btn>
+          <Btn t={t} data-welcome-all-done="" onClick={close} style={{ minHeight: 44 }}>{tr("Done")}</Btn>
+        </>}
+      </div>
+    </>}
   </div></Mdl>);
 }

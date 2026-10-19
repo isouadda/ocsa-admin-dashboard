@@ -195,6 +195,9 @@ const SUITES = [
   // Round 2 and who opened each HR file (part 353): against the API as built at its part 352
   // (audit/round2-stub.js). Its own passes, like the round1 suite.
   { name: "round2", mod: "./cases/round2", widths: [] },
+  // Send the welcome email to everyone who has not signed in (part 361): against the invite route as the
+  // API answers it (audit/welcome-all-stub.js). Its own passes, like the round2 suite.
+  { name: "welcome-all", mod: "./cases/welcome-all", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

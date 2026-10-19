@@ -6140,6 +6140,11 @@ function createStubs() {
   let step353 = false;
   const round2 = require("./round2-stub")({ seed, state, ok, created, clone, person, effectiveMap, PDF_BYTES, PNG_BYTES, docRows, plusDays,
     si283, NOTIFICATIONS, TIME_OFF });
+  // The welcome email to everyone who has not signed in (part 361), in audit/welcome-all-stub.js: people of
+  // its own and the invite route as the API answers it for them, on once a run arms it with setStep361,
+  // over every other layer.
+  let step361 = false;
+  const welcomeAll = require("./welcome-all-stub")({ seed, state, ok, clone, person, effectiveMap });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7316,7 +7321,8 @@ function createStubs() {
     const builtRefusal = asBuilt ? asBuiltRefusal(method, path, record.language) : null;
     if (builtRefusal) { record.status = builtRefusal.status; record.json = builtRefusal.json; return builtRefusal; }
     const inner = () => (step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341());
-    const answer = step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner();
+    const under361 = () => (step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner());
+    const answer = step361 ? welcomeAll.route(method, path, u.searchParams, body, record.language, under361) : under361();
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7406,6 +7412,10 @@ function createStubs() {
     setRound2People: (v) => { round2.setPeople(v); },
     setLogDown: (n) => { round2.setLogDown(n); },
     hrAccessLog: () => round2.log(),
+    // The welcome email to everyone who has not signed in (part 361): the people and the invite route of
+    // audit/welcome-all-stub.js, on or off; every invite to those people since, with when it arrived.
+    setStep361: (v) => { step361 = v !== false; },
+    invites361: () => welcomeAll.invites(),
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
     // over whichever steps the run arms.
     setStep289: (v) => { step289 = v !== false; },
@@ -7549,6 +7559,7 @@ function createStubs() {
       step280 = false; state.r280 = false;
       step283 = false; state.si283 = null;
       step353 = false; state.r2 = null; state.r2pending = null; state.r2people = null; round2.setPeople(false);
+      step361 = false; state.wa = null;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
