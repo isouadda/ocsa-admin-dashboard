@@ -4982,6 +4982,44 @@ export const WORDS = {
   "End the employment of {0} after {1}? They stay as they are until then, and every site they are assigned to ends with it.": { es: "\u00bfTerminar el empleo de {0} despu\u00e9s del {1}? Sigue como est\u00e1 hasta entonces, y cada sitio al que est\u00e1 asignado termina con \u00e9l." },
   "on approved time off": { es: "con tiempo libre aprobado" },
   "{0} dates were skipped because this person has approved time off:": { es: "Se omitieron {0} fechas porque esta persona tiene tiempo libre aprobado:" },
+  "Send welcome emails": { es: "Enviar correos de bienvenida" },
+  "Sending {0} of {1}": { es: "Enviando {0} de {1}" },
+  "Welcome emails: {0}": { es: "Correos de bienvenida: {0}" },
+  "{0} sent|welcome emails": {
+    en: { one: "{0} sent", other: "{0} sent" },
+    es: { one: "{0} enviado", other: "{0} enviados" },
+  },
+  "{0} not sent|welcome emails": {
+    en: { one: "{0} not sent", other: "{0} not sent" },
+    es: { one: "{0} no enviado", other: "{0} no enviados" },
+  },
+  "Sent|welcome email": { es: "Enviado" },
+  "Waiting|welcome email": { es: "En espera" },
+  "Send the welcome email to {0} people now?|count": {
+    en: { one: "Send the welcome email to {0} person now?", other: "Send the welcome email to {0} people now?" },
+    es: { one: "\u00bfEnviar ahora el correo de bienvenida a {0} persona?", other: "\u00bfEnviar ahora el correo de bienvenida a {0} personas?" },
+  },
+  "Anyone sent one before gets a new link, and the last one stops working.": { es: "Quien ya recibi\u00f3 uno recibe un enlace nuevo, y el anterior deja de funcionar." },
+  "Everyone active who has never signed in and has a working email.": { es: "Todas las personas activas que nunca han iniciado sesi\u00f3n y tienen un correo que funciona." },
+  "Will get the email ({0})": { es: "Recibir\u00e1n el correo ({0})" },
+  "Nobody to send to.": { es: "No hay nadie a quien enviarlo." },
+  "Left out": { es: "Quedan fuera" },
+  "No email on file": { es: "No tiene correo registrado" },
+  "Placeholder email": { es: "Correo provisional" },
+  "Sent one in the last 7 days": { es: "Recibi\u00f3 uno en los \u00faltimos 7 d\u00edas" },
+  "Accounts you may not change": { es: "Cuentas que usted no puede cambiar" },
+  "{0} people have already signed in.|count": {
+    en: { one: "{0} person has already signed in.", other: "{0} people have already signed in." },
+    es: { one: "{0} persona ya inici\u00f3 sesi\u00f3n.", other: "{0} personas ya iniciaron sesi\u00f3n." },
+  },
+  "Include people sent one in the last 7 days": { es: "Incluir a quienes recibieron uno en los \u00faltimos 7 d\u00edas" },
+  "A new email stops their last link from working.": { es: "Un correo nuevo hace que su \u00faltimo enlace deje de funcionar." },
+  "Send to {0} people|count": {
+    en: { one: "Send to {0} person", other: "Send to {0} people" },
+    es: { one: "Enviar a {0} persona", other: "Enviar a {0} personas" },
+  },
+  "You can close this window. The emails keep going.": { es: "Puede cerrar esta ventana. Los correos se siguen enviando." },
+  "Try the ones that failed": { es: "Volver a intentar los que fallaron" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

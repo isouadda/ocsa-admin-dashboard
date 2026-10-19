@@ -476,8 +476,21 @@ const SHOTS = [
     } },
   { name: "staff-welcome-email", entry: "Send a welcome email",
     open: "staff/u-staff-6", ready: "[data-welcome-send]" },
-  { name: "staff-welcome-no-email", entry: "Send a welcome email",
-    open: "staff/u-staff-9", ready: "[data-welcome-no-email]" },
+  // Part 361: Send welcome emails, with whom it sends to and who is left out and why, over the people of
+  // audit/welcome-all-stub.js (setStep361), armed for this picture alone and read again from Staff
+  // Management once armed.
+  { name: "staff-welcome-all", entry: "Send a welcome email",
+    open: "staff", ready: "table tbody tr",
+    act: async (c) => {
+      c.stubs.setStep361(true);
+      await c.page.evaluate(() => { window.location.hash = "overview"; });
+      await wait(300);
+      await c.page.evaluate(() => { window.location.hash = "staff"; });
+      await until(c, "[data-welcome-all-open]");
+      await click(c, "[data-welcome-all-open]");
+      await until(c, "[data-welcome-all-send]");
+      c.stubs.setStep361(false);
+    } },
   { name: "staff-reset-pin", entry: "Reset a staff member's PIN",
     open: "staff/u-staff-6", ready: "text=Ngozi Okonkwo",
     act: async (c) => { await press(c, "Reset PIN"); await until(c, MODAL); await inModal(c).locator("input").first().fill("4827"); } },
