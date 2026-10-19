@@ -202,6 +202,9 @@ const SUITES = [
   // Send the welcome email to everyone who has not signed in (part 361): against the invite route as the
   // API answers it (audit/welcome-all-stub.js). Its own passes, like the round2 suite.
   { name: "welcome-all", mod: "./cases/welcome-all", widths: [] },
+  // What the API's Rounds 3 and 4 gave the dashboard, and its findings (part 364), against the API as
+  // built at ocsa-api a1e7e58 (audit/round3-stub.js). Its own passes, like the round2 suite.
+  { name: "round3", mod: "./cases/round3", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

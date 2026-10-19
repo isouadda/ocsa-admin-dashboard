@@ -1002,8 +1002,10 @@ const SHOTS = [
       await click(c, "[data-direct-chat]");
       await until(c, 'input[aria-label="' + c.say("Type a message") + '"]');
     } },
-  { name: "clearances-person", entry: "Record a person's school clearances",
-    open: "hr/u-staff-6/clearances", ready: '[data-person-clearances] [data-clearance="fbi"]' },
+  // Part 364 (setStep364, armed for this picture alone): the Act 34 clearance with its file and Who
+  // opened this, and the others entered with no file.
+  { name: "clearances-person", entry: "Record a person's school clearances", arm: (stubs, on) => stubs.setStep364(on),
+    open: "hr/u-staff-6/clearances", ready: '[data-person-clearances] [data-clearance-file="act34"]' },
   { name: "clearances-add-window", entry: "Record a person's school clearances",
     open: "hr/u-staff-6/clearances", ready: '[data-person-clearances] [data-clearance="act34"]',
     act: async (c) => {
@@ -1723,6 +1725,14 @@ const SHOTS = [
       for (let i = 0; i < 40 && !html; i++) { await wait(100); const p = await c.d.prints(); html = p.length ? p[p.length - 1].html : ""; }
       if (!html) throw new Error("Print report opened no page");
       await c.page.setContent(html);
+    } },
+  // Part 364 (setStep364, armed for this picture alone): Take back on an end that waits for its day, the
+  // window that asks once.
+  { name: "employment-take-back", entry: "Take back an end of employment before its day", arm: (stubs, on) => stubs.setStep364(on),
+    open: "staff/u-staff-5", ready: "[data-employment-take-back]",
+    act: async (c) => {
+      await click(c, "[data-employment-take-back]");
+      await until(c, '[data-employment-window="take-back"] [data-employment-take-back-send]');
     } },
 ];
 

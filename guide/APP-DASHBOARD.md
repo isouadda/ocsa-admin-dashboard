@@ -114,8 +114,9 @@ Who can do this: admins and supervisors. Only admins change a person's role, emp
 4. **Hire Date** (**Fecha de contratación**) holds the person's date, and once set it cannot be emptied. See Change a staff member's hire date.
 5. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**), which shows for anyone who can open HR Records.
 6. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
+7. On another admin's profile, or a fellow supervisor's, the birthday, the address, the emergency contact and the notes are not shown, and the profile says **This person's birthday, address, emergency contact and personal notes are not shown to you.** (**El cumpleaños, la dirección, el contacto de emergencia y las notas personales de esta persona no se le muestran.**)
 Picture: staff-profile-edit
-Last checked: 2026-10-18
+Last checked: 2026-10-19
 
 ## Reset a staff member's PIN (admin dashboard)
 Who can do this: admins
@@ -171,23 +172,24 @@ Who can do this: admins, and supervisors given Cases, except anyone the case is 
 6. Change the status and click **Save changes**. The first save counts as the team's response. Setting **Resolved** (**Resuelto**) or **Closed** (**Cerrado**) asks for a **Closing note** (**Nota de cierre**), which goes into the log as the case's last entry.
 7. To give it back to the team, click **Release**.
 8. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
-If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left. **Save changes** with Resolved or Closed and an empty closing note says **Write the closing note.** (**Escriba la nota de cierre.**) Taking, releasing, handing over, escalating and every status change are written into the log by the app.
+9. A case opened from a filed report shows **Opened from a filed report** (**Abierto desde un reporte enviado**) under the summary, with the report's name, its site and when it was filed, to anyone who may read that report. Click **Open the report** (**Abrir el reporte**) to read it.
+If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left. **Save changes** with Resolved or Closed and an empty closing note says **Write the closing note.** (**Escriba la nota de cierre.**) Taking, releasing, handing over, escalating and every status change are written into the log by the app. The list holds the newest 200 cases; with that many it says **The newest {0} cases are listed. Pick a status to find an older one.** (**Se muestran los {0} casos más recientes. Elija un estado para encontrar uno más antiguo.**)
 Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up, close a case, closing note, nota de cierre.
 Picture: cases-case-window
 Picture: cases-closing-note
-Last checked: 2026-10-13
+Last checked: 2026-10-19
 
 ## Add an HR document for an employee (admin dashboard)
 Who can do this: admins, and supervisors given HR Records
 1. Click **HR Records** (**Expedientes de personal**).
 2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Document** (**+ Agregar documento**). The person is filled in as the **Employee** (**Persona**) and stays there.
 3. Or click the **Documents** (**Documentos**) tab, then **+ Add Document** (**+ Agregar documento**), and choose the **Employee** (**Persona**): type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them. The list shows active people first, then inactive and terminated people, each with its status after the name.
-4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one. Warnings and termination letters go under **Disciplinary** (**Disciplinario**).
+4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one. Warnings and termination letters go under **Disciplinary** (**Disciplinario**). Under **Upload File** (**Subir un archivo**) the window says **A PDF, JPEG, PNG or Word file, up to 25 MB. Save an iPhone photo as a JPEG first.** (**Un archivo PDF, JPEG, PNG o Word, de hasta 25 MB. Guarde primero una foto de iPhone como JPEG.**), and a file of another kind is refused before anything is sent. Opening a document that is not a PDF or a picture saves it to the computer.
 5. Click **Add** (**Agregar**).
 If it does not work: without HR Records the side panel has no **HR Records** (**Expedientes de personal**), and its address says **This page is for admins.** (**Esta página es para administradores.**) Training stays on its own item.
 Words people use for this: upload a document, add a file to someone's folder, document for someone who left, termination letter, subir un documento.
 Picture: hr-folder-add-document
-Last checked: 2026-10-13
+Last checked: 2026-10-19
 
 ## Add a training record (admin dashboard)
 Who can do this: admins and supervisors
@@ -217,10 +219,11 @@ Who can do this: admins and supervisors
 4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person under **Assign To *** (**Asignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and click **Assign Task** (**Asignar la tarea**). It appears on their **Assigned** tab in the portal.
 5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
 6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
+If it does not work: When the issue cannot be assigned, the Assign window says why in red: **This issue is closed, declined or waiting for approval, so it cannot be assigned. Reopen it, or approve the request first.** (**Este problema está cerrado, rechazado o espera aprobación, así que no se puede asignar. Vuelva a abrirlo, o apruebe la solicitud primero.**), or, under the person, **Choose an active staff member. A client contact or someone who has left cannot take an issue.** (**Elija a un miembro activo del personal. Un contacto de cliente o alguien que ya se fue no puede tomar un problema.**)
 Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, incidencias.
 Picture: issues-issue-window
 Picture: issues-assign-task
-Last checked: 2026-10-07
+Last checked: 2026-10-19
 
 ## Create a task for a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -238,8 +241,9 @@ Who can do this: admins and supervisors
 2. Click **Reassign**.
 3. Choose the new person under **Reassign To *** (**Reasignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and give the reason.
 4. Click **Reassign** to save.
+If it does not work: A person who cannot take the task is refused in red under the person: **Choose an active staff member to take this task. A client contact or someone who has left cannot take it.** (**Elija a un miembro activo del personal para que tome esta tarea. Un contacto de cliente o alguien que ya se fue no puede tomarla.**)
 Picture: tasks-reassign
-Last checked: 2026-10-07
+Last checked: 2026-10-19
 
 ## Schedule a shift (admin dashboard)
 Who can do this: admins and supervisors
@@ -493,10 +497,10 @@ Who can do this: admins, who hold time off approval by role, and anyone given it
 7. Click **Approve** (**Aprobar**), or **Deny** (**Denegar**). Approve sends the choices for the shifts with it.
 8. The person gets a notice in the app carrying the dates, and reads your note in the app.
 Words people use for this: approve time off, approve pto, paid time off, deny a day off, decide a leave request, sign off on vacation, time off queue, time off on the schedule.
-If it does not work: nobody decides their own request. A shift left as it is stays under the person, and the approved request then lists it under **Shifts to cover** (**Turnos por cubrir**). If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet.
+If it does not work: nobody decides their own request. A shift left as it is stays under the person, and the approved request then lists it under **Shifts to cover** (**Turnos por cubrir**). If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet. A shift that is already posted for pickup is outlined in red with **This shift is already posted for pickup or has a drop request waiting. Open it on Shift Pickup to change or cancel that posting first.** (**Este turno ya está publicado para tomar o tiene una solicitud de dejarlo pendiente. Ábralo en Turnos disponibles para cambiar o cancelar esa publicación primero.**) under it, and nothing is approved. Change or cancel that posting on **Shift Pickup** (**Turnos disponibles**), or choose another way for the shift, and approve again.
 Picture: time-off-request
 Picture: schedule-time-off-week
-Last checked: 2026-10-18
+Last checked: 2026-10-19
 
 ## See past time off requests (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
@@ -703,10 +707,10 @@ Who can do this: admins
 1. Click **Forms** (**Formularios**), then the **Jotform** tab. It has three parts.
 2. **Inbox** (**Bandeja de entrada**): the submissions, with **Re-run Auto-Link** (**Volver a vincular automáticamente**), **Run PDF Backfill** (**Ejecutar el relleno de PDF**) and **Bulk Upload PDFs** (**Subir PDF en bloque**).
 3. **Forms** (**Formularios**): the form library, with **Edit** (**Editar**) and **Pull** (**Traer**) on each form.
-4. **Maintenance** (**Mantenimiento**): **Settings** (**Configuración**), **Sync Diagnostic** (**Diagnóstico de sincronización**) and **Aliases** (**Alias**), and the sync buttons under **API Connection** (**Conexión con la API**).
+4. **Maintenance** (**Mantenimiento**): **Settings** (**Configuración**), **Sync Diagnostic** (**Diagnóstico de sincronización**) and **Aliases** (**Alias**), and the sync buttons under **API Connection** (**Conexión con la API**). Without HR Records access, **Aliases** (**Alias**) reads **The alias list names people with the names and personal emails on their paperwork, so it is shown only to people with HR Records access.** (**La lista de alias nombra a las personas con los nombres y correos personales de sus documentos, así que solo se muestra a quienes tienen acceso a Expedientes de personal.**)
 Words people use for this: where did jotform go, jotform settings, sync diagnostic, aliases, bulk upload pdfs, inbox.
 Picture: jotform-inbox
-Last checked: 2026-09-28
+Last checked: 2026-10-19
 
 ## Read the PDF access log (admin dashboard)
 Who can do this: admins
@@ -865,9 +869,10 @@ Who can do this: admins, and anyone given the announcements permission
 3. Under **Send to** (**Enviar a**), choose **Everyone** (**Todos**), **One site's people** (**El personal de un sitio**) with a site, **A role** (**Un rol**) with a role, or **Chosen people** (**Personas elegidas**).
 4. The line under it says how many people it reaches and how many have phone alerts on. Click **Send announcement** (**Enviar anuncio**).
 5. It lands in each person's bell and on every phone they turned alerts on. The list under **Sent** (**Enviados**) keeps each one with who sent it, when, and the counts. An announcement cannot be edited or taken back once sent.
+If it does not work: When a send takes more than 30 seconds, the page says **This is taking longer than usual and may still be going out. Check before you send it again.** (**Esto está tardando más de lo normal y puede que todavía se esté enviando. Revise antes de volver a enviarlo.**) and **Send announcement** (**Enviar anuncio**) stays off until you change the words. Look under **Sent** (**Enviados**) before you send it again.
 Words people use for this: send a message to everyone, push notification, announcement, alert all staff, tell a site, enviar un anuncio.
 Picture: announcement-new
-Last checked: 2026-10-06
+Last checked: 2026-10-19
 
 ## Choose what alerts your phone (admin dashboard)
 Who can do this: anyone signed in
@@ -967,11 +972,11 @@ Who can do this: anyone who can see reports prepares it; an admin who did not pr
 6. An admin other than the person who prepared it clicks **Open** (**Abrir**) on the report in the list and signs **Reviewed by** (**Revisado por**).
 7. Click **Send to the client** (**Enviar al cliente**), tick the site's survey contacts, add any other address with **Add an address** (**Agregar una dirección**), and click **Send** (**Enviar**). The client gets the PDF, a link to acknowledge it, and the site's rating survey.
 8. The list shows who acknowledged it and when. A report not acknowledged 10 days after sending is marked **Overdue** (**Atrasado**).
-If it does not work: the send is refused until both **Prepared by** (**Preparado por**) and **Reviewed by** (**Revisado por**) are signed; the line at the top says which. A figure the records cannot give is left empty for you to fill in. When the contract reference or the service lines are empty, set them on the site with **Edit Details** (**Editar los detalles**) before making the report, or type them in. When no audit inspections are counted, check that the audit's template has **Audit inspection** (**Inspección de auditoría**) as its kind.
+If it does not work: the send is refused until both **Prepared by** (**Preparado por**) and **Reviewed by** (**Revisado por**) are signed; the line at the top says which. A figure the records cannot give is left empty for you to fill in. When the contract reference or the service lines are empty, set them on the site with **Edit Details** (**Editar los detalles**) before making the report, or type them in. When no audit inspections are counted, check that the audit's template has **Audit inspection** (**Inspección de auditoría**) as its kind. When a send takes more than 30 seconds, the window says **This is taking longer than usual and may still be going out. Check before you send it again.** (**Esto está tardando más de lo normal y puede que todavía se esté enviando. Revise antes de volver a enviarlo.**) and **Send** (**Enviar**) stays off. Close the window and check the list before you send it again.
 Words people use for this: monthly report, client report, monthly performance report, send the report with the invoice, client acknowledgement, audit gap, supervisor and audit inspections, reporte mensual, informe mensual.
 Picture: monthly-reports-list
 Picture: monthly-report-send
-Last checked: 2026-09-30
+Last checked: 2026-10-19
 
 ## Set when a site's client gets the satisfaction survey (admin dashboard)
 Who can do this: admins who can change settings
@@ -1078,10 +1083,10 @@ Who can do this: people given Build quotes, admins by default
 3. Click **Send to the client** (**Enviar al cliente**). The quote's contact is listed first, ticked. Add any other address with **Add an address** (**Agregar una dirección**).
 4. Type a **Message** (**Mensaje**) if you want one, pick the **Language of the PDF** (**Idioma del PDF**), and click **Send** (**Enviar**). The mail carries the client's PDF only, in English and then Spanish, with the message above both.
 5. The window says how many addresses the mail reached. The quote shows on the list as **Sent** (**Enviada**), with the day.
-If it does not work: **Send to the client** (**Enviar al cliente**) waits until every change is saved. An address that cannot be read is edged red. Up to 10 addresses go at a time. When the mail reached nobody, the line at the top says so and the quote stays as it was, so try again. When the window says **The quote changed while it was mailing, so it was not marked sent.** (**La cotización cambió mientras se enviaba, así que no se marcó como enviada.**), someone saved or closed the quote while it mailed; open it and send it again if it still needs to go.
+If it does not work: **Send to the client** (**Enviar al cliente**) waits until every change is saved. An address that cannot be read is edged red. Up to 10 addresses go at a time. When the mail reached nobody, the line at the top says so and the quote stays as it was, so try again. When the window says **The quote changed while it was mailing, so it was not marked sent.** (**La cotización cambió mientras se enviaba, así que no se marcó como enviada.**), someone saved or closed the quote while it mailed; open it and send it again if it still needs to go. When a send takes more than 30 seconds, the window says **This is taking longer than usual and may still be going out. Check before you send it again.** (**Esto está tardando más de lo normal y puede que todavía se esté enviando. Revise antes de volver a enviarlo.**) and **Send** (**Enviar**) stays off. Close the window and check the quote's list before you send it again.
 Words people use for this: send the quote, email the bid, quote pdf, client pdf, internal worksheet, enviar la cotización.
 Picture: quote-send-window
-Last checked: 2026-09-30
+Last checked: 2026-10-19
 
 ## Mark a quote accepted or declined (admin dashboard)
 Who can do this: people given Build quotes, admins by default
@@ -1135,11 +1140,12 @@ Who can do this: admins and supervisors. A supervisor who cannot open HR Records
 2. **Clearances** (**Autorizaciones escolares**) is at the top of their record: the **Act 34 PA State Police check** (**Verificación de la Policía Estatal (Act 34)**), the **Act 151 child abuse clearance** (**Verificación de antecedentes de abuso infantil (Act 151)**) and the **FBI fingerprint check** (**Verificación de huellas del FBI**), each with the day it was issued, the day it expires and its state: **Current** (**Vigente**), **Expiring** (**Por vencer**) within 90 days, **Expired** (**Vencida**) or **Missing** (**Falta**). Each is renewed every 60 months from its own date.
 3. To add one or record a renewal, click **Add or renew** (**Agregar o renovar**) on it. Enter the date on the certificate under **Issued on** (**Emitida el**), pick the scanned copy under **Document** (**Documento**) if it is in the person's HR documents, add **Notes** (**Notas**) if needed, and click **Save** (**Guardar**). The one there before stays, listed under History.
 4. For the **Act 168 employment history review** (**Revisión del historial laboral (Act 168)**), click **Record the review** (**Registrar la revisión**), enter **Completed on** (**Hecha el**), answer **Anything disclosed?** (**¿Se divulgó algo?**), and click **Save** (**Guardar**).
+5. A clearance or the review recorded with its scanned copy shows **Open the file** (**Abrir el archivo**), which opens the copy, and **Who opened this** (**Quién abrió esto**) beside it, which lists everyone who has opened it. One recorded without a copy reads **Entered with no file.** (**Se registró sin archivo.**) Someone who cannot open HR Records sees neither.
 If it does not work: a date in the future is refused, and the line under the date says so. When the certificate is not in the **Document** (**Documento**) list, add it first with **+ Add Document** (**+ Agregar documento**).
 Words people use for this: school clearances, act 34, act 151, fbi fingerprints, child abuse clearance, act 168, renew a clearance, autorizaciones escolares.
 Picture: clearances-person
 Picture: clearances-add-window
-Last checked: 2026-10-16
+Last checked: 2026-10-19
 
 ## Correct a clearance date entered wrongly (admin dashboard)
 Who can do this: admins and supervisors
@@ -1318,11 +1324,11 @@ Who can do this: admins who manage staff, for anyone but themselves
 4. Fill in the **Last day** (**Último día**) and answer **Eligible for rehire?** (**¿Elegible para recontratación?**). Add a **Note** (**Nota**) if needed.
 5. Under **Collect before the last day** (**Recoger antes del último día**), the window lists the company property the person still holds: uniforms, keys, badges and fobs. Collect each one, and click **Mark returned** (**Marcar como devuelto**) on it in their **HR Records** (**Expedientes de personal**) folder.
 6. Click **End employment** (**Terminar el empleo**). With a last day of today or earlier they can no longer sign in, and every site they are assigned to ends with it.
-7. With a last day ahead, the dashboard asks **End the employment of {0} after {1}? They stay as they are until then, and every site they are assigned to ends with it.** (**¿Terminar el empleo de {0} después del {1}? Sigue como está hasta entonces, y cada sitio al que está asignado termina con él.**) and then says **Recorded. The employment ends after {0}.** (**Registrado. El empleo termina después del {0}.**) Until the morning after the last day, the **Employment** (**Empleo**) card reads **Employment ends after {0}. It takes effect on {1}.** (**El empleo termina después del {0}. Entra en vigor el {1}.**), and its history marks the end **Takes effect on {0}** (**Entra en vigor el {0}**). To change the last day, end the employment again with the new one.
+7. With a last day ahead, the dashboard asks **End the employment of {0} after {1}? They stay as they are until then, and every site they are assigned to ends with it.** (**¿Terminar el empleo de {0} después del {1}? Sigue como está hasta entonces, y cada sitio al que está asignado termina con él.**) and then says **Recorded. The employment ends after {0}.** (**Registrado. El empleo termina después del {0}.**) Until the morning after the last day, the **Employment** (**Empleo**) card reads **Employment ends after {0}. It takes effect on {1}.** (**El empleo termina después del {0}. Entra en vigor el {1}.**), and its history marks the end **Takes effect on {0}** (**Entra en vigor el {0}**). To change the last day, end the employment again with the new one. While it waits, **Take back** (**Anular**) on the card takes the end back; see Take back an end of employment before its day.
 8. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
 Words people use for this: terminate, fire, let go, quit, resigned, dismiss, last day, deactivate, end employment, collect uniform, return keys, despedir.
 Picture: staff-end-employment-window
-Last checked: 2026-10-18
+Last checked: 2026-10-19
 
 ## Bring someone back from leave (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -1432,10 +1438,10 @@ Who can do this: admins and supervisors
 3. Under **Send** (**Enviar**), choose **Email** (**Correo**), **Handed over in person** (**Entregada en persona**), **Printed** (**Impresa**) or **Mailed** (**Enviada por correo postal**).
 4. For **Email** (**Correo**), it goes to their email on file. To copy an office address, type it and click **Add an address** (**Agregar una dirección**).
 5. Click **Send** (**Enviar**). The window reads **Sent by email.** (**Enviada por correo electrónico.**) or records how it was given.
-If it does not work: a person with no email on file gets the warning by hand or by mail. Choose another way and click Send.
+If it does not work: a person with no email on file gets the warning by hand or by mail. Choose another way and click Send. When an email takes more than 30 seconds, the window says **This is taking longer than usual and may still be going out. Check before you send it again.** (**Esto está tardando más de lo normal y puede que todavía se esté enviando. Revise antes de volver a enviarlo.**) and **Send** (**Enviar**) stays off.
 Words people use for this: send a warning, email a warning, print a warning, give the employee a copy, write-up, enviar la advertencia.
 Picture: warning-send-window
-Last checked: 2026-10-07
+Last checked: 2026-10-19
 
 ## When a person declines to sign a warning (admin dashboard)
 Who can do this: admins and supervisors
@@ -1466,10 +1472,10 @@ Who can do this: admins see every warning; supervisors see the warnings they iss
 3. Narrow the table with **Every step** (**Todos los pasos**), **Every category** (**Todas las categorías**), **All sites** (**Todos los sitios**), **Everyone** (**Todos**), **All statuses** (**Todos los estados**), **From** (**Desde**) and **To** (**Hasta**). Admins also have **Issued by anyone** (**Emitida por cualquiera**). In **Everyone** (**Todos**) and **Issued by anyone** (**Emitida por cualquiera**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to find a person.
 4. Click a row to open the warning.
 5. **Export** (**Exportar**) saves the rows shown as a spreadsheet file.
-If it does not work: the page shows once the server keeps warnings.
+If it does not work: the page shows once the server keeps warnings. The list holds the newest 500 warnings; with that many it says **The newest {0} warnings are listed. Narrow the dates or the filters to find an older one.** (**Se muestran las {0} advertencias más recientes. Acorte las fechas o los filtros para encontrar una más antigua.**)
 Words people use for this: discipline, warnings, write-ups, who has been written up, final warning, discipline report, disciplina.
 Picture: discipline-page
-Last checked: 2026-10-07
+Last checked: 2026-10-19
 
 ## Open a case (admin dashboard)
 Who can do this: admins, and supervisors given Cases
@@ -1481,11 +1487,11 @@ Who can do this: admins, and supervisors given Cases
 6. Choose who holds it under **Assigned to** (**Asignado a**), or leave it at **Nobody yet** (**Nadie todavía**).
 7. Click **Open a case** (**Abrir un caso**).
 8. To warn the person later, open the case and click **Issue a warning** (**Emitir una advertencia**).
-9. To start a case from a filed report or an incident report, open the report under **Forms** (**Formularios**) and click **Open a case** (**Abrir un caso**) in it. **What happened** (**Qué pasó**) starts with a line naming the report, the window says **The filed report is linked to this case.** (**El reporte presentado queda vinculado a este caso.**), and the report then says **Case opened.** (**Caso abierto.**)
+9. To start a case from a filed report or an incident report, open the report under **Forms** (**Formularios**) and click **Open a case** (**Abrir un caso**) in it. **What happened** (**Qué pasó**) starts with a line naming the report, the window says **The filed report is linked to this case.** (**El reporte presentado queda vinculado a este caso.**), and the report then says **Case opened.** (**Caso abierto.**) When the report cannot go with the case, the window says so in red under that line, with **Open it without the report** (**Abrirlo sin el reporte**). Click it: the line then reads **The case will be opened without the report.** (**El caso se abrirá sin el reporte.**), and **Open a case** (**Abrir un caso**) opens it with the rest of what you filled in.
 Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, case from an incident report, abrir un caso.
 Picture: case-open-window
 Picture: case-from-report
-Last checked: 2026-10-13
+Last checked: 2026-10-19
 
 ## Add an old form's warning to the record (admin dashboard)
 Who can do this: admins
@@ -1994,10 +2000,10 @@ OCSA-MGT-005 has the client told what happened, what was done and what will prev
 2. Click **Tell the client** (**Informar al cliente**). Under **Recipients** (**Destinatarios**), the site's survey contacts and its client contact start ticked; untick any, or type a name and an email and click **Add an address** (**Agregar una dirección**).
 3. Fill in **What happened** (**Qué pasó**), **What was done** (**Qué se hizo**) and **What will prevent it** (**Qué lo evitará**). Name no employee: the client hears what the company did.
 4. Click **Send** (**Enviar**). The email goes in English and then in Spanish, the way the monthly report does. The window then reads who told the client and when, and the form's own answer on whether the customer was told becomes yes.
-If it does not work: the button is offered only once the verification is answered and until the client is told; a refusal is shown under the field it names. Nothing is recorded when the email fails to send.
+If it does not work: the button is offered only once the verification is answered and until the client is told; a refusal is shown under the field it names. Nothing is recorded when the email fails to send. When the mail takes more than 30 seconds, the window says **This is taking longer than usual and may still be going out. Check before you send it again.** (**Esto está tardando más de lo normal y puede que todavía se esté enviando. Revise antes de volver a enviarlo.**) and **Send** (**Enviar**) stays off.
 Words people use for this: tell the client, notify the customer, what happened what was done, client letter, corrective action email, informar al cliente.
 Picture: corrective-tell-client
-Last checked: 2026-10-05
+Last checked: 2026-10-19
 
 ## Read and change the training catalog (admin dashboard)
 Who can do this: admins and supervisors read it; admins add, edit, retire and restore topics
@@ -2381,10 +2387,10 @@ Who can do this: admins, except anyone the case is about
 6. Write **What was said or done** (**Qué se dijo o se hizo**).
 7. To add a picture or a PDF, choose it under **Attach files** (**Adjuntar archivos**): up to 5, 10 MB each.
 8. Click **Add to the case log** (**Agregar al registro del caso**). The entry shows at the end of the log with your name and the time.
-If it does not work: every type but File needs text, and File needs at least one file. A picture must be JPEG, PNG, WebP or HEIC. Entries cannot be changed once added; to fix one, see Correct an entry in a case log. To open a file in the log, click its name.
+If it does not work: every type but File needs text, and File needs at least one file. A picture must be JPEG, PNG, WebP or HEIC. Entries cannot be changed once added; to fix one, see Correct an entry in a case log. To open a file in the log, click its name. **When it happened** (**Cuándo ocurrió**) is the company's time, whatever time zone the computer is set to.
 Words people use for this: case notes, add a note to a case, log a conversation, record a meeting, attach a file to a case, case update, notas del caso.
 Picture: cases-add-update
-Last checked: 2026-10-07
+Last checked: 2026-10-19
 
 ## Correct an entry in a case log (admin dashboard)
 Who can do this: admins, except anyone the case is about
@@ -2460,11 +2466,11 @@ Who can do this: the people who approve supply requests, for a request someone e
 6. Click **Open the purchase order** (**Abrir la orden de compra**) to read the PDF: the company, the vendor, where it goes, the approved items and the signature.
 7. Click **Send to {0}** (**Enviar a {0}**), which carries the vendor's email, to email the purchase order to the vendor. To send it to another address, type it in **Send to** (**Enviar a**) first.
 8. The window then reads **Ordered {0}, sent to {1}** (**Pedido el {0}, enviado a {1}**), and the request in the list shows its number and **Ordered {0}** (**Pedido el {0}**). **Send again** (**Enviar de nuevo**) sends it once more.
-If it does not work: **Add a vendor under Vendors and set it to approved first.** (**Primero agregue un proveedor en Proveedores y márquelo como aprobado.**) means no vendor is approved yet; see Add or edit a vendor. Nobody signs their own request. A refused signature or send says why in red under the box or the button.
+If it does not work: **Add a vendor under Vendors and set it to approved first.** (**Primero agregue un proveedor en Proveedores y márquelo como aprobado.**) means no vendor is approved yet; see Add or edit a vendor. Nobody signs their own request. A refused signature or send says why in red under the box or the button. When a send takes more than 30 seconds, the window says **This is taking longer than usual and may still be going out. Check before you send it again.** (**Esto está tardando más de lo normal y puede que todavía se esté enviando. Revise antes de volver a enviarlo.**) and the send button stays off. Close the request and open it again: once it reads **Ordered {0}** (**Pedido el {0}**), it went.
 Words people use for this: purchase order, po, send the order to the vendor, sign the supply order, order supplies from the vendor, email the vendor, orden de compra.
 Picture: supplies-order-sign
 Picture: supplies-order-sent
-Last checked: 2026-10-08
+Last checked: 2026-10-19
 
 ## Add or edit a vendor (admin dashboard)
 Who can do this: admins
@@ -2659,4 +2665,15 @@ If it does not work: allow pop-ups for the dashboard, then click **Print report*
 Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, print the checklist, imprimir el informe.
 Picture: checklist-results-range
 Picture: checklist-report-print
+Last checked: 2026-10-19
+
+## Take back an end of employment before its day (admin dashboard)
+Who can do this: admins who manage staff, for anyone but themselves
+1. Click **Staff Management** (**Gestión de personal**) and open the person's profile. While an end recorded with a last day ahead waits, the **Employment** (**Empleo**) card reads **Employment ends after {0}. It takes effect on {1}.** (**El empleo termina después del {0}. Entra en vigor el {1}.**)
+2. Click **Take back** (**Anular**) under that line.
+3. The window **Take back the end** (**Anular el fin**) asks once and says what happens: the person stays as they are, and the end never takes effect. Click **Take back** (**Anular**).
+4. The dashboard says **The end was taken back.** (**Se anuló el fin.**), and the card no longer reads the end. Its history keeps the end with **Taken back by {0} on {1}** (**Anulado por {0} el {1}**), and an entry **End taken back** (**Fin anulado**) names the end it took back.
+If it does not work: when someone else took it back a moment before, or the end already took effect, the window says the person has no end waiting, in red, and nothing changes. An end that took effect is undone with **Rehire** (**Recontratar**).
+Words people use for this: undo a termination, cancel a termination, take back an end, they are not leaving after all, keep someone on, last day changed, anular el fin.
+Picture: employment-take-back
 Last checked: 2026-10-19
