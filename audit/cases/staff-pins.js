@@ -6,7 +6,8 @@
 // toast names the person. An admin's account is changed only by a holder of manage_admins, which no
 // admin holds by default, so an admin without it opens another admin's profile and finds no Reset
 // PIN, no reset link, no Deactivate and no Edit, and the list draws no pencil on an admin's row, while
-// a custodial lead's profile offers every one. An employee ID somebody else holds is refused by the
+// a custodial lead's profile offers Reset PIN, the reset link and Edit. Since Round 2 (part 353) no
+// profile offers Deactivate: the API refuses that move 409 users.useEmployment. An employee ID somebody else holds is refused by the
 // profile's save with the code the PATCH route sends, users.employeeIdTakenByOther, and the line under
 // the field says so in the screen's language. The words are written out here by hand, so a wrong
 // entry in the table is red and not merely followed.
@@ -120,7 +121,8 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.goto("staff");
   await d.clickRow(4);
   await d.settle(400);
-  const offered = await buttonsSaying(d, [d.say("Reset PIN"), d.say("Send a PIN reset link"), d.say("Deactivate"), d.say("Edit")]);
+  const offered = await buttonsSaying(d, [d.say("Reset PIN"), d.say("Send a PIN reset link"), d.say("Edit")]);
+  const deactivate = await buttonsSaying(d, [d.say("Deactivate")]);
   await d.clickText(d.say("Reset PIN"), { exact: true });
   const box = await d.page.evaluate((sel) => {
     const m = Array.from(document.querySelectorAll(sel)).pop();
@@ -134,8 +136,9 @@ async function run({ d, results, seed, stubs, lang }) {
     !box ? "no box in the Reset PIN window" : "the box is " + JSON.stringify(box));
   results.check("window", "window/staff/reset-pin/toast-names-the-person" + tail, resetToast === w.resetFor + lead.name,
     "the toast reads " + JSON.stringify(resetToast) + " where it should read " + JSON.stringify(w.resetFor + lead.name));
-  results.check("page", "page/staff/a-lead-can-be-changed" + tail, offered.length === 4,
-    "a custodial lead's profile offers " + JSON.stringify(offered) + " of Reset PIN, the reset link, Deactivate and Edit");
+  results.check("page", "page/staff/a-lead-can-be-changed" + tail, offered.length === 3 && deactivate.length === 0,
+    deactivate.length ? "a custodial lead's profile offers Deactivate, which the API refuses 409 users.useEmployment"
+      : "a custodial lead's profile offers " + JSON.stringify(offered) + " of Reset PIN, the reset link and Edit");
   await d.waitToastGone(3600);
 
   // ---- An admin without manage_admins: another admin's profile offers nothing that changes it

@@ -192,6 +192,9 @@ const SUITES = [
   { name: "round1", mod: "./cases/round1", widths: [] },
   // Live Ops shows the day you pick (part 351): yesterday's sessions on yesterday, today's on today.
   { name: "live-ops", mod: "./cases/live-ops", widths: [] },
+  // Round 2 and who opened each HR file (part 353): against the API as built at its part 352
+  // (audit/round2-stub.js). Its own passes, like the round1 suite.
+  { name: "round2", mod: "./cases/round2", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

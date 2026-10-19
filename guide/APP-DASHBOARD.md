@@ -110,36 +110,37 @@ Last checked: 2026-10-07
 Who can do this: admins and supervisors. Only admins change a person's role, employment type, hourly rate and hire date, only admins see the hourly rate, and a supervisor changes the information of staff only.
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
-3. Change what is needed and click **Save Changes** (**Guardar los cambios**). Only what you changed is saved. A supervisor's window has no role, no **Employment Type** (**Tipo de empleo**), no **Hourly Rate** (**Tarifa por hora**) and no hire date to change.
+3. Change what is needed and click **Save Changes** (**Guardar los cambios**). Only what you changed is saved. A supervisor's window has no role, no **Employment Type** (**Tipo de empleo**), no **Hourly Rate** (**Tarifa por hora**) and no hire date to change. An admin who empties **Hourly Rate** (**Tarifa por hora**) clears the rate.
 4. **Hire Date** (**Fecha de contratación**) holds the person's date, and once set it cannot be emptied. See Change a staff member's hire date.
 5. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**). The person's documents, training, certifications and filed forms are in their HR Records folder: click **Open HR file** (**Abrir el expediente de personal**), which shows for anyone who can open HR Records.
 6. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
 Picture: staff-profile-edit
-Last checked: 2026-10-16
+Last checked: 2026-10-18
 
 ## Reset a staff member's PIN (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**) and open the person's profile.
 2. Click **Reset PIN** (**Restablecer el PIN**). Once the profile shows the person's sign-in, the window also says **Reset PIN also unlocks their sign-in and signs them out everywhere. They choose their own PIN at their next sign-in.** (**Restablecer el PIN también desbloquea su inicio de sesión y cierra su sesión en todas partes. La persona elige su propio PIN la próxima vez que inicie sesión.**)
-3. Type a new 4 digit PIN (it stays hidden as you type) and click **Reset PIN** (**Restablecer el PIN**) to save. **PIN reset for {0}** (**PIN restablecido para {0}**) confirms it with the person's name.
-4. Tell the person their new PIN privately. The next time they sign in, the staff app or the dashboard asks them to choose their own PIN.
+3. Type a new 4 digit PIN (it stays hidden as you type). The line under the field says **Four digits, not all the same, not a run such as 1234 or 4321, and not the person's badge number.** (**Cuatro dígitos, no todos iguales, sin una serie como 1234 o 4321, y distintos del número de empleado de la persona.**)
+4. Click **Reset PIN** (**Restablecer el PIN**) to save. **PIN reset for {0}** (**PIN restablecido para {0}**) confirms it with the person's name.
+5. Tell the person their new PIN privately. The next time they sign in, the staff app or the dashboard asks them to choose their own PIN.
 Or, if the person has an email, click **Send a PIN reset link** (**Enviar un enlace para restablecer el PIN**) on their profile; they get a link and choose a PIN themselves. **Reset link sent.** (**Enlace enviado.**) confirms it.
-If it does not work: a link or an invite that did not go says **Not sent: {0}** (**No se envió: {0}**) with the reason, such as an email address no mail can reach. Fix the email on the profile and send it again.
-Words people use for this: someone forgot their pin, they are locked out, reset a password, too many tries, send a reset link.
+If it does not work: a PIN of one digit four times, a run such as 1234 or 4321, or the person's badge number is not saved, and **Choose a PIN that is not repeated digits, a sequence, or your badge number** (**Elija un PIN que no sea un mismo dígito repetido, una secuencia ni su número de empleado**) shows in red under the field; fewer than four digits reads **PIN must be exactly 4 digits** (**El PIN debe tener exactamente 4 dígitos**). Type another PIN and click **Reset PIN** (**Restablecer el PIN**) again. A link or an invite that did not go says **Not sent: {0}** (**No se envió: {0}**) with the reason, such as an email address no mail can reach. Fix the email on the profile and send it again.
+Words people use for this: weak pin, pin refused, someone forgot their pin, they are locked out, reset a password, too many tries, send a reset link.
 Picture: staff-reset-pin
-Last checked: 2026-10-07
+Last checked: 2026-10-18
 
 ## Deactivate or reactivate a staff member (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**) and open the person's profile.
 2. When the profile shows the **Employment** (**Empleo**) card, its buttons record why: **End employment** (**Terminar el empleo**), **Put on leave** (**Poner en licencia**), **Return from leave** (**Regresar de la licencia**) or **Rehire** (**Recontratar**). Each has its own entry.
-3. A profile without that card has **Deactivate** (**Desactivar**) or **Reactivate** (**Reactivar**).
+3. A profile without that card has **Reactivate** (**Reactivar**) for someone inactive. There is no **Deactivate** (**Desactivar**): someone stops working through **End employment** (**Terminar el empleo**) or **Put on leave** (**Poner en licencia**), so the reason, the last day and their sites and work move with it.
 4. Bringing back someone who has never signed in sends them the welcome email, and the message says **Welcome email sent.** (**Se envió el correo de bienvenida.**) or **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason.
 5. Their records stay in the system either way.
 If it does not work: when the server refuses to show the person's employment, its own sentence shows under **Employment** (**Empleo**), such as a missing permission; ask an admin to check your access. When it could not be read, **Employment could not be loaded. Try again.** (**No se pudo cargar el empleo. Vuelva a intentarlo.**) shows with **Try again** (**Intentar de nuevo**).
 Words people use for this: someone quit, terminate, fire, let go, turn off an account, bring someone back, deactivate, rehire, leave of absence, cannot end employment.
 Picture: staff-employment-card
-Last checked: 2026-10-07
+Last checked: 2026-10-18
 ## Assign a staff member to a site (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** and open the person's profile.
@@ -249,10 +250,10 @@ Who can do this: admins and supervisors
 5. Set the start and end times.
 6. Add the building, floor, service or notes if needed.
 7. Click **Schedule Shift** (**Programar turno**) at the bottom of the window to save it.
-If it does not work: when nobody matches what you typed, the list says **No one matches.** (**Nadie coincide.**); check the spelling or the number. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+If it does not work: when nobody matches what you typed, the list says **No one matches.** (**Nadie coincide.**); check the spelling or the number. A shift on a day the person has approved time off is not saved, and the window says so in red with the dates; pick another day or another person. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Words people use for this: schedule someone, add a shift, put someone on the schedule, find a person by badge number, office staff on the schedule.
 Picture: schedule-shift-window
-Last checked: 2026-10-07
+Last checked: 2026-10-18
 
 ## Schedule a shift that repeats (admin dashboard)
 Who can do this: admins and supervisors
@@ -262,10 +263,10 @@ Who can do this: admins and supervisors
 4. Choose how long it repeats. **No end date** keeps it going until someone ends it. **Until** stops on a date you pick. **For** adds a set number of weeks.
 5. Save with the button at the bottom of the window.
 6. With **No end date** or **Until**, the app keeps the schedule filled 8 weeks ahead and keeps extending it. The shifts it adds say **Repeats**.
-If it does not work: for a shift that runs past midnight, pick the day it starts. If the person is already scheduled at that time on some dates, those dates are skipped and listed. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+If it does not work: for a shift that runs past midnight, pick the day it starts. If the person is already scheduled at that time on some dates, those dates are skipped and listed. Days the person has approved time off are skipped too, listed under **{0} dates were skipped because this person has approved time off:** (**Se omitieron {0} fechas porque esta persona tiene tiempo libre aprobado:**) At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Words people use for this: weekly schedule, recurring shift, same shift every week, standing schedule, set up a pattern.
 Picture: schedule-repeat
-Last checked: 2026-10-07
+Last checked: 2026-10-18
 
 ## See or change a weekly pattern (admin dashboard)
 Who can do this: admins and supervisors
@@ -389,14 +390,14 @@ Last checked: 2026-10-13
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**). A number beside it counts the messages you have not read, direct messages included.
-2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**), each **Site channel** (**Canal del sitio**), and each **Project chat** (**Chat del proyecto**) for the projects you are in. Below them, **Direct messages** (**Mensajes directos**) lists your chats with other office people, and **Private conversations** (**Conversaciones privadas**) lists one per staff member.
+2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**), each **Site channel** (**Canal del sitio**), and each **Project chat** (**Chat del proyecto**) for the projects you are in. Below them, **Direct messages** (**Mensajes directos**) lists your chats with other office people, and for an admin **Private conversations** (**Conversaciones privadas**) lists one per staff member. Only admins read a staff member's private line, so a supervisor's list has no private conversations.
 3. Use **Search chats and people** (**Buscar chats y personas**) to find someone by name or badge number. It finds any active person. Someone you have no chat with yet shows under **People** (**Personas**) as **Message {0}** (**Escribir a {0}**) with their name; click it and the chat opens. **New message** (**Nuevo mensaje**) at the top right does the same from a list of everyone.
 4. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert. A staff member reads what the office writes in their own private chat in the staff app.
 5. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words. The message is sent once, even when the first try reached the chat. Once it shows in the chat, the box empties.
 Words people use for this: message someone, chat, site chat, general chat, project chat, unread messages, find a person to message, message someone new, find by badge, write to a staff member, mensajes.
 Picture: messages-private-chat
-Last checked: 2026-10-01
+Last checked: 2026-10-18
 
 ## Ask Help a question from the dashboard (admin dashboard)
 Who can do this: admins and supervisors
@@ -421,10 +422,11 @@ Who can do this: admins and supervisors
 3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**).
 4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A built-in report reads **Template** (**Plantilla**) and is changed by duplicating it. To take a report off the list, see Remove a report you no longer need.
 5. **Supply Usage and Cost** (**Uso y costo de suministros**) shows the estimated cost, and puts the supplies in order of cost, for admins only. Anyone else reads the quantities and the events, with the supplies in name order, on screen and in the PDF.
+If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again.
 Words people use for this: hours worked, labor report, payroll numbers, export data, who worked when, csv, spreadsheet.
 Picture: reports-library
 Picture: reports-issue-report
-Last checked: 2026-10-16
+Last checked: 2026-10-18
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
@@ -447,9 +449,10 @@ Who can do this: admins, and anyone given the manage permissions permission
 3. Stay on **By person**, and choose the person in **Select a team member...**.
 4. Set each permission to **Default**, **Allow** or **Deny**.
 5. Click **Save changes**.
+6. Only the super admin sees **Read chat records** (**Leer los registros del chat**) and **HR file access report** (**Informe de acceso a archivos de RR. HH.**), on an admin's account too. See Grant the HR file access report.
 Words people use for this: give access, let someone approve, permissions, change what someone can do.
 Picture: settings-permissions-person
-Last checked: 2026-10-07
+Last checked: 2026-10-18
 
 ## See what each role can do, or print it (admin dashboard)
 Who can do this: admins, and anyone given the manage permissions permission
@@ -479,7 +482,7 @@ Words people use for this: keyboard, tab key, without a mouse, where am i on the
 Last checked: 2026-09-21
 
 ## Approve or deny a time off request (admin dashboard)
-Who can do this: admins, who hold time off approval. A supervisor opens a request and reads it, and in place of **Approve** (**Aprobar**) and **Deny** (**Denegar**) the window says **An admin approves or denies time off.** (**Un administrador aprueba o deniega el tiempo libre.**)
+Who can do this: admins, who hold time off approval by role, and anyone given it under **Roles and Permissions** (**Roles y permisos**). Anyone else opens a request and reads it, and in place of **Approve** (**Aprobar**) and **Deny** (**Denegar**) the window says **An admin approves or denies time off.** (**Un administrador aprueba o deniega el tiempo libre.**)
 1. Click **Schedule** (**Horario**) in the menu on the left.
 2. On **Week** (**Semana**) and **Month** (**Mes**), time off shows on the person's day: **Time off requested** (**Tiempo libre solicitado**) in amber while it waits, and **Off** (**Libre**) in gray once approved. A shift under it is marked too. Click the time off to open its request.
 3. Or click **Time off** (**Tiempo libre**) beside **Week**, **Month** and **Patterns**. The number beside it is how many are waiting for a decision. Click a row to open the request. A notice that someone requested time off opens the request too.
@@ -492,7 +495,7 @@ Words people use for this: approve time off, approve pto, paid time off, deny a 
 If it does not work: nobody decides their own request. A shift left as it is stays under the person, and the approved request then lists it under **Shifts to cover** (**Turnos por cubrir**). If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet.
 Picture: time-off-request
 Picture: schedule-time-off-week
-Last checked: 2026-10-16
+Last checked: 2026-10-18
 
 ## See past time off requests (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
@@ -1107,12 +1110,12 @@ Last checked: 2026-10-07
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**), then **New message** (**Nuevo mensaje**) at the top right.
 2. The window lists everyone active: **Office** (**Oficina**) first, then **Staff** (**Personal**). Type in **Search by name or badge** (**Buscar por nombre o número de empleado**) to narrow it.
-3. Click the person. Someone in the office opens your direct chat with them, and a staff member opens their private chat with the office. A chat already there opens with its messages.
+3. Click the person. Someone in the office opens your direct chat with them, and for an admin a staff member opens their private chat with the office. A chat already there opens with its messages. A supervisor's window lists the office only and says **Picking someone in the office opens your direct chat with them.** (**Al elegir a alguien de la oficina se abre su chat directo con esa persona.**)
 4. The chat opens with the message box ready. Type and press Enter.
 If it does not work: a person who is no longer active is not listed. When a line in the window says the chat could not be opened, try again; if it keeps saying so, the person may no longer be active.
 Words people use for this: new message, start a chat, message someone new, write to anyone, message a supervisor, message a staff member who has not written, nuevo mensaje.
 Picture: messages-new-window
-Last checked: 2026-10-01
+Last checked: 2026-10-18
 
 ## Message another office person directly (admin dashboard)
 Who can do this: admins and supervisors
@@ -1313,11 +1316,12 @@ Who can do this: admins who manage staff, for anyone but themselves
 3. Choose the **Reason** (**Motivo**): they quit, they were let go, they stopped coming, they were laid off, they retired, or other.
 4. Fill in the **Last day** (**Último día**) and answer **Eligible for rehire?** (**¿Elegible para recontratación?**). Add a **Note** (**Nota**) if needed.
 5. Under **Collect before the last day** (**Recoger antes del último día**), the window lists the company property the person still holds: uniforms, keys, badges and fobs. Collect each one, and click **Mark returned** (**Marcar como devuelto**) on it in their **HR Records** (**Expedientes de personal**) folder.
-6. Click **End employment** (**Terminar el empleo**). They can no longer sign in, and every site they are assigned to ends with it.
-7. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
+6. Click **End employment** (**Terminar el empleo**). With a last day of today or earlier they can no longer sign in, and every site they are assigned to ends with it.
+7. With a last day ahead, the dashboard asks **End the employment of {0} after {1}? They stay as they are until then, and every site they are assigned to ends with it.** (**¿Terminar el empleo de {0} después del {1}? Sigue como está hasta entonces, y cada sitio al que está asignado termina con él.**) and then says **Recorded. The employment ends after {0}.** (**Registrado. El empleo termina después del {0}.**) Until the morning after the last day, the **Employment** (**Empleo**) card reads **Employment ends after {0}. It takes effect on {1}.** (**El empleo termina después del {0}. Entra en vigor el {1}.**), and its history marks the end **Takes effect on {0}** (**Entra en vigor el {0}**). To change the last day, end the employment again with the new one.
+8. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
 Words people use for this: terminate, fire, let go, quit, resigned, dismiss, last day, deactivate, end employment, collect uniform, return keys, despedir.
 Picture: staff-end-employment-window
-Last checked: 2026-10-07
+Last checked: 2026-10-18
 
 ## Bring someone back from leave (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -2277,15 +2281,15 @@ Last checked: 2026-10-07
 ## See whether a person can sign in, and unlock them (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**). Under each person's **Status** (**Estado**), and on their profile, a line says how their sign-in stands.
-2. **Locked until {0}** (**Bloqueado hasta {0}**) means too many wrong tries, with the time sign-in opens again. **On a given PIN** (**Con un PIN asignado**) means they still have the PIN the office gave and choose their own at their next sign-in. **No working email** (**Sin un correo que funcione**) means no sign-in code or reset link can reach their email; fix the email on their profile.
+2. **Locked until {0}** (**Bloqueado hasta {0}**) means too many wrong tries, with the time sign-in opens again. **On a given PIN** (**Con un PIN asignado**) means they still have the PIN the office gave and choose their own at their next sign-in. **No working email** (**Sin un correo que funcione**) means no sign-in code or reset link can reach their email; fix the email on their profile. **Locked since {0} until the office unlocks it** (**Bloqueado desde {0} hasta que la oficina lo desbloquee**) means the account was locked three times in one day, and it stays locked until the office unlocks it or the person resets their PIN by email. Everyone who manages staff gets a notice about it, and clicking the notice opens the person's profile.
 3. The last line reads **Last signed in {0}** (**Último inicio de sesión: {0}**) with the day and time, or **Never signed in** (**Nunca ha iniciado sesión**).
 4. For someone who has never signed in, a line under it says **Welcome email sent {0}** (**Correo de bienvenida enviado el {0}**) with the day, or **Welcome email not sent: {0}** (**No se envió el correo de bienvenida: {0}**) with the reason.
-5. To let a locked person try again now, click **Unlock** (**Desbloquear**) under their status or on their profile. **Sign-in unlocked.** (**Inicio de sesión desbloqueado.**) confirms it.
+5. To let a locked person try again now, click **Unlock** (**Desbloquear**) under their status or on their profile. It lets go of a three-times lock too. **Sign-in unlocked.** (**Inicio de sesión desbloqueado.**) confirms it.
 6. **Reset PIN** (**Restablecer el PIN**) also unlocks the person and signs them out everywhere; see the entry on resetting a staff member's PIN.
 If it does not work: these lines show once the system sends them.
-Words people use for this: locked out, unlock, too many tries, cannot sign in, never signed in, last login, sign-in, welcome email, desbloquear.
+Words people use for this: locked out, unlock, locked until the office unlocks it, held account, too many tries, cannot sign in, never signed in, last login, sign-in, welcome email, desbloquear.
 Picture: staff-sign-in
-Last checked: 2026-10-07
+Last checked: 2026-10-18
 ## Pick a person by name, badge number or employee ID (admin dashboard)
 Who can do this: anyone signed in
 1. Wherever the dashboard asks for a person, such as **Staff Member *** (**Persona ***) in **Schedule Shift** (**Programar turno**), **Assign To *** (**Asignar a ***) on a task, **Hand to** (**Entregar a**) on a case or **Person** (**Persona**) on time off, click the field.
@@ -2571,3 +2575,49 @@ Who can do this: everyone who signs in to the dashboard
 4. When a window with typed text is open, or something is still saving, the bar **A new version is ready** (**Hay una versión nueva lista**) shows at the top with **Reload** (**Volver a cargar**). Finish what you are doing and click **Reload** (**Volver a cargar**), or leave it: it tries again every 20 seconds and reloads once nothing is underway.
 Words people use for this: version, which version, update, new version, out of date, refresh, reload, versión.
 Last checked: 2026-10-16
+
+## See who opened an HR file (admin dashboard)
+Who can do this: anyone who can open the file: HR Records' documents and Jotform PDFs for those who read HR records, certificates and a warning's PDF for admins and supervisors, and a case's files for those who work cases
+1. Find the file where you open it: a document under **Documents** (**Documentos**) on **HR Records** (**Expedientes de personal**) or in a person's folder there, a Jotform PDF on **Forms** (**Formularios**), a certificate in a person's training, a file on a case's log, or a warning's PDF.
+2. Click **Who opened this** (**Quién abrió esto**) beside it.
+3. A window lists every time someone opened the file or was refused it, newest first: their name and role, the day and time on the company's clock, and **Opened** (**Abierto**) or **Refused** (**Rechazado**).
+4. A clearance's file is one of the person's HR Records documents, so its entries show beside that document.
+5. A file nobody has opened reads **Nobody has opened this file yet.** (**Nadie ha abierto este archivo todavía.**) Close the window with the X in its corner.
+If it does not work: **Who opened this** (**Quién abrió esto**) goes away beside a file you may not open. When a file does not open and **The file did not open** (**El archivo no se abrió**) shows, its opening could not be recorded just then; wait a minute and click **Try again** (**Intentar de nuevo**).
+Words people use for this: who opened this file, who looked at a document, who viewed it, file access log, access history, file history, quién abrió.
+Picture: hr-who-opened
+Last checked: 2026-10-18
+
+## Read the HR file access report (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the HR file access report
+1. Click **HR file access report** (**Informe de acceso a archivos de RR. HH.**) in the side panel, or the button of the same name on **HR Records** (**Expedientes de personal**).
+2. The list shows every time an HR file was opened or refused, newest first: **When** (**Cuándo**), **Who opened it** (**Quién lo abrió**), **Opened or refused** (**Abierto o rechazado**), **File** (**Archivo**) and **Whose file** (**De quién es el archivo**).
+3. To narrow it, set **From** (**De**) and **To** (**Hasta**), pick a person in **Who opened it** (**Quién lo abrió**) or **Whose file** (**De quién es el archivo**), pick a **Kind** (**Tipo**), or pick **Opened** (**Abierto**) or **Refused** (**Rechazado**), then click **Search** (**Buscar**). **Clear** (**Borrar**) empties every filter.
+4. The list shows 100 at a time. Click **Show more** (**Mostrar más**) for the next 100.
+5. Click **Download CSV** (**Descargar CSV**) to save the list with the filters it was read with. Each download is recorded too, as **This report's CSV** (**CSV de este informe**).
+If it does not work: anyone else who reaches the page reads **Only the super admin and people given the HR file access report can open this page.** (**Solo el superadministrador y las personas a quienes se dio el informe de acceso a archivos de RR. HH. pueden abrir esta página.**) A filter the system refuses is outlined in red, with the reason above the buttons.
+Words people use for this: access report, hr file access, who opened hr files, audit hr files, file access log, download the access log, informe de acceso.
+Picture: hr-access-report
+Last checked: 2026-10-18
+
+## Grant the HR file access report (admin dashboard)
+Who can do this: the super admin only
+1. Click **Settings** (**Configuración**), then **Roles and Permissions** (**Roles y permisos**).
+2. Pick the person. On an admin's account the line reads **An admin account holds the rest by role. As the super admin, you can grant or take away chat records and the HR file access report.** (**Una cuenta de administrador tiene el resto por su rol. Como superadministrador, usted puede dar o quitar el acceso a los registros del chat y al informe de acceso a archivos de RR. HH.**)
+3. On the **HR file access report** (**Informe de acceso a archivos de RR. HH.**) row, click **Allow** (**Permitir**) to grant it, or **Default** (**Predeterminado**) to take it away. **Read chat records** (**Leer los registros del chat**) works the same way.
+4. Click **Save changes** (**Guardar los cambios**). The person finds **HR file access report** (**Informe de acceso a archivos de RR. HH.**) in their side panel the next time the dashboard opens.
+If it does not work: nobody but the super admin is shown these two rows, and the system refuses the change from anyone else.
+Words people use for this: give the access report, grant the access report, who can see the access log, take away the access report, chat records access, permiso del informe de acceso.
+Picture: settings-grant-access-report
+Last checked: 2026-10-18
+
+## Open a site's floor plan (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Sites** (**Sitios**) and open the site.
+2. On **General Info** (**Información general**), **Floor Plans ({0})** (**Planos ({0})**) lists the site's floor plans.
+3. Click **View** (**Ver**) beside one. It opens in a new tab.
+4. A floor plan's link works for 10 minutes after the site was opened. After that, **View** (**Ver**) reads the site again first and opens the new link, so a page left open still opens the plan.
+If it does not work: **This floor plan could not be opened.** (**No se pudo abrir este plano.**) means the plan is gone from the site; open the site again. If no tab opens, allow pop-ups for the dashboard in the browser.
+Words people use for this: floor plan, building map, site map, open the plan, plano.
+Picture: site-floor-plans
+Last checked: 2026-10-18

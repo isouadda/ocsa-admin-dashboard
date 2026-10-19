@@ -67,6 +67,8 @@ function placeOf(subjectType, subjectId) {
   if (st === "document_to_sign") return "hr/signatures";
   if (st === "support_ticket" || st === "support_ticket_new") return "tickets";
   if (st === "shift_drop" || st === "shift_claim") return "marketplace";
+  // A held sign-in opens the person (Round 2, part 353).
+  if (st === "sign_in_held") return id ? "staff/" + id : "staff";
   if (/^shift(_|$)/.test(st)) return "schedule";
   return "";
 }
