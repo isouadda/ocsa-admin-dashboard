@@ -6140,6 +6140,11 @@ function createStubs() {
   let step353 = false;
   const round2 = require("./round2-stub")({ seed, state, ok, created, clone, person, effectiveMap, PDF_BYTES, PNG_BYTES, docRows, plusDays,
     si283, NOTIFICATIONS, TIME_OFF });
+  // Checklist Results (part 358), in audit/checklist-stub.js: the kept checklist record and what the page
+  // reads beside it, as the API builds them at abfb2e6, on once a run arms it with setChecklist358, over
+  // every other layer.
+  let step358 = false;
+  const checklist358 = require("./checklist-stub")({ seed, ok });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7316,7 +7321,8 @@ function createStubs() {
     const builtRefusal = asBuilt ? asBuiltRefusal(method, path, record.language) : null;
     if (builtRefusal) { record.status = builtRefusal.status; record.json = builtRefusal.json; return builtRefusal; }
     const inner = () => (step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341());
-    const answer = step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner();
+    const beneath = () => (step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner());
+    const answer = step358 ? checklist358.route(method, path, u.searchParams, body, record.language, beneath) : beneath();
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7406,6 +7412,11 @@ function createStubs() {
     setRound2People: (v) => { round2.setPeople(v); },
     setLogDown: (n) => { round2.setLogDown(n); },
     hrAccessLog: () => round2.log(),
+    // Checklist Results (part 358): the record and its reads on or off, a check a case adds as a person
+    // makes it, and the model the cases read their expectations from (audit/checklist-stub.js).
+    setChecklist358: (v) => { step358 = v !== false; },
+    addCheck358: (siteId, taskId, day, hm, by) => checklist358.addCheck(siteId, taskId, day, hm, by),
+    checklist358: () => checklist358.model,
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
     // over whichever steps the run arms.
     setStep289: (v) => { step289 = v !== false; },
@@ -7549,6 +7560,7 @@ function createStubs() {
       step280 = false; state.r280 = false;
       step283 = false; state.si283 = null;
       step353 = false; state.r2 = null; state.r2pending = null; state.r2people = null; round2.setPeople(false);
+      step358 = false; checklist358.reset();
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

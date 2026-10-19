@@ -1693,6 +1693,24 @@ const SHOTS = [
   { name: "site-floor-plans", entry: "Open a site's floor plan",
     open: "sites/s-1", ready: "[data-floor-plan-view]",
     act: async (c) => { await wait(900); await top(c, "[data-floor-plan-view]", 220); } },
+  // Checklist Results (part 358, setChecklist358, armed for each of these pictures alone): the seeded
+  // day at the first site, every site's card for that day, a week at the first site, and the printed
+  // report's first page.
+  { name: "checklist-results-day", entry: "See what was done at a site on any day", arm: (stubs, on) => stubs.setChecklist358(on),
+    open: "checklist/s-1/" + seed.shift(-1), ready: "[data-cr-group] .apexcharts-canvas", act: async () => { await wait(900); } },
+  { name: "checklist-results-all-sites", entry: "See what was done at a site on any day", arm: (stubs, on) => stubs.setChecklist358(on),
+    open: "checklist/all/yesterday", ready: "[data-cr-site-card] .apexcharts-canvas", act: async () => { await wait(900); } },
+  { name: "checklist-results-range", entry: "Print a checklist report", arm: (stubs, on) => stubs.setChecklist358(on),
+    open: "checklist/s-1/" + seed.shift(-7) + ".." + seed.shift(-1), ready: "[data-cr-range-chart] .apexcharts-series", act: async () => { await wait(900); } },
+  { name: "checklist-report-print", entry: "Print a checklist report", arm: (stubs, on) => stubs.setChecklist358(on),
+    open: "checklist/s-1/" + seed.shift(-1), ready: "[data-cr-print]",
+    act: async (c) => {
+      await click(c, "[data-cr-print]");
+      let html = "";
+      for (let i = 0; i < 40 && !html; i++) { await wait(100); const p = await c.d.prints(); html = p.length ? p[p.length - 1].html : ""; }
+      if (!html) throw new Error("Print report opened no page");
+      await c.page.setContent(html);
+    } },
 ];
 
 
@@ -1815,6 +1833,12 @@ async function openSession(browser, origin, lang, as) {
 }
 
 async function takeOne(session, origin, shot, lang) {
+  const { d, stubs } = session;
+  // A shot's own answers, on for that shot alone (part 358).
+  if (shot.arm) shot.arm(stubs, true);
+  try { return await shoot(session, origin, shot, lang); } finally { if (shot.arm) shot.arm(stubs, false); }
+}
+async function shoot(session, origin, shot, lang) {
   const { d, stubs } = session;
   const page = d.page;
   const c = { d, page, say: d.say, lang, stubs, origin };

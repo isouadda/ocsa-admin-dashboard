@@ -195,6 +195,10 @@ const SUITES = [
   // Round 2 and who opened each HR file (part 353): against the API as built at its part 352
   // (audit/round2-stub.js). Its own passes, like the round1 suite.
   { name: "round2", mod: "./cases/round2", widths: [] },
+  // Checklist Results (part 358): one site on a day and over a range, every site, today read again, the
+  // list and its CSV, the printed report, a supervisor, the API's refusal and the four ways in, against
+  // audit/checklist-stub.js. Its own passes, like the round2 suite.
+  { name: "checklist-results", mod: "./cases/checklist-results", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
