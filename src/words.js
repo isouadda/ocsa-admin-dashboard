@@ -5049,6 +5049,7 @@ export const WORDS = {
     en: { one: "{0} check", other: "{0} checks" },
     es: { one: "{0} marca", other: "{0} marcas" },
   },
+  "This shift ends at {0}. Its last 30 minutes are counted once it has ended.": { es: "Los \u00faltimos 30 minutos de este turno se cuentan cuando termine, a las {0}" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

@@ -152,7 +152,7 @@ async function dayCases(ctx) {
     const dayBars = bars(want.groups.Day, 8 * 60, 16 * 60), nightBars = bars(want.groups.Night, 18 * 60, 22 * 60);
     results.check(KIND, "checklist-results/timeline/bars-every-15-minutes", !!got.Day && got.Day.buckets === dayBars && !!got.Night && got.Night.buckets === nightBars,
       "the Day shift draws " + (got.Day && got.Day.buckets) + " where its checks are " + dayBars + "; the Night shift " + (got.Night && got.Night.buckets) + " where " + nightBars);
-    const lastIn = (g, end) => g.checks.filter((c) => minutesOf(c.completedAt) >= end - 30 && minutesOf(c.completedAt) <= end).length;
+    const lastIn = (g, end) => g.checks.filter((c) => minutesOf(c.completedAt) >= end - 30 && minutesOf(c.completedAt) < end).length;
     const dLast = lastIn(want.groups.Day, 16 * 60), nLast = lastIn(want.groups.Night, 22 * 60);
     const nLine = nLast + " of " + want.groups.Night.checks.length + " checks (" + Math.round(nLast / want.groups.Night.checks.length * 100) + "%) were made in the shift's last 30 minutes, from 9:30 PM to 10:00 PM.";
     results.check(KIND, "checklist-results/timeline/last-30-minutes-line", !!got.Day && got.Day.last30 === dLast + "/" + want.groups.Day.checks.length

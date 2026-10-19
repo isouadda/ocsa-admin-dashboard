@@ -4578,25 +4578,31 @@ function crStats(items) {
     first: checks.length ? checks[0].at : null, last: checks.length ? checks[checks.length - 1].at : null };
 }
 
-// A shift's window on a day, from the schedule's timed blocks in their order (an anytime block has
-// none): { start, end } as instants, or null. A block that starts earlier on the clock than the one
-// before it is past midnight, and so is a shift that starts before the checklist day does.
+// A shift's window on a day, from the schedule's timed blocks (an anytime block has none): { start,
+// end } as instants, or null, whatever order the schedule lists the blocks in. The blocks that start
+// before noon are read either on the day itself or as the next morning, whichever makes the shift the
+// shorter, so a night shift from 10:00 PM to 6:00 AM is eight hours and a day shift stays on its day.
+// The end is the latest end, and none when the block that starts last has no end of its own.
+const CR_MORNING_UNTIL = 12 * 60;
 function crShiftWindow(shift, day) {
   const timed = (shift && Array.isArray(shift.blocks) ? shift.blocks : []).filter(b => b && b.kind !== "anytime" && crMinutes(b.startTime) !== null);
   if (timed.length === 0) return null;
-  let prev = crMinutes(timed[0].startTime);
-  let off = prev < CR_DAY_STARTS ? 1 : 0;
-  const start = crInstant(crAddDays(day, off), prev);
-  let end = start;
-  timed.forEach(b => {
-    const s = crMinutes(b.startTime);
-    if (s < prev) off += 1;
-    prev = s;
-    const e = crMinutes(b.endTime);
-    const at = e === null ? crInstant(crAddDays(day, off), s) : crInstant(crAddDays(day, off + (e <= s ? 1 : 0)), e);
-    if (at > end) end = at;
-  });
-  return { start, end: end > start ? end : null };
+  const read = (next) => {
+    const spans = timed.map(b => {
+      const s = crMinutes(b.startTime), e = crMinutes(b.endTime);
+      const off = next && s < CR_MORNING_UNTIL ? 1 : 0;
+      return { at: crInstant(crAddDays(day, off), s), end: e === null ? null : crInstant(crAddDays(day, off + (e <= s ? 1 : 0)), e) };
+    });
+    const start = Math.min(...spans.map(x => x.at));
+    const lastStart = Math.max(...spans.map(x => x.at));
+    const ends = spans.filter(x => x.end !== null).map(x => x.end);
+    const latest = ends.length ? Math.max(...ends) : null;
+    const end = latest !== null && latest > start && spans.filter(x => x.at === lastStart).some(x => x.end !== null) ? latest : null;
+    return { start, end, span: Math.max(lastStart, latest || 0) - start };
+  };
+  const same = read(false), next = read(true);
+  const w = next.span < same.span ? next : same;
+  return { start: w.start, end: w.end };
 }
 // Without a schedule, the window a shift's sessions give: the first start, and the last end once every
 // one has ended.
@@ -4608,8 +4614,12 @@ function crSessionWindow(people) {
 }
 // The checks in 15 minute bars across the shift's window, widened to hold every check:
 // [{ start, count, last }], last for a bar inside the shift's last 30 minutes.
-function crBuckets(checks, win) {
+function crBuckets(checks, win0) {
   const times = checks.map(c => c.at);
+  // A window more than a day away from the checks it would hold is left out, so a session left open
+  // since another day never stretches the chart over it.
+  const near = (at) => !times.length || Math.abs(at - Math.min(...times)) < 30 * 3600000;
+  const win = win0 && near(win0.start) ? win0 : null;
   const lo0 = Math.min(win ? win.start : Infinity, ...times);
   if (!Number.isFinite(lo0)) return [];
   const lo = Math.floor(lo0 / CR_QUARTER) * CR_QUARTER;
@@ -4617,7 +4627,7 @@ function crBuckets(checks, win) {
   const hiChecks = times.length ? Math.floor(Math.max(...times) / CR_QUARTER) * CR_QUARTER + CR_QUARTER : -Infinity;
   const hi = Math.max(lo + CR_QUARTER, hiWin, hiChecks);
   const out = [];
-  for (let s = lo; s < hi && out.length < 400; s += CR_QUARTER) out.push({ start: s, count: 0, last: !!(win && win.end && s >= win.end - 2 * CR_QUARTER && s < win.end) });
+  for (let s = lo; s < hi && out.length < 400; s += CR_QUARTER) out.push({ start: s, count: 0, last: !!(win && win.end && s + CR_QUARTER > win.end - 30 * 60000 && s < win.end) });
   times.forEach(x => { const k = Math.floor((x - lo) / CR_QUARTER); if (out[k]) out[k].count += 1; });
   return out;
 }
@@ -4626,12 +4636,14 @@ const crHourMark = (b, n, narrow) => crWall(b.start).minutes % (narrow ? 180 : n
 // The checks made in the shift's last 30 minutes, or null when the shift has no end.
 function crLastHalfHour(checks, win) {
   if (!win || !win.end) return null;
+  if (win.end > Date.now()) return { pending: true, to: win.end };
   const from = win.end - 30 * 60000;
-  const n = checks.filter(c => c.at >= from && c.at <= win.end).length;
+  const n = checks.filter(c => c.at >= from && c.at < win.end).length;
   return { n, of: checks.length, pct: crPct(n, checks.length), from, to: win.end };
 }
 // The one plain line under a timeline. Facts only.
-const crLastLine = (lh, total) => (!total ? tr("No checks were made on this shift.")
+const crLastLine = (lh, total) => (lh && lh.pending ? tr("This shift ends at {0}. Its last 30 minutes are counted once it has ended.", crTime(lh.to))
+  : !total ? tr("No checks were made on this shift.")
   : !lh ? tr("This shift has no end time on its schedule, so its last 30 minutes are not counted.")
     : tr("{0} of {1} checks ({2}%) were made in the shift's last 30 minutes, from {3} to {4}.", lh.n, lh.of, lh.pct, crTime(lh.from), crTime(lh.to)));
 // Who worked a group of items on a day: who started that shift, then whoever checked its work.
@@ -4675,7 +4687,10 @@ async function crReadSite(af, siteId, from, to, today) {
     return { date, groups: groups.filter(g => g.key !== "*" || g.items.length > 0) };
   });
   const mine = board && Array.isArray(board.sites) ? board.sites.find(s => s && String(s.siteId) === String(siteId)) : null;
-  return { notTracked: false, site: recs[0].site || null, shifts, days, multi, people: mine && Array.isArray(mine.people) ? mine.people : [], periodic };
+  // Today's read answers every session still open, whatever its day (Live Ops' board keeps a night shift
+  // on it); one that started on another day is not this day's work.
+  const people = (mine && Array.isArray(mine.people) ? mine.people : []).filter(p => !p.sessionDate || p.sessionDate === from);
+  return { notTracked: false, site: recs[0].site || null, shifts, days, multi, people, periodic };
 }
 // Every site's record for the period, four reads at a time; one day is read with the six days before it,
 // so its card can draw a week's trend. { span, bySite: { id: { rec } or { error, status } } }.
@@ -4786,6 +4801,10 @@ function crDaysSvg(points) {
 const crMarkSvg = (done) => (done
   ? '<svg width="14" height="14" viewBox="0 0 14 14" role="img" aria-label="' + keptEsc(tr("Done")) + '"><path d="M2 7.5l3.2 3.2L12 3.6" fill="none" stroke="#000" stroke-width="2.2"></path></svg>'
   : '<svg width="14" height="14" viewBox="0 0 14 14" role="img" aria-label="' + keptEsc(tr("Not done")) + '"><rect x="1.5" y="1.5" width="11" height="11" fill="none" stroke="#000" stroke-width="1.2"></rect></svg>');
+// A task's line in the printed list: the task, a check mark or an empty box, who and when, each check on
+// a line of its own.
+const crPrintRow = (i, label, cks) => '<tr data-task="' + keptEsc(String(i.taskId)) + '" data-done="' + (i.done === true ? "1" : "0") + '"><td>' + keptEsc(label) + "</td><td>" + crMarkSvg(i.done === true) + "</td><td>"
+  + cks.map(c => keptEsc(c.who || "--")).join("<br>") + "</td><td>" + cks.map(c => keptEsc(crTime(c.at))).join("<br>") + "</td></tr>";
 // How many lines a piece of text takes in a column that holds about per letters a line.
 const crLines = (text, per) => Math.max(1, Math.ceil(String(text || "").length / per));
 // The pieces laid onto sheets: a piece that starts a sheet of its own (newSheet), a heading kept with
@@ -4799,9 +4818,17 @@ function crSheets(pieces) {
   open();
   pieces.forEach((p, i) => {
     if (p.newSheet && cur.length) open();
+    // A run of headings goes with the start of what follows it: the next headings whole, and of the
+    // first piece after them as much as a third of a sheet, so a row taller than a sheet never leaves
+    // its headings each on a sheet of their own.
     let need = p.h + headOf(p);
-    for (let j = i; pieces[j] && pieces[j].keep && pieces[j + 1]; j += 1) need += pieces[j + 1].h + (pieces[j + 1].table ? pieces[j + 1].headH : 0);
-    if (used + need > CR_SHEET_PX && cur.length) open();
+    for (let j = i; pieces[j] && pieces[j].keep && pieces[j + 1]; j += 1) {
+      const nx = pieces[j + 1];
+      need += nx.keep ? nx.h : Math.min(nx.h + (nx.table ? nx.headH : 0), Math.round(CR_SHEET_PX / 3));
+    }
+    // A piece taller than a sheet runs over whatever is done, so it starts under the headings it follows.
+    const underHeads = p.h > CR_SHEET_PX && cur.length > 0 && cur.every(x => x.keep);
+    if (used + need > CR_SHEET_PX && cur.length && !underHeads) open();
     need = p.h + headOf(p);
     cur.push(p);
     used += need;
@@ -4836,23 +4863,27 @@ function crReportHtml(model) {
     const g0 = parts[0].g;
     const span = model.oneDay && g0.win ? tr("{0} to {1}", crTime(g0.win.start), g0.win.end ? crTime(g0.win.end) : "--") : "";
     add(30, "<h2>" + esc(named(k)) + (span ? ' <span class="win">' + esc(span) + "</span>" : "") + "</h2>", { keep: true });
-    const facts = '<div class="big">' + esc(tr("{0} of {1} steps done", st.done, st.due)) + "</div>"
-      + "<div>" + esc(trn("{0} check|count", st.checks.length)) + "</div>"
-      + (st.first != null ? "<div>" + esc(model.oneDay ? tr("First check {0}, last check {1}", crTime(st.first), crTime(st.last)) : tr("First check {0}, last check {1}", keptDay(crWall(st.first).day) + " " + crTime(st.first), keptDay(crWall(st.last).day) + " " + crTime(st.last))) + "</div>" : "")
-      + "<div>" + esc(tr("Who worked: {0}", (model.oneDay ? g0.who : st.people).join(", ") || "--")) + "</div>";
+    const factLines = [trn("{0} check|count", st.checks.length),
+      st.first == null ? "" : model.oneDay ? tr("First check {0}, last check {1}", crTime(st.first), crTime(st.last))
+        : tr("First check {0}, last check {1}", keptDay(crWall(st.first).day) + " " + crTime(st.first), keptDay(crWall(st.last).day) + " " + crTime(st.last)),
+      tr("Who worked: {0}", (model.oneDay ? g0.who : st.people).join(", ") || "--")].filter(Boolean);
+    const facts = '<div class="big">' + esc(tr("{0} of {1} steps done", st.done, st.due)) + "</div>" + factLines.map(x => "<div>" + esc(x) + "</div>").join("");
     const ring = crRingSvg(st.pct, tr("{0} of {1}", st.done, st.due), 100);
+    // The numbers' column is 200 pixels at 11 pixels a letter: about 34 letters a line, 17 pixels each,
+    // under a heading of up to two lines.
+    const factsH = 52 + 17 * factLines.reduce((a, x) => a + crLines(x, 34), 0);
     // One day: the ring, the numbers and the shift's timeline side by side, its line under them. Work
     // tied to no shift has no window, so it draws no timeline. A range: each day's share under them.
     if (model.oneDay && !(model.multi && k === "*")) {
       const buckets = crBuckets(st.checks, g0.win);
       const line = crLastLine(crLastHalfHour(st.checks, g0.win), st.checks.length);
-      add(176 + 14 * crLines(line, 110), '<div class="sum">' + ring + '<div class="facts">' + facts + "</div>"
+      add(Math.max(176, factsH + 10) + 14 * crLines(line, 110), '<div class="sum">' + ring + '<div class="facts">' + facts + "</div>"
         + (buckets.length ? '<div class="tlw">' + crTimelineSvg(buckets, gi, 390) + '<div class="cap">' + esc(tr("Each bar is 15 minutes, with its number of checks over it. The hatched bars are the shift's last 30 minutes.")) + "</div></div>" : "")
         + '</div><p class="line">' + esc(line) + "</p>");
     } else if (model.oneDay) {
-      add(120, '<div class="sum">' + ring + '<div class="facts">' + facts + "</div></div>");
+      add(Math.max(120, factsH + 10), '<div class="sum">' + ring + '<div class="facts">' + facts + "</div></div>");
     } else {
-      add(120, '<div class="sum">' + ring + '<div class="facts">' + facts + "</div></div>", { keep: true });
+      add(Math.max(120, factsH + 10), '<div class="sum">' + ring + '<div class="facts">' + facts + "</div></div>", { keep: true });
       add(170, crDaysSvg(parts.map(x => { const s0 = crStats(x.g.items); return { date: x.date, pct: s0.pct }; })) + '<div class="cap">' + esc(tr("Each bar is one day, with its share of steps done over it and the day of the month under it.")) + "</div>");
     }
   });
@@ -4892,9 +4923,7 @@ function crReportHtml(model) {
           const tag = crKind(i) === "repeating" ? periodicFrequencyWord(i.frequency) : crKind(i) === "as_needed" ? tr("As needed") : "";
           const label = shownLabel(i) + (tag ? " (" + tag + ")" : "");
           const lines = Math.max(crLines(label, 50), cks.reduce((a, c) => a + crLines(c.who, 22), 0), cks.length, 1);
-          add(16 * lines + 10, '<tr data-task="' + esc(String(i.taskId)) + '" data-done="' + (i.done === true ? "1" : "0") + '"><td>' + esc(label) + "</td><td>" + crMarkSvg(i.done === true) + "</td><td>"
-            + cks.map(c => esc(c.who || "--")).join("<br>") + "</td><td>" + cks.map(c => esc(crTime(c.at))).join("<br>") + "</td></tr>",
-          { table: d.date + "|" + g.key + "|" + z.zone, head, headH: 26 });
+          add(16 * lines + 10, crPrintRow(i, label, cks), { table: d.date + "|" + g.key + "|" + z.zone, head, headH: 26 });
         });
       });
     });
@@ -4962,6 +4991,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     document.addEventListener("visibilitychange", back);
     return () => { clearInterval(iv); document.removeEventListener("visibilitychange", back); };
   }, [viewKey, live, readNow, here]);
+  // A zone picked on one shift may not be on another.
+  useEffect(() => { setZone(""); }, [shiftPick]);
   const ready = read.key === viewKey;
   const data = ready ? read.data : null;
   const refused = ready && read.error ? read.error : null;
@@ -5122,7 +5153,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
       const buckets = timed ? crBuckets(st.checks, win) : [];
       const lh = crLastHalfHour(st.checks, win);
       const who = crWhoWorked(g, data.people, data.multi);
-      const per = keptOnce(st.checks.map(c => c.who)).map(w => ({ who: w, n: st.checks.filter(c => c.who === w).length }));
+      const per = st.checks.map(c => c.who).filter((w, i, a) => a.indexOf(w) === i).map(w => ({ who: w, n: st.checks.filter(c => c.who === w).length }));
       const hours = new Set(buckets.filter(b => crHourMark(b, buckets.length, window.innerWidth < PHONE_PX)).map(b => crTime(b.start)));
       return (<Crd key={g.key} t={t} style={{ marginBottom: 14 }}>
         <div data-cr-group={g.key} data-cr-due={st.due} data-cr-done={st.done} data-cr-checks={st.checks.length} data-cr-first={st.first != null ? new Date(st.first).toISOString() : undefined} data-cr-last={st.last != null ? new Date(st.last).toISOString() : undefined}>
@@ -5143,7 +5174,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
             <div style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("When the checks happened")}</div>
             <div data-cr-buckets={buckets.map(b => b.count).join(",")}><BarChartW t={t} height={190} name={tr("Checks|check-offs")} categories={buckets.map(b => crTime(b.start))} values={buckets.map(b => b.count)} colors={buckets.map(b => (b.last ? OR : GO))} xLabels={hours} /></div>
           </div>}
-          {timed && <div data-cr-last30={lh ? lh.n + "/" + lh.of : ""} style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginTop: 4 }}>{crLastLine(lh, st.checks.length)}</div>}
+          {timed && <div data-cr-last30={lh && !lh.pending ? lh.n + "/" + lh.of : ""} style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginTop: 4 }}>{crLastLine(lh, st.checks.length)}</div>}
           {per.length > 0 && <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Checks by person")}</div>
             <BarChartW t={t} horizontal height={Math.max(90, 46 * per.length + 30)} name={tr("Checks|check-offs")} categories={per.map(p => p.who || "--")} values={per.map(p => p.n)} showValues />
