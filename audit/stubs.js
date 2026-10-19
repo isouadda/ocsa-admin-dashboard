@@ -6140,6 +6140,11 @@ function createStubs() {
   let step353 = false;
   const round2 = require("./round2-stub")({ seed, state, ok, created, clone, person, effectiveMap, PDF_BYTES, PNG_BYTES, docRows, plusDays,
     si283, NOTIFICATIONS, TIME_OFF });
+  // Checklist Results (part 358), in audit/checklist-stub.js: the kept checklist record and what the page
+  // reads beside it, as the API builds them at abfb2e6, on once a run arms it with setChecklist358, over
+  // every other layer.
+  let step358 = false;
+  const checklist358 = require("./checklist-stub")({ seed, ok });
   // The welcome email to everyone who has not signed in (part 361), in audit/welcome-all-stub.js: people of
   // its own and the invite route as the API answers it for them, on once a run arms it with setStep361,
   // over every other layer.
@@ -7322,7 +7327,8 @@ function createStubs() {
     if (builtRefusal) { record.status = builtRefusal.status; record.json = builtRefusal.json; return builtRefusal; }
     const inner = () => (step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341());
     const under361 = () => (step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner());
-    const answer = step361 ? welcomeAll.route(method, path, u.searchParams, body, record.language, under361) : under361();
+    const beneath = () => (step361 ? welcomeAll.route(method, path, u.searchParams, body, record.language, under361) : under361());
+    const answer = step358 ? checklist358.route(method, path, u.searchParams, body, record.language, beneath) : beneath();
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7412,6 +7418,11 @@ function createStubs() {
     setRound2People: (v) => { round2.setPeople(v); },
     setLogDown: (n) => { round2.setLogDown(n); },
     hrAccessLog: () => round2.log(),
+    // Checklist Results (part 358): the record and its reads on or off, a check a case adds as a person
+    // makes it, and the model the cases read their expectations from (audit/checklist-stub.js).
+    setChecklist358: (v) => { step358 = v !== false; },
+    addCheck358: (siteId, taskId, day, hm, by) => checklist358.addCheck(siteId, taskId, day, hm, by),
+    checklist358: () => checklist358.model,
     // The welcome email to everyone who has not signed in (part 361): the people and the invite route of
     // audit/welcome-all-stub.js, on or off; every invite to those people since, with when it arrived.
     setStep361: (v) => { step361 = v !== false; },
@@ -7559,6 +7570,7 @@ function createStubs() {
       step280 = false; state.r280 = false;
       step283 = false; state.si283 = null;
       step353 = false; state.r2 = null; state.r2pending = null; state.r2people = null; round2.setPeople(false);
+      step358 = false; checklist358.reset();
       step361 = false; state.wa = null;
     },
     fixtures: {

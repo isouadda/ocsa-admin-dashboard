@@ -384,8 +384,9 @@ Who can do this: admins and supervisors
 2. Each site lists who started, when, and how many tasks are done.
 3. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), with no count of tasks, since nothing is checked off there.
 4. Change the date to look at another day.
+5. Click **See the checklist** (**Ver la lista de verificación**) under a site to open what was done there on that day, on **Checklist Results** (**Resultados de la lista**).
 Picture: live-ops
-Last checked: 2026-10-13
+Last checked: 2026-10-19
 
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -1641,11 +1642,12 @@ Who can do this: admins and supervisors
 2. Pick the **Site** (**Sitio**) and the dates. One print covers 31 days at most.
 3. The line beside **Print** (**Imprimir**) says how many checklists the dates hold: one for each zone on each day and shift the checklist was due.
 4. Click **Print** (**Imprimir**). Each checklist prints on the approved form, OCSA-FRM-003, with its version, the site, the dates and the day it was printed. The day's tasks show who did them, when, and their initials; anything not done is listed under **Anything Not Done** (**Lo que no se hizo**); the rest of the form prints as blank lines to fill in by hand.
+5. To see the same work on screen with charts, or to print a report that reads clearly to anyone, see the entries on seeing what was done at a site on any day and on printing a checklist report. **Checklist Results** (**Resultados de la lista**) has its own card under **Kept records** (**Registros conservados**).
 If it does not work: allow pop-ups for the dashboard, then click **Print** (**Imprimir**) again. A range longer than 31 days is refused; print it a month at a time.
 Words people use for this: binder, cleaning logs, records, zone checklist, daily checklist, print the checklists, assessor, kept records, registros conservados.
 Picture: kept-records-group
 Picture: kept-zone-checklists
-Last checked: 2026-10-02
+Last checked: 2026-10-19
 
 ## Print a site's disinfection coverage logs (admin dashboard)
 Who can do this: admins and supervisors
@@ -2543,11 +2545,11 @@ Who can do this: admins, and anyone allowed to change site records. Everyone els
 1. Click **Sites** (**Sitios**), open the site, and click **Service Details** (**Detalles del servicio**).
 2. At the top, turn off **Staff check off tasks here** (**El personal marca las tareas aquí**). The line under it reads **Off: staff can read the task list as a reference, and nothing is checked off.** (**Apagado: el personal puede leer la lista de tareas como referencia, y no se marca nada.**)
 3. Staff at that site read the task list in the staff app and check nothing off. Everything else they do there works as before.
-4. **Live Ops** (**Operaciones en vivo**), **Dashboard** (**Panel**), the **Task Completion** (**Tareas completadas**) card in **Reports** (**Informes**) and the **Owner's dashboard** (**Tablero del propietario**) read **Not tracked** (**Sin seguimiento**) for the site, never 0%, Live Ops says **Staff do not check off tasks at this site. They can read its task list as a reference.** (**El personal no marca tareas en este sitio. Puede leer su lista de tareas como referencia.**), and **Periodic work** (**Trabajo periódico**) leaves it out.
+4. **Live Ops** (**Operaciones en vivo**), **Dashboard** (**Panel**), the **Task Completion** (**Tareas completadas**) card in **Reports** (**Informes**), the **Owner's dashboard** (**Tablero del propietario**) and **Checklist Results** (**Resultados de la lista**) read **Not tracked** (**Sin seguimiento**) for the site, never 0%, Live Ops says **Staff do not check off tasks at this site. They can read its task list as a reference.** (**El personal no marca tareas en este sitio. Puede leer su lista de tareas como referencia.**), and **Periodic work** (**Trabajo periódico**) leaves it out.
 5. The task list stays fully editable either way. Turn the setting back on to have staff check off tasks there again.
 Words people use for this: task list for reference, no check off, schools, record of the work, not tracked, lista de tareas como referencia.
 Picture: site-task-list-record
-Last checked: 2026-10-16
+Last checked: 2026-10-19
 
 ## Change a staff member's hire date (admin dashboard)
 Who can do this: admins. A supervisor sees no hire date to change.
@@ -2626,3 +2628,35 @@ If it does not work: **This floor plan could not be opened.** (**No se pudo abri
 Words people use for this: floor plan, building map, site map, open the plan, plano.
 Picture: site-floor-plans
 Last checked: 2026-10-18
+
+## See what was done at a site on any day (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. Click a site's card, or pick the site in **Site** (**Sitio**).
+2. Pick the days: **Today** (**Hoy**), **Yesterday** (**Ayer**), **Last 7 days** (**Últimos 7 días**), **This month** (**Este mes**), or **Pick dates** (**Elegir fechas**) for any one day or any dates up to 31 days, then **Show** (**Mostrar**). At a site with two shifts or more, **Shift** (**Turno**) shows one shift, or **All shifts** (**Todos los turnos**).
+3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**).
+4. **When the checks happened** (**Cuándo se hicieron las marcas**) draws a bar for every 15 minutes of the shift, and the line under it says how many checks were made in the shift's last 30 minutes.
+5. **By zone** (**Por zona**) shows each zone's steps done of steps due; click a zone to show only its tasks. **Repeating work** (**Trabajo que se repite**) lists the weekly, monthly, quarterly and seasonal tasks with when and by whom each was last done.
+6. **Tasks** (**Tareas**) lists every task by shift and zone: done or not, who and when, and every check when more than one person checked it. Tick **Not done only** (**Solo lo que no se hizo**), or type in **Search tasks** (**Buscar tareas**). **Download CSV** (**Descargar CSV**) saves the list as it is shown: day, shift, zone, task, done, who and when.
+7. Over several days, each shift's ring counts all of them, **Done each day** (**Hecho cada día**) draws each day's share, and a day clicked in the chart or in the table opens that day.
+8. Today is read again every 30 seconds while the page is open. A past day does not change. The address keeps the site, the days and the shift, so a view can be bookmarked or sent.
+9. Other ways in: **See the checklist** (**Ver la lista de verificación**) under each site on **Live Ops** (**Operaciones en vivo**), for the day shown there; **Checklist history** (**Historial de la lista de verificación**) on a site's page, with yesterday picked; and the **Checklist Results** (**Resultados de la lista**) card under **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
+10. To print the record on the approved form for the binder, see the entry on printing a site's zone cleaning checklists. To print this page as a report, see the entry on printing a checklist report.
+If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there.
+Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
+Picture: checklist-results-day
+Picture: checklist-results-all-sites
+Last checked: 2026-10-19
+
+## Print a checklist report (admin dashboard)
+Who can do this: admins and supervisors
+1. Open **Checklist Results** (**Resultados de la lista**), pick one site in **Site** (**Sitio**), and pick the day or the dates. To print one shift, pick it in **Shift** (**Turno**); **All shifts** (**Todos los turnos**) prints every shift.
+2. Click **Print report** (**Imprimir el informe**). The report opens in a new window, letter size, ready to print or to save as a PDF.
+3. The first page shows the company, the site, the day or the dates, the shift, and when and by whom it was printed. Then each shift's steps done in large numbers, with its ring and a chart of when the checks happened, who worked, and **Not done** (**No se hizo**), grouped by zone.
+4. The pages after list **Every task** (**Todas las tareas**) by shift and zone: the task, a check mark when it was done, who and when.
+5. Every page carries its page number, such as Page 1 of 3, with the site and the dates. The charts print in black and white with their numbers written on them, so they read on any printer.
+6. For the record on the approved form, OCSA-FRM-003, for the binder, see the entry on printing a site's zone cleaning checklists.
+If it does not work: allow pop-ups for the dashboard, then click **Print report** (**Imprimir el informe**) again. More than 31 days is refused; print fewer days.
+Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, print the checklist, imprimir el informe.
+Picture: checklist-results-range
+Picture: checklist-report-print
+Last checked: 2026-10-19

@@ -175,6 +175,11 @@
 //     it; a profile's Edit fills a missing date and draws users.badHireDate under the field; Add Staff
 //     sends hireDate only when it is filled; and a supervisor, in English and in Spanish, sees no Hire
 //     Date in either window, sends only the field changed in the pencil, and has no Add Staff.
+//   - Checklist Results (part 358), against the checklist record and the reads beside it as the API builds
+//     them (audit/checklist-stub.js), armed with setChecklist358 for these lines alone, at 1280 in English
+//     and in Spanish and at 390 in English: the seeded day draws each shift with its ring, its numbers
+//     and its charts; Print report writes the report, Page 1 of its pages first; a range draws a line for
+//     each shift; and All sites draws a card for each site.
 //   - Round 1 (part 347), last in the 1280 English admin pass: a new stamp in version.json reloads an
 //     idle dashboard once, to the same page, and never twice for that stamp; with typed text in a window
 //     it holds, the bar says a new version is ready, and its Reload reloads.
@@ -251,9 +256,9 @@ const LAST_WEEK = (() => {
   return { from: day(mon), to: day(new Date(mon.getTime() + 6 * 86400000)) };
 })();
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", selfUpdate: true, wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step334: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", selfUpdate: true, wrongSignIn: true, step283: true, step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true, step358: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, wrongSignIn: true, step283: true, step248: true, step250: true, step256: "all", step262: "all", step266: "all", step270: "all", step269: "all", step275: "all", step278: true, step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step333: true, step334: true, step338: true, step341: true, step358: true },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", wrongSignIn: true, step283: true, step256: "phone", step262: "phone", step266: "phone", step270: "phone", step269: "phone", step275: "phone", step280: true, step291: true, step300: true, step293: true, step306: true, step309: true, step314: true, step317: true, step334: true, step358: true },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor", step269: "supervisor", step332: "after", step341: true },
   // The training day round: a supervisor in Spanish with the API's Step 327 answered from the start,
   // its lines alone.
@@ -2891,6 +2896,58 @@ async function step341(d, origin, p, stubs) {
 // dashboard once, to the same page, and never again for that stamp; a window holding typed text holds
 // the reload and the bar says a new version is ready, whose Reload reloads. The check is nudged with
 // the online event, which asks at once, rather than waited out.
+// Part 358, Checklist Results, with the API's checklist record and what the page reads beside it armed
+// here (audit/checklist-stub.js) and taken off again, so no line after it reads them. At 1280 in English
+// and in Spanish and at 390 in English: the seeded day draws each shift with its ring, its numbers and
+// its charts; Print report writes the report, Page 1 of its pages first; a range draws a line for each
+// shift; and All sites draws a card for each site.
+const want358 = (M, siteId, day) => {
+  const rows = M.ITEMS[siteId] || [];
+  const g = {};
+  M.record(siteId, day, day, null, "en").days[0].items.forEach((i) => {
+    const r = rows.find((x) => x[0] === i.taskId);
+    const k = r && r[5] ? r[5] : "*";
+    g[k] = g[k] || { due: 0, done: 0 };
+    if (["per_visit", "daily", "every_other_day"].indexOf(i.frequency) >= 0 && i.due) { g[k].due += 1; if (i.done) g[k].done += 1; }
+  });
+  return Object.keys(g).sort().map((k) => k + "=" + g[k].done + "/" + g[k].due).join(", ");
+};
+async function step358(d, origin, p, stubs) {
+  const check = lineChecker(d, origin, p);
+  stubs.setChecklist358(true);
+  const M = stubs.checklist358();
+  const site = seed.SITES[0].id;
+  try {
+    await check("Checklist Results draws the seeded day's shifts, each with its ring, its numbers and its charts", async () => {
+      await go(d, "checklist", [site, M.SEEDED], '[data-cr-view="day"] [data-cr-group]');
+      await until(d, "[data-cr-group] .apexcharts-canvas");
+      const got = (await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-group]"))
+        .map((g) => g.getAttribute("data-cr-group") + "=" + g.getAttribute("data-cr-done") + "/" + g.getAttribute("data-cr-due")))).sort().join(", ");
+      const want = want358(M, site, M.SEEDED);
+      if (got !== want) return "the shifts read " + got + " where the record holds " + want;
+      return "";
+    });
+    await check("Print report writes the report, Page 1 of its pages first", async () => {
+      await d.clearCaptures();
+      await d.page.locator("[data-cr-print]").first().click();
+      for (let i = 0; i < 30 && !(await d.prints()).length; i++) await wait(100);
+      const html = ((await d.prints()).pop() || {}).html || "";
+      const first = d.say("Page {0} of {1}").split("{1}")[0].replace("{0}", "1");
+      if (!html) return "the report opened no page";
+      if (html.indexOf(first) < 0) return "the report has no " + JSON.stringify(first);
+      return html.indexOf(d.say("Checklist Results")) < 0 ? "the report has no title" : "";
+    });
+    await check("a range draws a line for each shift, and All sites a card for each site", async () => {
+      await go(d, "checklist", [site, seed.shift(-7) + ".." + M.SEEDED], '[data-cr-view="range"] [data-cr-range-chart] .apexcharts-series');
+      const lines = await d.page.locator("[data-cr-range-chart] .apexcharts-series").count();
+      if (lines !== 3) return "the range draws " + lines + " lines where the site has two shifts and work tied to none";
+      await go(d, "checklist", ["all", "yesterday"], '[data-cr-view="all"] [data-cr-site-card]');
+      const cards = await settledCount(d, "[data-cr-site-card]");
+      return cards === seed.SITES.length ? "" : "All sites draws " + cards + " cards for " + seed.SITES.length + " sites";
+    });
+  } finally { stubs.setChecklist358(false); }
+}
+
 async function stepUpdate(d, origin, p) {
   const check = lineChecker(d, origin, p);
   const serve = async (stamp) => {
@@ -3095,6 +3152,7 @@ async function runPass(browser, origin, p) {
     if (p.step334) await step334(d, origin, p, stubs);
     if (p.step338) await step338(d, origin, p, stubs);
     if (p.step341) await step341(d, origin, p, stubs);
+    if (p.step358) await step358(d, origin, p, stubs);
     if (p.walk === false) return;
 
     // Help, asked one question.

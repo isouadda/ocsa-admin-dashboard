@@ -310,7 +310,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -576,10 +576,26 @@ const chartBase = (t, extra) => ({
   ...extra,
 });
 const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ minHeight: 44, fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
-const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value" }) => <Chart type="bar" height={height} series={[{ name, data: values }]} options={chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } })} />;
+// Part 358: onPick(i) is called with the bar a person clicks; showValues writes each bar's value on it;
+// xLabels, a set of categories, writes only those under a column chart's bars, every bar keeping its
+// own in the tooltip. A chart that passes none is drawn as it always was.
+const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value", onPick, showValues = false, xLabels }) => {
+  const o = chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } });
+  if (onPick) o.chart = Object.assign({}, o.chart, { events: { dataPointSelection: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
+  if (showValues) { o.dataLabels = { enabled: true, formatter: v => Math.round(v) + valueSuffix, style: { fontSize: "11px", fontFamily: FONT_BODY } }; if (horizontal) o.xaxis.labels = Object.assign({}, o.xaxis.labels, { show: false }); }
+  if (xLabels && !horizontal) { o.xaxis.labels = Object.assign({}, o.xaxis.labels, { rotate: 0, hideOverlappingLabels: false, formatter: v => (xLabels.has(String(v)) ? v : "") }); o.tooltip = Object.assign({}, o.tooltip, { x: { formatter: v => v } }); }
+  return <Chart type="bar" height={height} series={[{ name, data: values }]} options={o} />;
+};
 // yMax fixes the axis from 0 to a scale's top, and dots marks each point, so a month standing
 // alone between two gaps still draws. A chart that passes neither is drawn as it always was.
-const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false }) => <Chart type="area" height={height} series={series} options={chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, ...(dots ? { markers: { size: 4, strokeWidth: 0 } } : {}), xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: Object.assign({ labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } }, yMax ? { min: 0, max: yMax, tickAmount: 5 } : {}) })} />;
+// Part 358: onPick(i) is called with the point a person clicks, which needs dots; spark draws a small
+// trend with no value axis and no grid.
+const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false, onPick, spark = false }) => {
+  const o = chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, ...(dots ? { markers: { size: 4, strokeWidth: 0 } } : {}), xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: Object.assign({ labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } }, yMax ? { min: 0, max: yMax, tickAmount: 5 } : {}) });
+  if (onPick) o.chart = Object.assign({}, o.chart, { events: { markerClick: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
+  if (spark) { o.yaxis = Object.assign({}, o.yaxis, { labels: Object.assign({}, o.yaxis.labels, { show: false }) }); o.grid = Object.assign({}, o.grid, { show: false }); }
+  return <Chart type="area" height={height} series={series} options={o} />;
+};
 const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
 const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <Chart type="radialBar" height={height} series={[Math.round(value)]} options={chartBase(t, { plotOptions: { radialBar: { hollow: { size: "60%" }, track: { background: t.cardAlt }, dataLabels: { name: { color: t.textMut, fontSize: "12px", offsetY: 22 }, value: { color: t.text, fontSize: "24px", fontWeight: 600, fontFamily: FONT_HEAD, offsetY: -12, formatter: valueText != null ? (() => valueText) : (v => Math.round(v) + "%") } } } }, labels: [label], colors: [color], fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: [GL], stops: [0, 100] } } })} />;
 
@@ -1189,11 +1205,15 @@ export default function AdminDashboard() {
   const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
   const LibI = p => <Ic d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" {...p} />;
   const TkI = p => <Ic d="M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" {...p} />;
+  const CkrI = p => <Ic d="M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
     { label: tr("Operations"), items: [
       { id: "operations", l: tr("Live Ops"), i: ClI },
+      // Part 358: what was done at a site on any day, for admins and supervisors, the people the kept
+      // checklist record answers.
+      { id: "checklist", l: tr("Checklist Results"), i: CkrI },
       { id: "sites", l: tr("Sites"), i: MpI },
     ]},
     { label: tr("Staff"), items: [
@@ -1234,7 +1254,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1481,6 +1501,7 @@ export default function AdminDashboard() {
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes") && canEmploy} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
+        {page === "checklist" && <ChecklistResultsPage af={af} t={t} sites={sites} route={route} user={user} showToast={showToast} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} />}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} sites={sites} user={user} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
@@ -3945,6 +3966,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
               <Bdg l={siteStateOf(s.status)} c={s.status === "active" ? GR : OR} />
             </div>
             <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
+            {/* Part 358: what was done at this site, on Checklist Results, yesterday picked. */}
+            <button data-site-checklist-history={s.id} onClick={() => { window.location.hash = "checklist/" + encodeURIComponent(String(s.id)) + "/yesterday"; }} style={{ minHeight: 44, marginLeft: 34, padding: "0 2px", background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Checklist history")}</button>
           </div>
           {canManageSites && <div style={{ display: "flex", gap: 6 }}>
             {s.status === "active" && <button onClick={() => { if (window.confirm(tr("Deactivate this site?"))) deactivateSite(s.id); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>{tr("Deactivate")}</button>}
@@ -4462,12 +4485,741 @@ function OpsPage({ af, t, allStaff }) {
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] ? tr(RL[p.role]) : p.role}{place ? ", " + place : ""}</div></div>
         <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{tr("Started")} {fmtSessionStart(p.startedAt)}</div>{untracked ? <div style={{ marginTop: 4 }}><NotTrackedWord t={t} /></div> : <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</span></div>}</div>
       </div>; })}
+      {/* Part 358: the site's checklist on this day, on Checklist Results. */}
+      <div style={{ borderTop: "1px solid " + t.border, paddingTop: 2 }}><button data-ops-checklist={site.siteId} onClick={() => { window.location.hash = "checklist/" + encodeURIComponent(String(site.siteId)) + "/" + (isToday ? "today" : date); }} style={{ minHeight: 44, padding: "0 2px", background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("See the checklist")}</button></div>
     </Crd>)}
     <button onClick={() => setShowRest(!showRest)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 20, marginBottom: 8, padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>
       <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{isToday ? tr("No shift started today ({0})", rest.length) : tr("No shift started on {0} ({1})", dayText, rest.length)}</span>
       <span style={{ fontSize: 11, color: t.goldText, fontWeight: 600 }}>{showRest ? tr("Hide") : tr("Show")}</span>
     </button>
     {showRest && rest.map(u => <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={u.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{u.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[u.role] ? tr(RL[u.role]) : u.role}</div></div></div>)}
+  </div>);
+}
+
+// ===== CHECKLIST RESULTS (part 358) =====
+// What was done at a site on any day, on the dashboard itself: one site on one day, a site over a range
+// of days, or every site at once, with a report laid out for paper. Everything is read from the kept
+// checklist record, GET /api/sites/:id/checklist-record (the API's Step 238, management, 31 days at
+// most), which answers each day's items with whether each was done, when, by whom and every check.
+// The record names no shift on an item, so a site with two or more shifts (the day's schedule, GET
+// /api/sites/:siteId/shift-blocks/schedule) is read once for each shift, and an item every shift's read
+// holds is one tied to no shift, drawn once under Any shift. A shift's window is its timed blocks' on
+// that schedule, or its sessions' when it has none. Who worked is who started that shift (GET
+// /api/shift-sessions/by-site, Live Ops' read) and who checked its work, and the repeating work's last
+// check is Periodic work's (GET /api/periodic-work). Counting is the checklist's own: per visit, daily
+// and every other day work due that day, done of due; weekly to seasonal work in its own section; as
+// needed never counted. Times are on the company's clock, and today is the company's checklist day,
+// from 4:00 AM. Today is read again every 30 seconds while the page is on screen; a past day is read
+// once. The view lives in the address, #checklist/<site or all>/<period>[/<shift>], the period
+// today, yesterday, last7, month, one day, or two days joined by "..".
+const CR_TZ = clientConfig.company.timeZone;
+// The checklist day starts at 4:00 AM on the company's clock, the API's default for it.
+const CR_DAY_STARTS = 4 * 60;
+const CR_LIVE_MS = 30000;
+const CR_QUARTER = 15 * 60000;
+const crClock = new Intl.DateTimeFormat("en-US", { timeZone: CR_TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+// The company's clock at an instant: its day, YYYY-MM-DD, and the minutes since that day's midnight.
+function crWall(at) {
+  const p = {};
+  crClock.formatToParts(new Date(at)).forEach(x => { p[x.type] = x.value; });
+  return { day: p.year + "-" + p.month + "-" + p.day, minutes: (Number(p.hour) % 24) * 60 + Number(p.minute) };
+}
+const crAddDays = (day, n) => { const d = new Date(day + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const crDaysIn = (from, to) => { const out = []; for (let d = from; d <= to && out.length < 400; d = crAddDays(d, 1)) out.push(d); return out; };
+const crToday = () => { const w = crWall(Date.now()); return w.minutes < CR_DAY_STARTS ? crAddDays(w.day, -1) : w.day; };
+// The instant a time on the company's clock names: minutes after the midnight that starts day.
+function crInstant(day, minutes) {
+  const want = Date.parse(day + "T00:00:00Z") + minutes * 60000;
+  let at = want;
+  for (let i = 0; i < 3; i += 1) { const w = crWall(at); at += want - (Date.parse(w.day + "T00:00:00Z") + w.minutes * 60000); }
+  return at;
+}
+const crMinutes = (hm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hm || "")); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const crTime = (at) => (at == null || !Number.isFinite(Number(at)) ? "" : new Date(Number(at)).toLocaleTimeString(localeTag(), { timeZone: CR_TZ, hour: "numeric", minute: "2-digit" }));
+const crPct = (done, due) => (due > 0 ? Math.round((done / due) * 100) : null);
+const crPctText = (p) => (p == null ? "--" : p + "%");
+const crPerson = (u) => (u ? [u.firstName || u.first_name, u.lastName || u.last_name].filter(Boolean).join(" ") || u.name || "" : "");
+
+// A period on the address: a word that keeps its meaning (today, yesterday, last7, month), one day, or
+// two days joined by "..". Anything else reads as today.
+function crPeriod(token, today) {
+  const v = String(token || "today");
+  if (v === "yesterday") { const y = crAddDays(today, -1); return { token: v, from: y, to: y }; }
+  if (v === "last7") return { token: v, from: crAddDays(today, -6), to: today };
+  if (v === "month") return { token: v, from: today.slice(0, 8) + "01", to: today };
+  const m = /^(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?$/.exec(v);
+  if (m) return { token: v, from: m[1], to: m[2] || m[1] };
+  return { token: "today", from: today, to: today };
+}
+const crPeriodText = (p) => (p.from === p.to ? keptDay(p.from) : tr("{0} to {1}", keptDay(p.from), keptDay(p.to)));
+
+// Where an item's work is counted: today (per visit, daily and every other day work, done of due),
+// repeating (weekly to seasonal, in its own section) or as_needed (never counted). The record's period
+// says it, since an anytime block's item reads as weekly whatever its frequency; an answer without one
+// is read by the item's frequency.
+function crKind(i) {
+  const p = i && i.period;
+  if (p === "today" || p === "as_needed") return p;
+  if (p) return "repeating";
+  const f = i && i.frequency;
+  return f === "as_needed" ? "as_needed" : PERIODIC_FREQUENCIES[f] ? "repeating" : "today";
+}
+// An item's checks that day as instants, oldest first, each with who made it.
+const crChecksOf = (i) => keptChecks(i).map(c => ({ at: Date.parse(c.completedAt), who: (c.completedBy && c.completedBy.name) || "" })).filter(c => Number.isFinite(c.at));
+// What a list of items adds up to: the steps due and done the way the checklist counts them, every check
+// in time order, who made them, and the first and last.
+function crStats(items) {
+  const counted = items.filter(i => crKind(i) === "today" && i.due === true);
+  const done = counted.filter(i => i.done === true).length;
+  const checks = [];
+  items.forEach(i => crChecksOf(i).forEach(c => checks.push({ at: c.at, who: c.who, item: i })));
+  checks.sort((a, b) => a.at - b.at);
+  return { due: counted.length, done, pct: crPct(done, counted.length), checks, people: keptOnce(checks.map(c => c.who)),
+    first: checks.length ? checks[0].at : null, last: checks.length ? checks[checks.length - 1].at : null };
+}
+
+// A shift's window on a day, from the schedule's timed blocks (an anytime block has none): { start,
+// end } as instants, or null, whatever order the schedule lists the blocks in. The blocks that start
+// before noon are read either on the day itself or as the next morning, whichever makes the shift the
+// shorter, so a night shift from 10:00 PM to 6:00 AM is eight hours and a day shift stays on its day.
+// The end is the latest end, and none when the block that starts last has no end of its own.
+const CR_MORNING_UNTIL = 12 * 60;
+function crShiftWindow(shift, day) {
+  const timed = (shift && Array.isArray(shift.blocks) ? shift.blocks : []).filter(b => b && b.kind !== "anytime" && crMinutes(b.startTime) !== null);
+  if (timed.length === 0) return null;
+  const read = (next) => {
+    const spans = timed.map(b => {
+      const s = crMinutes(b.startTime), e = crMinutes(b.endTime);
+      const off = next && s < CR_MORNING_UNTIL ? 1 : 0;
+      return { at: crInstant(crAddDays(day, off), s), end: e === null ? null : crInstant(crAddDays(day, off + (e <= s ? 1 : 0)), e) };
+    });
+    const start = Math.min(...spans.map(x => x.at));
+    const lastStart = Math.max(...spans.map(x => x.at));
+    const ends = spans.filter(x => x.end !== null).map(x => x.end);
+    const latest = ends.length ? Math.max(...ends) : null;
+    const end = latest !== null && latest > start && spans.filter(x => x.at === lastStart).some(x => x.end !== null) ? latest : null;
+    return { start, end, span: Math.max(lastStart, latest || 0) - start };
+  };
+  const same = read(false), next = read(true);
+  const w = next.span < same.span ? next : same;
+  return { start: w.start, end: w.end };
+}
+// Without a schedule, the window a shift's sessions give: the first start, and the last end once every
+// one has ended.
+function crSessionWindow(people) {
+  const starts = people.map(p => Date.parse(p.startedAt)).filter(Number.isFinite);
+  if (starts.length === 0) return null;
+  const ends = people.map(p => Date.parse(p.endedAt));
+  return { start: Math.min(...starts), end: ends.every(Number.isFinite) ? Math.max(...ends) : null };
+}
+// The checks in 15 minute bars across the shift's window, widened to hold every check:
+// [{ start, count, last }], last for a bar inside the shift's last 30 minutes.
+function crBuckets(checks, win0) {
+  const times = checks.map(c => c.at);
+  // A window more than a day away from the checks it would hold is left out, so a session left open
+  // since another day never stretches the chart over it.
+  const near = (at) => !times.length || Math.abs(at - Math.min(...times)) < 30 * 3600000;
+  const win = win0 && near(win0.start) ? win0 : null;
+  const lo0 = Math.min(win ? win.start : Infinity, ...times);
+  if (!Number.isFinite(lo0)) return [];
+  const lo = Math.floor(lo0 / CR_QUARTER) * CR_QUARTER;
+  const hiWin = win && win.end ? Math.ceil(win.end / CR_QUARTER) * CR_QUARTER : -Infinity;
+  const hiChecks = times.length ? Math.floor(Math.max(...times) / CR_QUARTER) * CR_QUARTER + CR_QUARTER : -Infinity;
+  const hi = Math.max(lo + CR_QUARTER, hiWin, hiChecks);
+  const out = [];
+  for (let s = lo; s < hi && out.length < 400; s += CR_QUARTER) out.push({ start: s, count: 0, last: !!(win && win.end && s + CR_QUARTER > win.end - 30 * 60000 && s < win.end) });
+  times.forEach(x => { const k = Math.floor((x - lo) / CR_QUARTER); if (out[k]) out[k].count += 1; });
+  return out;
+}
+// Whether a bar's time is written under it: every hour on the hour, every two hours past 16 hours.
+const crHourMark = (b, n, narrow) => crWall(b.start).minutes % (narrow ? 180 : n > 40 ? 120 : 60) === 0;
+// The checks made in the shift's last 30 minutes, or null when the shift has no end.
+function crLastHalfHour(checks, win) {
+  if (!win || !win.end) return null;
+  if (win.end > Date.now()) return { pending: true, to: win.end };
+  const from = win.end - 30 * 60000;
+  const n = checks.filter(c => c.at >= from && c.at < win.end).length;
+  return { n, of: checks.length, pct: crPct(n, checks.length), from, to: win.end };
+}
+// The one plain line under a timeline. Facts only.
+const crLastLine = (lh, total) => (lh && lh.pending ? tr("This shift ends at {0}. Its last 30 minutes are counted once it has ended.", crTime(lh.to))
+  : !total ? tr("No checks were made on this shift.")
+  : !lh ? tr("This shift has no end time on its schedule, so its last 30 minutes are not counted.")
+    : tr("{0} of {1} checks ({2}%) were made in the shift's last 30 minutes, from {3} to {4}.", lh.n, lh.of, lh.pct, crTime(lh.from), crTime(lh.to)));
+// Who worked a group of items on a day: who started that shift, then whoever checked its work.
+function crWhoWorked(g, people, multi) {
+  const started = (people || []).filter(p => !multi || (g.key === "*" ? !p.shiftLabel : p.shiftLabel === g.key)).map(p => p.name);
+  return keptOnce(started.concat(crStats(g.items).people));
+}
+
+// Every read one site's view needs: the schedule of its last day (the site's shifts and that day's
+// windows), the record once for each shift, or once for the whole site, and on one day the people who
+// started a shift there and Periodic work's last checks. The answer is { notTracked, shifts, days,
+// people, periodic, multi }, each day { date, groups: [{ key, name, items }] }, or the API's refusal,
+// thrown in its own words.
+async function crReadSite(af, siteId, from, to, today) {
+  const sid = encodeURIComponent(siteId);
+  const sched = await af("/api/sites/" + sid + "/shift-blocks/schedule?date=" + to).catch(() => null);
+  const shifts = (sched && Array.isArray(sched.shifts) ? sched.shifts : []).filter(s => s && s.label);
+  const multi = shifts.length >= 2;
+  const labels = multi ? shifts.map(s => s.label) : [null];
+  const base = "/api/sites/" + sid + "/checklist-record?from=" + from + "&to=" + to;
+  const oneDay = from === to;
+  const [recs, board, periodic] = await Promise.all([
+    Promise.all(labels.map(l => af(base + (l ? "&shift=" + encodeURIComponent(l) : "")))),
+    oneDay ? af("/api/shift-sessions/by-site" + (from === today ? "?date=" + from : "?start_date=" + from + "&end_date=" + from)).catch(() => null) : null,
+    oneDay ? af("/api/periodic-work?siteId=" + sid).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
+  ]);
+  if (recs.some(r => !r || typeof r !== "object")) throw new Error(tr("This did not load."));
+  if (recs.some(r => r.notTracked === true)) return { notTracked: true, shifts, days: [], people: [], periodic: null, multi };
+  if (recs.some(r => !Array.isArray(r.days))) throw new Error(tr("This did not load."));
+  const nameOf = (l) => { const s = shifts.find(x => x.label === l); return (s && (s.displayLabel || s.label)) || l; };
+  const one = shifts.length === 1 ? shifts[0].label : null;
+  const days = crDaysIn(from, to).map(date => {
+    const held = new Map();
+    recs.forEach((r, ri) => {
+      const d0 = r.days.find(x => x && x.date === date);
+      ((d0 && Array.isArray(d0.items)) ? d0.items : []).forEach(it => { const k = String(it.taskId); if (!held.has(k)) held.set(k, { item: it, in: [] }); held.get(k).in.push(labels[ri]); });
+    });
+    if (!multi) return { date, groups: [{ key: one || "*", name: one ? nameOf(one) : tr("Whole site"), items: Array.from(held.values()).map(h => h.item) }] };
+    const groups = labels.map(l => ({ key: l, name: nameOf(l), items: [] })).concat([{ key: "*", name: tr("Any shift"), items: [] }]);
+    held.forEach(h => { const k = h.in.length >= labels.length ? "*" : h.in[0]; groups.find(g => g.key === k).items.push(h.item); });
+    return { date, groups: groups.filter(g => g.key !== "*" || g.items.length > 0) };
+  });
+  const mine = board && Array.isArray(board.sites) ? board.sites.find(s => s && String(s.siteId) === String(siteId)) : null;
+  // Today's read answers every session still open, whatever its day (Live Ops' board keeps a night shift
+  // on it); one that started on another day is not this day's work.
+  const people = (mine && Array.isArray(mine.people) ? mine.people : []).filter(p => !p.sessionDate || p.sessionDate === from);
+  return { notTracked: false, site: recs[0].site || null, shifts, days, multi, people, periodic };
+}
+// Every site's record for the period, four reads at a time; one day is read with the six days before it,
+// so its card can draw a week's trend. { span, bySite: { id: { rec } or { error, status } } }.
+async function crReadAll(af, list, from, to) {
+  const span = from === to ? { from: crAddDays(to, -6), to } : { from, to };
+  const bySite = {};
+  let next = 0;
+  const lane = async () => {
+    while (next < list.length) {
+      const s = list[next];
+      next += 1;
+      try {
+        const r = await af("/api/sites/" + encodeURIComponent(s.id) + "/checklist-record?from=" + span.from + "&to=" + span.to);
+        bySite[String(s.id)] = r && (r.notTracked === true || Array.isArray(r.days)) ? { rec: r } : { error: tr("This did not load.") };
+      } catch (e) { bySite[String(s.id)] = { error: e.message || tr("This did not load."), status: e.status || 0 }; }
+    }
+  };
+  await Promise.all([0, 1, 2, 3].map(lane));
+  return { span, bySite };
+}
+// The task list's rows for a view, as shown: each day's groups, zone by zone, through the filters.
+function crRows(days, keep) {
+  const out = [];
+  days.forEach(d => d.groups.forEach(g => g.items.forEach(i => { if (keep(i)) out.push({ date: d.date, group: g, item: i }); })));
+  return out;
+}
+const crZoneOf = (i) => shownZone(i) || tr("No zone");
+// A list of rows drawn zone by zone, in the order the record lists them.
+const crByZone = (items) => { const zones = keptOnce(items.map(crZoneOf)); return zones.map(z => ({ zone: z, items: items.filter(i => crZoneOf(i) === z) })); };
+
+// ---- The printed report ----
+// Letter, portrait. Page 1 is the summary: the company, Checklist Results, the site, the day or range,
+// the shift, and when and by whom it was printed, then each shift's numbers with its ring and its
+// timeline (a range draws each day's share done), who worked, and Not done by zone. The full task list
+// starts on the next page, by day, shift and zone. Every page carries Page X of Y, the site and the
+// dates. Every chart is drawn in the page itself, in black and white with its values printed on it,
+// before the print starts. The pages are laid out here, row by row against the height of a sheet, so
+// the page count is known when each footer is written.
+const CR_SHEET_PX = 880;
+const CR_PRINT_STYLE = "@page{size:letter portrait;margin:0.5in}"
+  + "*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff}"
+  + ".sheet{min-height:9.8in;display:flex;flex-direction:column;break-after:page;page-break-after:always}.sheet:last-child{break-after:auto;page-break-after:auto}"
+  + ".body{flex:1}.ft{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #000;padding-top:5px;margin-top:8px;font-size:9px}"
+  + ".hd{border-bottom:3px solid #000;padding-bottom:8px;margin-bottom:10px}.co{font-size:11px;text-transform:uppercase;letter-spacing:1px}"
+  + ".ti{font-size:22px;font-weight:700;margin:2px 0 6px}.meta{font-size:12px;line-height:1.5}"
+  + "h2{font-size:15px;margin:12px 0 6px;border-bottom:1px solid #000;padding-bottom:3px}h3{font-size:13px;margin:10px 0 4px}h4{font-size:11px;margin:8px 0 3px;text-transform:uppercase;letter-spacing:.5px}"
+  + ".win{font-weight:400;font-size:12px}.sum{display:flex;gap:14px;align-items:flex-start;margin:4px 0}.facts{width:200px;flex-shrink:0;font-size:11px;line-height:1.5}.tlw{flex:1;min-width:0}"
+  + ".big{font-size:18px;font-weight:700;line-height:1.25;margin-bottom:3px}.line{font-size:11px;margin:2px 0 6px}.cap{font-size:9px;margin-top:2px}"
+  + ".nd{font-size:11px;padding:2px 0 2px 14px}.none{font-size:12px;margin:4px 0}"
+  + "table.ls{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:6px}table.ls th{font-size:9px;text-transform:uppercase;text-align:left;border-bottom:1.5px solid #000;padding:3px 4px}"
+  + "table.ls td{font-size:11px;line-height:1.35;padding:3px 4px;border-bottom:1px solid #999;vertical-align:top;overflow-wrap:anywhere}"
+  + "@media screen{body{background:#e9e9e9}.sheet{width:8.5in;min-height:11in;margin:16px auto;padding:0.5in;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25)}}";
+// A ring for paper: the share done drawn in black on a light gray track, with the share and the count
+// written inside it.
+function crRingSvg(pct, words, size) {
+  const sz = size || 120, r = sz / 2 - 10, c = 2 * Math.PI * r, p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  const mid = sz / 2;
+  return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 ' + sz + " " + sz + '" role="img" aria-label="' + keptEsc(crPctText(pct) + ", " + words) + '">'
+    + '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="#cfcfcf" stroke-width="13"></circle>'
+    + '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="#000" stroke-width="13" stroke-dasharray="' + (c * p / 100).toFixed(1) + " " + c.toFixed(1) + '" transform="rotate(-90 ' + mid + " " + mid + ')"></circle>'
+    + '<text x="' + mid + '" y="' + (mid + 2) + '" text-anchor="middle" font-size="' + Math.round(sz / 5) + '" font-weight="700">' + keptEsc(crPctText(pct)) + "</text>"
+    + '<text x="' + mid + '" y="' + (mid + Math.round(sz / 7) + 4) + '" text-anchor="middle" font-size="10">' + keptEsc(words) + "</text></svg>";
+}
+// A shift's checks for paper, a bar every 15 minutes with its count over it, the hours under the bars,
+// and the last 30 minutes hatched and named.
+function crTimelineSvg(buckets, n, width) {
+  const W = width || 700, H = 150, L = 6, R = 6, T = 16, B = 40;
+  const count = Math.max(1, buckets.length), bw = (W - L - R) / count, max = Math.max(1, ...buckets.map(b => b.count));
+  const id = "crh" + n;
+  let s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + keptEsc(tr("When the checks happened")) + '">'
+    + '<defs><pattern id="' + id + '" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#fff"></rect><line x1="0" y1="0" x2="0" y2="5" stroke="#000" stroke-width="2"></line></pattern></defs>'
+    + '<line x1="' + L + '" y1="' + (H - B) + '" x2="' + (W - R) + '" y2="' + (H - B) + '" stroke="#000" stroke-width="1"></line>';
+  buckets.forEach((b, i) => {
+    const x = L + i * bw;
+    const h = b.count ? Math.max(2, ((H - T - B) * b.count) / max) : 0;
+    if (h) s += '<rect x="' + (x + 1).toFixed(1) + '" y="' + (H - B - h).toFixed(1) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + (b.last ? "url(#" + id + ")" : "#555") + '" stroke="#000" stroke-width="0.6"></rect>'
+      + '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - B - h - 3).toFixed(1) + '" text-anchor="middle" font-size="9">' + b.count + "</text>";
+    if (crHourMark(b, buckets.length)) {
+      s += '<line x1="' + x.toFixed(1) + '" y1="' + (H - B) + '" x2="' + x.toFixed(1) + '" y2="' + (H - B + 4) + '" stroke="#000"></line>'
+        + '<text x="' + x.toFixed(1) + '" y="' + (H - B + 15) + '" font-size="9">' + keptEsc(crTime(b.start)) + "</text>";
+    }
+  });
+  const last = buckets.map((b, i) => (b.last ? i : -1)).filter(i => i >= 0);
+  if (last.length) {
+    const x0 = L + last[0] * bw, x1 = L + (last[last.length - 1] + 1) * bw;
+    s += '<line x1="' + x0.toFixed(1) + '" y1="' + (H - B + 20) + '" x2="' + x1.toFixed(1) + '" y2="' + (H - B + 20) + '" stroke="#000" stroke-width="2"></line>'
+      + '<text x="' + x1.toFixed(1) + '" y="' + (H - 3) + '" text-anchor="end" font-size="9" font-weight="700">' + keptEsc(tr("Last 30 minutes")) + "</text>";
+  }
+  return s + "</svg>";
+}
+// A group's share done on each day of a range, for paper, a bar a day with its share over it and the
+// day of the month under it.
+function crDaysSvg(points) {
+  const W = 700, H = 140, L = 6, R = 6, T = 16, B = 26;
+  const bw = (W - L - R) / Math.max(1, points.length);
+  let s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + keptEsc(tr("Done each day")) + '">'
+    + '<line x1="' + L + '" y1="' + (H - B) + '" x2="' + (W - R) + '" y2="' + (H - B) + '" stroke="#000" stroke-width="1"></line>';
+  points.forEach((p, i) => {
+    const x = L + i * bw;
+    const h = p.pct == null ? 0 : Math.max(1, ((H - T - B) * p.pct) / 100);
+    if (h) s += '<rect x="' + (x + 1).toFixed(1) + '" y="' + (H - B - h).toFixed(1) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#555" stroke="#000" stroke-width="0.6"></rect>';
+    s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - B - h - 3).toFixed(1) + '" text-anchor="middle" font-size="' + (points.length > 16 ? 7 : 9) + '">' + keptEsc(crPctText(p.pct)) + "</text>"
+      + '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - B + 13) + '" text-anchor="middle" font-size="9">' + Number(p.date.slice(8, 10)) + "</text>";
+  });
+  return s + "</svg>";
+}
+// A check mark, or an empty box, for a task's line on paper.
+const crMarkSvg = (done) => (done
+  ? '<svg width="14" height="14" viewBox="0 0 14 14" role="img" aria-label="' + keptEsc(tr("Done")) + '"><path d="M2 7.5l3.2 3.2L12 3.6" fill="none" stroke="#000" stroke-width="2.2"></path></svg>'
+  : '<svg width="14" height="14" viewBox="0 0 14 14" role="img" aria-label="' + keptEsc(tr("Not done")) + '"><rect x="1.5" y="1.5" width="11" height="11" fill="none" stroke="#000" stroke-width="1.2"></rect></svg>');
+// A task's line in the printed list: the task, a check mark or an empty box, who and when, each check on
+// a line of its own.
+const crPrintRow = (i, label, cks) => '<tr data-task="' + keptEsc(String(i.taskId)) + '" data-done="' + (i.done === true ? "1" : "0") + '"><td>' + keptEsc(label) + "</td><td>" + crMarkSvg(i.done === true) + "</td><td>"
+  + cks.map(c => keptEsc(c.who || "--")).join("<br>") + "</td><td>" + cks.map(c => keptEsc(crTime(c.at))).join("<br>") + "</td></tr>";
+// How many lines a piece of text takes in a column that holds about per letters a line.
+const crLines = (text, per) => Math.max(1, Math.ceil(String(text || "").length / per));
+// The pieces laid onto sheets: a piece that starts a sheet of its own (newSheet), a heading kept with
+// what follows it (keep), and a table's rows, its header written again at the top of each sheet it
+// runs onto. Each sheet holds what fits in CR_SHEET_PX, the height estimated high so nothing runs over.
+function crSheets(pieces) {
+  const sheets = [];
+  let cur = null, used = 0;
+  const open = () => { cur = []; sheets.push(cur); used = 0; };
+  const headOf = (p) => (p.table && (cur.length === 0 || cur[cur.length - 1].table !== p.table) ? p.headH : 0);
+  open();
+  pieces.forEach((p, i) => {
+    if (p.newSheet && cur.length) open();
+    // A run of headings goes with the start of what follows it: the next headings whole, and of the
+    // first piece after them as much as a third of a sheet, so a row taller than a sheet never leaves
+    // its headings each on a sheet of their own.
+    let need = p.h + headOf(p);
+    for (let j = i; pieces[j] && pieces[j].keep && pieces[j + 1]; j += 1) {
+      const nx = pieces[j + 1];
+      need += nx.keep ? nx.h : Math.min(nx.h + (nx.table ? nx.headH : 0), Math.round(CR_SHEET_PX / 3));
+    }
+    // A piece taller than a sheet runs over whatever is done, so it starts under the headings it follows.
+    const underHeads = p.h > CR_SHEET_PX && cur.length > 0 && cur.every(x => x.keep);
+    if (used + need > CR_SHEET_PX && cur.length && !underHeads) open();
+    need = p.h + headOf(p);
+    cur.push(p);
+    used += need;
+  });
+  return sheets;
+}
+function crSheetHtml(pieces) {
+  let out = "";
+  pieces.forEach((p, i) => {
+    const prev = pieces[i - 1], nx = pieces[i + 1];
+    if (p.table && (!prev || prev.table !== p.table)) out += '<table class="ls"><colgroup><col style="width:50%"><col style="width:8%"><col style="width:24%"><col style="width:18%"></colgroup><thead>' + p.head + "</thead><tbody>";
+    out += p.html;
+    if (p.table && (!nx || nx.table !== p.table)) out += "</tbody></table>";
+  });
+  return out;
+}
+// The report as one page of HTML. model: { company, site, period, shiftName, printedAt, printedBy, oneDay,
+// days: [{ date, groups: [{ key, name, items, win, who }] }] }.
+function crReportHtml(model) {
+  const esc = keptEsc;
+  const dates = crPeriodText(model.period);
+  const pieces = [];
+  const add = (h, html, more) => pieces.push(Object.assign({ h, html }, more || {}));
+  add(128, '<div class="hd"><div class="co">' + esc(model.company) + '</div><div class="ti">' + esc(tr("Checklist Results")) + '</div><div class="meta">'
+    + esc(tr("Site")) + ": " + esc(model.site) + "<br>" + esc(model.oneDay ? tr("Day") : tr("Dates")) + ": " + esc(dates) + "<br>" + esc(tr("Shift")) + ": " + esc(model.shiftName) + "<br>"
+    + esc(tr("Printed on {0} at {1} by {2}", keptDay(crWall(model.printedAt).day), crTime(model.printedAt), model.printedBy || "--")) + "</div></div>");
+  const keys = keptOnce([].concat(...model.days.map(d => d.groups.map(g => g.key))));
+  const named = (k) => { for (const d of model.days) { const g = d.groups.find(x => x.key === k); if (g) return g.name; } return k; };
+  keys.forEach((k, gi) => {
+    const parts = model.days.map(d => ({ date: d.date, g: d.groups.find(x => x.key === k) })).filter(x => x.g);
+    const st = crStats([].concat(...parts.map(x => x.g.items)));
+    const g0 = parts[0].g;
+    const span = model.oneDay && g0.win ? tr("{0} to {1}", crTime(g0.win.start), g0.win.end ? crTime(g0.win.end) : "--") : "";
+    add(30, "<h2>" + esc(named(k)) + (span ? ' <span class="win">' + esc(span) + "</span>" : "") + "</h2>", { keep: true });
+    const factLines = [trn("{0} check|count", st.checks.length),
+      st.first == null ? "" : model.oneDay ? tr("First check {0}, last check {1}", crTime(st.first), crTime(st.last))
+        : tr("First check {0}, last check {1}", keptDay(crWall(st.first).day) + " " + crTime(st.first), keptDay(crWall(st.last).day) + " " + crTime(st.last)),
+      tr("Who worked: {0}", (model.oneDay ? g0.who : st.people).join(", ") || "--")].filter(Boolean);
+    const facts = '<div class="big">' + esc(tr("{0} of {1} steps done", st.done, st.due)) + "</div>" + factLines.map(x => "<div>" + esc(x) + "</div>").join("");
+    const ring = crRingSvg(st.pct, tr("{0} of {1}", st.done, st.due), 100);
+    // The numbers' column is 200 pixels at 11 pixels a letter: about 34 letters a line, 17 pixels each,
+    // under a heading of up to two lines.
+    const factsH = 52 + 17 * factLines.reduce((a, x) => a + crLines(x, 34), 0);
+    // One day: the ring, the numbers and the shift's timeline side by side, its line under them. Work
+    // tied to no shift has no window, so it draws no timeline. A range: each day's share under them.
+    if (model.oneDay && !(model.multi && k === "*")) {
+      const buckets = crBuckets(st.checks, g0.win);
+      const line = crLastLine(crLastHalfHour(st.checks, g0.win), st.checks.length);
+      add(Math.max(176, factsH + 10) + 14 * crLines(line, 110), '<div class="sum">' + ring + '<div class="facts">' + facts + "</div>"
+        + (buckets.length ? '<div class="tlw">' + crTimelineSvg(buckets, gi, 390) + '<div class="cap">' + esc(tr("Each bar is 15 minutes, with its number of checks over it. The hatched bars are the shift's last 30 minutes.")) + "</div></div>" : "")
+        + '</div><p class="line">' + esc(line) + "</p>");
+    } else if (model.oneDay) {
+      add(Math.max(120, factsH + 10), '<div class="sum">' + ring + '<div class="facts">' + facts + "</div></div>");
+    } else {
+      add(Math.max(120, factsH + 10), '<div class="sum">' + ring + '<div class="facts">' + facts + "</div></div>", { keep: true });
+      add(170, crDaysSvg(parts.map(x => { const s0 = crStats(x.g.items); return { date: x.date, pct: s0.pct }; })) + '<div class="cap">' + esc(tr("Each bar is one day, with its share of steps done over it and the day of the month under it.")) + "</div>");
+    }
+  });
+  // Not done, by zone: on one day each shift's steps due and not done, over a range each step with the
+  // days it was not done.
+  add(36, "<h2>" + esc(tr("Not done")) + "</h2>", { keep: true });
+  let anyLeft = false;
+  keys.forEach(k => {
+    const missed = [];
+    model.days.forEach(d => { const g = d.groups.find(x => x.key === k); if (g) g.items.filter(i => crKind(i) !== "as_needed" && i.due === true && i.done !== true).forEach(i => missed.push({ date: d.date, item: i })); });
+    if (!missed.length) return;
+    anyLeft = true;
+    add(28, "<h3>" + esc(named(k)) + "</h3>", { keep: true });
+    crByZone(missed.map(m => m.item)).forEach(z => {
+      add(22, "<h4>" + esc(z.zone) + "</h4>", { keep: true });
+      const seen = keptOnce(z.items.map(i => String(i.taskId)));
+      seen.forEach(id => {
+        const mine = missed.filter(m => String(m.item.taskId) === id);
+        const text = shownLabel(mine[0].item) + (model.oneDay ? "" : ": " + mine.map(m => keptDay(m.date)).join(", "));
+        add(15 * crLines(text, 96) + 4, '<div class="nd" data-not-done="' + esc(id) + '">' + esc(text) + "</div>");
+      });
+    });
+  });
+  if (!anyLeft) add(24, '<p class="none">' + esc(tr("Every step due was done.")) + "</p>");
+  // The full list, from the next sheet on.
+  add(36, "<h2>" + esc(tr("Every task")) + "</h2>", { keep: true, newSheet: true });
+  const head = "<tr><th>" + esc(tr("Task")) + "</th><th>" + esc(tr("Done")) + "</th><th>" + esc(tr("Who")) + "</th><th>" + esc(tr("When")) + "</th></tr>";
+  model.days.forEach(d => {
+    if (!model.oneDay) add(30, "<h3>" + esc(keptDay(d.date)) + "</h3>", { keep: true });
+    d.groups.forEach(g => {
+      if (!g.items.length) return;
+      add(26, model.oneDay ? "<h3>" + esc(g.name) + "</h3>" : "<h4>" + esc(g.name) + "</h4>", { keep: true });
+      crByZone(g.items).forEach(z => {
+        add(22, "<h4>" + esc(z.zone) + "</h4>", { keep: true });
+        z.items.forEach(i => {
+          const cks = crChecksOf(i);
+          const tag = crKind(i) === "repeating" ? periodicFrequencyWord(i.frequency) : crKind(i) === "as_needed" ? tr("As needed") : "";
+          const label = shownLabel(i) + (tag ? " (" + tag + ")" : "");
+          const lines = Math.max(crLines(label, 50), cks.reduce((a, c) => a + crLines(c.who, 22), 0), cks.length, 1);
+          add(16 * lines + 10, crPrintRow(i, label, cks), { table: d.date + "|" + g.key + "|" + z.zone, head, headH: 26 });
+        });
+      });
+    });
+  });
+  const sheets = crSheets(pieces);
+  const foot = (n) => '<div class="ft"><span data-page-of="">' + esc(tr("Page {0} of {1}", n, sheets.length)) + "</span><span>" + esc(model.site) + " &middot; " + esc(dates) + "</span></div>";
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Checklist Results")) + " &middot; " + esc(model.site) + "</title><style>" + CR_PRINT_STYLE + "</style></head><body>"
+    + sheets.map((sh, i) => '<div class="sheet" data-sheet="' + (i + 1) + '"><div class="body">' + crSheetHtml(sh) + "</div>" + foot(i + 1) + "</div>").join("")
+    + "</body></html>";
+}
+// The report written into a window opened in the click, so a pop-up blocker lets it through, and printed
+// once it is drawn. False when the browser would not open the window.
+function printChecklistReport(model) {
+  const w = keptWindow();
+  if (!w) return false;
+  w.document.write(crReportHtml(model));
+  w.document.close();
+  setTimeout(() => { try { w.print(); } catch (e) {} }, 600);
+  return true;
+}
+
+// ---- The page ----
+const crPill = (t, on) => ({ minHeight: 44, padding: "6px 14px", borderRadius: R.pill, border: "1px solid " + (on ? t.goldBorder : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+const crHead = (t) => ({ padding: "10px 12px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, textAlign: "left", verticalAlign: "bottom" });
+function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }) {
+  const today = crToday();
+  const siteId = route[0] && String(route[0]) !== "all" ? decodeURIComponent(String(route[0])) : "";
+  const period = crPeriod(route[1] ? decodeURIComponent(String(route[1])) : "today", today);
+  const shiftPick = route[2] ? decodeURIComponent(String(route[2])) : "";
+  const oneDay = period.from === period.to;
+  const live = period.from <= today && today <= period.to;
+  const listed = sites.filter(s => s && s.id != null).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), localeTag()));
+  const active = listed.filter(s => s.status === "active" || String(s.id) === siteId);
+  const site = listed.find(s => String(s.id) === siteId) || null;
+  const allKey = siteId ? "" : active.map(s => s.id).join(",");
+  const viewKey = [siteId || "all", period.from, period.to, allKey].join("|");
+  const keyNow = useRef(viewKey);
+  keyNow.current = viewKey;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const [read, setRead] = useState({ key: "", data: null, error: null, at: 0 });
+  const [dates, setDates] = useState(null);
+  const [zone, setZone] = useState("");
+  const [notDoneOnly, setNotDoneOnly] = useState(false);
+  const [q, setQ] = useState("");
+  const go = (sid, token, shift) => { window.location.hash = ["checklist", sid || "all", token || "today"].concat(shift ? [shift] : []).map((x, i) => (i === 0 ? x : encodeURIComponent(x))).join("/"); };
+  const readNow = useCallback((quiet) => {
+    const key = keyNow.current;
+    const [sid, from, to] = key.split("|");
+    const job = sid !== "all" ? crReadSite(af, sid, from, to, crToday()) : crReadAll(af, activeRef.current, from, to);
+    job.then(data => { if (keyNow.current === key) setRead({ key, data, error: null, at: Date.now() }); })
+      .catch(e => { if (keyNow.current === key) setRead(prev => (quiet && prev.key === key && prev.data ? prev : { key, data: null, error: e, at: Date.now() })); });
+  }, [af]);
+  // The shell moves the address just after it draws a page picked in the side panel, so until the
+  // address names this page, the route is the page before's and nothing is read.
+  const here = window.location.hash.replace(/^#/, "").split("/")[0] === "checklist";
+  // A new view is read at once, and today again every 30 seconds while the page is on screen.
+  useEffect(() => {
+    if (!here) return undefined;
+    setZone("");
+    readNow(false);
+    if (!live) return undefined;
+    const iv = setInterval(() => { if (!document.hidden) readNow(true); }, CR_LIVE_MS);
+    const back = () => { if (!document.hidden) readNow(true); };
+    document.addEventListener("visibilitychange", back);
+    return () => { clearInterval(iv); document.removeEventListener("visibilitychange", back); };
+  }, [viewKey, live, readNow, here]);
+  // A zone picked on one shift may not be on another.
+  useEffect(() => { setZone(""); }, [shiftPick]);
+  const ready = read.key === viewKey;
+  const data = ready ? read.data : null;
+  const refused = ready && read.error ? read.error : null;
+  const periods = [{ k: "today", l: tr("Today") }, { k: "yesterday", l: tr("Yesterday") }, { k: "last7", l: tr("Last 7 days") }, { k: "month", l: tr("This month") }];
+  const custom = ["today", "yesterday", "last7", "month"].indexOf(period.token) < 0;
+  const shifts = data && siteId && data.multi ? data.shifts : [];
+  const pickOk = !!shiftPick && shifts.some(s => s.label === shiftPick);
+  const shiftName = pickOk ? ((shifts.find(s => s.label === shiftPick) || {}).displayLabel || shiftPick) : tr("All shifts");
+  // The days and groups this view draws: the shift picked and the items tied to no shift, or every group.
+  const days = data && siteId && !data.notTracked ? data.days.map(d => ({ date: d.date, groups: d.groups.filter(g => !pickOk || g.key === shiftPick || g.key === "*") })) : [];
+  const siteName = (site && site.name) || (data && data.site && data.site.name) || "";
+  const readAt = ready && read.at ? crTime(read.at) : "";
+
+  const pickers = (<div data-cr-picker="" style={{ marginBottom: 14 }}>
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
+      <div style={{ flex: "1 1 220px", maxWidth: 340, minWidth: 0 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-cr-site-pick="" value={siteId || "all"} onChange={e => go(e.target.value, period.token, "")} options={[{ v: "all", l: tr("All sites") }].concat(active.map(s => ({ v: String(s.id), l: s.name })))} /></div>
+      {shifts.length >= 2 && <div style={{ flex: "0 1 220px", minWidth: 0 }}><Lbl>{tr("Shift")}</Lbl><Sel t={t} aria-label={tr("Shift")} data-cr-shift-pick="" value={pickOk ? shiftPick : ""} onChange={e => go(siteId, period.token, e.target.value)} options={[{ v: "", l: tr("All shifts") }].concat(shifts.map(s => ({ v: s.label, l: s.displayLabel || s.label })))} /></div>}
+    </div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+      {periods.map(p => <button key={p.k} data-cr-period={p.k} aria-pressed={period.token === p.k} onClick={() => { setDates(null); go(siteId, p.k, pickOk ? shiftPick : ""); }} style={crPill(t, period.token === p.k)}>{p.l}</button>)}
+      <button data-cr-period="dates" aria-pressed={custom || !!dates} onClick={() => setDates(dates ? null : { from: period.from, to: period.to })} style={crPill(t, custom || !!dates)}>{custom ? crPeriodText(period) : tr("Pick dates")}</button>
+    </div>
+    {dates && <div data-cr-dates="" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10 }}>
+      <div style={{ width: 180 }}><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" aria-label={tr("From")} data-cr-from="" value={dates.from} onChange={e => setDates({ ...dates, from: e.target.value })} /></div>
+      <div style={{ width: 180 }}><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" aria-label={tr("To")} data-cr-to="" value={dates.to} onChange={e => setDates({ ...dates, to: e.target.value })} /></div>
+      <Btn t={t} data-cr-show="" disabled={!dates.from || !dates.to} onClick={() => { const tk = dates.from === dates.to ? dates.from : dates.from + ".." + dates.to; setDates(null); go(siteId, tk, pickOk ? shiftPick : ""); }}>{tr("Show")}</Btn>
+      <span style={{ fontSize: 12, color: t.textMut, paddingBottom: 12 }}>{tr("One day, or up to 31 days.")}</span>
+    </div>}
+  </div>);
+
+  const status = (<div data-cr-status="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12, color: t.textSec, marginBottom: 14 }}>
+    <span style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{siteId ? siteName || tr("Site") : tr("All sites")}</span>
+    <span>{crPeriodText(period)}{siteId && shifts.length >= 2 ? ", " + shiftName : ""}</span>
+    {live ? <Bdg l={tr("Live")} c={GR} /> : null}
+    {readAt ? <span data-cr-read-at="">{live ? tr("Read at {0}. Read again every 30 seconds.", readAt) : tr("Read at {0}.", readAt)}</span> : null}
+  </div>);
+
+  if (!ready) return (<div data-checklist-results="" data-cr-view="loading">{pickers}{status}<Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd></div>);
+  if (refused) return (<div data-checklist-results="" data-cr-view="refused">{pickers}{status}<Crd t={t}><div data-cr-refusal="" role="alert" style={{ fontSize: 13, color: RD, lineHeight: 1.5 }}>{refused.message || tr("This did not load.")}</div><div style={{ marginTop: 10 }}><Btn t={t} v="ghost" onClick={() => readNow(false)}>{tr("Try again")}</Btn></div></Crd></div>);
+
+  // ---- All sites ----
+  if (!siteId) {
+    const span = data.span;
+    const cards = active.map(s => {
+      const got = data.bySite[String(s.id)] || {};
+      const rec = got.rec || null;
+      const notTracked = siteIsReference(s) || !!(rec && rec.notTracked === true);
+      const recDays = rec && Array.isArray(rec.days) ? rec.days : [];
+      const inPeriod = recDays.filter(d => d && d.date >= period.from && d.date <= period.to);
+      const st = crStats([].concat(...inPeriod.map(d => d.items || [])));
+      const trend = recDays.map(d => ({ date: d.date, pct: crStats(d.items || []).pct }));
+      return { s, got, rec, notTracked, st, trend };
+    });
+    const refusals = cards.filter(c => c.got.error);
+    if (cards.length > 0 && refusals.length === cards.length && refusals.every(c => c.got.status === 400)) {
+      return (<div data-checklist-results="" data-cr-view="refused">{pickers}{status}<Crd t={t}><div data-cr-refusal="" role="alert" style={{ fontSize: 13, color: RD, lineHeight: 1.5 }}>{refusals[0].got.error}</div></Crd></div>);
+    }
+    return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
+      {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+        {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div data-cr-site-card={String(c.s.id)} data-cr-due={c.notTracked || c.got.error ? undefined : c.st.due} data-cr-done={c.notTracked || c.got.error ? undefined : c.st.done} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{c.s.name}</div>{live && !c.notTracked && !c.got.error ? <Bdg l={tr("Live")} c={GR} /> : null}</div>
+            {c.notTracked ? <div style={{ padding: "18px 0" }}><NotTrackedWord t={t} style={{ fontSize: 12 }} /><div style={{ fontSize: 12, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div></div>
+              : c.got.error ? <div style={{ fontSize: 12, color: RD, padding: "18px 0" }}>{c.got.error}</div>
+                : <>
+                  <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
+                  <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks.length)}</div>
+                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div><LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /></div> : null}
+                </>}
+            <div style={{ marginTop: "auto" }}><Btn t={t} v="ghost" data-cr-open-site={String(c.s.id)} onClick={e => { e.stopPropagation(); go(String(c.s.id), period.token, ""); }} style={{ width: "100%" }}>{tr("Open this site")}</Btn></div>
+          </div>
+        </Crd>))}
+      </div>
+    </div>);
+  }
+
+  // ---- One site ----
+  if (data.notTracked) return (<div data-checklist-results="" data-cr-view="not-tracked">{pickers}{status}<Crd t={t}><NotTrackedWord t={t} style={{ fontSize: 12 }} /><div style={{ fontSize: 13, color: t.textSec, marginTop: 8, lineHeight: 1.5 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div></Crd></div>);
+  const nameOfKey = (k) => { for (const d of days) { const g = d.groups.find(x => x.key === k); if (g) return g.name; } return k; };
+  const groupKeys = keptOnce([].concat(...days.map(d => d.groups.map(g => g.key))));
+  const anyItems = days.some(d => d.groups.some(g => g.items.length > 0));
+  const allRows = crRows(days, () => true);
+  const s0 = (q || "").trim().toLocaleLowerCase(localeTag());
+  const keep = (i) => (!zone || crZoneOf(i) === zone) && (!notDoneOnly || i.done !== true)
+    && (!s0 || [shownLabel(i), crZoneOf(i)].concat(crChecksOf(i).map(c => c.who)).join(" ").toLocaleLowerCase(localeTag()).indexOf(s0) >= 0);
+  const csv = (rows) => {
+    const out = rows.map(r => { const cks = crChecksOf(r.item); return [r.date, r.group.name, crZoneOf(r.item), shownLabel(r.item), r.item.done === true ? tr("Yes") : tr("No"), cks.map(c => c.who).join("; "), cks.map(c => crTime(c.at)).join("; ")]; });
+    dlCSV("checklist-results-" + period.from + (oneDay ? "" : "-" + period.to) + ".csv", [tr("Day"), tr("Shift"), tr("Zone"), tr("Task"), tr("Done"), tr("Who"), tr("When")], out);
+  };
+  const windowOf = (g, d) => {
+    if (!oneDay) return null;
+    const sh = (data.shifts || []).find(x => x.label === g.key);
+    return crShiftWindow(sh, d) || crSessionWindow((data.people || []).filter(p => !data.multi || (g.key === "*" ? !p.shiftLabel : p.shiftLabel === g.key)));
+  };
+  const printIt = () => {
+    const model = { company: clientConfig.company.name, site: siteName, period, oneDay, shiftName, multi: !!data.multi, printedAt: Date.now(), printedBy: crPerson(user),
+      days: days.map(d => ({ date: d.date, groups: d.groups.map(g => Object.assign({}, g, { win: windowOf(g, d.date), who: crWhoWorked(g, data.people, data.multi) })) })) };
+    if (!printChecklistReport(model) && showToast) showToast(tr("Allow pop-ups for the dashboard, then try again."), "error");
+  };
+  const actions = (<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+    <Btn t={t} data-cr-print="" onClick={printIt} disabled={!anyItems}>{tr("Print report")}</Btn>
+    <Btn t={t} v="ghost" data-cr-csv="" onClick={() => csv(oneDay ? crRows(days, keep) : allRows)} disabled={!anyItems} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><DlI sz={14} c={t.text} />{tr("Download CSV")}</Btn>
+  </div>);
+
+  if (!anyItems) return (<div data-checklist-results="" data-cr-view={oneDay ? "day" : "range"}>{pickers}{status}<Crd t={t}><div data-cr-empty="" style={{ fontSize: 13, color: t.textMut }}>{oneDay ? tr("Nothing was due or checked at this site on this day.") : tr("Nothing was due or checked at this site on these days.")}</div></Crd></div>);
+
+  // ---- A range ----
+  if (!oneDay) {
+    const series = groupKeys.map(k => ({ name: nameOfKey(k), data: days.map(d => { const g = d.groups.find(x => x.key === k); return g ? crStats(g.items).pct : null; }) }));
+    const cols = [{ header: tr("Date"), render: d => <button data-cr-day={d.date} onClick={e => { e.stopPropagation(); go(siteId, d.date, pickOk ? shiftPick : ""); }} style={{ minHeight: 44, background: "none", border: "none", padding: 0, color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", textAlign: "left" }}>{keptDay(d.date)}</button> }]
+      .concat(groupKeys.map(k => ({ header: nameOfKey(k), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: d => { const g = d.groups.find(x => x.key === k); if (!g) return "--"; const st = crStats(g.items); return st.due ? tr("{0} of {1} ({2})", st.done, st.due, crPctText(st.pct)) : "--"; } })))
+      .concat([{ header: tr("Checks|check-offs"), tdStyle: { color: t.textSec }, render: d => crStats([].concat(...d.groups.map(g => g.items))).checks.length }]);
+    return (<div data-checklist-results="" data-cr-view="range">{pickers}{status}{actions}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12, marginBottom: 14 }}>
+        {groupKeys.map(k => { const st = crStats([].concat(...days.map(d => { const g = d.groups.find(x => x.key === k); return g ? g.items : []; }))); return (<Crd key={k} t={t} style={{ padding: 14 }}>
+          <div data-cr-group={k} data-cr-due={st.due} data-cr-done={st.done} data-cr-checks={st.checks.length}>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{nameOfKey(k)}</div>
+            <RadialW t={t} value={st.pct || 0} valueText={crPctText(st.pct)} label={tr("{0} of {1} steps", st.done, st.due)} height={190} />
+            <div style={{ fontSize: 12, color: t.textSec, textAlign: "center", lineHeight: 1.6 }}>{trn("{0} check|count", st.checks.length)}<br />{tr("Who worked: {0}", st.people.join(", ") || "--")}</div>
+          </div>
+        </Crd>); })}
+      </div>
+      <ChartCard t={t} title={tr("Done each day")} sub={tr("Each shift's share of steps done. Click a day to open it.")}>
+        <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} /></div>
+      </ChartCard>
+      <div style={{ marginTop: 14 }}><DataTable t={t} columns={cols} rows={days} rowKey={d => d.date} onRowClick={d => go(siteId, d.date, pickOk ? shiftPick : "")} /></div>
+    </div>);
+  }
+
+  // ---- One day ----
+  const day = days[0];
+  const groups = day.groups.filter(g => g.items.length > 0);
+  const counted = [].concat(...groups.map(g => g.items)).filter(i => crKind(i) === "today" && i.due === true);
+  const zones = keptOnce(counted.map(crZoneOf)).map(z => { const its = counted.filter(i => crZoneOf(i) === z); const done = its.filter(i => i.done === true).length; return { zone: z, due: its.length, done, pct: crPct(done, its.length) }; });
+  const repeating = (() => {
+    const out = new Map();
+    groups.forEach(g => g.items.filter(i => crKind(i) === "repeating").forEach(i => out.set(String(i.taskId), { item: i, rec: i, pw: null })));
+    (data.periodic || []).forEach(p => { const k = String(p.taskId); if (out.has(k)) out.get(k).pw = p; else out.set(k, { item: p, rec: null, pw: p }); });
+    return Array.from(out.values());
+  })();
+  const dayOf = (at) => (at ? keptDay(crWall(Date.parse(at)).day) : "");
+  const rCols = [
+    { header: tr("Task"), tdStyle: { minWidth: 170 }, render: r => (<span data-cr-repeating={String(r.item.taskId)}><span style={{ color: t.text }}>{shownLabel(r.item)}</span><div style={{ fontSize: 11, color: t.textMut }}>{shownZone(r.item)}</div></span>) },
+    { header: tr("Period"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => periodicFrequencyWord(r.item.frequency) },
+    { header: tr("On this day"), tdStyle: { color: t.textSec, minWidth: 150 }, render: r => { if (!r.rec) return tr("Not due on this day"); const c = crChecksOf(r.rec); return c.length ? tr("Done at {0} by {1}", crTime(c[0].at), c[0].who || "--") : r.rec.due ? <span style={{ color: OR, fontWeight: 600 }}>{tr("Due, not done")}</span> : tr("Not due on this day"); } },
+    { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.pw && r.pw.lastDoneAt ? dayOf(r.pw.lastDoneAt) + (periodicByOf(r.pw) ? ", " + periodicByOf(r.pw) : "") : "--") },
+    { header: tr("Due by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.pw && r.pw.dueBy ? keptDay(r.pw.dueBy) : "--") },
+  ];
+  const listRows = groups.map(g => ({ g, zones: crByZone(g.items.filter(keep)) })).filter(x => x.zones.length > 0);
+  return (<div data-checklist-results="" data-cr-view="day">{pickers}{status}{actions}
+    {groups.map(g => {
+      const st = crStats(g.items);
+      const win = windowOf(g, day.date);
+      // Work tied to no shift has no window of its own, so it draws no timeline.
+      const timed = !(data.multi && g.key === "*");
+      const buckets = timed ? crBuckets(st.checks, win) : [];
+      const lh = crLastHalfHour(st.checks, win);
+      const who = crWhoWorked(g, data.people, data.multi);
+      const per = st.checks.map(c => c.who).filter((w, i, a) => a.indexOf(w) === i).map(w => ({ who: w, n: st.checks.filter(c => c.who === w).length }));
+      const hours = new Set(buckets.filter(b => crHourMark(b, buckets.length, window.innerWidth < PHONE_PX)).map(b => crTime(b.start)));
+      return (<Crd key={g.key} t={t} style={{ marginBottom: 14 }}>
+        <div data-cr-group={g.key} data-cr-due={st.due} data-cr-done={st.done} data-cr-checks={st.checks.length} data-cr-first={st.first != null ? new Date(st.first).toISOString() : undefined} data-cr-last={st.last != null ? new Date(st.last).toISOString() : undefined}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{g.name}</div>
+            {win ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("{0} to {1}", crTime(win.start), win.end ? crTime(win.end) : "--")}</div> : null}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(170px, 230px) minmax(0, 1fr)", gap: 16, alignItems: "center" }}>
+            <RadialW t={t} value={st.pct || 0} valueText={crPctText(st.pct)} label={tr("{0} of {1} steps", st.done, st.due)} height={210} />
+            <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.7, minWidth: 0 }}>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{tr("{0} of {1} steps done", st.done, st.due)}</div>
+              <div>{trn("{0} check|count", st.checks.length)}</div>
+              {st.first != null ? <div data-cr-span="">{tr("First check {0}, last check {1}", crTime(st.first), crTime(st.last))}</div> : null}
+              <div data-cr-who="">{tr("Who worked: {0}", who.join(", ") || "--")}</div>
+            </div>
+          </div>
+          {buckets.length > 0 && <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("When the checks happened")}</div>
+            <div data-cr-buckets={buckets.map(b => b.count).join(",")}><BarChartW t={t} height={190} name={tr("Checks|check-offs")} categories={buckets.map(b => crTime(b.start))} values={buckets.map(b => b.count)} colors={buckets.map(b => (b.last ? OR : GO))} xLabels={hours} /></div>
+          </div>}
+          {timed && <div data-cr-last30={lh && !lh.pending ? lh.n + "/" + lh.of : ""} style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginTop: 4 }}>{crLastLine(lh, st.checks.length)}</div>}
+          {per.length > 0 && <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Checks by person")}</div>
+            <BarChartW t={t} horizontal height={Math.max(90, 46 * per.length + 30)} name={tr("Checks|check-offs")} categories={per.map(p => p.who || "--")} values={per.map(p => p.n)} showValues />
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: t.textSec }}>{per.map(p => <span key={p.who} data-cr-person={p.who} data-cr-person-checks={p.n}>{tr("{0}: {1}", p.who || "--", trn("{0} check|count", p.n))}</span>)}</div>
+          </div>}
+        </div>
+      </Crd>);
+    })}
+    {zones.length > 0 && <ChartCard t={t} title={tr("By zone")} sub={tr("Steps done of steps due in each zone. Click a zone to show only its tasks.")}>
+      <div data-cr-zone-chart=""><BarChartW t={t} horizontal height={Math.max(110, 40 * zones.length + 40)} name={tr("Done")} categories={zones.map(z => z.zone)} values={zones.map(z => z.pct || 0)} valueSuffix="%" showValues onPick={i => { if (zones[i]) setZone(zone === zones[i].zone ? "" : zones[i].zone); }} /></div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "4px 6px 8px" }}>
+        <button data-cr-zone="" aria-pressed={!zone} onClick={() => setZone("")} style={crPill(t, !zone)}>{tr("All zones")}</button>
+        {zones.map(z => <button key={z.zone} data-cr-zone={z.zone} data-cr-zone-done={z.done} data-cr-zone-due={z.due} aria-pressed={zone === z.zone} onClick={() => setZone(zone === z.zone ? "" : z.zone)} style={crPill(t, zone === z.zone)}>{tr("{0}: {1} of {2}", z.zone, z.done, z.due)}</button>)}
+      </div>
+    </ChartCard>}
+    {repeating.length > 0 && <div style={{ marginTop: 14 }}>
+      <SecT t={t}>{tr("Repeating work")}</SecT>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Weekly, monthly, quarterly and seasonal tasks. Last done and Due by are as of today.")}</div>
+      <DataTable t={t} columns={rCols} rows={repeating} rowKey={r => String(r.item.taskId)} />
+    </div>}
+    <div style={{ marginTop: 14 }}>
+      <SecT t={t}>{tr("Tasks")}</SecT>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: t.text }}><span style={chkWrap}><input type="checkbox" data-cr-not-done-only="" checked={notDoneOnly} onChange={e => setNotDoneOnly(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>{tr("Not done only")}</label>
+        <div style={{ flex: "1 1 220px", maxWidth: 340, minWidth: 0 }}><Inp t={t} data-cr-search="" aria-label={tr("Search tasks")} placeholder={tr("Search tasks")} value={q} onChange={e => setQ(e.target.value)} /></div>
+        {zone ? <button data-cr-zone-clear="" onClick={() => setZone("")} style={crPill(t, true)}>{tr("Zone: {0}. Show every zone", zone)}</button> : null}
+      </div>
+      {listRows.length === 0 && <Crd t={t}><div data-cr-list-empty="" style={{ fontSize: 13, color: t.textMut }}>{tr("No tasks match.")}</div></Crd>}
+      {listRows.map(({ g, zones: zs }) => (<Crd key={g.key} t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
+        <div data-cr-list-group={g.key} style={{ padding: "12px 14px", fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, borderBottom: "1px solid " + t.border }}>{g.name}</div>
+        <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead><tr style={{ background: t.cardAlt }}><th style={crHead(t)}>{tr("Task")}</th><th style={crHead(t)}>{tr("Done")}</th><th style={crHead(t)}>{tr("Who")}</th><th style={crHead(t)}>{tr("When")}</th></tr></thead>
+          <tbody>{zs.map(z => [<tr key={"z:" + z.zone}><td colSpan={4} style={{ padding: "8px 12px", fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", borderTop: "1px solid " + t.border }}>{z.zone}</td></tr>].concat(z.items.map(i => {
+            const cks = crChecksOf(i);
+            const kind = crKind(i);
+            return (<tr key={String(i.taskId)} data-cr-task={String(i.taskId)} data-cr-task-done={i.done === true ? "1" : "0"} style={{ borderTop: "1px solid " + t.border }}>
+              <td style={{ padding: "10px 12px", color: t.text, minWidth: 180 }}>{shownLabel(i)}{kind === "repeating" ? <span style={{ marginLeft: 8 }}><Bdg l={periodicFrequencyWord(i.frequency)} c={BL} /></span> : kind === "as_needed" ? <span style={{ marginLeft: 8 }}><Bdg l={tr("As needed")} c={t.textMut} /></span> : null}</td>
+              <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{i.done === true ? <Bdg l={tr("Done")} c={GR} /> : <Bdg l={tr("Not done")} c={i.due === true ? RD : t.textMut} />}</td>
+              <td style={{ padding: "10px 12px", color: t.textSec }}>{cks.length ? cks.map((c, ci) => <div key={ci}>{c.who || "--"}</div>) : "--"}</td>
+              <td style={{ padding: "10px 12px", color: t.textSec, whiteSpace: "nowrap" }}>{cks.length ? cks.map((c, ci) => <div key={ci}>{crTime(c.at)}</div>) : "--"}</td>
+            </tr>);
+          })))}</tbody>
+        </table></div>
+      </Crd>))}
+    </div>
   </div>);
 }
 
@@ -11969,7 +12721,9 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     ...(summaryLive ? [{ id: "injury-summary", name: tr("Annual summary"), line: tr("The year's totals and their certification, posted from February 1 to April 30.") }] : []),
   ];
   const keptOn = (k) => [].concat(KEPT_RECORDS[k].live).every(x => keptLive[x]);
-  const keptRecords = Object.keys(KEPT_RECORDS).filter(keptOn).map(k => ({ id: k, name: tr(KEPT_RECORDS[k].name), code: KEPT_RECORDS[k].codes, line: tr(KEPT_RECORDS[k].line) }));
+  const keptRecords = Object.keys(KEPT_RECORDS).filter(keptOn).map(k => ({ id: k, name: tr(KEPT_RECORDS[k].name), code: KEPT_RECORDS[k].codes, line: tr(KEPT_RECORDS[k].line) }))
+    // Part 358: Checklist Results, beside the kept records it reads, for the same people. It opens its own page.
+    .concat(keptLive.record ? [{ id: "checklist-results", name: tr("Checklist Results"), line: tr("What was done at a site on any day, with charts, and a report that prints clearly."), open: () => { window.location.hash = "checklist"; } }] : []);
   const reviewCards = isAdmin ? [{ id: "management-review", name: tr("Management review"), code: "OCSA-QMS-018", line: tr("The evidence pack for the monthly review and the quarterly management review, for every site.") }] : [];
   // A group of those reports under its heading, each a card that opens it. A group with none draws nothing.
   // Each group carries data-report-group, which npm run smoke opens one card of (Step 245).
@@ -11983,7 +12737,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
             {r.code ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.code}</div> : null}
             <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{r.line}</div>
           </div>
-          <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} onClick={() => setView(r.id)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
+          <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} data-report-card={r.id} onClick={() => (r.open ? r.open() : setView(r.id))} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
         </Crd>
       ))}
     </div>

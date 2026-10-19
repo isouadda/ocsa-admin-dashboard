@@ -258,6 +258,13 @@ stood from 148 to 114 seconds; `SMOKE_LANES` sets how many. Then it checks, one 
   - at 1280 in English and in Spanish, a supervisor: no Hire Date in Edit Staff Info or in a profile's
     Edit, a phone changed in the pencil sends `{ phone }` alone, and no Add Staff.
 
+- against the stub's answers for Checklist Results (part 358), the API's kept checklist record and the
+  reads the page makes beside it (`audit/checklist-stub.js`), which the smoke check arms with
+  `setChecklist358` for these lines alone: at 1280 in English and in Spanish and at 390 in English, the
+  seeded day draws each shift with its ring, its numbers and its charts; Print report writes the report,
+  Page 1 of its pages first; a range draws a line for each shift; and All sites draws a card for each site.
+  The full checks are `cases/checklist-results.js`'s.
+
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
 opened by its button with no such wait: the stub answers in the same process, so a page has drawn what
