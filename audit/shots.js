@@ -1196,6 +1196,14 @@ const SHOTS = [
     } },
   { name: "discipline-page", entry: "See every warning on the Discipline page",
     open: "discipline", ready: "[data-discipline-page] table tbody tr" },
+  // Part 366 (DASH-26): Issue a warning from the Discipline page, the person picked first.
+  { name: "discipline-issue-for", entry: "Issue a verbal warning",
+    open: "discipline", ready: "[data-discipline-page] table tbody tr",
+    act: async (c) => {
+      await press(c, "Issue a warning", "[data-discipline-page]");
+      await until(c, "[data-discipline-issue-for]");
+      await c.d.pickPerson("Tomasz");
+    } },
   { name: "case-open-window", entry: "Open a case",
     open: "cases", ready: "table tbody tr",
     act: async (c) => {

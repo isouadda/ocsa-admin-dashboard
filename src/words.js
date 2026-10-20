@@ -5134,6 +5134,13 @@ export const WORDS = {
   "The newest {0} warnings are listed. Narrow the dates or the filters to find an older one.": { es: "Se muestran las {0} advertencias m\u00e1s recientes. Acorte las fechas o los filtros para encontrar una m\u00e1s antigua." },
   "The newest {0} cases are listed. Pick a status to find an older one.": { es: "Se muestran los {0} casos m\u00e1s recientes. Elija un estado para encontrar uno m\u00e1s antiguo." },
   "Changing the schedule needs permission to manage the schedule. Ask an admin to give it to you.": { es: "Cambiar el horario necesita permiso para administrar el horario. Pida a un administrador que se lo d\u00e9." },
+  "The dashboard could not reach the server. Check the connection and try again.": { es: "El panel no pudo comunicarse con el servidor. Revise la conexi\u00f3n e intente de nuevo." },
+  "Close this window? What you entered here will be lost.": { es: "\u00bfCerrar esta ventana? Lo que ingres\u00f3 aqu\u00ed se perder\u00e1." },
+  "Reading the shifts this request affects...": { es: "Leyendo los turnos que afecta esta solicitud..." },
+  "The shifts this request affects did not load, so Approve waits.": { es: "Los turnos que afecta esta solicitud no se cargaron, as\u00ed que Aprobar espera." },
+  "The document is saved. Its link to the Jotform submission did not save.": { es: "El documento qued\u00f3 guardado. Su enlace al env\u00edo de Jotform no se guard\u00f3." },
+  "The document is saved. Its link to the Jotform submission did not save ({0}). Press Save to try the link again.": { es: "El documento qued\u00f3 guardado. Su enlace al env\u00edo de Jotform no se guard\u00f3 ({0}). Presione Guardar para intentar el enlace de nuevo." },
+  "Who is this warning for?": { es: "\u00bfPara qui\u00e9n es esta advertencia?" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

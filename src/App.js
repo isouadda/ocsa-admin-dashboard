@@ -39,8 +39,13 @@ function apiRequest(url, init = {}) {
   return fetch(withLocale(url), { ...init, signal: ctl ? ctl.signal : init.signal, headers: { ...init.headers, "Accept-Language": getLang() } })
     .then(r => { clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1); return r; }, e => {
       clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1);
-      if (!timedOut) throw e;
-      const err = new Error(tr("The connection timed out. Try again.")); err.status = 0; err.code = "network.timeout";
+      if (timedOut) { const err = new Error(tr("The connection timed out. Try again.")); err.status = 0; err.code = "network.timeout"; throw err; }
+      // A caller that cancelled its own call hears its own abort.
+      if (init.signal && init.signal.aborted) throw e;
+      // No answer at all, a dropped connection or a server out of reach (DASH-31): the browser's own
+      // words (Failed to fetch, Load failed) are English on every screen, so the call is refused in the
+      // screen's language, the way a timeout is.
+      const err = new Error(tr("The dashboard could not reach the server. Check the connection and try again.")); err.status = 0; err.code = "network.failed";
       throw err;
     });
 }
@@ -413,12 +418,22 @@ const CAP_ROLE_DEFAULTS = {
 // whatever fields a record has leaves those out for everyone else.
 const PayCtx = createContext(false);
 const PAY_KEY = /(hourly|wage|salary|pay_?rate|^pay$|_pay$|cost|price|amount|budget|labor_?total|overtime_pay|dollars?)/i;
+// What an edit window sends when it saves (DASH-33, DASH-35, DASH-36): the fields whose value moved from
+// what the window opened with, compared as text, so a save never writes back a value it read from a list
+// row, and a field the row lacked is not sent as empty.
+const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
+const changedFields = (now, was) => { const out = {}; Object.keys(now).forEach(k => { if (!sameValue(now[k], was ? was[k] : undefined)) out[k] = now[k]; }); return out; };
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
 const pageFromHash = () => { const h = hashParts()[0] || ""; return PAGE_IDS.includes(h) ? h : "overview"; };
 // What follows the page id in the hash, for a page that reads one. #forms is unchanged by this.
 const subFromHash = () => { const parts = hashParts(); return PAGE_IDS.includes(parts[0]) ? parts.slice(1) : []; };
+// One CSV cell, quoted. A cell a spreadsheet would read as a formula, one that starts with =, +, -, @, a
+// tab or a return, is written with an apostrophe in front (DASH-45), so a title or a name typed in the
+// staff app opens as the text it is. A plain number, a negative one too, is written as it is.
+const CSV_FORMULA = /^[=+\-@\t\r]/;
+const csvCell = (s) => { const v = CSV_FORMULA.test(s) && !/^-?\d+(\.\d+)?$/.test(s) ? "'" + s : s; return '"' + v.replace(/"/g, '""') + '"'; };
 function dlCSV(fn, hds, rows) {
-  const csv = [hds.join(","), ...rows.map(r => r.map(c => '"' + String(c || "").replace(/"/g, '""') + '"').join(","))].join("\n");
+  const csv = [hds.join(","), ...rows.map(r => r.map(c => csvCell(String(c || ""))).join(","))].join("\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = fn; a.click();
 }
 
@@ -460,6 +475,11 @@ const FONT_BODY = FONT_HEAD;
 // which makes the grid scroll sideways inside the box it already has. Both rules match the inline
 // style the file already writes, so no screen is rewritten and nothing is written at Standard.
 const ONE_COLUMN_PX = 1000;
+// No text size makes the page narrower than this (DASH-32): on a phone 390 wide the largest size would
+// leave a page of 260, where cards and selects built for a phone's 320 run off the side, so the zoom
+// is held to the window's width over 320, the width the web's reflow rule writes for. On a laptop
+// every size is what it was.
+const MIN_PAGE_PX = 320;
 const NARROW_GRID_CSS = '[style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr !important}'
   + '[style*="grid-template-columns: 140px repeat(7"]{grid-template-columns:minmax(88px,140px) repeat(7,minmax(84px,1fr)) !important}';
 // Under this width the shell is a phone shell: the side panel is a drawer behind a menu button, the
@@ -638,7 +658,9 @@ const trWith = (key, piece) => { const [before, after] = tr(key, "\u0000").split
 // ===== THEMED SHARED COMPONENTS =====
 // Right of the screen, and never past it: at 390 pixels the box wraps inside left 20 and right 20,
 // and on a wide screen it stays as wide as its words (Step 185).
-const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, left: 20, right: 20, width: "fit-content", marginLeft: "auto", maxWidth: "calc(100vw - 40px)", boxSizing: "border-box", wordBreak: "break-word", background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
+// A toast is read out by a screen reader as it appears (DASH-31): an error at once, anything else when
+// the reader is free.
+const Tst = ({ t: msg }) => <div role={msg.t === "error" ? "alert" : "status"} aria-live={msg.t === "error" ? "assertive" : "polite"} style={{ position: "fixed", top: 20, left: 20, right: 20, width: "fit-content", marginLeft: "auto", maxWidth: "calc(100vw - 40px)", boxSizing: "border-box", wordBreak: "break-word", background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
 const Crd = ({ children, style, onClick: oc, t }) => <div onClick={oc} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, cursor: oc ? "pointer" : "default", boxShadow: t.shadow, transition: "transform .15s ease, box-shadow .15s ease", ...style }}>{children}</div>;
 const Bdg = ({ l, c }) => { const t = useT(); return <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".4px", padding: "3px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c) }}>{l}</span>; };
 const SecT = ({ children, action, onAction, icon: I = PlI, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><I sz={13} c={NAVY} /> {action}</button>}</div>;
@@ -654,7 +676,18 @@ const chkWrap = { display: "inline-flex", alignItems: "center", justifyContent: 
 // A window. A tall one takes the screen's height; its box scrolls when what it holds is taller, so Save
 // at the bottom is always reached by finger or wheel (DASH-08). A window that scrolls a part of its own
 // inside never overflows the box, so it draws as before.
-const Mdl = ({ children, onClose: oc, t, tall }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
+// A window. A press on its backdrop closes it, and once anything has been typed or chosen in it since it
+// opened (DASH-24) it asks first, so a stray tap beside a phone's window keeps what was typed. Its own
+// Close and Cancel close it as they always have.
+function Mdl({ children, onClose: oc, t, tall }) {
+  const typed = useRef(false);
+  const outside = (e) => {
+    if (!oc) return;
+    if (typed.current && !window.confirm(tr("Close this window? What you entered here will be lost."))) return;
+    oc(e);
+  };
+  return <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={outside}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()} onChangeCapture={() => { typed.current = true; }}>{children}</div></div>;
+}
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
@@ -663,6 +696,9 @@ const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", minHeigh
 // A read that failed says so where its rows would have been, with a way to try again, so nothing is
 // blank and nothing spins on. The line is the sheet's for the place when it names one.
 const LoadFailed = ({ t, onRetry, text, style }) => <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec, ...(style || {}) }}>{text || tr("This did not load.")}{onRetry ? <button onClick={onRetry} style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button> : null}</div>;
+// A page that waits on this person's capabilities (DASH-20) says Loading until the API has answered them,
+// and only then opens or says it is for admins.
+const CapsPendingNotice = ({ t }) => <div data-caps-pending="" style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
 const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
@@ -790,7 +826,9 @@ export default function AdminDashboard() {
   });
   const chooseLang = (id) => { setLang(id); setLangState(id); try { localStorage.setItem("ocsa-lang", id); } catch {} };
   useEffect(() => { try { document.documentElement.lang = lang; } catch (e) {} }, [lang]);
-  const zoom = textSizeFactor(textSize);
+  const [winW, setWinW] = useState(() => { try { return window.innerWidth || 1280; } catch (e) { return 1280; } });
+  useEffect(() => { const h = () => { try { setWinW(window.innerWidth || 1280); } catch (e) {} }; window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
+  const zoom = Math.min(textSizeFactor(textSize), Math.max(1, winW / MIN_PAGE_PX));
   // At Standard the property is left off the root altogether, so the page is what it always was.
   // Published to the subtree as well: a height or width written against the window is in the
   // window's own pixels, which the zoom then multiplies, so every one of them divides by this.
@@ -870,7 +908,10 @@ export default function AdminDashboard() {
   const isAdmin = user?.role === "admin";
   // This person's own capabilities, as the API answered them, or null until it has. hasCap reads a
   // capability from that answer, and from the role's defaults for one the answer does not name.
+  // capsRead says where the read is (DASH-20): "reading" while it is out or being tried again, "read"
+  // once it answered, and "failed" once both routes refused it or every try failed.
   const [caps, setCaps] = useState(null);
+  const [capsRead, setCapsRead] = useState("reading");
   const hasCap = useCallback((name) => {
     if (caps && Object.prototype.hasOwnProperty.call(caps, name)) return !!caps[name];
     const tier = isAdmin ? "admin" : (user && user.role === "supervisor" ? "supervisor" : "staff");
@@ -881,14 +922,27 @@ export default function AdminDashboard() {
   // Step 332: adding a person, approving a registration, every employment change and changing a role
   // are manage_employment's; before the API names it they follow isAdmin, as they always have.
   const canEmploy = capNamed("manage_employment") !== undefined ? capNamed("manage_employment") : isAdmin;
-  // Cases opens for an admin, or for anyone the API answers manage_cases true. HR Records opens for
-  // everyone who signs in, as it always has, unless the API answers read_hr_records false.
+  // Cases opens for an admin, or for anyone the API answers manage_cases true. HR Records opens unless
+  // the API answers read_hr_records false, and for anyone but an admin only once the read has answered
+  // (DASH-20): while it is out, and when it fails, a supervisor is offered neither HR Records' tabs nor
+  // the reads behind them, which the API refuses them. An API from before #146, which names no
+  // read_hr_records, still opens it once it answers, as it always has.
+  const capsPending = capsRead === "reading";
   const casesOn = isAdmin || capNamed("manage_cases") === true;
-  const hrRecordsOn = capNamed("read_hr_records") !== false;
+  const hrRecordsOn = capNamed("read_hr_records") !== false && (isAdmin || capsRead === "read");
   // Waiting for signatures (DASH-06): contract 1 keeps it with supervisors, who lose HR Records once
   // the API answers read_hr_records false. It opens for whoever GET /api/signatures answers, with or
-  // without HR Records, at #hr/signatures.
-  const signaturesLive = useTrainingLive(af, "signatures");
+  // without HR Records, at #hr/signatures. signaturesIn says the probe has answered (DASH-27).
+  const [signaturesLive, setSignaturesLive] = useState(false);
+  const [signaturesIn, setSignaturesIn] = useState(false);
+  // The probe waits for a session: asked signed out, the API answers 401, which would read as a
+  // session that ended.
+  useEffect(() => {
+    if (!token) { setSignaturesLive(false); setSignaturesIn(false); return undefined; }
+    let alive = true; setSignaturesIn(false);
+    probeTraining(af, "signatures").then(v => { if (alive) { setSignaturesLive(!!v); setSignaturesIn(true); } });
+    return () => { alive = false; };
+  }, [af, token]);
   // The manage permissions capability opens the Roles and Permissions screen; manage settings opens
   // Company settings and the customer links on Filed forms; manage admins lets a person change an
   // admin's account, which nobody holds by default.
@@ -1017,18 +1071,32 @@ export default function AdminDashboard() {
   }, [token]);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
-    if (!token || !id) { setCaps(null); return; }
-    let alive = true;
-    const done = (map) => { if (alive) setCaps(map && typeof map === "object" ? map : null); };
+    if (!token || !id) { setCaps(null); setCapsRead("reading"); return undefined; }
+    let alive = true; let timer = null; let tries = 0;
+    const done = (map) => { if (!alive) return; const m = map && typeof map === "object" ? map : null; setCaps(m); setCapsRead(m ? "read" : "failed"); };
     // Until Step 179 answers the me route, the per-person route says the same for whoever may read it.
-    af("/api/users/me/permissions")
-      .then(d => done(d && d.capabilities))
-      .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => { done(null); console.warn("Own capabilities:", e.message); }); });
-    return () => { alive = false; };
+    // When both fail for want of a connection, a deadline or a server error, the read is tried again
+    // after 10, 20, 40 and 80 seconds and then every 2 minutes, six times in all (DASH-20, as DASH-10
+    // does for sites and people), and what waits on it stays closed until then.
+    const read = () => {
+      af("/api/users/me/permissions")
+        .then(d => done(d && d.capabilities))
+        .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => {
+          console.warn("Own capabilities:", e.message);
+          if (!alive) return;
+          if (!loadDone(e) && tries < 6) { tries += 1; timer = setTimeout(read, Math.min(120000, 10000 * Math.pow(2, tries - 1))); return; }
+          done(null);
+        }); });
+    };
+    setCapsRead("reading");
+    read();
+    return () => { alive = false; clearTimeout(timer); };
   }, [token, user, isAdmin, af]);
   const [probeRound, setProbeRound] = useState(0);
+  // Whether the session's first round of probes has answered (DASH-27).
+  const [probesIn, setProbesIn] = useState(false);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setProbesIn(false); return undefined; }
     // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
     // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
     let alive = true; let soft = false; let timer = null;
@@ -1041,15 +1109,18 @@ export default function AdminDashboard() {
     probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
     probes.push(af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLibraryOn(false); console.warn("Library:", e.message); }));
     probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
-    Promise.all(probes).then(() => { if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
+    Promise.all(probes).then(() => { if (alive) setProbesIn(true); if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
     return () => { alive = false; clearTimeout(timer); };
   }, [token, af, probeRound]);
+  // Whether that call has answered (DASH-27); an admin's Forms waits on nothing.
+  const [filedFormsIn, setFiledFormsIn] = useState(false);
   useEffect(() => {
-    if (!token || isAdmin) { setCanReadFiledForms(false); return; }
+    if (!token || isAdmin) { setCanReadFiledForms(false); setFiledFormsIn(!!token); return; }
     let alive = true;
+    setFiledFormsIn(false);
     af("/api/forms/responses?status=submitted&limit=1")
-      .then(() => { if (alive) setCanReadFiledForms(true); })
-      .catch(e => { if (alive) setCanReadFiledForms(false); console.warn("Filed forms:", e.message); });
+      .then(() => { if (alive) { setCanReadFiledForms(true); setFiledFormsIn(true); } })
+      .catch(e => { if (alive) { setCanReadFiledForms(false); setFiledFormsIn(true); } console.warn("Filed forms:", e.message); });
     return () => { alive = false; };
   }, [token, isAdmin, af]);
   useEffect(() => { if (!token) return; let alive = true; af("/api/reports/overview").then(d => { if (alive) setNotif({ openIssues: d.openIssues, pendingStaff: d.pendingStaff }); }).catch(() => {}); return () => { alive = false; }; }, [token, page]);
@@ -1132,14 +1203,18 @@ export default function AdminDashboard() {
     sw.addEventListener("message", onMsg);
     return () => sw.removeEventListener("message", onMsg);
   }, [loadUnread]);
+  // An alert tapped before signing in opens once the session knows what this person can open: their
+  // capabilities and the page probes have answered (DASH-27), so Cases, Forms, Equipment and Waiting for
+  // signatures are not refused in the moment before they arrive.
+  const sessionKnown = !capsPending && probesIn && signaturesIn && filedFormsIn;
   useEffect(() => {
-    if (!openAsk || !token) return;
+    if (!openAsk || !token || !sessionKnown) return;
     const ask = openAsk;
     setOpenAsk(null);
     const n = { subjectType: ask.subjectType, subjectId: ask.subjectId };
     if (!noticePlace(n)) { if (ask.place) window.location.hash = ask.place; return; }
     goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error"), nothing: () => showToast(tr("This notice has nothing to open on the dashboard.")) });
-  }, [openAsk, token, canOpenPage, showToast]);
+  }, [openAsk, token, sessionKnown, canOpenPage, showToast]);
   // A subscription this computer already holds moves to the person signed in.
   useEffect(() => { if (token) repostComputerAlerts(af); }, [token, af]);
   // The browser tab's title, in the language of the screen, with the unread count before it (Step 333).
@@ -1169,7 +1244,10 @@ export default function AdminDashboard() {
   const [signedOutWords, setSignedOutWords] = useState("");
   const [mustSetPin, setMustSetPin] = useState(false);
   const signOut = useCallback((words) => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
-  useEffect(() => { const h = (ev) => signOut(ev && ev.detail && ev.detail.words); window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, [signOut]);
+  // A session that was signed in and ends by itself lets this computer's alerts go (DASH-41).
+  const signedInNow = useRef(false);
+  useEffect(() => { signedInNow.current = !!token; }, [token]);
+  useEffect(() => { const h = (ev) => { if (signedInNow.current) dropComputerAlerts(); signOut(ev && ev.detail && ev.detail.words); }; window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, [signOut]);
   // Step 333: a sign-out control deletes this computer's alerts on the API before the token is let go,
   // so the next person at a shared computer never gets the last person's alerts, the way the staff app
   // signs out. A browser that never allowed alerts asks nothing, and a delete that fails or takes more
@@ -1206,7 +1284,8 @@ export default function AdminDashboard() {
       try {
         const r = await apiRequest(API + "/api/auth/me", { headers: { "Authorization": "Bearer " + stored.token } });
         // A stored session the API no longer takes lands on the sign-in card with the API's words.
-        if (r.status === 401 || r.status === 403) { const e = await r.json().catch(() => ({})); clearAuth(); if (alive && e && typeof e.error === "string") setSignedOutWords(e.error); return; }
+        // It ended by itself while the dashboard was closed, so this computer's alerts go with it (DASH-41).
+        if (r.status === 401 || r.status === 403) { const e = await r.json().catch(() => ({})); clearAuth(); dropComputerAlerts(); if (alive && e && typeof e.error === "string") setSignedOutWords(e.error); return; }
         if (!r.ok) return;
         const d = await r.json();
         const u = d && d.user;
@@ -1591,13 +1670,14 @@ export default function AdminDashboard() {
             by its address, is shown the API's refusal in its own words. */}
         {page === "owner" && <OwnerDashboardPage af={af} t={t} sites={sites} lang={lang} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} canEmploy={canEmploy} canOpenHr={canOpenPage("hr")} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} route={route} onRoute={replaceRoute} /> : capsPending ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {/* Step 332: #hr/training/... still opens Training for someone HR Records is not open to, and
             #hr/signatures/... Waiting for signatures for someone GET /api/signatures answers (DASH-06). */}
         {page === "hr" && (route[0] === "access-report" ? (canOpenPage("hr-access") ? <HrAccessReport af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <HrAccessRefused t={t} onBack={() => setPage("overview")} />)
           : canOpenPage("hr") ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} accessReport={canOpenPage("hr-access")} />
           : route[0] === "training" ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />
           : route[0] === "signatures" && canOpenPage("signatures") ? <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} signaturesPage />
+          : capsPending || (route[0] === "signatures" && !signaturesIn) ? <CapsPendingNotice t={t} />
           : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes") && canEmploy} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
@@ -1626,7 +1706,7 @@ export default function AdminDashboard() {
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canReadHrRecords={hasCap("read_hr_records")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} route={route} onRoute={replaceRoute} hrOpen={canOpenPage("hr")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} selfId={user && user.id != null ? String(user.id) : ""} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes") && canEmploy} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} devicesOn={devicesOn} superAdmin={!!(user && (user.isSuperAdmin === true || user.is_super_admin === true))} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
@@ -2484,8 +2564,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Step 293: a read the API refuses says the API's own sentence under Employment, and one that fails
   // says so with Try again; a 404 (no such route or person) still draws nothing.
   const [employmentSaid, setEmploymentSaid] = useState(null);
+  // The history is read_hr_records' and the employment controls manage_employment's (contract 1), so a
+  // profile reads it only for a holder of one of them (DASH-30), and a supervisor's profile draws no
+  // refusal where the card would be.
+  const readsEmployment = canEmploy || canOpenHr;
   const loadEmployment = (id) => {
     setEmploymentSaid(null);
+    if (!readsEmployment) { setEmployment(null); return; }
     af("/api/users/" + encodeURIComponent(id) + "/employment").then(d => setEmployment(employmentAnswerOf(d))).catch(e => {
       setEmployment(null); console.warn("Employment:", e.message);
       const st = e && e.status;
@@ -2598,7 +2683,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const dt = new Date(e.createdAt);
       rows.push([dt.toLocaleDateString(localeTag()), dt.toLocaleTimeString(localeTag()), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
     });
-    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const csv = rows.map(r => r.map(c => csvCell(String(c))).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = (u.firstName + "_" + u.lastName + "_Timeline_" + todayISO() + ".csv").replace(/ /g, "_");
@@ -4006,7 +4091,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       const dt = new Date(e.createdAt);
       rows.push([dt.toLocaleDateString(localeTag()), dt.toLocaleTimeString(localeTag()), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
     });
-    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const csv = rows.map(r => r.map(c => csvCell(String(c))).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = (siteName + "_Timeline_" + todayISO() + ".csv").replace(/ /g, "_");
@@ -5212,8 +5297,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-        {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
+        {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
           <div data-cr-site-card={String(c.s.id)} data-cr-due={c.notTracked || c.got.error ? undefined : c.st.due} data-cr-done={c.notTracked || c.got.error ? undefined : c.st.done} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{c.s.name}</div>{live && !c.notTracked && !c.got.error ? <Bdg l={tr("Live")} c={GR} /> : null}</div>
             {c.notTracked ? <div style={{ padding: "18px 0" }}><NotTrackedWord t={t} style={{ fontSize: 12 }} /><div style={{ fontSize: 12, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div></div>
@@ -8097,11 +8182,26 @@ async function turnOnComputerAlerts(af, publicKey) {
 // signed in, so a shared computer's alerts move to them. Nothing is asked of the browser, and a failure
 // is silent.
 async function repostComputerAlerts(af) {
+  let sub = null;
+  try {
+    if (!pushSupported() || pushPermission() !== "granted") return;
+    sub = await pushSubscriptionHere();
+    if (!sub || !sub.endpoint) return;
+    await af("/api/push/subscriptions", { method: "POST", body: subscriptionBody(sub) });
+  } catch (e) {
+    // One that could not move to the person now signed in is let go here (DASH-41), so this computer
+    // never goes on showing the last person's alerts. My alerts turns them on again.
+    if (sub) { try { await sub.unsubscribe(); } catch (x) {} }
+  }
+}
+// A session that ends by itself, expired or ended by the API (DASH-41), lets this computer's alerts go
+// here, since the token that could delete them on the API is already refused. The push service then
+// answers the API's next push to it as gone, and the API deletes it. Nothing is asked of the browser.
+async function dropComputerAlerts() {
   try {
     if (!pushSupported() || pushPermission() !== "granted") return;
     const sub = await pushSubscriptionHere();
-    if (!sub || !sub.endpoint) return;
-    await af("/api/push/subscriptions", { method: "POST", body: subscriptionBody(sub) });
+    if (sub) await sub.unsubscribe();
   } catch (e) {}
 }
 // Turns alerts off for this computer: unsubscribes here, deletes there. Answers whether the API took it.
@@ -13984,16 +14084,21 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
   const [error, setError] = useState("");
   const [noteError, setNoteError] = useState("");
   const sending = useRef(false);
+  // Whether the window has read the request whole (DASH-34): Approve sends what to do with each shift the
+  // request affects, which only that read answers, so it waits for it. "reading", "read" or "failed".
+  const [readState, setReadState] = useState("reading");
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const readOnce = useRef(false);
   const reload = async () => {
-    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); }
-    catch (e) { setError(e.message || tr("Request failed")); }
+    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); readOnce.current = true; setReadState("read"); }
+    catch (e) { if (readOnce.current) setError(e.message || tr("Request failed")); else setReadState("failed"); }
   };
+  const readAgain = () => { setError(""); setReadState("reading"); reload(); };
   // The choices that send something; a reassign with nobody picked is held back with its line.
   const chosenShifts = () => {
     const out = []; const held = {};
@@ -14039,6 +14144,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
   // click is one request.
   const decide = async (kind) => {
     if (sending.current) return;
+    if (kind === "approve" && readState !== "read") return;
     const trimmed = note.trim();
     if (kind === "deny" && !trimmed) { setNoteError(tr(TIME_OFF_NOTE_REQUIRED)); return; }
     const picked = kind === "approve" ? chosenShifts() : { out: [], held: {} };
@@ -14110,9 +14216,11 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       {noteError && <div style={{ fontSize: 12, color: RD, marginTop: 6 }}>{noteError}</div>}
       <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 10 }}>{tr(TIME_OFF_NOTE_HINT)}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Btn t={t} onClick={() => decide("approve")} disabled={busy} style={{ minHeight: 44 }}>{tr("Approve")}</Btn>
+        <Btn t={t} onClick={() => decide("approve")} disabled={busy || readState !== "read"} data-time-off-approve={readState} style={{ minHeight: 44 }}>{tr("Approve")}</Btn>
         <Btn t={t} v="danger" onClick={() => decide("deny")} disabled={busy} style={{ minHeight: 44 }}>{tr("Deny")}</Btn>
       </div>
+      {readState === "reading" && <div data-time-off-reading="" style={{ fontSize: 12, color: t.textMut, marginTop: 8 }}>{tr("Reading the shifts this request affects...")}</div>}
+      {readState === "failed" && <div data-time-off-read-failed="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{tr("The shifts this request affects did not load, so Approve waits.")} <button onClick={readAgain} style={{ minHeight: 44, padding: "0 8px", background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Try again")}</button></div>}
     </div>}
     {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn></div>
@@ -14473,26 +14581,43 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     } catch (e) { if (e && e.code === "schedule.onLeave") setOnLeaveSaid(e.message); else showToast(e.message, "error"); }
   });
 
+  // Edit Scheduled Shift opens on the calendar's row and keeps what it showed in was. Save sends only the
+  // fields changed from that (DASH-33), so a row that lacks a service category never blanks it, a status
+  // read before someone else changed it is not written back, and a pattern's shift is marked moved only
+  // when it is. A second press while the first is out sends nothing.
+  const shiftForm = (x) => ({ user_id: x.user_id, site_id: x.site_id, start_time: x.startTime, end_time: x.endTime, notes: x.notes || "", status: x.status, building_name: x.buildingName, floor_number: x.floorNumber, service_category: x.serviceCategory });
   const openEdit = (shift) => {
     if (shift.site_id) loadSiteLocations(shift.site_id);
-    setEditModal({ ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" });
+    const opened = { ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" };
+    setEditModal({ ...opened, was: shiftForm(opened) });
   };
+  const editSaving = useRef(false);
   const submitEdit = async () => {
+    if (editSaving.current) return;
+    const body = changedFields(shiftForm(editModal), editModal.was);
+    if (!Object.keys(body).length) { setEditModal(null); return; }
+    editSaving.current = true;
     try {
-      await af("/api/schedule/" + editModal.id, { method: "PATCH", body: { user_id: editModal.user_id, site_id: editModal.site_id, start_time: editModal.startTime, end_time: editModal.endTime, notes: editModal.notes, status: editModal.status, building_name: editModal.buildingName, floor_number: editModal.floorNumber, service_category: editModal.serviceCategory }});
+      await af("/api/schedule/" + editModal.id, { method: "PATCH", body });
       showToast(tr("Schedule updated")); setEditModal(null); loadCalendar();
     } catch (e) { if (e && e.code === "schedule.onLeave") setOnLeaveSaid(e.message); else showToast(e.message, "error"); }
+    editSaving.current = false;
   };
   // A shift a pattern wrote is cancelled for that date only; the pattern does not add it again.
   const editPatternId = editModal ? (editModal.shiftPatternId || editModal.shift_pattern_id || null) : null;
   const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? tr("Cancel this shift? The pattern will not add it again.") : tr("Cancel this scheduled shift?"))) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(tr("Shift cancelled")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
+  // One convert at a time (DASH-35): a second press while the first is out sends nothing.
+  const converting = useRef(false);
   const submitConvertPickup = async () => {
+    if (converting.current) return;
+    converting.current = true;
     try {
       await af("/api/pickups/convert/" + convertPickup.id, { method: "POST", body: { origin: convertPickup.origin, notes: convertPickup.notes } });
       showToast(tr("Shift converted to open pickup"));
       setConvertPickup(null); setEditModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
+    converting.current = false;
   };
 
   const openInspModal = (insp) => {
@@ -14910,6 +15035,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const urgencyBg = { urgent: t.redSubtle, normal: "transparent" };
   const urgencyBorder = { urgent: t.redBorder, normal: t.border };
   const [shiftDetail, setShiftDetail] = useState(null);
+  // The open shift's edit as the API takes it, from the window's fields.
+  const pickupForm = (x) => ({ site_id: x.editSite, scheduled_date: x.editDate, start_time: x.editStart, end_time: x.editEnd, building_name: x.editBuilding, floor_number: x.editFloor, service_category: x.editService, origin: x.editOrigin, urgency: x.editUrgency, notes: x.editNotes });
   const [siteStaff, setSiteStaff] = useState([]);
   const staffName = (s) => s.name || ((s.first_name || s.firstName || "") + " " + (s.last_name || s.lastName || "")).trim() || "Unknown";
   // Reassign (Step 291): the people the shift's site record lists come first under that heading, and
@@ -14999,19 +15126,29 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     } catch {}
   };
 
-  const postShift = async () => {
+  // Post Shift, Convert and the shift's Save Changes each send once (DASH-35): a second press while the
+  // first is out sends nothing.
+  const pickupSending = useRef(false);
+  const once = async (work) => {
+    if (pickupSending.current) return;
+    pickupSending.current = true;
+    try { await work(); } finally { pickupSending.current = false; }
+  };
+  const postShift = () => {
     if (!createForm.site_id || !createForm.scheduled_date || !createForm.start_time || !createForm.end_time) {
       showToast(tr("Site, date, and times are required"), "error"); return;
     }
-    try {
-      await af("/api/pickups", { method: "POST", body: createForm });
-      showToast(tr("Open shift posted"));
-      setCreateForm(null);
-      load();
-    } catch (e) { showToast(e.message, "error"); }
+    return once(async () => {
+      try {
+        await af("/api/pickups", { method: "POST", body: createForm });
+        showToast(tr("Open shift posted"));
+        setCreateForm(null);
+        load();
+      } catch (e) { showToast(e.message, "error"); }
+    });
   };
 
-  const convertShift = async (shiftId) => {
+  const convertShift = (shiftId) => once(async () => {
     try {
       await af("/api/pickups/convert/" + shiftId, { method: "POST", body: { origin: convertOrigin, notes: convertNotes } });
       showToast(tr("Shift converted to open pickup"));
@@ -15019,7 +15156,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       setConvertNotes("");
       load();
     } catch (e) { showToast(e.message, "error"); }
-  };
+  });
 
   const approveShift = async (id) => {
     try { await af("/api/pickups/" + id + "/approve", { method: "POST" }); showToast(tr("Shift approved")); load(); }
@@ -15535,7 +15672,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             {(shiftDetail.status === "claimed" || shiftDetail.status === "approved") && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/release", { method: "POST" }); showToast(tr("Released|shift")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: OR, borderColor: OR }}>{tr("Release")}</Btn>}
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: true, editSite: shiftDetail.site_id, editDate: String(shiftDetail.scheduled_date).slice(0, 10), editStart: String(shiftDetail.start_time).slice(0, 5), editEnd: String(shiftDetail.end_time).slice(0, 5), editBuilding: shiftDetail.building_name || "", editFloor: shiftDetail.floor_number || "", editService: shiftDetail.service_category || "", editOrigin: shiftDetail.origin, editUrgency: shiftDetail.urgency, editNotes: shiftDetail.notes || "" })}>{tr("Edit")}</Btn>
+            <Btn t={t} v="ghost" onClick={() => { const opened = { editSite: shiftDetail.site_id, editDate: String(shiftDetail.scheduled_date).slice(0, 10), editStart: String(shiftDetail.start_time).slice(0, 5), editEnd: String(shiftDetail.end_time).slice(0, 5), editBuilding: shiftDetail.building_name || "", editFloor: shiftDetail.floor_number || "", editService: shiftDetail.service_category || "", editOrigin: shiftDetail.origin, editUrgency: shiftDetail.urgency, editNotes: shiftDetail.notes || "" }; setShiftDetail({ ...shiftDetail, editing: true, ...opened, editWas: pickupForm(opened) }); }}>{tr("Edit")}</Btn>
             {shiftDetail.status === "requested" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved, shift is open")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>{tr("Approve Drop")}</Btn>}
             {shiftDetail.status === "claimed" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve", { method: "POST" }); showToast(tr("Shift approved")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>{tr("Approve")}</Btn>}
             {shiftDetail.status !== "requested" && shiftDetail.status !== "claimed" && <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>{tr("Close")}</Btn>}
@@ -15560,12 +15697,16 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={shiftDetail.editNotes} onChange={e => setShiftDetail({ ...shiftDetail, editNotes: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: false })}>{tr("Cancel")}</Btn>
-          <Btn t={t} onClick={async () => {
+          <Btn t={t} onClick={() => once(async () => {
+            // Only what changed from the shift as the window opened it (DASH-35), so a list row read
+            // before someone else's change is not written back over it.
+            const body = changedFields(pickupForm(shiftDetail), shiftDetail.editWas);
+            if (!Object.keys(body).length) { setShiftDetail({ ...shiftDetail, editing: false }); return; }
             try {
-              await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { site_id: shiftDetail.editSite, scheduled_date: shiftDetail.editDate, start_time: shiftDetail.editStart, end_time: shiftDetail.editEnd, building_name: shiftDetail.editBuilding, floor_number: shiftDetail.editFloor, service_category: shiftDetail.editService, origin: shiftDetail.editOrigin, urgency: shiftDetail.editUrgency, notes: shiftDetail.editNotes } });
+              await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body });
               showToast(tr("Shift updated")); setShiftDetail(null); load();
             } catch (e) { showToast(e.message, "error"); }
-          }}>{tr("Save Changes")}</Btn>
+          })}>{tr("Save Changes")}</Btn>
         </div>
       </>)}
     </div></Mdl>}
@@ -18060,7 +18201,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
 
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <Crd t={t} style={{ flex: 1, minWidth: 320, padding: 18 }}>
+      <Crd t={t} style={{ flex: 1, minWidth: "min(320px, 100%)", padding: 18 }}>
         <div style={sec}>{tr("Company Identity")}</div>
         <div style={{ marginBottom: 14 }}>
           <label style={lbl}>{tr("Display name")}</label>
@@ -18090,7 +18231,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         </div>
       </Crd>
 
-      <Crd t={t} style={{ flex: 1, minWidth: 320, padding: 18 }}>
+      <Crd t={t} style={{ flex: 1, minWidth: "min(320px, 100%)", padding: 18 }}>
         <div style={sec}>{tr("Branding")}</div>
         <div style={{ marginBottom: 14 }}>
           <label style={lbl}>{tr("Logo")}</label>
@@ -18144,7 +18285,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           <span style={{ fontSize: 12, color: t.textSec }}>{tr("Show EIN on report exports by default")}</span>
         </div>
       </Crd>
-      {OSHA_COMPANY_FIELDS.some(f => Object.prototype.hasOwnProperty.call(form, f.key)) && <Crd t={t} style={{ flex: "1 1 100%", minWidth: 320, padding: 18 }}>
+      {OSHA_COMPANY_FIELDS.some(f => Object.prototype.hasOwnProperty.call(form, f.key)) && <Crd t={t} style={{ flex: "1 1 100%", minWidth: "min(320px, 100%)", padding: 18 }}>
         <div data-osha-company="">
           <div style={sec}>{tr("OSHA 300A")}</div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>{tr("The annual summary of injuries prints these. A blank one stays a line to fill in by hand.")}</div>
@@ -25160,6 +25301,8 @@ function FolderTrainingItems({ af, t, userId, sites = [], isAdmin = false, showT
 function FolderCertifications({ af, t, userId, getOpts, showToast }) {
   const [certs, setCerts] = useState(null);
   const [adding, setAdding] = useState(null);
+  // Save sends once (DASH-36): a second press while the first is out sends nothing.
+  const saving = useRef(false);
   const load = useCallback(() => {
     af("/api/users/profile/" + encodeURIComponent(userId)).then(d => setCerts(d && Array.isArray(d.certifications) ? d.certifications : [])).catch(e => { console.warn("Certifications:", e.message); setCerts(null); });
   }, [af, userId]);
@@ -25172,8 +25315,11 @@ function FolderCertifications({ af, t, userId, getOpts, showToast }) {
   };
   const save = async () => {
     if (!adding.certName) { showToast(tr("Name required"), "error"); return; }
+    if (saving.current) return;
+    saving.current = true;
     try { await af("/api/users/" + encodeURIComponent(userId) + "/certifications", { method: "POST", body: adding }); showToast(tr("Certification added")); setAdding(null); load(); }
     catch (e) { showToast(e.message, "error"); }
+    saving.current = false;
   };
   return (<div data-folder-certifications="" style={{ marginBottom: 16 }}><Crd t={t} style={{ padding: 16 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -25509,12 +25655,17 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 // supervisor the ones they issued, which the API decides. The filters are sent as the route takes
 // them; the category is narrowed on screen, since the route takes none. The counts by step are the
 // API's, over what the filters return. A row opens the warning. Export saves the rows as shown.
-function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = false, showToast }) {
+function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = false, showToast, selfId = "" }) {
   const [f, setF] = useState({ type: "", category: "", siteId: "", userId: "", issuedBy: "", status: "", from: "", to: "" });
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState("");
   const [steps, setSteps] = useState({ steps: [], categories: [] });
   const [win, setWin] = useState(null);
+  // Issue a warning from the page (DASH-26), for whoever it opens for, a supervisor among them, who has no
+  // HR folder to start one in: the person is picked first, then the warning window opens on them at the
+  // step GET /api/discipline/person/:userId suggests next, as the folder's Issue a warning does.
+  const [issueFor, setIssueFor] = useState(null);
+  const [issueWin, setIssueWin] = useState(null);
   const load = useCallback(() => {
     const q = ["userId", "siteId", "type", "status", "from", "to", "issuedBy"].filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k]));
     setFailed("");
@@ -25531,6 +25682,24 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
   const office = (allStaff || []).filter(p => p && (p.role === "admin" || p.role === "supervisor"));
   const people = (allStaff || []).filter(p => p && p.role !== "client_contact");
   const nameOf = (p) => ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "";
+  const warnable = people.filter(p => String(p.id) !== String(selfId));
+  const startIssue = async () => {
+    const p = warnable.find(x => String(x.id) === String(issueFor && issueFor.userId));
+    if (!p || issueFor.busy) return;
+    setIssueFor(s0 => ({ ...s0, busy: true, said: "" }));
+    let type = "verbal_warning";
+    try {
+      const d = await af("/api/discipline/person/" + encodeURIComponent(String(p.id)));
+      const next = d && d.suggestedNext;
+      if (next && WARNING_STEPS.indexOf(next) >= 0) type = isAdmin || WARNING_ADMIN_STEPS.indexOf(next) < 0 ? next : "written_warning";
+    } catch (e) {
+      // A refusal (this person is not one to warn, or not found) is said in the window; a read that
+      // failed starts at a verbal warning, which the window's step picker changes.
+      if (e && e.status >= 400 && e.status < 500) { setIssueFor(s0 => ({ ...s0, busy: false, said: e.message || tr("Request failed") })); return; }
+    }
+    setIssueFor(null);
+    setIssueWin({ userId: String(p.id), name: nameOf(p), person: p, type });
+  };
   const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", maxWidth: "100%" };
   const cols = [
     { header: tr("Person"), tdStyle: { minWidth: 140 }, render: w => <span style={{ fontWeight: 600, color: t.text }}>{personName(w)}</span> },
@@ -25547,7 +25716,7 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     dlCSV("warnings-" + toISO(new Date()) + ".csv", hdr, rows.map(w => [personName(w), warningStepWord(w.type, steps.steps), warningCategoryWord(w.category, steps.categories), w.incidentDate ? fdLong(w.incidentDate) : "", warningStatusWord(w.status), (w.issuedBy && w.issuedBy.name) || "", delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : ""]));
   };
   return (<div data-discipline-page="">
-    <SecT t={t}>{tr("Discipline")}</SecT>
+    <SecT t={t} action={tr("Issue a warning")} onAction={() => setIssueFor({ userId: "", busy: false, said: "" })}>{tr("Discipline")}</SecT>
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{isAdmin ? tr("Every warning on record, newest first. A row opens the warning.") : tr("The warnings you issued, newest first. A row opens the warning.")}</div>
     <div data-discipline-page-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
       {WARNING_STEPS.map(s => <div key={s} style={{ padding: "8px 12px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec }}><b style={{ color: t.text, fontSize: 16 }}>{Number(by[s] || 0)}</b> {warningStepWord(s, steps.steps)}</div>)}
@@ -25568,6 +25737,20 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
       <>{data && Number(data.limit) > 0 && Array.isArray(data.warnings) && data.warnings.length >= Number(data.limit) && <div data-discipline-capped={String(data.limit)} style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("The newest {0} warnings are listed. Narrow the dates or the filters to find an older one.", Number(data.limit))}</div>}
       <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /></>}
     {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={load} />}
+    {issueFor && <Mdl t={t} onClose={() => { if (!issueFor.busy) setIssueFor(null); }}><div data-discipline-issue-for="" style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue a warning")}</div>
+        <button onClick={() => { if (!issueFor.busy) setIssueFor(null); }} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <Lbl>{tr("Who is this warning for?")}</Lbl>
+      <PersonPick t={t} aria-label={tr("Who is this warning for?")} data-discipline-issue-person="" value={issueFor.userId} onChange={e => setIssueFor(s0 => ({ ...s0, userId: e.target.value, said: "" }))} options={[{ v: "", l: tr("Choose a person") }].concat(warnable.map(p => ({ v: String(p.id), l: nameOf(p), hint: roleWord(p.role) })))} />
+      {issueFor.said && <div role="alert" data-discipline-issue-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{issueFor.said}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+        <Btn t={t} v="ghost" onClick={() => setIssueFor(null)} disabled={issueFor.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+        <Btn t={t} onClick={startIssue} disabled={issueFor.busy || !issueFor.userId} data-discipline-issue-next="" style={{ minHeight: 44 }}>{issueFor.busy ? tr("Loading...") : tr("Next")}</Btn>
+      </div>
+    </div></Mdl>}
+    {issueWin && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={issueWin.userId} personName={issueWin.name} person={issueWin.person} initial={{ type: issueWin.type }} showToast={showToast} onClose={() => setIssueWin(null)} onChanged={load} />}
   </div>);
 }
 
@@ -26239,6 +26422,14 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const trainingTypeOpts = getOpts("training_types", tr("Select type..."), true);
   const onbCatOpts = getOpts("onboarding_categories", tr("Select category..."), true);
 
+  // The document, training and onboarding step windows each send once (DASH-36): a second press while
+  // the first is out sends nothing, so a document is uploaded once and a training counted once.
+  const hrSending = useRef(false);
+  const hrOnce = async (work) => {
+    if (hrSending.current) return;
+    hrSending.current = true;
+    try { await work(); } finally { hrSending.current = false; }
+  };
   const loadDocs = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/documents" + q); setDocs(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadTraining = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/training" + q); setTraining(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadOnboarding = useCallback(async () => { if (!selUser) { setOnboarding([]); return; } try { const d = await af("/api/hr/onboarding/" + selUser); setOnboarding(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
@@ -26269,7 +26460,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // Create path uses multipart POST to /api/jotform/employees/:userId/documents.
   // Edit path uses PATCH /api/jotform/employee-documents/:id for metadata only.
   // The legacy uf() public-bucket flow is no longer used.
-  const submitDoc = async () => {
+  const submitDoc = () => hrOnce(async () => {
     try {
       if (!form.user_id) { showToast(tr("Employee is required"), "error"); return; }
       if (!form.category) { showToast(tr("Category is required"), "error"); return; }
@@ -26285,7 +26476,6 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           expiry_date: form.expiry_date || null,
         };
         docResult = await af("/api/jotform/employee-documents/" + form.id, { method: "PATCH", body: patchBody });
-        showToast(tr("Document updated"));
       } else {
         // Create new document: requires a file upload via multipart
         if (!file) { showToast(tr("Please choose a file to upload"), "error"); return; }
@@ -26305,40 +26495,58 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           throw new Error(tr("Upload failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
         }
         docResult = await resp.json();
-        showToast(tr("Document added"));
       }
 
       // Preserve the Jotform submission link side-effect from Session 22.
       // If a submission UUID was selected via JotformPickerField, link it to this document.
+      // A link that fails is said (DASH-40): the document is saved, and the window stays open on it with
+      // the submission still picked and the reason under the picker, so Save tries the link again.
+      const savedId = (docResult && docResult.id) || form.id || null;
       const submissionUuidToLink = form._submission_uuid_to_link || null;
-      if (submissionUuidToLink && docResult && docResult.id) {
+      let linkSaid = "";
+      if (submissionUuidToLink && savedId) {
         try {
           await af("/api/jotform/submissions/" + submissionUuidToLink + "/link", {
             method: "POST",
-            body: { entity_type: "hr_document", entity_id: docResult.id }
+            body: { entity_type: "hr_document", entity_id: savedId }
           });
-        } catch (linkErr) { console.warn("Jotform link failed:", linkErr.message); }
+        } catch (linkErr) { console.warn("Jotform link failed:", linkErr.message); linkSaid = linkErr.message || tr("Request failed"); }
       }
 
-      setShowModal(null); setForm({}); setFile(null); loadDocs();
+      loadDocs();
       if (folderUserId) setFolderRefresh(v => v + 1);
       // Session 25 Phase 3: keep Compliance staff summary in sync with document changes
       if (compliance) loadCompliance();
+      if (linkSaid) {
+        showToast(tr("The document is saved. Its link to the Jotform submission did not save."), "error");
+        setForm(f => ({ ...f, id: savedId, _link_failed: linkSaid })); setFile(null);
+        return;
+      }
+      showToast(form.id ? tr("Document updated") : tr("Document added"));
+      setShowModal(null); setForm({}); setFile(null);
     } catch (e) { showToast(e.message, "error"); }
-  };
+  });
 
   const deleteDoc = async (id) => { if (!window.confirm(tr("Remove this document from this list?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
-  const submitTraining = async () => {
+  // A training record opens for editing with what it holds kept in _was, and Save sends only the fields
+  // changed from that (DASH-36), so the list row it was opened from is never sent back whole.
+  const openTrainingEdit = (r) => { const opened = { ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }; setForm({ ...opened, _was: opened }); setShowModal("training"); };
+  const submitTraining = () => hrOnce(async () => {
     try {
       if (!form.user_id || !form.training_name || !form.training_type) { showToast(tr("Employee, name, and type are required"), "error"); return; }
-      if (form.id) { await af("/api/hr/training/" + form.id, { method: "PUT", body: form }); showToast(tr("Training record updated")); }
+      if (form.id) {
+        const now = Object.assign({}, form); delete now._was; delete now.id;
+        const body = changedFields(now, form._was);
+        if (!Object.keys(body).length) { setShowModal(null); setForm({}); return; }
+        await af("/api/hr/training/" + form.id, { method: "PUT", body }); showToast(tr("Training record updated"));
+      }
       else { await af("/api/hr/training", { method: "POST", body: form }); showToast(tr("Training record added")); }
       setShowModal(null); setForm({}); loadTraining();
       if (folderUserId) setFolderRefresh(v => v + 1);
       if (compliance) loadCompliance();
     } catch (e) { showToast(e.message, "error"); }
-  };
+  });
 
   const deleteTraining = async (id) => { if (!window.confirm(tr("Remove this training record from this list?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
@@ -26351,9 +26559,11 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     try { await af("/api/hr/onboarding/" + step.id, { method: "PATCH", body: { is_completed: !step.is_completed } }); loadOnboarding(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const addCustomStep = async () => {
+  const addCustomStep = () => {
     if (!selUser || !form.step_name || !form.step_category) { showToast(tr("Name and category are required"), "error"); return; }
-    try { await af("/api/hr/onboarding/step", { method: "POST", body: { user_id: selUser, ...form } }); showToast(tr("Step added")); setShowModal(null); setForm({}); loadOnboarding(); } catch (e) { showToast(e.message, "error"); }
+    return hrOnce(async () => {
+      try { await af("/api/hr/onboarding/step", { method: "POST", body: { user_id: selUser, ...form } }); showToast(tr("Step added")); setShowModal(null); setForm({}); loadOnboarding(); } catch (e) { showToast(e.message, "error"); }
+    });
   };
 
   const deleteStep = async (id) => { if (!window.confirm(tr("Remove this step from this list?"))) return; try { await af("/api/hr/onboarding/step/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadOnboarding(); } catch (e) { showToast(e.message, "error"); } };
@@ -26442,7 +26652,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             try {
               const list = await af("/api/hr/training?user_id=" + folderUserId);
               const r = (list || []).find(x => x.id === trId);
-              if (r) { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }
+              if (r) { openTrainingEdit(r); }
               else showToast(tr("Training record not found"), "error");
             } catch (e) { showToast(e.message, "error"); }
           }}
@@ -26517,7 +26727,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
             { header: tr("Score"), tdStyle: { color: t.textSec }, render: r => r.score || "" },
             { header: tr("Administered By"), tdStyle: { color: t.textSec }, render: r => r.administered_by || "" },
-            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}>{recordHasCertificate(r) && <button data-open-certificate={r.id} onClick={() => openCertificateOf(token, r.id, showToast)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Open the certificate")}</button>}{recordHasCertificate(r) && <WhoOpened af={af} t={t} kind="certificate" id={r.id} name={r.training_name || ""} />}<button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
+            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}>{recordHasCertificate(r) && <button data-open-certificate={r.id} onClick={() => openCertificateOf(token, r.id, showToast)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Open the certificate")}</button>}{recordHasCertificate(r) && <WhoOpened af={af} t={t} kind="certificate" id={r.id} name={r.training_name || ""} />}<button onClick={() => { openTrainingEdit(r); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
@@ -26723,6 +26933,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date (optional)")}</div>
             <Inp t={t} type="date" value={form.expiry_date || ""} onChange={e => setForm({ ...form, expiry_date: e.target.value })} /></div>
           <JotformPickerField af={af} form={form} setForm={setForm} t={t} />
+          {form._link_failed && <div role="alert" data-hr-doc-link-failed="" style={{ fontSize: 12, color: RD, marginTop: -6 }}>{tr("The document is saved. Its link to the Jotform submission did not save ({0}). Press Save to try the link again.", form._link_failed)}</div>}
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Notes (optional)")}</div>
             <textarea value={form.notes || ""} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, resize: "vertical" }} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>

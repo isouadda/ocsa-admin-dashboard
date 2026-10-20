@@ -2,20 +2,6 @@
   "note": "Failures the app has today that the commit adding the case does not fix. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
   "failures": [
     {
-      "case": "october/supervisor/profile-reads-no-refusal",
-      "finding": "DASH-30",
-      "shows": "Every profile a supervisor opens draws the API refusal (Insufficient permissions) where the employment history card goes.",
-      "why": "Staff Management reads GET /api/users/:id/employment for everyone; contract 1 puts the employment history card under read_hr_records.",
-      "where": "src/App.js:2064, 2137, 2149, 2524-2528"
-    },
-    {
-      "case": "october/supervisor/discipline-can-issue-a-warning",
-      "finding": "DASH-26",
-      "shows": "Discipline offers a supervisor no Issue a warning; the only ways in are the HR folder (closed to them) and a case.",
-      "why": "Issue a warning is drawn in PersonDiscipline inside the HR folder alone. Contract 1 keeps Discipline with supervisors.",
-      "where": "src/App.js:23437, 23720, 23860-23920"
-    },
-    {
       "noCase": true,
       "match": "^coverage window in (EmploymentWindow|BlockWindowWindow|RequestWindow|SupplyRequestWindow|TicketWindow|TicketsExportWindow|HolidaysPanel|LinkQrWindow|OpenCaseWindow|TrainingTopicWindow|PersonTrainingWindow|UploadCertificateWindow|AssignTrainingWindow|SignOffWindow|SignHereWindow|SignatureRequestWindow|IssuePropertyWindow|ReturnPropertyWindow|TurnOffLinkWindow) \\(onClose\\)$|^coverage window in TrainingMatrix \\(setOpen\\)$",
       "finding": "DASH-71",
