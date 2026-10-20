@@ -5211,9 +5211,15 @@ function createStubs() {
       const at = rows.findIndex((r) => r.id === id && !r.removed_at);
       if (at < 0) return { status: 404, json: { error: "Training record not found" } };
       if (method === "DELETE") { rows[at].removed_at = seed.NOW_ISO; rows[at].removed_by = person().id; return ok({ success: true }); }
+      // routes/hr.js PUT /training/:id writes only the fields the body names, "" and null as null, and
+      // refuses a name or a type sent empty (part 366: the window sends only what changed, DASH-36).
       const b = body || {};
-      ["training_name", "training_type", "completed_date", "expiry_date", "score", "administered_by", "notes", "document_id"]
-        .forEach((k) => { rows[at][k] = b[k] || null; });
+      const named = ["training_name", "training_type", "completed_date", "expiry_date", "score", "administered_by", "notes", "document_id"]
+        .filter((k) => Object.prototype.hasOwnProperty.call(b, k) && b[k] !== undefined);
+      if (named.some((k) => (k === "training_name" || k === "training_type") && (b[k] === "" || b[k] === null))) {
+        return { status: 400, json: { error: lang === "es" ? "Un registro de capacitaci\u00f3n necesita una persona, un nombre de capacitaci\u00f3n y un tipo" : "A training record needs a person, a training name and a type", code: "training.fieldsRequired" } };
+      }
+      named.forEach((k) => { rows[at][k] = b[k] === "" || b[k] === null ? null : b[k]; });
       return ok(trainingTableRow(rows[at]));
     }
     if (path === "/api/hr/employees-summary") {

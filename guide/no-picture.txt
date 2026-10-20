@@ -7,3 +7,4 @@ Move around the dashboard with the keyboard (admin dashboard) | It describes key
 Read a filed form (admin dashboard) | It sends the reader to Read a filed report, the same task on the same screen, whose pictures show it.
 Remove a report you no longer need (admin dashboard) | The buttons it uses are on the report library, which Run a report pictures.
 See which version of the dashboard you run (admin dashboard) | It is one line of small text at the foot of Settings, and the bar shows only while a new version waits.
+Close a window, and keep what you typed (admin dashboard) | The question is the browser's own box, which a picture of the screen does not show, and the window it guards is any window.

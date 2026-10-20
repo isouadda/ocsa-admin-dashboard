@@ -205,6 +205,9 @@ const SUITES = [
   // What the API's Rounds 3 and 4 gave the dashboard, and its findings (part 364), against the API as
   // built at ocsa-api a1e7e58 (audit/round3-stub.js). Its own passes, like the round2 suite.
   { name: "round3", mod: "./cases/round3", widths: [] },
+  // The dashboard's findings (part 366): the Before 100 findings that need nothing new from the API, on the
+  // stub as the API is built with Round 2's file log and part 364's answers. Its own passes, like round3.
+  { name: "findings366", mod: "./cases/findings366", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
