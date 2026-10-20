@@ -16,7 +16,8 @@
 //                                       contacts for the building and those covering the whole site
 //   POST /api/maintenance-requests/:id/log, /follow-up, /resend, GET .../photos/:photoId
 //   GET /api/issues/:id                 maintenanceRequests, the requests the issue was sent as
-//   GET and PATCH /api/settings         maintenance_response_days, 1 to 30 (settings.maintenanceDaysWhole)
+//   GET and PATCH /api/settings         maintenance_response_days, 1 to 30 (settings.maintenanceDaysWhole),
+//                                       and checklistDayStartsAt, 04:00, on the read (the API's part 363)
 //
 // Every value is invented. The words are the API's helpers/words.js English and Spanish.
 "use strict";
@@ -156,7 +157,7 @@ module.exports = (ctx) => {
     add({ siteId: S[1].id, area: "Staff restroom", category: "plumbing", urgency: "soon", description: "The staff restroom toilet runs all night.", status: "closed", filedAt: at(addDays(TODAY, -60), "10:20"), firstResponseAt: at(addDays(TODAY, -59), "09:30"), fixedAt: at(addDays(TODAY, -55), "12:00"), closedAt: at(addDays(TODAY, -54), "09:00") });
     add({ siteId: S[0].id, building: "South Wing", area: "Loading entrance", category: "pests", urgency: "routine", description: "Signs of mice by the loading entrance.", status: "cancelled", filedAt: at(addDays(TODAY, -20), "16:45"), cancelledAt: at(addDays(TODAY, -19), "08:00") });
     add({ siteId: S[0].id, building: "North Wing", floor: "1", area: "Lobby", category: "electrical", urgency: "soon", description: "The lobby outlet by the front desk sparks when used.", status: "sent", filedAt: at(TODAY, "18:20"), mailFailed: true });
-    return { contacts, requests, log, photos, counter: n, contactSeq: contacts.length, logSeq: 0, photoSeq: photos.length, followUps: {}, sent: [], emailFails: false, off: {}, responseDays: 2 };
+    return { contacts, requests, log, photos, counter: n, contactSeq: contacts.length, logSeq: 0, photoSeq: photos.length, followUps: {}, sent: [], emailFails: false, off: {}, responseDays: 2, oldToken: false, renewRefuse: false, renewed: [] };
   }
   const m = () => state.m368 || (state.m368 = fresh());
 
@@ -501,7 +502,9 @@ module.exports = (ctx) => {
     }
     if (path === "/api/settings" && method === "GET") {
       const a = base();
-      if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { maintenance_response_days: m().responseDays });
+      // checklistDayStartsAt is on every answer since the API's part 363 (04:00 unless the owner sets
+      // another); the checklist layer under this one answers a case's own.
+      if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({ checklistDayStartsAt: "04:00" }, a.json, { maintenance_response_days: m().responseDays });
       return a;
     }
     if (path === "/api/settings" && (method === "PATCH" || method === "PUT")) {
@@ -516,8 +519,33 @@ module.exports = (ctx) => {
       if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { maintenance_response_days: m().responseDays });
       return a;
     }
+    // The session renewed (the API's part 363, routes/auth.js POST /api/auth/renew), once a case dates
+    // the session with oldToken: sign-in answers a token made two hours ago, shaped as the API's are,
+    // and a renewal answers one made now, or 401 auth.tokenExpired once a case sets renewRefuse.
+    const x = m();
+    if (path === "/api/auth/login" && method === "POST" && x.oldToken) {
+      const a = base();
+      if (a && a.status === 200 && a.json && typeof a.json.token === "string") a.json = Object.assign({}, a.json, { token: madeToken(-2 * 3600) });
+      return a;
+    }
+    if (path === "/api/auth/renew" && method === "POST") {
+      if (x.renewRefuse) return bad(401, "auth.tokenExpired", T(lang, "Token expired", "Su sesi\u00f3n venci\u00f3"));
+      const tok = madeToken(0);
+      x.renewed.push(tok);
+      return ok({ token: tok });
+    }
     return null;
   }
+  // A token shaped as the API makes one (a header, a payload with userId, role, tv, iat and exp, and a
+  // signature), made seconds from the run's now; the stub reads no token, only that one was sent.
+  const b64url = (o) => Buffer.from(JSON.stringify(o)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  let tokenSeq = 0;
+  const madeToken = (offset) => {
+    const iat = Math.floor(Date.parse(seed.NOW_ISO) / 1000) + offset;
+    tokenSeq += 1;
+    const p = me() || {};
+    return b64url({ alg: "HS256", typ: "JWT" }) + "." + b64url({ userId: p.id || "u", role: p.role || "admin", tv: 0, iat, exp: iat + 12 * 3600, n: tokenSeq }) + ".audit-signature-" + tokenSeq;
+  };
 
   // Leave balances, in audit/part368-leave.js.
   const leave = require("./part368-leave")({ seed, state, ok, clone, person, can, readsSite });
@@ -542,6 +570,8 @@ module.exports = (ctx) => {
     if (o.off) x.off = Object.assign({}, x.off, o.off);
     if (o.issuePhotos) x.issuePhotos = Object.assign({}, x.issuePhotos || {}, o.issuePhotos);
     if (o.noContactsAt) x.contacts = x.contacts.filter((c) => c.siteId !== o.noContactsAt);
+    if (o.oldToken !== undefined) x.oldToken = !!o.oldToken;
+    if (o.renewRefuse !== undefined) x.renewRefuse = !!o.renewRefuse;
     if (o.many) {
       for (let i = 0; i < 60; i += 1) {
         x.counter += 1;

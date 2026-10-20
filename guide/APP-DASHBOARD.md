@@ -8,8 +8,9 @@ Who can do this: admins and supervisors
 4. When the dashboard asks for a code, see the entry on signing in with a code on a new device.
 5. While you still have the PIN the office gave you, the dashboard shows only **Choose your PIN** (**Elija su PIN**). Type a PIN of your own in **New PIN (4 digits)** (**PIN nuevo (4 dígitos)**) and again in **New PIN again** (**PIN nuevo otra vez**), and click **Save** (**Guardar**). Until then nothing else opens, even after a reload; **Sign Out** (**Cerrar sesión**) leaves.
 6. Forgot your PIN? Type your badge number, phone or email, then click **Forgot your PIN?** (**¿Olvidó su PIN?**). The card says what happens next.
+7. Once you are signed in, the dashboard keeps you signed in while you use it, so nothing typed is lost to a sign-in that ran out. Left with no click or key for 30 minutes, it stops renewing your sign-in, and it signs you out 12 hours after it last renewed it.
 If it does not work: a wrong badge number, phone, email or PIN shows the reason in red on the card. From the third wrong try in a row the card adds **After too many wrong tries, sign-in stops for a while. Ask the office for help.** (**Después de demasiados intentos equivocados, el inicio de sesión se detiene por un tiempo. Pida ayuda a la oficina.**) After five, the card says how many minutes to wait, and an admin can unlock you sooner; see the entry on whether a person can sign in. When the dashboard signs you out by itself, the card says why. When it cannot reach the server at all, the card says **The dashboard could not reach the server. Check the connection and try again.** (**El panel no pudo comunicarse con el servidor. Revise la conexión e intente de nuevo.**), and so does any screen whose call finds no connection. Once App support's contact is set, the card says **Can't sign in? Email {0}** (**¿No puede iniciar sesión? Escriba a {0}**) with their address; write to it. The dashboard is only for admins and supervisors. Staff use the staff portal.
-Words people use for this: log in, sign in, cannot sign in, who do i email, badge number, forgot my pin, locked out, too many tries, choose a pin, new pin, iniciar sesión.
+Words people use for this: log in, sign in, cannot sign in, who do i email, badge number, forgot my pin, locked out, too many tries, choose a pin, new pin, signed out, session expired, logged out while working, iniciar sesión.
 Picture: sign-in-card
 Picture: choose-your-pin
 Last checked: 2026-10-20
@@ -2643,21 +2644,21 @@ Last checked: 2026-10-18
 
 ## See what was done at a site on any day (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. Click a site's card, or pick the site in **Site** (**Sitio**).
+1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included, so its share can differ from the rings on the site's own page. Click a site's card, or pick the site in **Site** (**Sitio**).
 2. Pick the days: **Today** (**Hoy**), **Yesterday** (**Ayer**), **Last 7 days** (**Últimos 7 días**), **This month** (**Este mes**), or **Pick dates** (**Elegir fechas**) for any one day or any dates up to 31 days, then **Show** (**Mostrar**). At a site with two shifts or more, **Shift** (**Turno**) shows one shift, or **All shifts** (**Todos los turnos**).
 3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**).
 4. **When the checks happened** (**Cuándo se hicieron las marcas**) draws a bar for every 15 minutes of the shift, and the line under it says how many checks were made in the shift's last 30 minutes.
-5. **By zone** (**Por zona**) shows each zone's steps done of steps due; click a zone to show only its tasks. **Repeating work** (**Trabajo que se repite**) lists the weekly, monthly, quarterly and seasonal tasks with when and by whom each was last done.
+5. **By zone** (**Por zona**) shows each zone's steps done of steps due; click a zone to show only its tasks. **Repeating work** (**Trabajo que se repite**) lists the weekly, monthly, quarterly and seasonal tasks with when and by whom each was last done and the day it is due by, as they stood on the day shown.
 6. **Tasks** (**Tareas**) lists every task by shift and zone: done or not, who and when, and every check when more than one person checked it. Tick **Not done only** (**Solo lo que no se hizo**), or type in **Search tasks** (**Buscar tareas**). **Download CSV** (**Descargar CSV**) saves the list as it is shown: day, shift, zone, task, done, who and when.
 7. Over several days, each shift's ring counts all of them, **Done each day** (**Hecho cada día**) draws each day's share, and a day clicked in the chart or in the table opens that day.
-8. Today is read again every 30 seconds while the page is open. A past day does not change. The address keeps the site, the days and the shift, so a view can be bookmarked or sent.
+8. Today is read again every 30 seconds while the page is open. A past day does not change. Today starts at the time the company's checklist day starts, 4:00 AM unless the company set another, so early in the morning Today can still be yesterday's checklist day. The address keeps the site, the days and the shift, so a view can be bookmarked or sent.
 9. Other ways in: **See the checklist** (**Ver la lista de verificación**) under each site on **Live Ops** (**Operaciones en vivo**), for the day shown there; **Checklist history** (**Historial de la lista de verificación**) on a site's page, with yesterday picked; and the **Checklist Results** (**Resultados de la lista**) card under **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
 10. To print the record on the approved form for the binder, see the entry on printing a site's zone cleaning checklists. To print this page as a report, see the entry on printing a checklist report.
 If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there.
 Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-10-19
+Last checked: 2026-10-20
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors

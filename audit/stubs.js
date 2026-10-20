@@ -7440,6 +7440,9 @@ function createStubs() {
     // makes it, and the model the cases read their expectations from (audit/checklist-stub.js).
     setChecklist358: (v) => { step358 = v !== false; },
     addCheck358: (siteId, taskId, day, hm, by) => checklist358.addCheck(siteId, taskId, day, hm, by),
+    // The time the checklist day starts, HH:MM, as GET /api/settings answers it (part 368).
+    setDayStarts358: (hm) => checklist358.setDayStartsAt(hm),
+    setChecklistScene358: (o) => checklist358.setScene(o),
     checklist358: () => checklist358.model,
     // The welcome email to everyone who has not signed in (part 361): the people and the invite route of
     // audit/welcome-all-stub.js, on or off; every invite to those people since, with when it arrived.

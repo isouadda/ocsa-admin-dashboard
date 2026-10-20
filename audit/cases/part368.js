@@ -785,11 +785,178 @@ async function leaveCases(ctx, lang) {
   });
 }
 
+// ---- Checklist Results on Round 5's reads, and the session renewed (section 3) ---------------------------
+const S1 = seed.SITES[0].id;
+const COUNTED = ["per_visit", "daily", "every_other_day"];
+// What the page should draw for a site's day, grouped by each item's own shift: Day, Night, and Any shift.
+function crExpected(M, siteId, day) {
+  const rec = M.record(siteId, day, day, null, "en");
+  const out = {};
+  rec.days[0].items.forEach((i) => {
+    const k = i.shift || "*";
+    if (!out[k]) out[k] = { due: 0, done: 0, checks: 0 };
+    if (COUNTED.indexOf(i.frequency) >= 0 && i.due) { out[k].due += 1; if (i.done) out[k].done += 1; }
+    out[k].checks += i.checks.length;
+  });
+  return out;
+}
+const crGroups = (d) => d.page.evaluate(() => { const o = {}; document.querySelectorAll("[data-cr-group]").forEach((el) => { o[el.getAttribute("data-cr-group")] = { due: Number(el.getAttribute("data-cr-due")), done: Number(el.getAttribute("data-cr-done")), checks: Number(el.getAttribute("data-cr-checks")), last30: (el.querySelector("[data-cr-last30]") || { getAttribute: () => null }).getAttribute("data-cr-last30") }; }); return o; });
+const crView = (d, view) => until(d, '[data-checklist-results][data-cr-view="' + view + '"]', 10000);
+const recordReads = (d, mark) => reads(d, mark, /\/checklist-record$/);
+const summaryReads = (d, mark) => reads(d, mark, /^\/api\/reports\/checklist-summary$/);
+
+async function checklistCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/checklist/" + x;
+  const arm = (stubs) => stubs.setChecklist358(true);
+
+  await withDriver(ctx, { name: "checklist-reads", lang, arm }, async (d, stubs) => {
+    const M = stubs.checklist358();
+    // One site, one day: one read of the record, with no shift, and the same rings as before.
+    let mark = d.mark();
+    await goHash(d, "checklist/" + S1 + "/" + M.SEEDED);
+    await crView(d, "day");
+    await d.settle(500);
+    const dayReads = recordReads(d, mark);
+    const got = await crGroups(d), want = crExpected(M, S1, M.SEEDED);
+    const off = Object.keys(want).filter((k) => !got[k] || got[k].due !== want[k].due || got[k].done !== want[k].done || got[k].checks !== want[k].checks);
+    results.check(KIND, id("one-record-read-for-a-day"), dayReads.length === 1 && !q(dayReads[0]).has("shift") && off.length === 0 && Object.keys(got).sort().join() === Object.keys(want).sort().join(),
+      dayReads.length !== 1 ? "the day read the record " + dayReads.length + " times: " + say(dayReads.map((c) => c.query)) : off.length ? "the rings read " + say(got) + " where they are " + say(want) : "the groups drawn are " + Object.keys(got).join(", "));
+    // A range: one read too.
+    mark = d.mark();
+    await goHash(d, "checklist/" + S1 + "/" + seed.shift(-7) + ".." + M.SEEDED);
+    await crView(d, "range");
+    await d.settle(500);
+    const rangeReads = recordReads(d, mark);
+    results.check(KIND, id("one-record-read-for-a-range"), rangeReads.length === 1 && !q(rangeReads[0]).has("shift"),
+      "the range read the record " + rangeReads.length + " times: " + say(rangeReads.map((c) => c.query)));
+
+    // All sites: one call to the summary in place of each site's record, and the cards counted its way.
+    // Counted from a page that reads nothing on its own, so every call is All sites' own.
+    await d.page.evaluate(() => { window.location.hash = "checklist/" + "none"; });
+    await d.settle(1500);
+    mark = d.mark();
+    await d.page.evaluate(() => { window.location.hash = "checklist/all/yesterday"; });
+    await crView(d, "all");
+    await d.settle(800);
+    const calls = d.callsSince(mark).filter((c) => /^\/api\//.test(c.path) && !/^\/api\/(notifications|chat)/.test(c.path));
+    const sums = summaryReads(d, mark), recs = recordReads(d, mark);
+    const cards = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-site-card]")).map((el) => [el.getAttribute("data-cr-site-card"), el.getAttribute("data-cr-done") + "/" + el.getAttribute("data-cr-due")]));
+    const want1 = M.summaryDay(S1, M.SEEDED), want2 = M.summaryDay(seed.SITES[1].id, M.SEEDED);
+    const cardOk = cards.length === 3 && cards[0][1] === want1.done + "/" + want1.due && cards[1][1] === want2.done + "/" + want2.due;
+    results.check(KIND, id("all-sites-in-one-call"), sums.length === 1 && recs.length === 0 && q(sums[0]).get("from") === seed.shift(-7) && q(sums[0]).get("to") === M.SEEDED && cardOk,
+      "All sites made " + calls.length + " calls (" + calls.map((c) => c.method + " " + c.path + (c.query ? "?" + String(c.query).replace(/^\?/, "") : "")).join("; ") + ") and draws " + say(cards) + " where the summary counts " + want1.done + "/" + want1.due + " and " + want2.done + "/" + want2.due);
+    // Today on All sites is read again within 32 seconds, from the summary.
+    await goHash(d, "checklist/all/today");
+    await crView(d, "all");
+    mark = d.mark();
+    await wait(32000);
+    const again = summaryReads(d, mark), againRecs = recordReads(d, mark);
+    results.check(KIND, id("all-sites-today-read-again-from-the-summary"), again.length >= 1 && againRecs.length === 0,
+      "in 32 seconds All sites read the summary " + again.length + " times and the record " + againRecs.length + " times");
+
+    // Repeating work as of the day shown, with no "as of today".
+    const back = seed.shift(-7);
+    mark = d.mark();
+    await goHash(d, "checklist/" + S1 + "/" + back);
+    await crView(d, "day");
+    await d.settle(500);
+    const pw = reads(d, mark, /^\/api\/periodic-work$/);
+    const asked = stubs.handle({ method: "GET", url: "http://stub.invalid/api/periodic-work?siteId=" + S1 + "&on=" + back + "&locale=" + lang, headers: { authorization: "Bearer x", "accept-language": lang }, lang }).json.items.find((i) => i.taskId === "cr-p1");
+    const row = await d.page.evaluate(() => { const el = document.querySelector('[data-cr-repeating="cr-p1"]'); return el ? { last: el.getAttribute("data-cr-last-done"), dueBy: el.getAttribute("data-cr-due-by") } : null; });
+    const page = await d.page.evaluate(() => document.body.innerText);
+    const oldNote = lang === "es" ? "son a hoy" : "are as of today";
+    results.check(KIND, id("repeating-work-as-of-the-day-shown"), pw.length === 1 && q(pw[0]).get("on") === back && !!row && row.last === asked.lastDoneAt && row.dueBy === asked.dueBy
+      && page.indexOf(d.say("Weekly, monthly, quarterly and seasonal tasks.")) >= 0 && page.indexOf(oldNote) < 0,
+      !pw.length ? "the day read no periodic work" : "periodic work was read with " + say(pw[0].query) + "; the weekly task reads last done " + (row && row.last) + " and due by " + (row && row.dueBy)
+        + " where on " + back + " they are " + asked.lastDoneAt + " and " + asked.dueBy + "; the note " + (page.indexOf(oldNote) >= 0 ? "still says as of today" : "names no day"));
+  });
+
+  // A shift's window is the schedule's: a last block with no end of its own ends at its start.
+  await withDriver(ctx, { name: "checklist-window", lang, arm: (stubs) => { arm(stubs); stubs.setChecklistScene358({ lateBlock: true }); } }, async (d, stubs) => {
+    const M = stubs.checklist358();
+    await goHash(d, "checklist/" + S1 + "/" + M.SEEDED);
+    await crView(d, "day");
+    await d.settle(600);
+    const got = await crGroups(d);
+    results.check(KIND, id("shift-window-from-the-schedule"), !!got.Night && got.Night.last30 === "4/4" && !!got.Day && got.Day.last30 === "0/10",
+      "the last-30-minutes lines read Day " + (got.Day && got.Day.last30) + " and Night " + (got.Night && got.Night.last30) + " where the schedule ends Night at 10:00 PM (4/4) and Day at 4:00 PM (0/10)");
+  });
+
+  // Today starts at the company's checklist day start: at 9:30 PM with the day starting at 10:00 PM,
+  // today is still yesterday's checklist day.
+  await withDriver(ctx, { name: "checklist-day-start", lang, arm: (stubs) => { arm(stubs); stubs.setDayStarts358("22:00"); } }, async (d, stubs) => {
+    const M = stubs.checklist358();
+    const mark = d.mark();
+    await goHash(d, "checklist/" + S1 + "/today");
+    await crView(d, "day");
+    await d.settle(500);
+    const rr = recordReads(d, mark), st = reads(d, mark, /^\/api\/settings$/);
+    results.check(KIND, id("today-starts-at-the-company-s-time"), rr.length >= 1 && q(rr[0]).get("from") === M.SEEDED && q(rr[0]).get("to") === M.SEEDED && st.length === 1,
+      !rr.length ? "today read no record" : "today read the record from " + q(rr[0]).get("from") + " to " + q(rr[0]).get("to") + " where the checklist day starting at 10:00 PM makes it " + M.SEEDED + "; settings read " + st.length + " times");
+  });
+}
+
+async function sessionCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/session/" + x;
+  const stored = (d) => d.page.evaluate(() => { try { const x = JSON.parse(localStorage.getItem("ocsa_auth") || sessionStorage.getItem("ocsa_auth") || "null"); return x && x.token; } catch (e) { return null; } });
+  const bearer = (c) => String((c.headers && (c.headers.authorization || c.headers.Authorization)) || "").replace(/^Bearer /, "");
+
+  // A token two hours old is renewed at the first key typed, and the screen keeps what was typed.
+  await withDriver(ctx, { name: "renew", lang, arm: (stubs) => { stubs.setChecklist358(true); stubs.setScene368({ oldToken: true }); } }, async (d, stubs) => {
+    const M = stubs.checklist358();
+    const first = await stored(d);
+    await goHash(d, "checklist/" + S1 + "/" + M.SEEDED);
+    await crView(d, "day");
+    const mark = d.mark();
+    const word = lang === "es" ? "toallas" : "towels";
+    await d.page.locator("[data-cr-search]").first().pressSequentially(word, { delay: 30 }).catch(() => {});
+    await d.settle(1200);
+    const renews = writes(d, mark, "POST", /^\/api\/auth\/renew$/);
+    const now = await stored(d);
+    const typed = await d.page.locator("[data-cr-search]").first().inputValue().catch(() => "");
+    const rows = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-task]")).map((r) => r.getAttribute("data-cr-task")));
+    const m2 = d.mark();
+    await goHash(d, "checklist/all/yesterday");
+    await crView(d, "all");
+    const after = d.callsSince(m2).filter((c) => /^\/api\//.test(c.path));
+    const renewed = stubs.model368().renewed;
+    results.check(KIND, id("a-token-an-hour-old-is-renewed-while-in-use"), renews.length === 1 && bearer(renews[0]) === first && renewed.length === 1 && now === renewed[0]
+      && typed === word && rows.join() === "cr-d5" && after.length > 0 && after.every((c) => bearer(c) === renewed[0]),
+      "typing sent " + renews.length + " renewal(s)" + (renews.length ? (bearer(renews[0]) === first ? " with the first token" : " with another token") : "")
+        + "; the session keeps " + (now && now === renewed[0] ? "the renewed token" : now === first ? "the first token" : "another token") + "; the search reads " + say(typed) + " listing " + say(rows)
+        + "; " + after.filter((c) => bearer(c) === renewed[0]).length + " of " + after.length + " later calls went with the renewed token");
+  });
+
+  // A renewal the API refuses ends the session in its words.
+  await withDriver(ctx, { name: "renew-refused", lang, arm: (stubs) => stubs.setScene368({ oldToken: true, renewRefuse: true }) }, async (d) => {
+    await d.page.mouse.click(600, 300).catch(() => {});
+    await d.settle(1500);
+    const card = await d.page.evaluate(() => document.body.innerText);
+    const words = lang === "es" ? "Su sesi\u00f3n venci\u00f3" : "Token expired";
+    results.check(KIND, id("a-refused-renewal-signs-out-in-the-api-s-words"), card.indexOf(words) >= 0 && (await d.page.locator("input[type=password]").count()) > 0,
+      "after a refused renewal the screen reads " + say(card.slice(0, 160)));
+  });
+
+  // A token the API made just now is not renewed.
+  await withDriver(ctx, { name: "renew-young", lang }, async (d) => {
+    const mark = d.mark();
+    await d.page.mouse.click(600, 300).catch(() => {});
+    await d.page.keyboard.press("Shift").catch(() => {});
+    await d.settle(1000);
+    const n = writes(d, mark, "POST", /^\/api\/auth\/renew$/).length;
+    results.check(KIND, id("guard-a-token-not-yet-an-hour-old-is-kept"), n === 0, "a click and a key sent " + n + " renewal(s) of a token not yet an hour old");
+  });
+}
+
 async function run(ctx) {
   for (const lang of LANGS) {
     await maintenanceCases(ctx, lang);
     await leaveCases(ctx, lang);
+    await checklistCases(ctx, lang);
+    await sessionCases(ctx, lang);
   }
 }
 
-module.exports = { run };
+module.exports = { run, maintenanceCases, leaveCases, checklistCases, sessionCases };

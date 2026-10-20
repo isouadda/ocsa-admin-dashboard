@@ -5039,7 +5039,6 @@ export const WORDS = {
   "All zones": { es: "Todas las zonas" },
   "{0}: {1} of {2}": { es: "{0}: {1} de {2}" },
   "Repeating work": { es: "Trabajo que se repite" },
-  "Weekly, monthly, quarterly and seasonal tasks. Last done and Due by are as of today.": { es: "Tareas semanales, mensuales, trimestrales y de temporada. \u00daltima vez y Fecha l\u00edmite son a hoy." },
   "Not done only": { es: "Solo lo que no se hizo" },
   "Search tasks": { es: "Buscar tareas" },
   "Zone: {0}. Show every zone": { es: "Zona: {0}. Mostrar todas las zonas" },
@@ -5468,6 +5467,8 @@ export const WORDS = {
     en: { one: "{0} line read. Post the hours to match each person and post their leave.", other: "{0} lines read. Post the hours to match each person and post their leave." },
     es: { one: "{0} l\u00ednea le\u00edda. Registre las horas para encontrar a cada persona y registrar sus permisos.", other: "{0} l\u00edneas le\u00eddas. Registre las horas para encontrar a cada persona y registrar sus permisos." },
   },
+  "Weekly, monthly, quarterly and seasonal tasks.": { es: "Tareas semanales, mensuales, trimestrales y de temporada." },
+  "A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included.": { es: "Una tarjeta cuenta cada paso que tocaba en el sitio, incluido el trabajo semanal, mensual, trimestral y de temporada." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

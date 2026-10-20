@@ -28,6 +28,29 @@ const API_DEADLINE_MS = 30000;
 const API_UPLOAD_DEADLINE_MS = 120000;
 // How many calls are out right now, which the update check asks before it reloads.
 let apiInFlight = 0;
+// The session renewed (part 368, DASH-23; the API's part 363 POST /api/auth/renew). A renewed token
+// stands in for the token it renewed on every call, whatever screen still holds the first one: the
+// Authorization header is read here and given the latest token of its line. The screens keep the token
+// they were drawn with, so a renewal draws nothing again and loses nothing typed.
+const renewedTokens = new Map();
+const latestToken = (tok) => { let x = tok; for (let i = 0; i < 100 && renewedTokens.has(x); i += 1) x = renewedTokens.get(x); return x; };
+function withLatestToken(headers) {
+  if (!headers || renewedTokens.size === 0) return headers;
+  const k = ["Authorization", "authorization"].find(x => typeof headers[x] === "string" && headers[x].indexOf("Bearer ") === 0);
+  if (!k) return headers;
+  const was = headers[k].slice(7), now = latestToken(was);
+  return now === was ? headers : { ...headers, [k]: "Bearer " + now };
+}
+// When the API made a token, from the iat its payload carries, or null for one that carries none.
+function tokenIssuedAt(tok) {
+  try {
+    const part = String(tok || "").split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const p = JSON.parse(atob(b64 + "===".slice((b64.length + 3) % 4)));
+    return p && Number.isFinite(p.iat) ? p.iat * 1000 : null;
+  } catch (e) { return null; }
+}
 function apiRequest(url, init = {}) {
   const ctl = typeof AbortController === "function" ? new AbortController() : null;
   const b = init.body;
@@ -36,7 +59,7 @@ function apiRequest(url, init = {}) {
   const timer = ctl ? setTimeout(() => { timedOut = true; ctl.abort(); }, sendsFile ? API_UPLOAD_DEADLINE_MS : API_DEADLINE_MS) : null;
   if (ctl && init.signal) { if (init.signal.aborted) ctl.abort(); else init.signal.addEventListener("abort", () => ctl.abort()); }
   apiInFlight += 1;
-  return fetch(withLocale(url), { ...init, signal: ctl ? ctl.signal : init.signal, headers: { ...init.headers, "Accept-Language": getLang() } })
+  return fetch(withLocale(url), { ...init, signal: ctl ? ctl.signal : init.signal, headers: { ...withLatestToken(init.headers), "Accept-Language": getLang() } })
     .then(r => { clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1); return r; }, e => {
       clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1);
       if (timedOut) { const err = new Error(tr("The connection timed out. Try again.")); err.status = 0; err.code = "network.timeout"; throw err; }
@@ -378,6 +401,11 @@ const writeAuth = (token, user, remember = true) => {
   try { (keep ? localStorage : sessionStorage).setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {}
   try { (keep ? sessionStorage : localStorage).removeItem(AUTH_KEY); } catch {}
 };
+// A session's token is renewed once it is an hour old, for someone who used the dashboard in the last
+// 30 minutes, checked every 5 minutes (part 368, DASH-23).
+const SESSION_RENEW_AFTER_MS = 60 * 60000;
+const SESSION_IDLE_MS = 30 * 60000;
+const SESSION_RENEW_CHECK_MS = 5 * 60000;
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} try { sessionStorage.removeItem(AUTH_KEY); } catch {} };
 // The device id every sign-in sends for the second sign-in step (Step 232, Part C; STEP225_CONTRACT.md):
 // made once with crypto.randomUUID() and kept as ocsa-device-id. A browser that refuses storage makes a
@@ -1259,7 +1287,7 @@ export default function AdminDashboard() {
   // none. Choose your PIN goes with the session.
   const [signedOutWords, setSignedOutWords] = useState("");
   const [mustSetPin, setMustSetPin] = useState(false);
-  const signOut = useCallback((words) => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
+  const signOut = useCallback((words) => { clearAuth(); renewedTokens.clear(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
   // A session that was signed in and ends by itself lets this computer's alerts go (DASH-41).
   const signedInNow = useRef(false);
   useEffect(() => { signedInNow.current = !!token; }, [token]);
@@ -1272,6 +1300,34 @@ export default function AdminDashboard() {
     if (pushSupported() && pushPermission() === "granted") { try { await Promise.race([turnOffComputerAlerts(af), new Promise(resolve => setTimeout(resolve, SIGN_OUT_PUSH_MS))]); } catch (e) {} }
     signOut();
   };
+  // The session is renewed while someone uses the dashboard (part 368, DASH-23): every 5 minutes, and at
+  // a click or a key at most once a minute, a token an hour old or more goes to POST /api/auth/renew
+  // when the person clicked or typed in the last 30 minutes. The new token is kept where the session is
+  // kept and stands in for the old one on every call. A dashboard left alone keeps its token's 12 hours
+  // and then signs out, as before. A refusal ends the session the way any 401 does; a renewal that does
+  // not answer is tried at the next check.
+  const userNow = useRef(null);
+  useEffect(() => { userNow.current = user; }, [user]);
+  useEffect(() => {
+    if (!token || mustSetPin) return undefined;
+    let used = Date.now(), checked = 0, busy = false, alive = true;
+    const check = async () => {
+      if (busy || !alive) return;
+      const cur = latestToken(token), at = tokenIssuedAt(cur), now = Date.now();
+      if (at === null || now - at < SESSION_RENEW_AFTER_MS || now - used > SESSION_IDLE_MS) return;
+      busy = true;
+      try {
+        const d = await apiFetch("/api/auth/renew", { method: "POST", token: cur });
+        if (alive && d && typeof d.token === "string" && d.token && d.token !== cur) { renewedTokens.set(cur, d.token); writeAuth(d.token, userNow.current, rememberRef.current); }
+      } catch (e) { console.warn("Session renew:", e.message); }
+      finally { busy = false; }
+    };
+    const touch = () => { used = Date.now(); if (checked === 0 || used - checked >= 60000) { checked = used || 1; check(); } };
+    const iv = setInterval(check, SESSION_RENEW_CHECK_MS);
+    window.addEventListener("pointerdown", touch, true);
+    window.addEventListener("keydown", touch, true);
+    return () => { alive = false; clearInterval(iv); window.removeEventListener("pointerdown", touch, true); window.removeEventListener("keydown", touch, true); };
+  }, [token, mustSetPin]);
   // A 403 auth.mustSetPin from any route draws Choose your PIN and nothing else (STEP283_CONTRACT.md
   // section 1.1), for the person signed in.
   useEffect(() => { const h = () => setMustSetPin(true); window.addEventListener("ocsa-must-set-pin", h); return () => window.removeEventListener("ocsa-must-set-pin", h); }, []);
@@ -4767,25 +4823,39 @@ function OpsPage({ af, t, allStaff }) {
   </div>);
 }
 
-// ===== CHECKLIST RESULTS (part 358) =====
+// ===== CHECKLIST RESULTS (parts 358 and 368) =====
 // What was done at a site on any day, on the dashboard itself: one site on one day, a site over a range
-// of days, or every site at once, with a report laid out for paper. Everything is read from the kept
+// of days, or every site at once, with a report laid out for paper. A site is read from its kept
 // checklist record, GET /api/sites/:id/checklist-record (the API's Step 238, management, 31 days at
-// most), which answers each day's items with whether each was done, when, by whom and every check.
-// The record names no shift on an item, so a site with two or more shifts (the day's schedule, GET
-// /api/sites/:siteId/shift-blocks/schedule) is read once for each shift, and an item every shift's read
-// holds is one tied to no shift, drawn once under Any shift. A shift's window is its timed blocks' on
-// that schedule, or its sessions' when it has none. Who worked is who started that shift (GET
-// /api/shift-sessions/by-site, Live Ops' read) and who checked its work, and the repeating work's last
-// check is Periodic work's (GET /api/periodic-work). Counting is the checklist's own: per visit, daily
+// most), once for the site and the days: each day's items with whether each was done, when, by whom,
+// every check, and since the API's part 363 the item's shift, null for one tied to no shift, which is
+// drawn once under Any shift at a site with two or more shifts (the day's schedule, GET
+// /api/sites/:siteId/shift-blocks/schedule). A shift's window is the schedule's startTime and endTime
+// for it, the end on the next day when crossesMidnight, or its sessions' when it has no timed block.
+// Who worked is who started that shift (GET /api/shift-sessions/by-site, Live Ops' read) and who checked
+// its work, and the repeating work's last check is Periodic work's on the day shown (GET
+// /api/periodic-work?siteId=&on=). Counting on a site's page is the checklist's own: per visit, daily
 // and every other day work due that day, done of due; weekly to seasonal work in its own section; as
-// needed never counted. Times are on the company's clock, and today is the company's checklist day,
-// from 4:00 AM. Today is read again every 30 seconds while the page is on screen; a past day is read
-// once. The view lives in the address, #checklist/<site or all>/<period>[/<shift>], the period
-// today, yesterday, last7, month, one day, or two days joined by "..".
+// needed never counted. All sites is one read, GET /api/reports/checklist-summary?from=&to=, which
+// counts every item the record lists as due, weekly to seasonal work included. Times are on the
+// company's clock, and today is the company's checklist day, from checklistDayStartsAt on GET
+// /api/settings (4:00 AM until it is read). Today is read again every 30 seconds while the page is on
+// screen; a past day is read once. The view lives in the address, #checklist/<site or all>/<period>
+// [/<shift>], the period today, yesterday, last7, month, one day, or two days joined by "..".
 const CR_TZ = clientConfig.company.timeZone;
-// The checklist day starts at 4:00 AM on the company's clock, the API's default for it.
+// The checklist day starts at 4:00 AM on the company's clock, the API's default for it, until the
+// company's own time is read from GET /api/settings, once a session (part 368).
 const CR_DAY_STARTS = 4 * 60;
+const crDayStart = { minutes: CR_DAY_STARTS, read: false };
+function crReadDayStart(af) {
+  if (crDayStart.read) return Promise.resolve(crDayStart.minutes);
+  return af("/api/settings").then(d => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String((d && d.checklistDayStartsAt) || ""));
+    if (m && Number(m[1]) < 24 && Number(m[2]) < 60) crDayStart.minutes = Number(m[1]) * 60 + Number(m[2]);
+    crDayStart.read = true;
+    return crDayStart.minutes;
+  }).catch(() => crDayStart.minutes);
+}
 const CR_LIVE_MS = 30000;
 const CR_QUARTER = 15 * 60000;
 const crClock = new Intl.DateTimeFormat("en-US", { timeZone: CR_TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -4797,7 +4867,7 @@ function crWall(at) {
 }
 const crAddDays = (day, n) => { const d = new Date(day + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const crDaysIn = (from, to) => { const out = []; for (let d = from; d <= to && out.length < 400; d = crAddDays(d, 1)) out.push(d); return out; };
-const crToday = () => { const w = crWall(Date.now()); return w.minutes < CR_DAY_STARTS ? crAddDays(w.day, -1) : w.day; };
+const crToday = () => { const w = crWall(Date.now()); return w.minutes < crDayStart.minutes ? crAddDays(w.day, -1) : w.day; };
 // The instant a time on the company's clock names: minutes after the midnight that starts day.
 function crInstant(day, minutes) {
   const want = Date.parse(day + "T00:00:00Z") + minutes * 60000;
@@ -4849,31 +4919,14 @@ function crStats(items) {
     first: checks.length ? checks[0].at : null, last: checks.length ? checks[checks.length - 1].at : null };
 }
 
-// A shift's window on a day, from the schedule's timed blocks (an anytime block has none): { start,
-// end } as instants, or null, whatever order the schedule lists the blocks in. The blocks that start
-// before noon are read either on the day itself or as the next morning, whichever makes the shift the
-// shorter, so a night shift from 10:00 PM to 6:00 AM is eight hours and a day shift stays on its day.
-// The end is the latest end, and none when the block that starts last has no end of its own.
-const CR_MORNING_UNTIL = 12 * 60;
+// A shift's window on a day, from the schedule's answer (the API's part 363, helpers/blockSchedule.js
+// shiftWindow): { start, end } as instants, the start on the day and the end on the day or, when the
+// shift crosses midnight, on the next; null for a shift with no timed block that day.
 function crShiftWindow(shift, day) {
-  const timed = (shift && Array.isArray(shift.blocks) ? shift.blocks : []).filter(b => b && b.kind !== "anytime" && crMinutes(b.startTime) !== null);
-  if (timed.length === 0) return null;
-  const read = (next) => {
-    const spans = timed.map(b => {
-      const s = crMinutes(b.startTime), e = crMinutes(b.endTime);
-      const off = next && s < CR_MORNING_UNTIL ? 1 : 0;
-      return { at: crInstant(crAddDays(day, off), s), end: e === null ? null : crInstant(crAddDays(day, off + (e <= s ? 1 : 0)), e) };
-    });
-    const start = Math.min(...spans.map(x => x.at));
-    const lastStart = Math.max(...spans.map(x => x.at));
-    const ends = spans.filter(x => x.end !== null).map(x => x.end);
-    const latest = ends.length ? Math.max(...ends) : null;
-    const end = latest !== null && latest > start && spans.filter(x => x.at === lastStart).some(x => x.end !== null) ? latest : null;
-    return { start, end, span: Math.max(lastStart, latest || 0) - start };
-  };
-  const same = read(false), next = read(true);
-  const w = next.span < same.span ? next : same;
-  return { start: w.start, end: w.end };
+  const s = crMinutes(shift && shift.startTime);
+  if (s === null) return null;
+  const e = crMinutes(shift.endTime);
+  return { start: crInstant(day, s), end: e === null ? null : crInstant(crAddDays(day, shift.crossesMidnight === true ? 1 : 0), e) };
 }
 // Without a schedule, the window a shift's sessions give: the first start, and the last end once every
 // one has ended.
@@ -4924,62 +4977,51 @@ function crWhoWorked(g, people, multi) {
 }
 
 // Every read one site's view needs: the schedule of its last day (the site's shifts and that day's
-// windows), the record once for each shift, or once for the whole site, and on one day the people who
-// started a shift there and Periodic work's last checks. The answer is { notTracked, shifts, days,
-// people, periodic, multi }, each day { date, groups: [{ key, name, items }] }, or the API's refusal,
-// thrown in its own words.
+// windows), the record once for the site and the days, and on one day the people who started a shift
+// there and Periodic work on that day. The answer is { notTracked, shifts, days, people, periodic, multi },
+// each day { date, groups: [{ key, name, items }] }, or the API's refusal, thrown in its own words. At a
+// site with two or more shifts each item goes under its own shift, the schedule's shifts first, in their
+// order, then any other the record names, and an item with no shift under Any shift.
 async function crReadSite(af, siteId, from, to, today) {
   const sid = encodeURIComponent(siteId);
   const sched = await af("/api/sites/" + sid + "/shift-blocks/schedule?date=" + to).catch(() => null);
   const shifts = (sched && Array.isArray(sched.shifts) ? sched.shifts : []).filter(s => s && s.label);
   const multi = shifts.length >= 2;
-  const labels = multi ? shifts.map(s => s.label) : [null];
-  const base = "/api/sites/" + sid + "/checklist-record?from=" + from + "&to=" + to;
   const oneDay = from === to;
-  const [recs, board, periodic] = await Promise.all([
-    Promise.all(labels.map(l => af(base + (l ? "&shift=" + encodeURIComponent(l) : "")))),
+  const [rec, board, periodic] = await Promise.all([
+    af("/api/sites/" + sid + "/checklist-record?from=" + from + "&to=" + to),
     oneDay ? af("/api/shift-sessions/by-site" + (from === today ? "?date=" + from : "?start_date=" + from + "&end_date=" + from)).catch(() => null) : null,
-    oneDay ? af("/api/periodic-work?siteId=" + sid).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
+    oneDay ? af("/api/periodic-work?siteId=" + sid + "&on=" + from).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
   ]);
-  if (recs.some(r => !r || typeof r !== "object")) throw new Error(tr("This did not load."));
-  if (recs.some(r => r.notTracked === true)) return { notTracked: true, shifts, days: [], people: [], periodic: null, multi };
-  if (recs.some(r => !Array.isArray(r.days))) throw new Error(tr("This did not load."));
+  if (!rec || typeof rec !== "object") throw new Error(tr("This did not load."));
+  if (rec.notTracked === true) return { notTracked: true, shifts, days: [], people: [], periodic: null, multi };
+  if (!Array.isArray(rec.days)) throw new Error(tr("This did not load."));
   const nameOf = (l) => { const s = shifts.find(x => x.label === l); return (s && (s.displayLabel || s.label)) || l; };
   const one = shifts.length === 1 ? shifts[0].label : null;
+  const labels = shifts.map(s => s.label);
   const days = crDaysIn(from, to).map(date => {
-    const held = new Map();
-    recs.forEach((r, ri) => {
-      const d0 = r.days.find(x => x && x.date === date);
-      ((d0 && Array.isArray(d0.items)) ? d0.items : []).forEach(it => { const k = String(it.taskId); if (!held.has(k)) held.set(k, { item: it, in: [] }); held.get(k).in.push(labels[ri]); });
-    });
-    if (!multi) return { date, groups: [{ key: one || "*", name: one ? nameOf(one) : tr("Whole site"), items: Array.from(held.values()).map(h => h.item) }] };
-    const groups = labels.map(l => ({ key: l, name: nameOf(l), items: [] })).concat([{ key: "*", name: tr("Any shift"), items: [] }]);
-    held.forEach(h => { const k = h.in.length >= labels.length ? "*" : h.in[0]; groups.find(g => g.key === k).items.push(h.item); });
-    return { date, groups: groups.filter(g => g.key !== "*" || g.items.length > 0) };
+    const d0 = rec.days.find(x => x && x.date === date);
+    const items = d0 && Array.isArray(d0.items) ? d0.items : [];
+    if (!multi) return { date, groups: [{ key: one || "*", name: one ? nameOf(one) : tr("Whole site"), items }] };
+    const keys = labels.concat(keptOnce(items.map(i => i.shift).filter(l => l && labels.indexOf(l) < 0)));
+    const groups = keys.map(l => ({ key: l, name: nameOf(l), items: items.filter(i => i.shift === l) })).concat([{ key: "*", name: tr("Any shift"), items: items.filter(i => !i.shift) }]);
+    return { date, groups: groups.filter(g => labels.indexOf(g.key) >= 0 || g.items.length > 0) };
   });
   const mine = board && Array.isArray(board.sites) ? board.sites.find(s => s && String(s.siteId) === String(siteId)) : null;
   // Today's read answers every session still open, whatever its day (Live Ops' board keeps a night shift
   // on it); one that started on another day is not this day's work.
   const people = (mine && Array.isArray(mine.people) ? mine.people : []).filter(p => !p.sessionDate || p.sessionDate === from);
-  return { notTracked: false, site: recs[0].site || null, shifts, days, multi, people, periodic };
+  return { notTracked: false, site: rec.site || null, shifts, days, multi, people, periodic };
 }
-// Every site's record for the period, four reads at a time; one day is read with the six days before it,
-// so its card can draw a week's trend. { span, bySite: { id: { rec } or { error, status } } }.
-async function crReadAll(af, list, from, to) {
+// Every site's count for the period in one read, GET /api/reports/checklist-summary (the API's part 363);
+// one day is read with the six days before it, so its card can draw a week's trend. { span, bySite: { id:
+// { notTracked, days: [{ date, due, done, checks }] } } }, or the API's refusal, thrown in its own words.
+async function crReadAll(af, from, to) {
   const span = from === to ? { from: crAddDays(to, -6), to } : { from, to };
+  const r = await af("/api/reports/checklist-summary?from=" + span.from + "&to=" + span.to);
+  if (!r || !Array.isArray(r.sites)) throw new Error(tr("This did not load."));
   const bySite = {};
-  let next = 0;
-  const lane = async () => {
-    while (next < list.length) {
-      const s = list[next];
-      next += 1;
-      try {
-        const r = await af("/api/sites/" + encodeURIComponent(s.id) + "/checklist-record?from=" + span.from + "&to=" + span.to);
-        bySite[String(s.id)] = r && (r.notTracked === true || Array.isArray(r.days)) ? { rec: r } : { error: tr("This did not load.") };
-      } catch (e) { bySite[String(s.id)] = { error: e.message || tr("This did not load."), status: e.status || 0 }; }
-    }
-  };
-  await Promise.all([0, 1, 2, 3].map(lane));
+  r.sites.forEach(x => { if (x && x.siteId != null) bySite[String(x.siteId)] = { notTracked: x.notTracked === true, days: Array.isArray(x.days) ? x.days : [] }; });
   return { span, bySite };
 }
 // The task list's rows for a view, as shown: each day's groups, zone by zone, through the filters.
@@ -5220,6 +5262,14 @@ function printChecklistReport(model) {
 const crPill = (t, on) => ({ minHeight: 44, padding: "6px 14px", borderRadius: R.pill, border: "1px solid " + (on ? t.goldBorder : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
 const crHead = (t) => ({ padding: "10px 12px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, textAlign: "left", verticalAlign: "bottom" });
 function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }) {
+  // The checklist day's start is read first, once a session, so today is the company's own (part 368).
+  const [dayStartRead, setDayStartRead] = useState(crDayStart.read);
+  useEffect(() => {
+    if (dayStartRead) return undefined;
+    let alive = true;
+    crReadDayStart(af).then(() => { if (alive) setDayStartRead(true); });
+    return () => { alive = false; };
+  }, [af, dayStartRead]);
   const today = crToday();
   const siteId = route[0] && String(route[0]) !== "all" ? decodeURIComponent(String(route[0])) : "";
   const period = crPeriod(route[1] ? decodeURIComponent(String(route[1])) : "today", today);
@@ -5233,8 +5283,6 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   const viewKey = [siteId || "all", period.from, period.to, allKey].join("|");
   const keyNow = useRef(viewKey);
   keyNow.current = viewKey;
-  const activeRef = useRef(active);
-  activeRef.current = active;
   const [read, setRead] = useState({ key: "", data: null, error: null, at: 0 });
   const [dates, setDates] = useState(null);
   const [zone, setZone] = useState("");
@@ -5244,7 +5292,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   const readNow = useCallback((quiet) => {
     const key = keyNow.current;
     const [sid, from, to] = key.split("|");
-    const job = sid !== "all" ? crReadSite(af, sid, from, to, crToday()) : crReadAll(af, activeRef.current, from, to);
+    const job = sid !== "all" ? crReadSite(af, sid, from, to, crToday()) : crReadAll(af, from, to);
     job.then(data => { if (keyNow.current === key) setRead({ key, data, error: null, at: Date.now() }); })
       .catch(e => { if (keyNow.current === key) setRead(prev => (quiet && prev.key === key && prev.data ? prev : { key, data: null, error: e, at: Date.now() })); });
   }, [af]);
@@ -5253,7 +5301,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   const here = window.location.hash.replace(/^#/, "").split("/")[0] === "checklist";
   // A new view is read at once, and today again every 30 seconds while the page is on screen.
   useEffect(() => {
-    if (!here) return undefined;
+    if (!here || !dayStartRead) return undefined;
     setZone("");
     readNow(false);
     if (!live) return undefined;
@@ -5261,7 +5309,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     const back = () => { if (!document.hidden) readNow(true); };
     document.addEventListener("visibilitychange", back);
     return () => { clearInterval(iv); document.removeEventListener("visibilitychange", back); };
-  }, [viewKey, live, readNow, here]);
+  }, [viewKey, live, readNow, here, dayStartRead]);
   // A zone picked on one shift may not be on another.
   useEffect(() => { setZone(""); }, [shiftPick]);
   const ready = read.key === viewKey;
@@ -5307,22 +5355,22 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   // ---- All sites ----
   if (!siteId) {
     const span = data.span;
+    // Each card's numbers are the summary's: every step the record lists as due, done of due, and every
+    // check. A site the summary does not name did not load.
     const cards = active.map(s => {
-      const got = data.bySite[String(s.id)] || {};
-      const rec = got.rec || null;
+      const rec = data.bySite[String(s.id)] || null;
+      const got = rec ? {} : { error: tr("This did not load.") };
       const notTracked = siteIsReference(s) || !!(rec && rec.notTracked === true);
-      const recDays = rec && Array.isArray(rec.days) ? rec.days : [];
+      const recDays = rec ? rec.days : [];
       const inPeriod = recDays.filter(d => d && d.date >= period.from && d.date <= period.to);
-      const st = crStats([].concat(...inPeriod.map(d => d.items || [])));
-      const trend = recDays.map(d => ({ date: d.date, pct: crStats(d.items || []).pct }));
+      const sum = (k) => inPeriod.reduce((n, d) => n + (Number(d[k]) || 0), 0);
+      const st = { due: sum("due"), done: sum("done"), checks: sum("checks") };
+      st.pct = crPct(st.done, st.due);
+      const trend = recDays.map(d => ({ date: d.date, pct: crPct(Number(d.done) || 0, Number(d.due) || 0) }));
       return { s, got, rec, notTracked, st, trend };
     });
-    const refusals = cards.filter(c => c.got.error);
-    if (cards.length > 0 && refusals.length === cards.length && refusals.every(c => c.got.status === 400)) {
-      return (<div data-checklist-results="" data-cr-view="refused">{pickers}{status}<Crd t={t}><div data-cr-refusal="" role="alert" style={{ fontSize: 13, color: RD, lineHeight: 1.5 }}>{refusals[0].got.error}</div></Crd></div>);
-    }
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")} {tr("A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included.")}</div>
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -5332,7 +5380,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
               : c.got.error ? <div style={{ fontSize: 12, color: RD, padding: "18px 0" }}>{c.got.error}</div>
                 : <>
                   <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
-                  <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks.length)}</div>
+                  <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks)}</div>
                   {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div><LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /></div> : null}
                 </>}
             <div style={{ marginTop: "auto" }}><Btn t={t} v="ghost" data-cr-open-site={String(c.s.id)} onClick={e => { e.stopPropagation(); go(String(c.s.id), period.token, ""); }} style={{ width: "100%" }}>{tr("Open this site")}</Btn></div>
@@ -5408,7 +5456,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   })();
   const dayOf = (at) => (at ? keptDay(crWall(Date.parse(at)).day) : "");
   const rCols = [
-    { header: tr("Task"), tdStyle: { minWidth: 170 }, render: r => (<span data-cr-repeating={String(r.item.taskId)}><span style={{ color: t.text }}>{shownLabel(r.item)}</span><div style={{ fontSize: 11, color: t.textMut }}>{shownZone(r.item)}</div></span>) },
+    { header: tr("Task"), tdStyle: { minWidth: 170 }, render: r => (<span data-cr-repeating={String(r.item.taskId)} data-cr-last-done={r.pw && r.pw.lastDoneAt ? r.pw.lastDoneAt : undefined} data-cr-due-by={r.pw && r.pw.dueBy ? r.pw.dueBy : undefined}><span style={{ color: t.text }}>{shownLabel(r.item)}</span><div style={{ fontSize: 11, color: t.textMut }}>{shownZone(r.item)}</div></span>) },
     { header: tr("Period"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => periodicFrequencyWord(r.item.frequency) },
     { header: tr("On this day"), tdStyle: { color: t.textSec, minWidth: 150 }, render: r => { if (!r.rec) return tr("Not due on this day"); const c = crChecksOf(r.rec); return c.length ? tr("Done at {0} by {1}", crTime(c[0].at), c[0].who || "--") : r.rec.due ? <span style={{ color: OR, fontWeight: 600 }}>{tr("Due, not done")}</span> : tr("Not due on this day"); } },
     { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.pw && r.pw.lastDoneAt ? dayOf(r.pw.lastDoneAt) + (periodicByOf(r.pw) ? ", " + periodicByOf(r.pw) : "") : "--") },
@@ -5463,7 +5511,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     </ChartCard>}
     {repeating.length > 0 && <div style={{ marginTop: 14 }}>
       <SecT t={t}>{tr("Repeating work")}</SecT>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Weekly, monthly, quarterly and seasonal tasks. Last done and Due by are as of today.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Weekly, monthly, quarterly and seasonal tasks.")}</div>
       <DataTable t={t} columns={rCols} rows={repeating} rowKey={r => String(r.item.taskId)} />
     </div>}
     <div style={{ marginTop: 14 }}>

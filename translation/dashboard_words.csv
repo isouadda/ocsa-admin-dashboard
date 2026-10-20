@@ -4789,7 +4789,6 @@ Steps done of steps due in each zone. Click a zone to show only its tasks.,Pasos
 All zones,Todas las zonas,"Checklist Results, the zones of a day"
 {0}: {1} of {2},{0}: {1} de {2},"Checklist Results, a zone and its steps done of due"
 Repeating work,Trabajo que se repite,"Checklist Results, a day's weekly to seasonal work"
-"Weekly, monthly, quarterly and seasonal tasks. Last done and Due by are as of today.","Tareas semanales, mensuales, trimestrales y de temporada. Última vez y Fecha límite son a hoy.","Checklist Results, Repeating work"
 Not done only,Solo lo que no se hizo,"Checklist Results, the task list"
 Search tasks,Buscar tareas,"Checklist Results, the task list"
 Zone: {0}. Show every zone,Zona: {0}. Mostrar todas las zonas,"Checklist Results, the task list shown for one zone"
@@ -5182,3 +5181,5 @@ Hours are a number from 0 to 400.,Las horas son un número de 0 a 400.,"Leave ba
 {0} lines cannot be read. Fix the file and choose it again.,{0} líneas no se pueden leer. Corrija el archivo y elíjalo de nuevo.,"Leave balances, Hours files, the upload window"
 {0} line read. Post the hours to match each person and post their leave.,{0} línea leída. Registre las horas para encontrar a cada persona y registrar sus permisos.,"Leave balances, Hours files, the upload window, when the count is one"
 {0} lines read. Post the hours to match each person and post their leave.,{0} líneas leídas. Registre las horas para encontrar a cada persona y registrar sus permisos.,"Leave balances, Hours files, the upload window"
+"Weekly, monthly, quarterly and seasonal tasks.","Tareas semanales, mensuales, trimestrales y de temporada.","Checklist Results, Repeating work"
+"A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included.","Una tarjeta cuenta cada paso que tocaba en el sitio, incluido el trabajo semanal, mensual, trimestral y de temporada.","Checklist Results, All sites"
