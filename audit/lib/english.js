@@ -172,6 +172,13 @@ function englishLeftOn(texts, calls) {
   localeDateWords("es-US").forEach((v) => allowed.add(v));
   const served = servedValues(calls);
   served.forEach((v) => allowed.add(v));
+  // A line is read with its document codes taken out (residue), so a served name that carries one, as
+  // the handbook's leave policy "Manual del empleado (OCSA-HR-002)" does, is also allowed without it, or
+  // it could never match itself (part 368).
+  served.forEach((v) => {
+    const bare = String(v).replace(DOC_CODES, " ").replace(/\(\s*\)/g, " ").replace(/\s+/g, " ").trim();
+    if (bare && bare !== String(v).trim() && /[A-Za-z]{2}/.test(bare)) allowed.add(bare);
+  });
   // An avatar draws a person's initials, which are that person's name written short. Any run of
   // capitals that a served name begins its words with is the same data, not a word to translate.
   served.forEach((v) => {

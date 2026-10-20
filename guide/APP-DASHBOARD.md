@@ -1479,7 +1479,7 @@ Who can do this: admins see every warning; supervisors see the warnings they iss
 3. Narrow the table with **Every step** (**Todos los pasos**), **Every category** (**Todas las categorías**), **All sites** (**Todos los sitios**), **Everyone** (**Todos**), **All statuses** (**Todos los estados**), **From** (**Desde**) and **To** (**Hasta**). Admins also have **Issued by anyone** (**Emitida por cualquiera**). In **Everyone** (**Todos**) and **Issued by anyone** (**Emitida por cualquiera**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to find a person.
 4. Click a row to open the warning. **Issue a warning** (**Emitir una advertencia**) at the top starts a new one: pick the person and click **Next** (**Siguiente**); see the entries on issuing a warning.
 5. **Export** (**Exportar**) saves the rows shown as a spreadsheet file.
-If it does not work: the page shows once the server keeps warnings. The list shows 50 warnings at a time, newest first, with the filters picked; **Show more** (**Mostrar más**) shows the next ones, and the counts by step cover every warning the filters find. **Export** (**Exportar**) saves every warning the filters find, not only the ones shown.
+If it does not work: the page shows once the server keeps warnings. The list shows 50 warnings at a time, newest first, with the filters picked; **Show more** (**Mostrar más**) shows the next ones, and the counts by step cover every warning the filters find. **Export** (**Exportar**) saves every warning the filters find, every page of them.
 Words people use for this: discipline, warnings, write-ups, who has been written up, final warning, discipline report, disciplina.
 Picture: discipline-page
 Last checked: 2026-10-20
@@ -2743,7 +2743,7 @@ Who can do this: admins and supervisors, at the sites they can see, and anyone g
 3. The form opens with the issue's site, its zone as the area, and its title and description as what is wrong. Under **The issue's photos to send** (**Las fotos del problema que se envían**), keep ticked the photos to send.
 4. Fill in the building and the floor, choose the category and the urgency, and check who it goes to.
 5. Click **Send to building maintenance** (**Enviar a mantenimiento del edificio**). The issue then shows **Sent as {0}** (**Enviado como {0}**) with the reference, and **Open the request** (**Abrir la solicitud**) opens it.
-If it does not work: An issue goes to the building once. When it was already sent, the issue names the request instead of sending it again.
+If it does not work: An issue goes to the building once. When it was already sent, the issue names the request and nothing goes again.
 Words people use for this: send to the building, building maintenance, work order from an issue, landlord, leak, broken, maintenance request.
 Picture: issue-send-maintenance
 Last checked: 2026-10-20

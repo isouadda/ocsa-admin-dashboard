@@ -31,7 +31,9 @@ module.exports = (ctx) => {
     "/api/hr-cases": { name: "hr_cases", key: "cases", rows: (j) => j && j.cases, at: (r) => r.createdAt },
     "/api/discipline": { name: "discipline", key: "warnings", rows: (j) => j && j.warnings, at: null, keep: (j) => ({ counts: j.counts }) },
     "/api/hr/training": { name: "training", key: "records", rows: (j) => j, at: null },
-    "/api/hr/documents": { name: "documents", key: "documents", rows: (j) => j, at: (r) => r.uploaded_at || r.created_at },
+    // The documents keep the order the layers under this one answer, as the unpaged answer does, so the
+    // pages hold the rows the older cases open on the table's first page.
+    "/api/hr/documents": { name: "documents", key: "documents", rows: (j) => j, at: null },
     "/api/signatures": { name: "signatures", key: "requests", rows: (j) => j && j.requests, at: (r) => r.requestedAt },
     "/api/issues": { name: "issues", key: "issues", rows: (j) => j, at: (r) => r.reported_at || r.created_at, status: true },
     "/api/inspections/scheduled": { name: "inspections", key: "inspections", rows: (j) => j, at: (r) => r.scheduled_date },

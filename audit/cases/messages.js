@@ -617,7 +617,11 @@ async function run({ d, results, seed, stubs, lang }) {
   const newRow = (await annRows(d))[0];
   const newWant = { title: WRITTEN[lang].title, meta: [w.chosen + " (2)", fill(w.by, "Dana Whitlock")], reaches: fill(w.reaches, 2, 1) };
   const newOk = !!newRow && newRow.title === newWant.title && newRow.meta[0] === newWant.meta[0] && newRow.meta[1] === newWant.meta[1] && newRow.reaches === newWant.reaches;
-  results.check("page", "page/announcements/send-sends-what-was-written" + tail, !!annPost && JSON.stringify(annPost.body) === wantAnn && annToast === w.announcementSent && newOk,
+  // Since part 368 an announcement also carries the clientId the page made for it (API-108), set aside here.
+  const annSent = annPost && annPost.body ? Object.assign({}, annPost.body) : null;
+  const annId = annSent ? annSent.clientId : undefined;
+  if (annSent) delete annSent.clientId;
+  results.check("page", "page/announcements/send-sends-what-was-written" + tail, !!annSent && JSON.stringify(annSent) === wantAnn && /^[0-9a-f-]{36}$/i.test(String(annId || "")) && annToast === w.announcementSent && newOk,
     !pressedAnn ? "no button reads " + JSON.stringify(w.sendAnnouncement)
       : !annPost ? "the page sent no POST /api/announcements"
         : JSON.stringify(annPost.body) !== wantAnn ? "the page sent " + JSON.stringify(annPost.body) + " where it should send " + wantAnn
