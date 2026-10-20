@@ -11,6 +11,13 @@
 //                reference the issue shows; a site's contacts, added, edited and turned off; a site's
 //                own requests; the business days in Settings; a notice from the bell and a phone alert;
 //                a person without the capability
+//   leave        the side panel item under HR Records; the balances by kind for a year, each filter sent
+//                and kept on the next page, Download CSV; a person's ledger; Adjust, its reason, asked once,
+//                sent once with a clientId; read without manage_leave_balances; the policies, the handbook's
+//                read only, an edit that sends what changed, a new policy with a kind of its own; a site's
+//                policy on the Sites tab and its page, a person's on the HR folder; hours files, a line that
+//                cannot be read or matched, and the posting; missing hire dates; Enter starting balances;
+//                the time off window's balance, warnings and Take back approval
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -447,9 +454,341 @@ async function maintenanceCases(ctx, lang) {
   });
 }
 
+
+// ---- Section 2: leave balances ------------------------------------------------------------------------
+const leaveRows = (d) => d.page.evaluate(() => Array.from(document.querySelectorAll("[data-leave-row]")).map((x) => x.getAttribute("data-leave-row")));
+const leaveCall = (d, mark) => reads(d, mark, /^\/api\/leave\/balances$/).pop();
+async function leaveCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/leave/" + x;
+
+  // The side panel item under HR Records for an admin; a supervisor reads no balances and has none.
+  await withDriver(ctx, { name: "leave-nav", lang }, async (d) => {
+    const items = await navIds(d);
+    const at = items.indexOf("leave");
+    results.check(KIND, id("side-panel-item-under-hr-records"), at >= 0 && items[at - 1] === "hr",
+      at < 0 ? "the side panel has no Leave balances item: " + items.join(", ") : "Leave balances follows " + items[at - 1] + " where HR Records is meant");
+  });
+  await withDriver(ctx, { name: "leave-nav-supervisor", lang, persona: "supervisor" }, async (d) => {
+    const items = await navIds(d);
+    results.check(KIND, id("guard-a-supervisor-has-no-leave-balances"), items.indexOf("leave") < 0, "the side panel offers a supervisor Leave balances: " + items.join(", "));
+  });
+
+  // The list: everyone's balances by kind for a year, and each filter sent with the list.
+  await withDriver(ctx, { name: "leave-list", lang }, async (d) => {
+    let mark = d.mark();
+    await goHash(d, "leave");
+    await until(d, "[data-leave-row]");
+    const first = leaveCall(d, mark);
+    const rows = await leaveRows(d);
+    const chip = await textOf(d, '[data-leave-row="u-staff-7"]');
+    const chips = await d.page.locator('tr:has([data-leave-row="u-staff-7"]) [data-leave-chip]').count();
+    results.check(KIND, id("balances-by-kind-for-the-year"), !!first && q(first).get("year") === "2026" && q(first).has("cursor") && rows.length === 10 && chips === 2,
+      !first ? "the page read no balances" : "it read " + say(first.query) + " and lists " + rows.length + " people, " + chips + " kinds for the clinic's day porter");
+    const tries = [["site", seed.SITES[1].id, "siteId", ["u-staff-7", "u-staff-9"]], ["policy", "lp-2", "policyId", ["u-staff-7", "u-staff-9"]], ["role", "day_porter", "role", ["u-staff-7", "u-staff-10"]], ["status", "all", "status", null], ["year", "2025", "year", null]];
+    const missed = [];
+    for (const [f, v, key, want] of tries) {
+      mark = d.mark();
+      await pickSelect(d, '[data-leave-filter="' + f + '"]', v);
+      await until(d, "[data-leave-row]", 3000);
+      const c = leaveCall(d, mark);
+      const got = await leaveRows(d);
+      if (!c || q(c).get(key) !== v || !q(c).has("cursor") || (want && got.join(",") !== want.join(","))) missed.push(f + " sent " + (c ? c.query : "nothing") + " and shows " + got.join(","));
+      await pickSelect(d, '[data-leave-filter="' + f + '"]', f === "status" ? "active" : f === "year" ? "2026" : "");
+    }
+    mark = d.mark();
+    await d.page.locator('[data-leave-filter="q"]').fill("Okon");
+    await d.page.locator('[data-leave-filter="q"]').press("Enter");
+    await d.settle(400);
+    const qc = leaveCall(d, mark);
+    const found = await leaveRows(d);
+    if (!qc || q(qc).get("q") !== "Okon" || found.join(",") !== "u-staff-6") missed.push("search sent " + (qc ? qc.query : "nothing") + " and shows " + found.join(","));
+    results.check(KIND, id("each-filter-is-sent-with-the-list"), missed.length === 0, missed.join("; "));
+  });
+
+  // Show more until nextCursor is empty, the filters kept.
+  await withDriver(ctx, { name: "leave-paging", lang, arm: (s) => s.setScene368({ leaveMany: true }) }, async (d) => {
+    await goHash(d, "leave");
+    await until(d, "[data-leave-row]");
+    await pickSelect(d, '[data-leave-filter="site"]', seed.SITES[0].id);
+    await until(d, "[data-leave-row]");
+    const first = (await leaveRows(d)).length;
+    const more = await has(d, "[data-leave-more]");
+    const mark = d.mark();
+    if (more) { await d.page.locator("[data-leave-more]").click(); await d.settle(500); }
+    const next = leaveCall(d, mark);
+    const all = await leaveRows(d);
+    results.check(KIND, id("show-more-with-the-filters"), first === 50 && more && !!next && !!q(next).get("cursor") && q(next).get("siteId") === seed.SITES[0].id && all.length === 58 && new Set(all).size === 58 && !(await has(d, "[data-leave-more]")),
+      !more ? "a first page of " + first + " offers no Show more" : !next ? "Show more read nothing" : "the next page was read with " + say(next.query) + ", and the list holds " + all.length);
+  });
+
+  // Download CSV sends the filters and format=csv, and saves the file the API names.
+  await withDriver(ctx, { name: "leave-csv", lang }, async (d) => {
+    await goHash(d, "leave");
+    await until(d, "[data-leave-row]");
+    await pickSelect(d, '[data-leave-filter="policy"]', "lp-2");
+    const mark = d.mark();
+    await d.page.locator("[data-leave-download]").click();
+    await d.settle(600);
+    const c = leaveCall(d, mark);
+    const files = await d.downloads();
+    const f = files.find((x) => /^leave-balances-2026\.csv$/.test(x.name));
+    results.check(KIND, id("download-csv-with-the-filters"), !!c && q(c).get("format") === "csv" && q(c).get("policyId") === "lp-2" && !!f && /user_id,name,employee_id/.test(f.body || ""),
+      !c ? "Download CSV read nothing" : "it read " + say(c.query) + " and saved " + say(files.map((x) => x.name)));
+  });
+
+  // A person's ledger: their policy and since when, the balances, and every row with who made it.
+  await withDriver(ctx, { name: "leave-ledger", lang }, async (d) => {
+    await goHash(d, "leave/balances/u-staff-7");
+    const open = await until(d, '[data-leave-person="u-staff-7"] [data-leave-ledger] tbody tr', 6000);
+    const policy = await textOf(d, "[data-leave-person-policy]");
+    const pto = await textOf(d, '[data-leave-balance="pto"]');
+    const kinds = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-leave-entry]")).map((x) => x.getAttribute("data-leave-entry")));
+    const fileLine = await textOf(d, '[data-leave-entry="accrual"]');
+    results.check(KIND, id("a-person-opens-their-ledger"), open && policy.indexOf("Clinic service agreement") >= 0 && policy.indexOf(d.say("Their site's policy")) >= 0 && pto.indexOf("5") === 0 && kinds.join(",") === "accrual,grant" && fileLine.indexOf("hours-february.csv") >= 0,
+      !open ? "#leave/balances/u-staff-7 opened no ledger" : "the policy reads " + say(policy) + ", PTO " + say(pto) + ", the rows " + say(kinds));
+  });
+
+  // Adjust: the reason is asked for, it asks once, and it sends a clientId.
+  await withDriver(ctx, { name: "leave-adjust", lang }, async (d, stubs) => {
+    await goHash(d, "leave/balances/u-staff-6");
+    await until(d, "[data-leave-adjust-open]", 6000);
+    await d.page.locator("[data-leave-adjust-open]").click();
+    await until(d, "[data-leave-adjust-form]");
+    await d.page.locator('[data-leave-adjust="hours"]').fill("-2");
+    let mark = d.mark();
+    await d.page.locator("[data-leave-adjust-save]").click();
+    await d.settle(300);
+    const noReason = writes(d, mark, "POST", /\/adjustments$/).length;
+    const said = await textOf(d, "[data-leave-adjust-refusal]");
+    await d.page.locator('[data-leave-adjust="reason"]').fill("Two hours used before the app kept leave");
+    await d.setConfirmAnswer(true);
+    mark = d.mark();
+    await d.page.locator("[data-leave-adjust-save]").dblclick();
+    await d.settle(700);
+    const posts = writes(d, mark, "POST", /^\/api\/leave\/people\/u-staff-6\/adjustments$/);
+    const b = posts[0] ? posts[0].body : {};
+    const asked = (await d.confirms()).length;
+    const bal = await textOf(d, '[data-leave-balance="paid_sick"]');
+    results.check(KIND, id("adjust-needs-a-reason"), noReason === 0 && said === d.say("Say why the balance changes."), noReason ? "an adjustment with no reason was sent" : "with no reason it said " + say(said));
+    results.check(KIND, id("adjust-asks-once-and-sends-once"), posts.length === 1 && asked === 1 && b.kind === "paid_sick" && b.hours === -2 && b.reason === "Two hours used before the app kept leave" && /^[A-Za-z0-9_-]{8,64}$/.test(String(b.clientId || "")) && bal.indexOf("6") === 0,
+      "it asked " + asked + " times and sent " + posts.length + ": " + say(b) + "; the balance reads " + say(bal));
+  });
+
+  // Without manage_leave_balances the balances still read, and nothing is offered to change them.
+  await withDriver(ctx, { name: "leave-read-only", lang, arm: (s) => s.setScene368({ off: { [seed.PEOPLE.admin.id]: ["manage_leave_balances"] } }) }, async (d) => {
+    await goHash(d, "leave");
+    await until(d, "[data-leave-row]");
+    const tabs = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-leave-page] button")).map((b) => (b.innerText || "").trim()));
+    await goHash(d, "leave/balances/u-staff-6");
+    await until(d, "[data-leave-person]", 6000);
+    const adjust = await has(d, "[data-leave-adjust-open]");
+    await goHash(d, "leave/policies");
+    await until(d, "[data-leave-policy-card]");
+    const add = await has(d, "[data-leave-policy-new]");
+    results.check(KIND, id("without-manage-nothing-changes-a-balance"), (await has(d, "[data-leave-page]")) && !adjust && !add && tabs.indexOf(d.say("Enter starting balances")) < 0,
+      adjust ? "Adjust is offered" : add ? "New leave policy is offered" : "the tabs read " + say(tabs));
+  });
+
+  // Policies: the handbook's is read only; a policy names its sites and people; an edit sends what changed.
+  await withDriver(ctx, { name: "leave-policies", lang }, async (d, stubs) => {
+    await goHash(d, "leave/policies");
+    await until(d, "[data-leave-policy-card]");
+    const cards = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-leave-policy-card]")).map((x) => x.getAttribute("data-leave-policy-card")));
+    await d.page.locator('[data-leave-policy-card="lp-1"]').click();
+    await until(d, '[data-leave-policy="lp-1"] [data-leave-policy-summary]');
+    const ro = (await has(d, "[data-leave-policy-read-only]")) && !(await has(d, "[data-leave-policy-edit]"));
+    await d.page.keyboard.press("Escape");
+    await d.page.locator('[data-leave-policy="lp-1"]').locator("xpath=ancestor::div[contains(@style,'z-index: 500')]").first().click({ position: { x: 4, y: 4 } }).catch(() => {});
+    await d.settle(300);
+    await d.page.locator('[data-leave-policy-card="lp-2"]').click();
+    await until(d, '[data-leave-policy="lp-2"] [data-leave-policy-people] button');
+    const sites = await textOf(d, "[data-leave-policy-sites]");
+    const people = await textOf(d, "[data-leave-policy-people]");
+    results.check(KIND, id("policies-list-and-read-only-handbook"), cards.join(",") === "lp-1,lp-2" && ro && sites.indexOf(seed.SITES[1].name) >= 0 && people.indexOf("Elena Barbosa") >= 0 && people.indexOf("Yuki Tanabe") >= 0,
+      "the cards read " + say(cards) + (ro ? "" : ", the handbook's policy offers Edit") + ", its sites " + say(sites) + ", its people " + say(people));
+    await d.page.locator("[data-leave-policy-edit]").click();
+    await until(d, '[data-leave-policy-editor="lp-2"]');
+    await d.page.locator('[data-leave-editor-rule="0"] [data-leave-rule="maxBalance"]').fill("48");
+    const mark = d.mark();
+    await d.page.locator("[data-leave-editor-save]").click();
+    await d.settle(600);
+    const patch = writes(d, mark, "PATCH", /^\/api\/leave\/policies\/lp-2$/)[0];
+    const keys = patch ? Object.keys(patch.body) : [];
+    const r0 = patch && patch.body.rules ? patch.body.rules[0] : {};
+    results.check(KIND, id("a-policy-edit-sends-what-changed"), keys.join(",") === "rules" && r0.maxBalance === 48 && r0.method === "per_hours_worked" && r0.perHoursWorked === 30 && patch.body.rules.length === 2,
+      !patch ? "Save sent no change" : "it sent " + say(patch.body).slice(0, 300));
+  });
+
+  // New leave policy, with a kind of the policy's own.
+  await withDriver(ctx, { name: "leave-new-policy", lang }, async (d) => {
+    await goHash(d, "leave/policies");
+    await until(d, "[data-leave-policy-new]");
+    await d.page.locator("[data-leave-policy-new]").click();
+    await until(d, '[data-leave-policy-editor="new"]');
+    await d.page.locator('[data-leave-editor="name"]').fill("Union sick leave");
+    await pickSelect(d, '[data-leave-editor-rule="0"] [data-leave-rule="kind"]', "__new");
+    await d.page.locator('[data-leave-editor-rule="0"] [data-leave-rule="newKind"]').fill("union_sick");
+    await d.page.locator('[data-leave-editor-rule="0"] [data-leave-rule="kindName"]').fill("Union sick");
+    await pickSelect(d, '[data-leave-editor-rule="0"] [data-leave-rule="method"]', "monthly");
+    await d.page.locator('[data-leave-editor-rule="0"] [data-leave-rule="amount"]').fill("4");
+    const mark = d.mark();
+    await d.page.locator("[data-leave-editor-save]").click();
+    await d.settle(700);
+    const post = writes(d, mark, "POST", /^\/api\/leave\/policies$/)[0];
+    const r0 = post && post.body.rules ? post.body.rules[0] : {};
+    const listed = await has(d, '[data-leave-policy-card="lp-3"]');
+    results.check(KIND, id("new-policy-with-its-own-kind"), !!post && post.body.name === "Union sick leave" && r0.kind === "union_sick" && r0.kindName === "Union sick" && r0.method === "monthly" && r0.amount === 4 && listed,
+      !post ? "Save sent nothing" : "it sent " + say(post.body).slice(0, 300) + (listed ? "" : ", and the list does not hold it"));
+  });
+
+  // Who follows which: a site's default on the Sites tab and on its page, a person's own on the HR folder.
+  await withDriver(ctx, { name: "leave-who-follows", lang }, async (d) => {
+    await goHash(d, "leave/sites");
+    await until(d, "[data-leave-site-row]");
+    await d.page.locator('[data-leave-site-set="' + seed.SITES[2].id + '"]').click();
+    await until(d, '[data-leave-policy-set="site"]');
+    await pickSelect(d, '[data-leave-policy-set="site"] [data-leave-policy-field="policyId"]', "lp-2");
+    await d.page.locator('[data-leave-policy-set="site"] [data-leave-policy-field="effectiveFrom"]').fill("2026-04-01");
+    let mark = d.mark();
+    await d.page.locator('[data-leave-policy-set="site"] [data-leave-policy-save]').click();
+    await d.settle(600);
+    const sp = writes(d, mark, "POST", new RegExp("^/api/leave/sites/" + seed.SITES[2].id + "/policy$"))[0];
+    results.check(KIND, id("set-a-site-s-policy"), !!sp && sp.body.policyId === "lp-2" && sp.body.effectiveFrom === "2026-04-01",
+      !sp ? "Save sent nothing" : "it sent " + say(sp.body));
+    await goHash(d, "sites/" + seed.SITES[1].id);
+    const card = await until(d, '[data-site-leave-policy="' + seed.SITES[1].id + '"]', 6000);
+    const line = await textOf(d, '[data-site-leave-policy="' + seed.SITES[1].id + '"]');
+    results.check(KIND, id("a-site-page-shows-its-policy"), card && line.indexOf("Clinic service agreement") >= 0, card ? "the site's card reads " + say(line) : "the site's General Info shows no leave policy");
+    await goHash(d, "hr/u-staff-5");
+    const folder = await until(d, "[data-folder-leave]", 8000);
+    const fl = await textOf(d, "[data-folder-leave-policy]");
+    if (folder) { await d.page.locator("[data-folder-leave-open]").click(); await until(d, '[data-leave-person="u-staff-5"] [data-leave-person-policy-open]', 5000); }
+    if (await has(d, "[data-leave-person-policy-open]")) {
+      await d.page.locator("[data-leave-person-policy-open]").click();
+      await until(d, '[data-leave-policy-set="person"]');
+      await pickSelect(d, '[data-leave-policy-set="person"] [data-leave-policy-field="policyId"]', "lp-2");
+      await d.page.locator('[data-leave-policy-set="person"] [data-leave-policy-field="effectiveFrom"]').fill("2026-03-17");
+    }
+    mark = d.mark();
+    if (await has(d, '[data-leave-policy-set="person"] [data-leave-policy-save]')) await d.page.locator('[data-leave-policy-set="person"] [data-leave-policy-save]').click();
+    await d.settle(700);
+    const pp = writes(d, mark, "POST", /^\/api\/leave\/people\/u-staff-5\/policy$/)[0];
+    const after = await textOf(d, "[data-leave-person-policy]");
+    results.check(KIND, id("the-hr-folder-shows-and-sets-a-person-s-policy"), folder && fl.indexOf(d.say("The company default")) >= 0 && !!pp && pp.body.policyId === "lp-2" && pp.body.effectiveFrom === "2026-03-17" && after.indexOf("Clinic service agreement") >= 0,
+      !folder ? "the HR folder shows no leave" : "the folder reads " + say(fl) + "; it sent " + say(pp ? pp.body : null) + "; after, " + say(after));
+  });
+
+  // Hours files: the list, a file that cannot be read, a person the API cannot match, then the posting.
+  await withDriver(ctx, { name: "leave-hours", lang }, async (d) => {
+    await goHash(d, "leave/hours");
+    const listed = await until(d, '[data-leave-file-row="hf-1"]');
+    await d.page.locator("[data-leave-file-upload]").click();
+    await until(d, "[data-leave-hours-window]");
+    const choose = async (name, text) => { await d.page.locator('[data-leave-hours-window] input[type="file"]').setInputFiles({ name, mimeType: "text/csv", buffer: Buffer.from(text, "utf8") }); await d.settle(300); };
+    await choose("bad.csv", "person,period_start,period_end,hours\n4118,2026-03-14,2026-03-01,90\n");
+    const localBad = await has(d, '[data-leave-file-problem="2"]');
+    const blocked = await d.page.locator("[data-leave-file-post]").isDisabled();
+    await choose("unknown.csv", "person,period_start,period_end,hours\n4118,2026-03-01,2026-03-14,90\n7777,2026-03-01,2026-03-14,40\n");
+    let mark = d.mark();
+    await d.page.locator("[data-leave-file-post]").click();
+    await d.settle(600);
+    const refused = writes(d, mark, "POST", /^\/api\/leave\/hours-files$/).length;
+    const words = await textOf(d, '[data-leave-file-problem="3"]');
+    const want = lang === "es" ? "Nadie tiene el n\u00famero de credencial o el ID de empleado 7777." : "No one has the badge number or employee ID 7777.";
+    results.check(KIND, id("a-file-that-cannot-be-read-or-matched-posts-nothing"), listed && localBad && blocked && refused === 1 && words === want,
+      !localBad ? "a reversed period is not said" : !blocked ? "Post is offered for a file with a line that cannot be read" : "the API's refusal reads " + say(words));
+    await choose("march.csv", "person,period_start,period_end,hours\n4118,2026-03-01,2026-03-14,90\n");
+    mark = d.mark();
+    await d.page.locator("[data-leave-file-post]").click();
+    await d.settle(600);
+    const post = writes(d, mark, "POST", /^\/api\/leave\/hours-files$/)[0];
+    const outcome = await d.page.locator("[data-leave-file-outcome]").first().getAttribute("data-leave-file-outcome").catch(() => "");
+    results.check(KIND, id("an-hours-file-posts-and-says-what-posted"), !!post && post.body.fileName === "march.csv" && /4118/.test(post.body.csv) && outcome === "posted",
+      !post ? "Post sent nothing" : "the outcome reads " + say(outcome));
+  });
+
+  // Missing hire dates, each with a way to the profile.
+  await withDriver(ctx, { name: "leave-missing", lang }, async (d) => {
+    await goHash(d, "leave/missing");
+    const row = await until(d, '[data-leave-missing="u-staff-10"]');
+    const text = await textOf(d, '[data-leave-tab="missing"] table tbody tr');
+    if (row) await d.page.locator('[data-leave-missing-open="u-staff-10"]').click();
+    await d.settle(500);
+    const at = await hashNow(d);
+    results.check(KIND, id("missing-hire-dates-link-to-the-profile"), row && text.indexOf(d.say("Paid sick leave")) >= 0 && at.indexOf("#staff/u-staff-10") === 0,
+      !row ? "the tab lists nobody" : "it reads " + say(text) + " and opened " + at);
+  });
+
+  // Enter starting balances: one adjustment per filled box, the difference, Starting balance and a
+  // clientId; a box already at its balance posts nothing; a retry after a failure posts once.
+  await withDriver(ctx, { name: "leave-starting", lang, arm: (s) => s.setRefusal([{ method: "POST", path: "/api/leave/people/u-staff-9/adjustments", status: 503, code: "common.serverError", error: "Service unavailable", once: true }]) }, async (d) => {
+    await goHash(d, "leave/starting");
+    await until(d, '[data-leave-start-box="u-staff-6"]', 6000);
+    await d.page.locator('[data-leave-start-box="u-staff-6"]').fill("10");
+    await d.page.locator('[data-leave-start-box="u-staff-5"]').fill("32");
+    await d.page.locator('[data-leave-start-box="u-staff-9"]').fill("12");
+    let mark = d.mark();
+    await d.page.locator("[data-leave-start-save]").click();
+    await d.settle(900);
+    const first = writes(d, mark, "POST", /\/adjustments$/);
+    const states = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-leave-start-result]")).map((x) => x.closest("tr").querySelector("[data-leave-start-box]").getAttribute("data-leave-start-box") + ":" + x.getAttribute("data-leave-start-result")));
+    const six = first.find((c) => /u-staff-6/.test(c.path));
+    results.check(KIND, id("starting-balances-post-the-difference"), first.length === 2 && !!six && six.body.hours === 2 && six.body.kind === "paid_sick" && six.body.reason === "Starting balance" && /^[A-Za-z0-9_-]{8,64}$/.test(String(six.body.clientId || "")) && states.indexOf("u-staff-5:same") >= 0 && states.indexOf("u-staff-6:posted") >= 0 && states.indexOf("u-staff-9:refused") >= 0,
+      "it sent " + first.length + " (" + first.map((c) => c.path.split("/")[4] + " " + say(c.body)).join("; ") + ") and reads " + say(states));
+    const firstId = (first.find((c) => /u-staff-9/.test(c.path)) || { body: {} }).body.clientId;
+    mark = d.mark();
+    await d.page.locator("[data-leave-start-save]").click();
+    await d.settle(900);
+    const again = writes(d, mark, "POST", /\/adjustments$/);
+    const nine = again.find((c) => /u-staff-9/.test(c.path));
+    results.check(KIND, id("a-retry-sends-the-same-client-id"), again.length === 1 && !!nine && nine.body.clientId === firstId,
+      "the second Save sent " + again.length + " (" + again.map((c) => c.path.split("/")[4]).join(", ") + ")" + (nine ? ", with clientId " + nine.body.clientId + " after " + firstId : ""));
+  });
+
+  // The time off window: the balance before and after, the API's warnings above Approve, the hours taken
+  // on approval, and Take back approval, asked once and never on one's own request.
+  await withDriver(ctx, { name: "leave-time-off", lang }, async (d) => {
+    await goHash(d, "schedule/timeoff/to-368");
+    await until(d, '[data-time-off-window="to-368"] [data-time-off-balance]', 6000);
+    const line = await textOf(d, "[data-time-off-balance]");
+    const warn = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-time-off-warning]")).map((x) => x.getAttribute("data-time-off-warning")));
+    const above = await d.page.evaluate(() => { const w = document.querySelector("[data-time-off-warning]"); const a = document.querySelector("[data-time-off-approve]"); return !!(w && a && (w.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING)); });
+    results.check(KIND, id("balance-before-and-after-and-the-warning"), line.indexOf("8") >= 0 && line.indexOf("-8") >= 0 && line.indexOf("16") >= 0 && warn.join(",") === "leave.warning.belowZero" && above,
+      "the balance reads " + say(line) + ", the warnings " + say(warn) + (above ? "" : ", and none sits above Approve"));
+    await goHash(d, "schedule/timeoff/to-370");
+    await until(d, '[data-time-off-window="to-370"] [data-time-off-approve="read"]', 6000);
+    const wait = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-time-off-warning]")).map((x) => x.getAttribute("data-time-off-warning")));
+    await d.page.locator('[data-time-off-approve="read"]').click();
+    await d.settle(700);
+    const taken = await textOf(d, "[data-time-off-balance]");
+    results.check(KIND, id("waiting-period-warning-and-the-hours-taken"), wait.join(",") === "leave.warning.inWaitingPeriod" && taken.indexOf("32") >= 0,
+      "the warnings read " + say(wait) + "; after Approve the balance reads " + say(taken));
+    await goHash(d, "schedule/timeoff/to-369");
+    const offered = await until(d, "[data-time-off-rescind]", 6000);
+    await d.setConfirmAnswer(true);
+    const mark = d.mark();
+    if (offered) await d.page.locator("[data-time-off-rescind]").click();
+    await d.settle(700);
+    const sent = writes(d, mark, "POST", /^\/api\/time-off\/to-369\/rescind$/).length;
+    const asked = (await d.confirms()).filter((c) => String(c).indexOf("8") >= 0).length;
+    const toast = (await d.toast()) || "";
+    const back = await has(d, "[data-time-off-taken-back]");
+    results.check(KIND, id("take-back-approval-asks-once-and-says-the-hours"), offered && sent === 1 && asked === 1 && toast.indexOf("8") >= 0 && back && !(await has(d, "[data-time-off-rescind]")),
+      !offered ? "an approved request offers no Take back approval" : "it asked " + asked + " times, sent " + sent + ", said " + say(toast) + (back ? "" : ", and the window does not say it was taken back"));
+  });
+  await withDriver(ctx, { name: "leave-own-request", lang }, async (d) => {
+    await goHash(d, "schedule/timeoff/to-371");
+    await until(d, '[data-time-off-window="to-371"]', 6000);
+    await d.settle(400);
+    results.check(KIND, id("guard-never-on-one-s-own-request"), !(await has(d, "[data-time-off-rescind]")), "the admin's own approved request offers Take back approval");
+  });
+}
+
 async function run(ctx) {
   for (const lang of LANGS) {
     await maintenanceCases(ctx, lang);
+    await leaveCases(ctx, lang);
   }
 }
 

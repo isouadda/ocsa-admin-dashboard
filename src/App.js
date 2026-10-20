@@ -395,7 +395,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -408,8 +408,8 @@ const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"
 // name yet keeps today's behavior: Cases, HR Records and the employment controls read the API's own
 // answer for those three (capNamed in the shell), never these defaults.
 const CAP_ROLE_DEFAULTS = {
-  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
-  supervisor: { manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true, file_maintenance_requests: true, manage_leave_balances: true },
+  supervisor: { file_maintenance_requests: true, manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
   staff: {},
 };
 // The owner's decision 1 (Round 1, Oct 15, 2026): nobody without manage_employment sees a dollar figure,
@@ -597,6 +597,7 @@ const CamI = p => <Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l
 const SnI = p => <Ic d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" {...p} />;
 const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p} />;
 const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />; const ChkI = p => <Ic d="M20 6L9 17l-5-5" {...p} />;
+const LvI = p => <Ic d="M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M9 15h6" {...p} />;
 const MntI = p => <Ic d="M3 21h18 M5 21V8l7-5 7 5v13 M9 21v-5h6v5 M10 10h4" {...p} />;
 const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
 const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
@@ -982,6 +983,10 @@ export default function AdminDashboard() {
   // holder of file_maintenance_requests, admins and supervisors by default. Maintenance requests joins the
   // side panel and each site gains its Maintenance tab. The answer's maxPhotos is the most a request takes.
   const [maintenance, setMaintenance] = useState(null);
+  // Whether GET /api/leave/policies answers this person (part 368, the API's part 365): holders of
+  // read_hr_records or manage_leave_balances, admins by default. Leave balances joins the side panel under
+  // HR Records, and the HR folder and a site's General Info show the policy each follows.
+  const [leaveOn, setLeaveOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -1020,6 +1025,7 @@ export default function AdminDashboard() {
     if (id === "tickets") return ticketsOn;
     if (id === "library") return libraryOn;
     if (id === "maintenance") return !!maintenance;
+    if (id === "leave") return leaveOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -1031,7 +1037,9 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn, maintenance]);
+  }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn, maintenance, leaveOn]);
+  // What the HR folder and a site's page need to know about leave balances (part 368).
+  const leaveCtx = useMemo(() => ({ on: leaveOn, canManage: leaveOn && hasCap("manage_leave_balances") }), [leaveOn, hasCap]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -1102,7 +1110,7 @@ export default function AdminDashboard() {
   // Whether the session's first round of probes has answered (DASH-27).
   const [probesIn, setProbesIn] = useState(false);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setMaintenance(null); setProbesIn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setMaintenance(null); setLeaveOn(false); setProbesIn(false); return undefined; }
     // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
     // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
     let alive = true; let soft = false; let timer = null;
@@ -1115,6 +1123,7 @@ export default function AdminDashboard() {
     probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
     probes.push(af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLibraryOn(false); console.warn("Library:", e.message); }));
     probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? { maxPhotos: Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d.responseDays } : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
+    probes.push(af("/api/leave/policies").then(d => { if (alive) setLeaveOn(!!(d && Array.isArray(d.policies))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLeaveOn(false); console.warn("Leave balances:", e.message); }));
     probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
     Promise.all(probes).then(() => { if (alive) setProbesIn(true); if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
     return () => { alive = false; clearTimeout(timer); };
@@ -1407,6 +1416,8 @@ export default function AdminDashboard() {
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       ...(canOpenPage("hr") ? [{ id: "hr", l: tr("HR Records"), i: FolI }] : []),
+      // Part 368: everyone's leave balances, their policies and the payroll system's hours files.
+      ...(canOpenPage("leave") ? [{ id: "leave", l: tr("Leave balances"), i: LvI }] : []),
       ...(canOpenPage("hr-access") ? [{ id: "hr-access", hash: "hr/access-report", l: tr("HR file access report"), i: RecI }] : []),
       // DASH-06: someone without HR Records whom GET /api/signatures answers opens Waiting for
       // signatures from its own item; with HR Records it stays a tab there.
@@ -1444,7 +1455,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1478,7 +1489,7 @@ export default function AdminDashboard() {
   // A row of the More menu, the row the user menu draws.
   const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
 
-  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><PayCtx.Provider value={!!canEmploy}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><PayCtx.Provider value={!!canEmploy}><LeaveCtx.Provider value={leaveCtx}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
     {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
         closed again by a pick, by its own close button and by Escape. */}
@@ -1694,6 +1705,7 @@ export default function AdminDashboard() {
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "checklist" && <ChecklistResultsPage af={af} t={t} sites={sites} route={route} user={user} showToast={showToast} />}
         {page === "issues" && <IssuesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} maintenance={maintenance} canManageSites={hasCap("manage_sites")} />}
+        {page === "leave" && (canOpenPage("leave") ? <LeavePage af={af} t={t} token={token} sites={sites} showToast={showToast} route={route} onRoute={replaceRoute} canOpenStaff={canOpenPage("staff")} /> : !probesIn ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Leave balances open for HR Records and for the people who keep the balances. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
         {page === "maintenance" && (canOpenPage("maintenance") ? <MaintenancePage af={af} t={t} token={token} sites={sites} showToast={showToast} route={route} onRoute={replaceRoute} maintenance={maintenance} canManageSites={hasCap("manage_sites")} /> : !probesIn ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Maintenance requests open for the people who file them. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} sites={sites} user={user} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
@@ -1744,7 +1756,7 @@ export default function AdminDashboard() {
     {toast && <Tst t={toast} />}
     {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
+  </div></LeaveCtx.Provider></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
@@ -4246,6 +4258,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
 
       {/* GENERAL INFO TAB */}
       {siteTab === "general" && <div>
+        {/* Part 368: the leave policy people at this site follow unless they have their own. */}
+        <SiteLeavePolicy key={"leave-" + s.id} af={af} t={t} siteId={s.id} showToast={showToast} />
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Contract Details")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -6595,6 +6609,696 @@ function SiteMaintenancePanel({ af, t, token, site, sites = [], canManageSites =
     {creating && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={{ siteId }} maxPhotos={maxPhotos} canManageSites={canManageSites} onClose={() => setCreating(false)}
       onFiled={(req, warning) => { setCreating(false); setReloadKey(k => k + 1); if (warning) showToast(warning, "error"); else showToast(tr("Sent to building maintenance as {0}", req ? req.reference : "")); if (req) setOpenId(String(req.id)); }} />}
     {openId && <MaintenanceRequestWindow af={af} t={t} token={token} id={openId} onClose={() => setOpenId("")} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
+  </div>);
+}
+
+// ===== LEAVE BALANCES (part 368, against the API's part 365) =====
+// A person follows one leave policy at a time: their own dated row, else their primary site's, else the
+// company default, the handbook's (OCSA-HR-002 Part 8.1). Every change to a balance is a row of the
+// person's ledger and a balance is their sum. Holders of read_hr_records or manage_leave_balances read
+// everyone's (admins by default); manage_leave_balances keeps the policies, sets who follows which, takes
+// the payroll system's hours files and adjusts. Hours and days only, never a dollar figure. The page opens
+// once GET /api/leave/policies answers this person; LeaveCtx carries that to the HR folder and the site.
+const LeaveCtx = createContext({ on: false, canManage: false });
+const leaveKindWord = (k, name) => (LEAVE_TYPE_WORDS[k] ? tr(LEAVE_TYPE_WORDS[k]) : (name || String(k || "")));
+const LEAVE_ENTRY_WORDS = { grant: "Grant|leave", accrual: "Hours worked|leave", usage: "Time off taken", reversal: "Time off given back", expiry: "Expired at the year's end", policy_change: "Policy changed", adjustment: "Adjustment by HR" };
+const leaveEntryWord = (k, name) => (LEAVE_ENTRY_WORDS[k] ? tr(LEAVE_ENTRY_WORDS[k]) : (name || String(k || "")));
+const LEAVE_SOURCE_WORDS = { person: "Their own policy", site: "Their site's policy", default: "The company default" };
+const leaveSourceWord = (s) => (LEAVE_SOURCE_WORDS[s] ? tr(LEAVE_SOURCE_WORDS[s]) : String(s || ""));
+const LEAVE_METHOD_WORDS = { january_1: "On January 1 each year", anniversary: "On each anniversary of the hire date", on_hire: "On the hire date", monthly: "On the first of each month", per_hours_worked: "For hours worked", manual: "Given by HR|leave method", untracked: "No balance kept" };
+const leaveMethodWord = (m) => (LEAVE_METHOD_WORDS[m] ? tr(LEAVE_METHOD_WORDS[m]) : String(m || ""));
+const LEAVE_OUTCOME_WORDS = { posted: "Posted|hours file", alreadyPosted: "Already posted", noHoursRule: "No hours rule in their policy", beforePolicyStart: "Before their policy starts", noHireDate: "No hire date on file" };
+const leaveOutcomeWord = (o) => (LEAVE_OUTCOME_WORDS[o] ? tr(LEAVE_OUTCOME_WORDS[o]) : String(o || ""));
+const LEAVE_STATUSES = [["active", "Active"], ["all", "Every status"], ["pending", "pending"], ["inactive", "Inactive"], ["terminated", "Terminated"]];
+const LEAVE_ROLES = ["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "contractor"];
+const leaveNum = (n) => Number(n || 0).toLocaleString(localeTag(), { maximumFractionDigits: 2 });
+const leaveHours = (n) => tr("{0} h", leaveNum(n));
+const leaveSigned = (n) => (Number(n) > 0 ? "+" : Number(n) < 0 ? "-" : "") + leaveHours(Math.abs(Number(n) || 0));
+// A balance as it reads: hours, and days beside them for a kind kept in days.
+const leaveBalanceText = (b) => (b && b.unit === "days" && b.balanceDays != null ? tr("{0} days ({1})", leaveNum(b.balanceDays), leaveHours(b.balanceHours)) : leaveHours(b ? b.balanceHours : 0));
+const leaveToday = () => crWall(Date.now()).day;
+const leaveYear = () => Number(leaveToday().slice(0, 4));
+const leavePolicyName = (p) => (p && p.name ? p.name : "--");
+// The words the API says each refusal and warning in come with the answer, in the reader's language.
+const leaveRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || "") });
+// Pages a list until nextCursor is empty, for the screens that need everyone at once.
+async function leaveEveryPage(af, path, key) {
+  const out = [];
+  let cursor = "";
+  for (let i = 0; i < 50; i += 1) {
+    const d = await af(path + (path.indexOf("?") >= 0 ? "&" : "?") + "limit=200&cursor=" + encodeURIComponent(cursor));
+    (Array.isArray(d && d[key]) ? d[key] : []).forEach(x => out.push(x));
+    if (!d || !d.nextCursor) break;
+    cursor = d.nextCursor;
+  }
+  return out;
+}
+
+// A balance's parts, in a table of its own.
+function LeaveBalancesTable({ t, balances }) {
+  const cols = [
+    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{(b.notes || []).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
+    { header: tr("Start of year"), align: "right", render: b => leaveHours(b.startHours) },
+    { header: tr("Granted"), align: "right", render: b => leaveHours(b.grantedHours) },
+    { header: tr("Used"), align: "right", render: b => leaveHours(b.usedHours) },
+    { header: tr("Given back"), align: "right", render: b => leaveHours(b.givenBackHours) },
+    { header: tr("Expired"), align: "right", render: b => leaveHours(b.expiredHours) },
+    { header: tr("Adjusted"), align: "right", render: b => leaveSigned(b.adjustedHours) },
+    { header: tr("Balance"), align: "right", render: b => <span data-leave-balance={b.kind} style={{ fontWeight: 700, color: Number(b.balanceHours) < 0 ? RD : t.text }}>{leaveBalanceText(b)}</span> },
+  ];
+  return <DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} />;
+}
+
+// Adjust: a kind, hours plus or minus and a required reason, dated today; it asks once, and its clientId,
+// made when the form opens, makes a retry post once.
+function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) {
+  const clientId = useRef("adj-" + Math.random().toString(36).slice(2, 12) + "-" + Date.now().toString(36));
+  const [form, setForm] = useState({ kind: (kinds.find(k => k.key === "paid_sick") || kinds[0] || {}).key || "", hours: "", reason: "" });
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const save = once(async () => {
+    const h = Number(String(form.hours).trim());
+    if (!form.kind) { setSaid({ text: tr("Choose the kind of leave."), keys: ["kind"] }); return; }
+    if (!Number.isFinite(h) || h === 0 || Math.abs(h) > 9999 || Math.abs(h * 100 - Math.round(h * 100)) > 1e-6) { setSaid({ text: tr("Type the hours to add, or a minus sign and the hours to take away, up to two decimals."), keys: ["hours"] }); return; }
+    if (!form.reason.trim()) { setSaid({ text: tr("Say why the balance changes."), keys: ["reason"] }); return; }
+    const kindName = leaveKindWord(form.kind, (kinds.find(k => k.key === form.kind) || {}).name);
+    if (!window.confirm(tr("Change {0}'s {1} balance by {2}?", name || "", kindName, leaveSigned(h)))) return;
+    try {
+      const d = await af("/api/leave/people/" + encodeURIComponent(userId) + "/adjustments", { method: "POST", body: { kind: form.kind, hours: h, reason: form.reason.trim(), clientId: clientId.current } });
+      onDone(d);
+    } catch (e) { setSaid(leaveRefusal(e)); }
+  });
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  return (<div data-leave-adjust-form="" style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Adjust a balance")}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
+      <div><Lbl>{tr("Kind")}</Lbl><Sel t={t} data-leave-adjust="kind" aria-label={tr("Kind")} value={form.kind} onChange={e => set("kind", e.target.value)} options={kinds.map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) }))} style={bad("kind") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Hours, plus or minus")}</Lbl><Inp t={t} data-leave-adjust="hours" aria-label={tr("Hours, plus or minus")} inputMode="decimal" value={form.hours} onChange={e => set("hours", e.target.value.replace(/[^0-9.\-]/g, "").slice(0, 9))} placeholder={tr("For example 8 or -4")} style={bad("hours") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ marginBottom: 6 }}><Lbl>{tr("Reason *")}</Lbl><TArea t={t} data-leave-adjust="reason" aria-label={tr("Reason")} rows={2} maxLength={500} value={form.reason} onChange={e => set("reason", e.target.value)} style={bad("reason") ? { borderColor: RD } : undefined} /></div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("It is dated today and names you as the one who made it.")}</div>
+    {said && <div data-leave-adjust-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onCancel}>{tr("Cancel")}</Btn><Btn t={t} data-leave-adjust-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div>);
+}
+
+// Who follows which: a dated row for a site (null puts it back on the company default) or a person (null
+// puts them back on their site's).
+function LeavePolicySetForm({ af, t, scope, id, policies = [], onDone, onCancel }) {
+  const [form, setForm] = useState({ policyId: "", effectiveFrom: leaveToday(), note: "" });
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const save = once(async () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.effectiveFrom)) { setSaid({ text: tr("Choose the day it starts."), keys: ["effectiveFrom"] }); return; }
+    try {
+      const path = "/api/leave/" + (scope === "site" ? "sites/" : "people/") + encodeURIComponent(id) + "/policy";
+      const d = await af(path, { method: "POST", body: { policyId: form.policyId || null, effectiveFrom: form.effectiveFrom, note: form.note.trim() || null } });
+      onDone(d);
+    } catch (e) { setSaid(leaveRefusal(e)); }
+  });
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  const back = scope === "site" ? tr("The company default") : tr("Their site's policy");
+  return (<div data-leave-policy-set={scope} style={{ marginTop: 10, padding: "12px 14px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 10 }}>
+      <div><Lbl>{tr("Policy")}</Lbl><Sel t={t} data-leave-policy-field="policyId" aria-label={tr("Policy")} value={form.policyId} onChange={e => set("policyId", e.target.value)} options={[{ v: "", l: back }].concat(policies.map(p => ({ v: p.id, l: p.name })))} style={bad("policyId") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Starts on")}</Lbl><Inp t={t} type="date" data-leave-policy-field="effectiveFrom" aria-label={tr("Starts on")} value={form.effectiveFrom} onChange={e => set("effectiveFrom", e.target.value)} style={bad("effectiveFrom") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ marginBottom: 10 }}><Lbl>{tr("Note")}</Lbl><Inp t={t} data-leave-policy-field="note" aria-label={tr("Note")} maxLength={1000} value={form.note} onChange={e => set("note", e.target.value)} style={bad("note") ? { borderColor: RD } : undefined} /></div>
+    {said && <div data-leave-policy-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onCancel}>{tr("Cancel")}</Btn><Btn t={t} data-leave-policy-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div>);
+}
+
+// One person's leave: their policy and since when, the balances by kind, the policy's plain words, and the
+// ledger newest first, with Adjust and Set their own policy for holders of manage_leave_balances.
+function LeavePersonWindow({ af, t, userId, year, kinds = [], policies = [], canManage = false, canOpenStaff = false, onClose, onChanged, showToast }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [entries, setEntries] = useState([]);
+  const [next, setNext] = useState(null);
+  const [mode, setMode] = useState("");
+  const base = "/api/leave/people/" + encodeURIComponent(userId);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try {
+      const d = await af(base + "?year=" + year);
+      setData(d);
+      const e = await af(base + "/entries?year=" + year + "&cursor=");
+      setEntries(Array.isArray(e && e.entries) ? e.entries : []); setNext(e && e.nextCursor ? e.nextCursor : null);
+    } catch (e) { setFailed(true); }
+  }, [af, base, year]);
+  useEffect(() => { load(); }, [load]);
+  const more = async () => {
+    try { const e = await af(base + "/entries?year=" + year + "&cursor=" + encodeURIComponent(next)); setEntries(cur => cur.concat(Array.isArray(e && e.entries) ? e.entries : [])); setNext(e && e.nextCursor ? e.nextCursor : null); }
+    catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  };
+  const p = data && data.person;
+  const entryWhat = (en) => {
+    const parts = [leaveEntryWord(en.type, en.typeName)];
+    if (en.hoursFile) parts.push(tr("{0}, {1} worked from {2} to {3}", en.hoursFile.fileName, leaveHours(en.hoursWorked), fdLong(en.periodStart), fdLong(en.periodEnd)));
+    if (en.timeOffRequestId) parts.push(tr("Time off request"));
+    if (en.policy && en.type === "policy_change") parts.push(en.policy.name);
+    return parts.filter(Boolean).join(", ");
+  };
+  const cols = [
+    { header: tr("Date"), render: en => <span style={{ whiteSpace: "nowrap" }}>{fdLong(en.effectiveOn)}</span> },
+    { header: tr("Kind"), render: en => leaveKindWord(en.kind, en.kindName) },
+    { header: tr("What"), render: en => <div data-leave-entry={en.type} style={{ minWidth: 140 }}><div style={{ fontSize: 12, color: t.text }}>{entryWhat(en)}</div>{en.reason && <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{en.reason}</div>}</div> },
+    { header: tr("Hours"), align: "right", render: en => <span style={{ fontWeight: 600, color: Number(en.hours) < 0 ? RD : GR, whiteSpace: "nowrap" }}>{leaveSigned(en.hours)}</span> },
+    { header: tr("By"), render: en => <span style={{ fontSize: 12, color: t.textSec }}>{en.createdBy && en.createdBy.name ? en.createdBy.name : tr("The system")}</span> },
+  ];
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-person={userId} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave")}</div>
+        {p && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {failed && !data && <LoadFailed t={t} onRetry={load} />}
+    {!failed && !data && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {data && <>
+      <div data-leave-person-policy={data.policy ? data.policy.source : "none"} style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{tr("Policy: {0}", leavePolicyName(data.policy))}</div>
+        {data.policy && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{leaveSourceWord(data.policy.source)}{data.policy.since ? ", " + tr("since {0}", fdLong(data.policy.since)) : ""}</div>}
+        {data.summary && (data.summary.lines || []).map((l, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.4 }}><b style={{ color: t.text }}>{leaveKindWord(l.kind, l.kindName)}:</b> {l.text}{l.note ? " " + l.note : ""}</div>)}
+        {p && !p.hireDate && <div data-leave-no-hire-date="" style={{ fontSize: 12, color: OR, marginTop: 6 }}>{tr("No hire date is on file, so a grant that depends on it does not post.")} <button onClick={() => { onClose(); window.location.hash = (canOpenStaff ? "staff/" : "hr/") + encodeURIComponent(userId); }} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the profile")}</button></div>}
+      </div>
+      {canManage && mode === "" && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <Btn t={t} data-leave-adjust-open="" onClick={() => setMode("adjust")} style={{ minHeight: 44 }}>{tr("Adjust")}</Btn>
+        <Btn t={t} v="ghost" data-leave-person-policy-open="" onClick={() => setMode("policy")} style={{ minHeight: 44 }}>{tr("Set their own policy")}</Btn>
+      </div>}
+      {mode === "adjust" && <LeaveAdjustForm af={af} t={t} userId={userId} name={p ? p.name : ""} kinds={kinds} onCancel={() => setMode("")} onDone={(d) => { setMode(""); showToast(tr("Adjustment saved")); load(); if (onChanged) onChanged(); }} />}
+      {mode === "policy" && <LeavePolicySetForm af={af} t={t} scope="person" id={userId} policies={policies} onCancel={() => setMode("")} onDone={() => { setMode(""); showToast(tr("Policy saved")); load(); if (onChanged) onChanged(); }} />}
+      <Lbl>{tr("Balances")}</Lbl>
+      <div style={{ marginBottom: 14 }}><LeaveBalancesTable t={t} balances={data.balances} /></div>
+      <Lbl>{tr("Ledger, newest first")}</Lbl>
+      <div data-leave-ledger=""><DataTable t={t} columns={cols} rows={entries} rowKey={en => en.id} empty={tr("Nothing has posted this year.")} /></div>
+      {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}><Btn t={t} v="ghost" data-leave-entries-more="" onClick={more}>{tr("Show more")}</Btn></div>}
+      {Array.isArray(data.policyHistory) && data.policyHistory.length > 0 && <div style={{ marginTop: 14 }}><Lbl>{tr("Policy history")}</Lbl>
+        {data.policyHistory.map(h => <div key={h.id} data-leave-history={h.scope} style={{ fontSize: 12, color: t.textSec, marginBottom: 4 }}>{tr("{0} from {1}", h.policyName || (h.scope === "site" ? tr("The company default") : tr("Their site's policy")), fdLong(h.effectiveFrom))}{h.scope === "site" ? " (" + tr("their site") + ")" : ""}{h.setBy && h.setBy.name ? ", " + tr("set by {0}", h.setBy.name) : ""}{h.note ? ": " + h.note : ""}</div>)}
+      </div>}
+    </>}
+  </div></Mdl>);
+}
+
+// A person's leave on their HR folder: the policy they follow and the day it started, their balances, and
+// the way into the ledger.
+function PersonLeave({ af, t, userId, showToast, canOpenStaff = false }) {
+  const leave = useContext(LeaveCtx);
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [kinds, setKinds] = useState([]);
+  const [policies, setPolicies] = useState([]);
+  const year = leaveYear();
+  const load = useCallback(() => { af("/api/leave/people/" + encodeURIComponent(userId) + "?year=" + year).then(setData).catch(() => setData(null)); }, [af, userId, year]);
+  useEffect(() => { if (leave.on) load(); }, [leave.on, load]);
+  useEffect(() => {
+    if (!leave.on || !open) return;
+    af("/api/leave/kinds").then(d => setKinds(Array.isArray(d && d.kinds) ? d.kinds : [])).catch(() => {});
+    af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => {});
+  }, [af, leave.on, open]);
+  if (!leave.on || !data) return null;
+  return (<Crd t={t} style={{ marginBottom: 16 }}><div data-folder-leave="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Leave balances")}</div>
+        <div data-folder-leave-policy="" style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Policy: {0}", leavePolicyName(data.policy))}{data.policy ? " | " + leaveSourceWord(data.policy.source) + (data.policy.since ? ", " + tr("since {0}", fdLong(data.policy.since)) : "") : ""}</div>
+      </div>
+      <Btn t={t} v="ghost" data-folder-leave-open="" onClick={() => setOpen(true)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Open the ledger")}</Btn>
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>{(data.balances || []).map(b => <span key={b.kind} style={{ fontSize: 12, padding: "4px 10px", borderRadius: R.pill, background: t.cardAlt, color: t.text }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div>
+    {open && <LeavePersonWindow af={af} t={t} userId={userId} year={year} kinds={kinds} policies={policies} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => setOpen(false)} onChanged={load} showToast={showToast} />}
+  </div></Crd>);
+}
+
+// The policy editor: each kind's amount, how it is given, seniority tiers, the waiting period, the carryover
+// cap, the maximum balance, a note, and the paid holidays. A save sends only what changed, the rules as a set.
+const LEAVE_METHODS = Object.keys(LEAVE_METHOD_WORDS);
+const blankRule = () => ({ kind: "paid_sick", kindName: "", newKind: false, method: "january_1", unit: "hours", amount: "40", hoursPerDay: "8", alsoOnHire: false, perHoursWorked: "", tiers: [], waitingDays: "0", carryoverCap: "", maxBalance: "", note: "" });
+const ruleForm = (r) => ({ kind: r.kind, kindName: r.kindName || "", newKind: !LEAVE_TYPE_WORDS[r.kind], method: r.method, unit: r.unit || "hours", amount: r.amount == null ? "" : String(r.amount), hoursPerDay: r.hoursPerDay == null ? "8" : String(r.hoursPerDay), alsoOnHire: !!r.alsoOnHire, perHoursWorked: r.perHoursWorked == null ? "" : String(r.perHoursWorked), tiers: (r.tiers || []).map(x => ({ years: String(x.years), amount: String(x.amount) })), waitingDays: String(r.waitingDays || 0), carryoverCap: r.carryoverCap == null ? "" : String(r.carryoverCap), maxBalance: r.maxBalance == null ? "" : String(r.maxBalance), note: r.note || "" });
+const numOrNull = (v) => (String(v).trim() === "" ? null : Number(String(v).trim()));
+const ruleBody = (r) => {
+  const noAmount = r.method === "manual" || r.method === "untracked";
+  const out = { kind: r.kind.trim(), method: r.method, unit: r.unit, amount: noAmount && String(r.amount).trim() === "" ? 0 : numOrNull(r.amount), hoursPerDay: r.unit === "days" ? numOrNull(r.hoursPerDay) : 8, alsoOnHire: (r.method === "january_1" || r.method === "anniversary") && !!r.alsoOnHire, tiers: noAmount ? [] : r.tiers.map(x => ({ years: numOrNull(x.years), amount: numOrNull(x.amount) })), waitingDays: Number(String(r.waitingDays).trim() || 0), carryoverCap: numOrNull(r.carryoverCap), maxBalance: numOrNull(r.maxBalance), note: r.note.trim() || null };
+  if (r.newKind) out.kindName = r.kindName.trim();
+  if (r.method === "per_hours_worked") out.perHoursWorked = numOrNull(r.perHoursWorked);
+  return out;
+};
+function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved }) {
+  const was = useMemo(() => policy ? { name: policy.name || "", description: policy.description || "", note: policy.note || "", grantsFrom: policy.grantsFrom || "", source: (policy.holidays && policy.holidays.source) || "handbook", days: policy.holidays && policy.holidays.source === "own" ? (policy.holidays.days || []).map(d => ({ date: d.date, name: d.name })) : [], rules: (policy.rules || []).map(ruleForm) }
+    : { name: "", description: "", note: "", grantsFrom: leaveToday(), source: "handbook", days: [], rules: [blankRule()] }, [policy]);
+  const [form, setForm] = useState(was);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const setRule = (i, k, v) => { setForm(f => ({ ...f, rules: f.rules.map((r, j) => (j === i ? { ...r, [k]: v } : r)) })); setSaid(null); };
+  const bad = (k) => !!(said && said.keys.some(x => x === k || x.indexOf(k + ".") === 0 || x.indexOf(k + "[") === 0));
+  const holidaysBody = (f) => (f.source === "own" ? { source: "own", days: f.days.map(d => ({ date: d.date, name: d.name.trim() })) } : { source: "handbook", days: [] });
+  const save = once(async () => {
+    if (!form.name.trim()) { setSaid({ text: tr("Give the policy a name."), keys: ["name"] }); return; }
+    const body = { name: form.name.trim(), description: form.description.trim() || null, note: form.note.trim() || null, grantsFrom: form.grantsFrom || undefined, holidays: holidaysBody(form), rules: form.rules.map(ruleBody) };
+    let send = body;
+    if (policy) {
+      const before = { name: was.name.trim(), description: was.description.trim() || null, note: was.note.trim() || null, grantsFrom: was.grantsFrom || undefined, holidays: holidaysBody(was), rules: was.rules.map(ruleBody) };
+      send = {};
+      Object.keys(body).forEach(k => { if (JSON.stringify(body[k]) !== JSON.stringify(before[k])) send[k] = body[k]; });
+      if (Object.keys(send).length === 0) { onClose(); return; }
+    }
+    try {
+      const d = await af("/api/leave/policies" + (policy ? "/" + encodeURIComponent(policy.id) : ""), { method: policy ? "PATCH" : "POST", body: send });
+      onSaved(d && d.policy ? d.policy : null);
+    } catch (e) { setSaid(leaveRefusal(e)); }
+  });
+  const small = { minHeight: 44, padding: "6px 12px", fontSize: 12 };
+  const num = (v) => v.replace(/[^0-9.]/g, "").slice(0, 8);
+  const kindOptions = kinds.filter(k => k.fromTimeOff).map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) })).concat([{ v: "__new", l: tr("Another kind...") }]);
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy-editor={policy ? policy.id : "new"} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{policy ? tr("Edit leave policy") : tr("New leave policy")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} data-leave-editor="name" aria-label={tr("Name")} maxLength={120} value={form.name} onChange={e => set("name", e.target.value)} style={bad("name") ? { borderColor: RD } : undefined} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} data-leave-editor="description" aria-label={tr("Description")} rows={2} maxLength={2000} value={form.description} onChange={e => set("description", e.target.value)} /></div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("Grants start on")}</Lbl><Inp t={t} type="date" data-leave-editor="grantsFrom" aria-label={tr("Grants start on")} value={form.grantsFrom} onChange={e => set("grantsFrom", e.target.value)} style={bad("grantsFrom") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Paid holidays")}</Lbl><Sel t={t} data-leave-editor="holidays" aria-label={tr("Paid holidays")} value={form.source} onChange={e => set("source", e.target.value)} options={[{ v: "handbook", l: tr("The company's holidays, as the handbook lists them") }, { v: "own", l: tr("Days this policy names") }]} style={bad("holidays") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    {form.source === "own" && <div data-leave-editor-days="" style={{ marginBottom: 12 }}>
+      {form.days.map((d, i) => <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <Inp t={t} type="date" aria-label={tr("Holiday date")} value={d.date} onChange={e => set("days", form.days.map((x, j) => (j === i ? { ...x, date: e.target.value } : x)))} style={{ width: 170, ...(bad("holidays.days[" + i + "]") ? { borderColor: RD } : {}) }} />
+        <Inp t={t} aria-label={tr("Holiday name")} maxLength={120} value={d.name} onChange={e => set("days", form.days.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} style={{ flex: "1 1 160px", width: "auto" }} />
+        <button onClick={() => set("days", form.days.filter((_, j) => j !== i))} aria-label={tr("Remove {0}", d.name || d.date)} style={xBtn}><XI sz={14} c={t.textMut} /></button>
+      </div>)}
+      <Btn t={t} v="ghost" onClick={() => set("days", form.days.concat([{ date: "", name: "" }]))} style={small}>{tr("Add a holiday")}</Btn>
+    </div>}
+    <Lbl>{tr("Kinds of leave")}</Lbl>
+    {form.rules.map((r, i) => { const noAmount = r.method === "manual" || r.method === "untracked"; const at = (k) => "rules[" + i + "]." + k; const badAt = (k) => !!(said && said.keys.indexOf(at(k)) >= 0); return (<div key={i} data-leave-editor-rule={i} style={{ marginBottom: 10, padding: 12, borderRadius: 8, border: "1px solid " + (said && said.keys.some(x => x.indexOf("rules[" + i + "]") === 0) ? RD : t.border), background: t.hover }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 8 }}>
+        <div><Lbl>{tr("Kind")}</Lbl><Sel t={t} data-leave-rule="kind" aria-label={tr("Kind")} value={r.newKind ? "__new" : r.kind} onChange={e => { const v = e.target.value; setForm(f => ({ ...f, rules: f.rules.map((x, j) => (j === i ? { ...x, newKind: v === "__new", kind: v === "__new" ? "" : v } : x)) })); setSaid(null); }} options={kindOptions} style={badAt("kind") ? { borderColor: RD } : undefined} /></div>
+        {r.newKind && <div><Lbl>{tr("Its code")}</Lbl><Inp t={t} data-leave-rule="newKind" aria-label={tr("Its code")} placeholder="union_sick" value={r.kind} onChange={e => setRule(i, "kind", e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 40))} style={badAt("kind") ? { borderColor: RD } : undefined} /></div>}
+        {r.newKind && <div><Lbl>{tr("Its name")}</Lbl><Inp t={t} data-leave-rule="kindName" aria-label={tr("Its name")} maxLength={60} value={r.kindName} onChange={e => setRule(i, "kindName", e.target.value)} style={badAt("kindName") ? { borderColor: RD } : undefined} /></div>}
+        <div><Lbl>{tr("How it is given")}</Lbl><Sel t={t} data-leave-rule="method" aria-label={tr("How it is given")} value={r.method} onChange={e => setRule(i, "method", e.target.value)} options={LEAVE_METHODS.map(m => ({ v: m, l: leaveMethodWord(m) }))} style={badAt("method") ? { borderColor: RD } : undefined} /></div>
+        {!noAmount && <div><Lbl>{tr("Amount")}</Lbl><Inp t={t} data-leave-rule="amount" aria-label={tr("Amount")} inputMode="decimal" value={r.amount} onChange={e => setRule(i, "amount", num(e.target.value))} style={badAt("amount") ? { borderColor: RD } : undefined} /></div>}
+        <div><Lbl>{tr("Counted in")}</Lbl><Sel t={t} data-leave-rule="unit" aria-label={tr("Counted in")} value={r.unit} onChange={e => setRule(i, "unit", e.target.value)} options={[{ v: "hours", l: tr("Hours") }, { v: "days", l: tr("Days") }]} /></div>
+        {r.unit === "days" && <div><Lbl>{tr("Hours in a day")}</Lbl><Inp t={t} data-leave-rule="hoursPerDay" aria-label={tr("Hours in a day")} inputMode="decimal" value={r.hoursPerDay} onChange={e => setRule(i, "hoursPerDay", num(e.target.value))} style={badAt("hoursPerDay") ? { borderColor: RD } : undefined} /></div>}
+        {r.method === "per_hours_worked" && <div><Lbl>{tr("For every this many hours worked")}</Lbl><Inp t={t} data-leave-rule="perHoursWorked" aria-label={tr("For every this many hours worked")} inputMode="decimal" value={r.perHoursWorked} onChange={e => setRule(i, "perHoursWorked", num(e.target.value))} style={badAt("perHoursWorked") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Waiting period, in days")}</Lbl><Inp t={t} data-leave-rule="waitingDays" aria-label={tr("Waiting period, in days")} inputMode="numeric" value={r.waitingDays} onChange={e => setRule(i, "waitingDays", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} style={badAt("waitingDays") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Carryover cap")}</Lbl><Inp t={t} data-leave-rule="carryoverCap" aria-label={tr("Carryover cap")} inputMode="decimal" placeholder={tr("No cap")} value={r.carryoverCap} onChange={e => setRule(i, "carryoverCap", num(e.target.value))} style={badAt("carryoverCap") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Maximum balance")}</Lbl><Inp t={t} data-leave-rule="maxBalance" aria-label={tr("Maximum balance")} inputMode="decimal" placeholder={tr("No maximum")} value={r.maxBalance} onChange={e => setRule(i, "maxBalance", num(e.target.value))} style={badAt("maxBalance") ? { borderColor: RD } : undefined} /></div>}
+      </div>
+      {(r.method === "january_1" || r.method === "anniversary") && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.text, marginBottom: 6, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-leave-rule="alsoOnHire" checked={r.alsoOnHire} onChange={e => setRule(i, "alsoOnHire", e.target.checked)} /></span>{tr("A new hire also gets it on the hire date")}</label>}
+      {!noAmount && <div data-leave-rule-tiers="" style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Seniority tiers: from a number of years of service, a different amount.")}</div>
+        {r.tiers.map((x, j) => <div key={j} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: t.textSec }}>{tr("From")}</span>
+          <Inp t={t} aria-label={tr("Years of service")} inputMode="numeric" value={x.years} onChange={e => setRule(i, "tiers", r.tiers.map((y, k) => (k === j ? { ...y, years: e.target.value.replace(/[^0-9]/g, "").slice(0, 2) } : y)))} style={{ width: 70, ...(badAt("tiers[" + j + "]") ? { borderColor: RD } : {}) }} />
+          <span style={{ fontSize: 12, color: t.textSec }}>{tr("years:")}</span>
+          <Inp t={t} aria-label={tr("Amount from those years")} inputMode="decimal" value={x.amount} onChange={e => setRule(i, "tiers", r.tiers.map((y, k) => (k === j ? { ...y, amount: num(e.target.value) } : y)))} style={{ width: 90 }} />
+          <button onClick={() => setRule(i, "tiers", r.tiers.filter((_, k) => k !== j))} aria-label={tr("Remove this tier")} style={xBtn}><XI sz={14} c={t.textMut} /></button>
+        </div>)}
+        <Btn t={t} v="ghost" data-leave-rule-add-tier="" onClick={() => setRule(i, "tiers", r.tiers.concat([{ years: "", amount: "" }]))} style={small}>{tr("Add a tier")}</Btn>
+      </div>}
+      <div style={{ marginBottom: 6 }}><Lbl>{tr("Note")}</Lbl><Inp t={t} data-leave-rule="note" aria-label={tr("Note")} maxLength={1000} value={r.note} onChange={e => setRule(i, "note", e.target.value)} /></div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => set("rules", form.rules.filter((_, j) => j !== i))} style={small}>{tr("Remove this kind")}</Btn></div>
+    </div>); })}
+    <div style={{ marginBottom: 12 }}><Btn t={t} v="ghost" data-leave-editor-add-rule="" onClick={() => set("rules", form.rules.concat([Object.assign(blankRule(), { kind: "", newKind: true, amount: "" })]))} style={small}>{tr("Add a kind of leave")}</Btn></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} data-leave-editor="note" aria-label={tr("Note")} rows={2} maxLength={2000} value={form.note} onChange={e => set("note", e.target.value)} /></div>
+    {said && <div data-leave-editor-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-editor-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div></Mdl>);
+}
+
+// One policy: its plain words, its kinds, its holidays, the sites that use it by default and the people
+// who follow it, with Edit for holders of manage_leave_balances. The handbook policy is read only.
+function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, onChanged, onOpenPerson, showToast }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [next, setNext] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const base = "/api/leave/policies/" + encodeURIComponent(id);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af(base + "?cursor="); setData(d); setPeople(Array.isArray(d && d.people) ? d.people : []); setNext(d && d.nextCursor ? d.nextCursor : null); }
+    catch (e) { setFailed(true); }
+  }, [af, base]);
+  useEffect(() => { load(); }, [load]);
+  const more = async () => { try { const d = await af(base + "?cursor=" + encodeURIComponent(next)); setPeople(cur => cur.concat(Array.isArray(d && d.people) ? d.people : [])); setNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); } };
+  const p = data && data.policy;
+  const readOnly = !!(p && p.builtIn);
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy={id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave policy")}</div>
+        {p && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{p.isDefault && <Bdg l={tr("Company default")} c={GO} />}{p.builtIn && <Bdg l={tr("Read only")} c={t.textMut} />}</div>}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {failed && !data && <LoadFailed t={t} onRetry={load} />}
+    {!failed && !data && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {p && <>
+      {p.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{p.description}</div>}
+      {readOnly && <div data-leave-policy-read-only="" style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr("This is the handbook's policy. It stays as the handbook sets it; make a new policy for anything else.")}</div>}
+      {canManage && !readOnly && <div style={{ marginBottom: 12 }}><Btn t={t} data-leave-policy-edit="" onClick={() => setEditing(true)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn></div>}
+      <div data-leave-policy-summary="" style={{ marginBottom: 12 }}>{(p.summary && p.summary.lines || []).map((l, i) => <div key={i} style={{ fontSize: 13, color: t.text, marginBottom: 6, lineHeight: 1.5 }}><b>{leaveKindWord(l.kind, l.kindName)}:</b> {l.text}{l.note ? <div style={{ fontSize: 12, color: t.textSec }}>{l.note}</div> : null}</div>)}
+        {p.summary && p.summary.holidays && <div style={{ fontSize: 12, color: t.textSec }}>{p.summary.holidays}</div>}
+        {p.grantsFrom && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Grants start on {0}.", fdLong(p.grantsFrom))}</div>}
+        {p.note && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{p.note}</div>}</div>
+      <Lbl>{tr("Sites that use it")}</Lbl>
+      <div data-leave-policy-sites="" style={{ marginBottom: 12 }}>{(data.sites || []).length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No site uses it.")}</div> : (data.sites || []).map(s => <div key={s.siteId} style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{s.siteName} <span style={{ fontSize: 12, color: t.textSec }}>{s.source === "site" ? (s.since ? tr("since {0}", fdLong(s.since)) : "") : tr("by the company default")}</span></div>)}</div>
+      <Lbl>{tr("Who follows it")}</Lbl>
+      <div data-leave-policy-people="">{people.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nobody follows it today.")}</div> : people.map(x => <button key={x.person.userId} onClick={() => onOpenPerson(x.person.userId)} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", minHeight: 44, padding: "6px 8px", background: "none", border: "none", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, textAlign: "left", cursor: "pointer", fontFamily: FONT_BODY }}><span>{x.person.name}</span><span style={{ fontSize: 12, color: t.textSec }}>{x.person.site ? x.person.site.name : ""}{x.policy ? " | " + leaveSourceWord(x.policy.source) : ""}</span></button>)}</div>
+      {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}><Btn t={t} v="ghost" onClick={more}>{tr("Show more")}</Btn></div>}
+    </>}
+    {editing && p && <LeavePolicyEditor af={af} t={t} policy={p} kinds={kinds} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); showToast(tr("Policy saved")); load(); if (onChanged) onChanged(); }} />}
+  </div></Mdl>);
+}
+
+// The hours file from the payroll system, read here the way the API reads it, line by line: the person by
+// badge number or employee ID, the period, and the hours. The API matches each person and posts; a line
+// it cannot match keeps the whole file from posting, and comes back with its words.
+const LEAVE_FILE_WORDS = {
+  badHeader: "The first line names the columns: person, period_start, period_end and hours (or person, period and hours).",
+  empty: "The file has no lines of hours.",
+  personRequired: "Name the person by badge number or employee ID.",
+  badPeriod: "The period needs a first and a last day, YYYY-MM-DD, the first on or before the last.",
+  periodAhead: "The period ends after today.",
+  periodTooLong: "A period is 62 days at most.",
+  badHours: "Hours are a number from 0 to 400.",
+};
+function leaveCsvRows(text) {
+  const s = String(text || "").replace(/^\ufeff/, "");
+  const rows = []; let row = []; let field = ""; let quoted = false; let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (quoted) { if (c === "\"") { if (s[i + 1] === "\"") { field += "\""; i += 2; continue; } quoted = false; i += 1; continue; } field += c; i += 1; continue; }
+    if (c === "\"" && field === "") { quoted = true; i += 1; continue; }
+    if (c === ",") { row.push(field); field = ""; i += 1; continue; }
+    if (c === "\r") { i += 1; continue; }
+    if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i += 1; continue; }
+    field += c; i += 1;
+  }
+  if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+function readLeaveHoursFile(text, today) {
+  const real = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) && new Date(v + "T12:00:00Z").toISOString().slice(0, 10) === v ? v : null;
+  const rows = leaveCsvRows(text).map((r, i) => ({ line: i + 1, cells: r })).filter(r => r.cells.some(c => String(c).trim() !== ""));
+  if (!rows.length) return { lines: [], problems: [{ line: 1, word: "empty" }] };
+  const head = rows[0].cells.map(c => String(c).trim().toLowerCase().replace(/\s+/g, "_"));
+  const col = (n) => head.indexOf(n);
+  const pc = col("person"), hc = col("hours"), per = col("period"), sc = col("period_start"), ec = col("period_end");
+  if (pc < 0 || hc < 0 || (per < 0 && (sc < 0 || ec < 0))) return { lines: [], problems: [{ line: rows[0].line, word: "badHeader" }] };
+  const lines = []; const problems = [];
+  rows.slice(1).forEach(r => {
+    const cell = (i) => (i >= 0 && i < r.cells.length ? String(r.cells[i]).trim() : "");
+    const person = cell(pc);
+    const base = { line: r.line, person };
+    if (!person || person.length > 64) { problems.push({ line: r.line, word: "personRequired" }); lines.push(base); return; }
+    let first = null; let last = null;
+    if (per >= 0 && !(sc >= 0 && ec >= 0)) { const parts = cell(per).split(/\s*\/\s*|\s+to\s+/i); if (parts.length === 2) { first = real(parts[0]); last = real(parts[1]); } }
+    else { first = real(cell(sc)); last = real(cell(ec)); }
+    if (!first || !last || first > last) { problems.push({ line: r.line, word: "badPeriod" }); lines.push(base); return; }
+    if (last > today) { problems.push({ line: r.line, word: "periodAhead" }); lines.push(base); return; }
+    if ((Date.parse(last + "T12:00:00Z") - Date.parse(first + "T12:00:00Z")) / 86400000 + 1 > 62) { problems.push({ line: r.line, word: "periodTooLong" }); lines.push(base); return; }
+    const h = Number(cell(hc));
+    if (cell(hc) === "" || !Number.isFinite(h) || h < 0 || h > 400) { problems.push({ line: r.line, word: "badHours" }); lines.push(base); return; }
+    lines.push(Object.assign(base, { periodStart: first, periodEnd: last, hours: h }));
+  });
+  if (rows.length === 1) problems.push({ line: rows[0].line, word: "empty" });
+  return { lines, problems };
+}
+function LeaveHoursWindow({ af, t, onClose, onPosted }) {
+  const [file, setFile] = useState(null);
+  const [read, setRead] = useState(null);
+  const [answer, setAnswer] = useState(null);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const ref = useRef(null);
+  const pick = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (ref.current) ref.current.value = "";
+    setAnswer(null); setSaid(null);
+    if (!f) return;
+    const text = await f.text();
+    setFile({ name: f.name, text });
+    setRead(readLeaveHoursFile(text, leaveToday()));
+  };
+  const post = once(async () => {
+    if (!file) return;
+    setSaid(null);
+    try { const d = await af("/api/leave/hours-files", { method: "POST", body: { fileName: file.name, csv: file.text } }); setAnswer(d); if (onPosted) onPosted(); }
+    catch (e) { setSaid({ text: (e && e.message) || tr("Request failed"), lines: e && e.body && Array.isArray(e.body.lines) ? e.body.lines : [] }); }
+  });
+  const problemOf = (line) => { const p = (read ? read.problems : []).find(x => x.line === line); return p ? tr(LEAVE_FILE_WORDS[p.word]) : ""; };
+  const refusedOf = (line) => { const p = (said ? said.lines : []).find(x => x.line === line); return p ? p.message : ""; };
+  const local = read ? read.problems.length : 0;
+  const cols = [
+    { header: tr("Line"), render: l => l.line },
+    { header: tr("Person"), render: l => <span style={{ fontFamily: "monospace" }}>{l.person || "--"}</span> },
+    { header: tr("Period"), render: l => (l.periodStart ? tr("{0} to {1}", fdLong(l.periodStart), fdLong(l.periodEnd)) : "--") },
+    { header: tr("Hours"), align: "right", render: l => (l.hours != null ? leaveNum(l.hours) : "--") },
+    { header: "", render: l => { const w = problemOf(l.line) || refusedOf(l.line); return w ? <span data-leave-file-problem={l.line} style={{ fontSize: 12, color: RD }}>{w}</span> : null; } },
+  ];
+  const outCols = [
+    { header: tr("Line"), render: l => l.line },
+    { header: tr("Person"), render: l => l.name || l.person },
+    { header: tr("Period"), render: l => tr("{0} to {1}", fdLong(l.periodStart), fdLong(l.periodEnd)) },
+    { header: tr("Hours worked"), align: "right", render: l => leaveNum(l.hoursWorked) },
+    { header: tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
+  ];
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload an hours file")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The payroll system's hours export, as a CSV: a column person (badge number or employee ID), period_start and period_end (or period), and hours. Hours worked post leave for policies given per hours worked.")}</div>
+    {!answer && <div style={{ marginBottom: 12 }}>
+      <input ref={ref} type="file" accept=".csv,text/csv" onChange={pick} aria-label={tr("Choose the CSV")} style={{ display: "none" }} />
+      <Btn t={t} v="ghost" data-leave-file-choose="" onClick={() => ref.current && ref.current.click()} style={{ minHeight: 44 }}>{file ? tr("Choose another file") : tr("Choose the CSV")}</Btn>
+      {file && <span style={{ marginLeft: 10, fontSize: 13, color: t.text }}>{file.name}</span>}
+    </div>}
+    {read && !answer && <>
+      <div data-leave-file-read={read.lines.length} style={{ fontSize: 12, color: local || (said && said.lines.length) ? RD : t.textSec, marginBottom: 8 }}>{local ? trn("{0} line cannot be read. Fix the file and choose it again.|count", local) : said && said.lines.length ? said.text : trn("{0} line read. Post the hours to match each person and post their leave.|count", read.lines.length)}</div>
+      <DataTable t={t} columns={cols} rows={read.lines} rowKey={l => l.line} empty={tr("The file has no lines of hours.")} />
+      {said && !said.lines.length && <div data-leave-file-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-post="" onClick={post} disabled={busy || local > 0 || read.lines.length === 0}>{busy ? tr("Posting...") : tr("Post the hours")}</Btn></div>
+    </>}
+    {answer && answer.duplicate && <div data-leave-file-duplicate="" style={{ fontSize: 13, color: t.text, marginBottom: 12 }}>{tr("This file was posted before, on {0}. Nothing new posted.", answer.file ? irWhen(answer.file.uploadedAt) : "--")}</div>}
+    {answer && !answer.duplicate && <>
+      <div data-leave-file-posted={answer.file ? answer.file.postedCount : 0} style={{ fontSize: 13, color: GR, fontWeight: 600, marginBottom: 8 }}>{tr("Posted. {0} lines posted leave, {1} posted none.", answer.file ? answer.file.postedCount : 0, answer.file ? answer.file.skippedCount : 0)}</div>
+      <DataTable t={t} columns={outCols} rows={answer.lines || []} rowKey={l => l.line} />
+    </>}
+    {answer && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={onClose}>{tr("Done")}</Btn></div>}
+  </div></Mdl>);
+}
+
+// Enter starting balances: everyone active, a box for the paid sick hours each has left today. Save posts one
+// adjustment per filled box, the difference from what the ledger holds, with the reason Starting balance and
+// a clientId made once per person, so a retry posts once.
+function LeaveStartingBalances({ af, t, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [boxes, setBoxes] = useState({});
+  const [results, setResults] = useState({});
+  const [once, busy] = useBusyGuard();
+  const ids = useRef({});
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { setRows(await leaveEveryPage(af, "/api/leave/balances?status=active", "people")); }
+    catch (e) { setFailed(true); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const sickOf = (r) => { const b = (r.balances || []).find(x => x.kind === "paid_sick"); return b ? Number(b.balanceHours) || 0 : 0; };
+  const save = once(async () => {
+    const filled = (rows || []).filter(r => String(boxes[r.person.userId] || "").trim() !== "");
+    if (!filled.length) { showToast(tr("Fill in at least one box."), "error"); return; }
+    const out = {};
+    let posted = 0, refused = 0, same = 0;
+    for (const r of filled) {
+      const uid = r.person.userId;
+      const want = Number(String(boxes[uid]).trim());
+      if (!Number.isFinite(want) || want < 0 || want > 9999 || Math.abs(want * 100 - Math.round(want * 100)) > 1e-6) { out[uid] = { bad: true, text: tr("Type the hours left, from 0, up to two decimals.") }; refused += 1; continue; }
+      const delta = Math.round((want - sickOf(r)) * 100) / 100;
+      if (delta === 0) { out[uid] = { same: true, text: tr("Already at {0}.", leaveHours(want)) }; same += 1; continue; }
+      if (!ids.current[uid]) ids.current[uid] = "start-" + Math.random().toString(36).slice(2, 10) + "-" + String(uid).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+      try {
+        const d = await af("/api/leave/people/" + encodeURIComponent(uid) + "/adjustments", { method: "POST", body: { kind: "paid_sick", hours: delta, reason: "Starting balance", clientId: ids.current[uid] } });
+        out[uid] = { posted: true, text: tr("Posted {0}. The balance is {1}.", leaveSigned(delta), leaveHours(d && d.balance ? d.balance.balanceHours : want)) };
+        posted += 1;
+      } catch (e) { out[uid] = { bad: true, text: (e && e.message) || tr("Request failed") }; refused += 1; }
+    }
+    setResults(out);
+    showToast(tr("{0} posted, {1} refused, {2} already at that balance.", posted, refused, same), refused ? "error" : "success");
+    try { setRows(await leaveEveryPage(af, "/api/leave/balances?status=active", "people")); } catch (e) { /* the results stay as they are */ }
+  });
+  const cols = [
+    { header: tr("Person"), render: r => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{r.person.site ? r.person.site.name : ""}</div></div> },
+    { header: tr("Paid sick now"), align: "right", render: r => leaveHours(sickOf(r)) },
+    { header: tr("Paid sick hours left today"), render: r => <Inp t={t} data-leave-start-box={r.person.userId} aria-label={tr("Paid sick hours left today for {0}", r.person.name)} inputMode="decimal" value={boxes[r.person.userId] || ""} onChange={e => { const v = e.target.value.replace(/[^0-9.]/g, "").slice(0, 7); setBoxes(b => ({ ...b, [r.person.userId]: v })); }} style={{ width: 110, minHeight: 40 }} /> },
+    { header: "", render: r => { const x = results[r.person.userId]; return x ? <span data-leave-start-result={x.posted ? "posted" : x.same ? "same" : "refused"} style={{ fontSize: 12, color: x.posted ? GR : x.same ? t.textSec : RD }}>{x.text}</span> : null; } },
+  ];
+  return (<div data-leave-starting="">
+    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Use this once, when leave balances start: type the paid sick hours each person has left today. Save posts one adjustment for each filled box, with the reason Starting balance. A box left empty posts nothing.")}</div>
+    {failed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {!failed && <DataTable t={t} columns={cols} rows={rows || []} rowKey={r => r.person.userId} empty={rows == null ? tr("Loading...") : tr("Nobody is active.")} />}
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} data-leave-start-save="" onClick={save} disabled={busy || !rows}>{busy ? tr("Saving...") : tr("Save the starting balances")}</Btn></div>
+  </div>);
+}
+
+// A site's leave policy, on its General Info tab, with Set the site's policy for holders of
+// manage_leave_balances.
+function SiteLeavePolicy({ af, t, siteId, showToast }) {
+  const leave = useContext(LeaveCtx);
+  const [site, setSite] = useState(null);
+  const [policies, setPolicies] = useState([]);
+  const [setting, setSetting] = useState(false);
+  const load = useCallback(() => { af("/api/leave/sites").then(d => setSite((Array.isArray(d && d.sites) ? d.sites : []).find(s => String(s.siteId) === String(siteId)) || null)).catch(() => setSite(null)); }, [af, siteId]);
+  useEffect(() => { if (leave.on) load(); }, [leave.on, load]);
+  useEffect(() => { if (leave.on && setting) af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => {}); }, [af, leave.on, setting]);
+  if (!leave.on || !site) return null;
+  return (<Crd t={t} style={{ marginBottom: 16 }}><div data-site-leave-policy={siteId}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+      <div><div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Leave policy")}</div>
+        <div data-site-leave-policy-name="" style={{ fontSize: 13, color: t.text }}>{leavePolicyName(site.policy)}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{site.source === "site" ? tr("This site's own default, since {0}.", site.since ? fdLong(site.since) : "--") : tr("The company default. People here follow it unless they have their own.")}</div></div>
+      {leave.canManage && !setting && <Btn t={t} v="ghost" data-site-leave-policy-set="" onClick={() => setSetting(true)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Set the site's policy")}</Btn>}
+    </div>
+    {setting && <LeavePolicySetForm af={af} t={t} scope="site" id={siteId} policies={policies} onCancel={() => setSetting(false)} onDone={() => { setSetting(false); showToast(tr("Policy saved")); load(); }} />}
+  </div></Crd>);
+}
+
+// The Leave balances page (Staff, under HR Records): Balances, Policies, Sites, Hours files, Missing hire
+// dates, and Enter starting balances. #leave/<tab>, and #leave/balances/<userId> opens a person's ledger.
+function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, canOpenStaff = false }) {
+  const leave = useContext(LeaveCtx);
+  const tabs = [["balances", "Balances"], ["policies", "Policies"], ["sites", "Sites"], ["hours", "Hours files"], ["missing", "Missing hire dates"]].concat(leave.canManage ? [["starting", "Enter starting balances"]] : []);
+  const tab = tabs.some(x => x[0] === route[0]) ? route[0] : "balances";
+  const go = (id, more) => { if (onRoute) onRoute([id].concat(more || [])); };
+  const [policies, setPolicies] = useState(null);
+  const [kinds, setKinds] = useState([]);
+  const [year, setYear] = useState(leaveYear());
+  const [f, setF] = useState({ siteId: "", policyId: "", role: "", status: "active", q: "" });
+  const [typed, setTyped] = useState("");
+  const [rows, setRows] = useState([]);
+  const [next, setNext] = useState(null);
+  const [files, setFiles] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [openPolicy, setOpenPolicy] = useState("");
+  const [newPolicy, setNewPolicy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [leaveSites, setLeaveSites] = useState(null);
+  const [siteSetting, setSiteSetting] = useState("");
+  const [fileList, setFileList] = useState(null);
+  const [fileNext, setFileNext] = useState(null);
+  const [missing, setMissing] = useState(null);
+  const [missingNext, setMissingNext] = useState(null);
+  const personId = tab === "balances" && route[1] ? String(route[1]) : "";
+  const loadPolicies = useCallback(() => { af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => setPolicies([])); }, [af]);
+  useEffect(() => { loadPolicies(); af("/api/leave/kinds").then(d => setKinds(Array.isArray(d && d.kinds) ? d.kinds : [])).catch(() => {}); }, [af, loadPolicies]);
+  const query = useMemo(() => { const p = new URLSearchParams(); p.set("year", String(year)); Object.keys(f).forEach(k => { if (f[k] && !(k === "status" && f[k] === "active")) p.set(k, f[k]); }); return p; }, [year, f]);
+  const asked = useRef(0);
+  const loadBalances = useCallback(async () => {
+    const n = ++asked.current;
+    setLoading(true); setFailed(false);
+    try {
+      const p = new URLSearchParams(query); p.set("cursor", "");
+      const d = await af("/api/leave/balances?" + p.toString());
+      if (n !== asked.current) return;
+      setRows(Array.isArray(d && d.people) ? d.people : []); setNext(d && d.nextCursor ? d.nextCursor : null); setFiles(d && d.hoursFiles ? d.hoursFiles : null);
+    } catch (e) { if (n === asked.current) { setRows([]); setNext(null); setFailed(true); } }
+    if (n === asked.current) setLoading(false);
+  }, [af, query]);
+  useEffect(() => { if (tab === "balances") loadBalances(); }, [tab, loadBalances, reloadKey]);
+  const more = async () => {
+    const n = asked.current;
+    try { const p = new URLSearchParams(query); p.set("cursor", next); const d = await af("/api/leave/balances?" + p.toString()); if (n === asked.current) { setRows(cur => cur.concat(Array.isArray(d && d.people) ? d.people : [])); setNext(d && d.nextCursor ? d.nextCursor : null); } }
+    catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  };
+  const download = async () => { try { const p = new URLSearchParams(query); p.set("format", "csv"); await saveDownload("/api/leave/balances?" + p.toString(), token, "leave-balances-" + year + ".csv"); } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); } };
+  const loadSites = useCallback(() => { af("/api/leave/sites").then(d => setLeaveSites(Array.isArray(d && d.sites) ? d.sites : [])).catch(() => setLeaveSites([])); }, [af]);
+  useEffect(() => { if (tab === "sites") loadSites(); }, [tab, loadSites]);
+  const loadFiles = useCallback(async (cursor) => { try { const d = await af("/api/leave/hours-files?cursor=" + encodeURIComponent(cursor || "")); setFileList(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.files) ? d.files : [])); setFileNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setFileList(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
+  useEffect(() => { if (tab === "hours") loadFiles(""); }, [tab, loadFiles]);
+  const loadMissing = useCallback(async (cursor) => { try { const d = await af("/api/leave/missing-hire-dates?cursor=" + encodeURIComponent(cursor || "")); setMissing(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.people) ? d.people : [])); setMissingNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setMissing(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
+  useEffect(() => { if (tab === "missing") loadMissing(""); }, [tab, loadMissing]);
+  const pickStyle = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
+  const balanceCols = [
+    { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
+    { header: tr("Policy"), render: r => <div style={{ fontSize: 12 }}><div style={{ color: t.text }}>{leavePolicyName(r.policy)}</div>{r.policy && <div style={{ color: t.textMut, fontSize: 11 }}>{leaveSourceWord(r.policy.source)}</div>}</div> },
+    { header: tr("Balances"), render: r => <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{(r.balances || []).length === 0 ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("None kept")}</span> : r.balances.map(b => <span key={b.kind} data-leave-chip={b.kind} style={{ fontSize: 12, padding: "3px 9px", borderRadius: R.pill, background: t.cardAlt, color: Number(b.balanceHours) < 0 ? RD : t.text, whiteSpace: "nowrap" }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div> },
+  ];
+  return (<div data-leave-page="">
+    <SecT t={t}>{tr("Leave balances")}</SecT>
+    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l) }))} />
+    {tab === "balances" && <div data-leave-tab="balances">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 10 }}>
+        <Sel t={t} data-leave-filter="year" aria-label={tr("Year")} value={String(year)} onChange={e => setYear(Number(e.target.value))} options={[leaveYear() + 1, leaveYear(), leaveYear() - 1, leaveYear() - 2].map(y => ({ v: String(y), l: String(y) }))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="site" aria-label={tr("Site")} value={f.siteId} onChange={e => setF(x => ({ ...x, siteId: e.target.value }))} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s => ({ v: String(s.id), l: s.name })))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="policy" aria-label={tr("Policy")} value={f.policyId} onChange={e => setF(x => ({ ...x, policyId: e.target.value }))} options={[{ v: "", l: tr("Every policy") }].concat((policies || []).map(p => ({ v: p.id, l: p.name })))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="role" aria-label={tr("Role")} value={f.role} onChange={e => setF(x => ({ ...x, role: e.target.value }))} options={[{ v: "", l: tr("Every role") }].concat(LEAVE_ROLES.map(r => ({ v: r, l: roleWord(r) })))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="status" aria-label={tr("Status")} value={f.status} onChange={e => setF(x => ({ ...x, status: e.target.value }))} options={LEAVE_STATUSES.map(([v, l]) => ({ v, l: v === "pending" ? personStateOf("pending") : tr(l) }))} style={pickStyle} />
+        <Inp t={t} data-leave-filter="q" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+        <div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div>
+        <Btn t={t} v="ghost" data-leave-download="" onClick={download} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}><DlI sz={14} c={t.text} /> {tr("Download CSV")}</Btn>
+      </div>
+      {failed && rows.length === 0 ? <Crd t={t}><LoadFailed t={t} onRetry={loadBalances} /></Crd>
+        : <DataTable t={t} columns={balanceCols} rows={rows} rowKey={r => r.person.userId} onRowClick={r => go("balances", [r.person.userId])} empty={loading ? tr("Loading...") : tr("Nobody matches.")} />}
+      {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" data-leave-more="" onClick={more}>{tr("Show more")}</Btn></div>}
+    </div>}
+    {tab === "policies" && <div data-leave-tab="policies">
+      {leave.canManage && <div style={{ marginBottom: 12 }}><Btn t={t} data-leave-policy-new="" onClick={() => setNewPolicy(true)} style={{ minHeight: 44 }}>{tr("New leave policy")}</Btn></div>}
+      {policies == null && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+      {(policies || []).map(p => <Crd key={p.id} t={t} style={{ marginBottom: 10 }} onClick={() => setOpenPolicy(p.id)}><div data-leave-policy-card={p.id}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{p.name} <span style={{ marginLeft: 6 }}>{p.isDefault && <Bdg l={tr("Company default")} c={GO} />} {p.builtIn && <Bdg l={tr("Read only")} c={t.textMut} />}</span></div>
+          <div style={{ fontSize: 12, color: t.textSec }}>{p.followers ? tr("{0} sites, {1} people", p.followers.sites, p.followers.people) : ""}</div>
+        </div>
+        {(p.summary && p.summary.lines || []).map((l, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.4 }}><b style={{ color: t.text }}>{leaveKindWord(l.kind, l.kindName)}:</b> {l.text}</div>)}
+      </div></Crd>)}
+    </div>}
+    {tab === "sites" && <div data-leave-tab="sites">
+      {leaveSites == null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : <DataTable t={t} rowKey={s => s.siteId} rows={leaveSites} empty={tr("No active site.")} columns={[
+        { header: tr("Site"), render: s => <span style={{ color: t.text, fontWeight: 600 }}>{s.siteName}</span> },
+        { header: tr("Policy"), render: s => <div data-leave-site-row={s.siteId}><div style={{ color: t.text }}>{leavePolicyName(s.policy)}</div><div style={{ fontSize: 11, color: t.textMut }}>{s.source === "site" ? tr("This site's own default, since {0}.", s.since ? fdLong(s.since) : "--") : tr("The company default")}</div>
+          {siteSetting === s.siteId && <LeavePolicySetForm af={af} t={t} scope="site" id={s.siteId} policies={policies || []} onCancel={() => setSiteSetting("")} onDone={() => { setSiteSetting(""); showToast(tr("Policy saved")); loadSites(); loadPolicies(); }} />}</div> },
+        ...(leave.canManage ? [{ header: "", align: "right", render: s => siteSetting === s.siteId ? null : <Btn t={t} v="ghost" data-leave-site-set={s.siteId} onClick={() => setSiteSetting(s.siteId)} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Set the site's policy")}</Btn> }] : []),
+      ]} />}
+    </div>}
+    {tab === "hours" && <div data-leave-tab="hours">
+      {leave.canManage && <div style={{ marginBottom: 12 }}><Btn t={t} data-leave-file-upload="" onClick={() => setUploading(true)} style={{ minHeight: 44 }}>{tr("Upload an hours file")}</Btn></div>}
+      <DataTable t={t} rowKey={x => x.id} rows={fileList || []} empty={fileList == null ? tr("Loading...") : tr("No hours file has been posted yet.")} columns={[
+        { header: tr("File"), render: x => <span data-leave-file-row={x.id} style={{ color: t.text }}>{x.fileName}</span> },
+        { header: tr("Periods"), render: x => (x.firstPeriodStart ? tr("{0} to {1}", fdLong(x.firstPeriodStart), fdLong(x.lastPeriodEnd)) : "--") },
+        { header: tr("Lines"), align: "right", render: x => x.lineCount },
+        { header: tr("Posted|hours file"), align: "right", render: x => x.postedCount },
+        { header: tr("Posted none"), align: "right", render: x => x.skippedCount },
+        { header: tr("By"), render: x => (x.uploadedBy ? x.uploadedBy.name : "--") },
+        { header: tr("When"), render: x => irWhen(x.uploadedAt) },
+      ]} />
+      {fileNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadFiles(fileNext)}>{tr("Show more")}</Btn></div>}
+    </div>}
+    {tab === "missing" && <div data-leave-tab="missing">
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Active people with no hire date. A grant on the hire date, a seniority tier or a waiting period cannot count for them until one is on their profile.")}</div>
+      <DataTable t={t} rowKey={x => x.person.userId} rows={missing || []} empty={missing == null ? tr("Loading...") : tr("Everyone active has a hire date.")} columns={[
+        { header: tr("Person"), render: x => <span data-leave-missing={x.person.userId} style={{ color: t.text, fontWeight: 600 }}>{x.person.name}</span> },
+        { header: tr("Site"), render: x => (x.person.site ? x.person.site.name : "--") },
+        { header: tr("Policy"), render: x => leavePolicyName(x.policy) },
+        { header: tr("What waits on it"), render: x => (x.kindsAffected || []).map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--" },
+        { header: "", align: "right", render: x => <Btn t={t} v="ghost" data-leave-missing-open={x.person.userId} onClick={() => { window.location.hash = (canOpenStaff ? "staff/" : "hr/") + encodeURIComponent(x.person.userId); }} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Open the profile")}</Btn> },
+      ]} />
+      {missingNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadMissing(missingNext)}>{tr("Show more")}</Btn></div>}
+    </div>}
+    {tab === "starting" && leave.canManage && <LeaveStartingBalances af={af} t={t} showToast={showToast} />}
+    {personId && <LeavePersonWindow af={af} t={t} userId={personId} year={year} kinds={kinds} policies={policies || []} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => go("balances")} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
+    {openPolicy && <LeavePolicyWindow af={af} t={t} id={openPolicy} kinds={kinds} canManage={leave.canManage} onClose={() => setOpenPolicy("")} onChanged={loadPolicies} onOpenPerson={(uid) => { setOpenPolicy(""); go("balances", [uid]); }} showToast={showToast} />}
+    {newPolicy && <LeavePolicyEditor af={af} t={t} kinds={kinds} onClose={() => setNewPolicy(false)} onSaved={() => { setNewPolicy(false); showToast(tr("Policy saved")); loadPolicies(); }} />}
+    {uploading && <LeaveHoursWindow af={af} t={t} onClose={() => setUploading(false)} onPosted={() => loadFiles("")} />}
   </div>);
 }
 
@@ -14623,6 +15327,9 @@ const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
 // the capability alone (Round 2, part 353): an admin whose own permission takes it away is not offered it.
 function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDecide = false }) {
   const [req, setReq] = useState(seed);
+  // Part 368 (the API's part 365): the request's leave, its kind's balance before and after it and the
+  // API's warnings, on the read and on every answer that decides it; null when the API answers none.
+  const [leave, setLeave] = useState(null);
   // Step 334: the shifts the request affects, once the read answers them, and what to do with each.
   const [affected, setAffected] = useState(null);
   const [choices, setChoices] = useState({});
@@ -14644,7 +15351,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
 
   const readOnce = useRef(false);
   const reload = async () => {
-    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); readOnce.current = true; setReadState("read"); }
+    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); setLeave(d && d.leave && typeof d.leave === "object" ? d.leave : null); readOnce.current = true; setReadState("read"); }
     catch (e) { if (readOnce.current) setError(e.message || tr("Request failed")); else setReadState("failed"); }
   };
   const readAgain = () => { setError(""); setReadState("reading"); reload(); };
@@ -14704,6 +15411,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       const body = Object.assign(trimmed ? { note: trimmed } : {}, picked.out.length ? { shifts: picked.out } : {});
       const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body });
       if (d && d.request) setReq(d.request);
+      if (d && d.leave) setLeave(d.leave);
       setNote(""); setChoices({});
       if (affected) await reload();
       showToast(kind === "deny" ? tr("Time off denied. They get a notice in the app.") : tr("Time off approved. They get a notice in the app."));
@@ -14715,8 +15423,27 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
     sending.current = false; setBusy(false);
   };
 
+  // Take back approval (part 368, POST /api/time-off/:id/rescind): asks once, never on one's own request,
+  // and says the hours given back to the balance.
+  const rescind = async () => {
+    if (sending.current) return;
+    const back = leave && leave.taken && leave.requestHours != null ? Number(leave.requestHours) : null;
+    if (!window.confirm(back != null ? tr("Take back the approval of this time off? {0} go back to the {1} balance.", leaveHours(back), leaveKindWord(leave.kind, leave.kindName)) : tr("Take back the approval of this time off?"))) return;
+    sending.current = true; setBusy(true); setError("");
+    try {
+      const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/rescind", { method: "POST" });
+      if (d && d.request) setReq(d.request);
+      if (d && d.leave) setLeave(d.leave);
+      const given = d && d.leave && d.leave.givenBack && d.leave.requestHours != null ? Number(d.leave.requestHours) : null;
+      showToast(given != null ? tr("Approval taken back. {0} given back to the balance.", leaveHours(given)) : tr("Approval taken back. They get a notice in the app."));
+      if (onDecided) onDecided();
+    } catch (e) { setError(e.message || tr("Request failed")); if (e.status === 409) await reload(); }
+    sending.current = false; setBusy(false);
+  };
   const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 86, flexShrink: 0, color: t.textMut }}>{tr(label)}</span><span style={{ color: t.text, minWidth: 0 }}>{value}</span></div>;
   const shifts = Array.isArray(req.shifts) ? req.shifts : [];
+  const takenBack = req.status === "cancelled" && !!req.decidedAt;
+  const leaveWarnings = leave && Array.isArray(leave.warnings) ? leave.warnings.filter(w => w && w.message) : [];
   const decided = req.status === "approved" || req.status === "denied";
   const mine = !!myId && req.userId != null && String(req.userId) === myId;
 
@@ -14735,6 +15462,17 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
     </div>
+    {leave && <div data-time-off-leave={leave.tracked ? "tracked" : "untracked"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <Lbl>{tr("Balance")}</Lbl>
+      {!leave.tracked && leave.balanceHours == null ? <div style={{ fontSize: 12, color: t.textSec }}>{tr("No balance is kept for {0}.", leaveKindWord(leave.kind, leave.kindName))}</div> : <>
+        <div data-time-off-balance="" style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{req.status === "requested"
+          ? tr("{0}: {1} now, {2} after this request of {3}.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours), leaveHours(leave.wouldLeaveHours), leaveHours(leave.requestHours))
+          : leave.givenBack ? tr("{0}: {1} given back, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
+          : leave.taken ? tr("{0}: {1} taken, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
+          : tr("{0}: {1} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours))}</div>
+        {leave.policy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Policy: {0}", leave.policy.name)}{leave.usableFrom && leave.usableFrom > leaveToday() ? " | " + tr("Usable from {0}", fdLong(leave.usableFrom)) : ""}</div>}
+      </>}
+    </div>}
     {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Shifts on these days")}</Lbl>
       {shifts.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("No shifts on these days.")}</div>}
@@ -14753,9 +15491,18 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       {row("Decided", timeOffMoment(req.decidedAt))}
       {row("Note", req.decisionNote ? String(req.decisionNote) : tr("No note"))}
     </div>}
-    {req.status === "cancelled" && <div style={{ marginBottom: 14, fontSize: 12, color: t.text }}>
+    {req.status === "cancelled" && !takenBack && <div style={{ marginBottom: 14, fontSize: 12, color: t.text }}>
       <div style={{ marginBottom: 4 }}>{tr("Cancelled by the person who asked")}</div>
       <div style={{ color: t.textSec }}>{timeOffMoment(req.cancelledAt)}</div>
+    </div>}
+    {takenBack && <div data-time-off-taken-back="" style={{ marginBottom: 14 }}>
+      {row("Approved by", req.decidedByName || "")}
+      {row("Approved", timeOffMoment(req.decidedAt))}
+      {row("Taken back", timeOffMoment(req.cancelledAt))}
+    </div>}
+    {req.status === "approved" && !mine && canDecide && <div style={{ marginBottom: 14 }}>
+      <Btn t={t} v="ghost" data-time-off-rescind="" onClick={rescind} disabled={busy} style={{ minHeight: 44 }}>{tr("Take back approval")}</Btn>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("The request becomes cancelled and its hours go back to the balance. The shifts its approval changed stay as they are.")}</div>
     </div>}
     {req.status === "requested" && mine && <div style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{tr(TIME_OFF_OWN)}</div>}
     {req.status === "requested" && !mine && !canDecide && <div data-time-off-admins="" style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{tr("An admin approves or denies time off.")}</div>}
@@ -14764,6 +15511,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       <TArea t={t} rows={3} aria-label={tr("Note")} value={note} onChange={e => { setNote(e.target.value); if (noteError) setNoteError(""); }} placeholder={tr("Optional when approving. Required when denying.")} />
       {noteError && <div style={{ fontSize: 12, color: RD, marginTop: 6 }}>{noteError}</div>}
       <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 10 }}>{tr(TIME_OFF_NOTE_HINT)}</div>
+      {leaveWarnings.map((w, i) => <div key={w.code || i} data-time-off-warning={w.code || ""} role="alert" style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 8, lineHeight: 1.5, padding: "8px 10px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>{w.message}</div>)}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Btn t={t} onClick={() => decide("approve")} disabled={busy || readState !== "read"} data-time-off-approve={readState} style={{ minHeight: 44 }}>{tr("Approve")}</Btn>
         <Btn t={t} v="danger" onClick={() => decide("deny")} disabled={busy} style={{ minHeight: 44 }}>{tr("Deny")}</Btn>
@@ -18898,6 +19646,7 @@ const CAPABILITY_LABELS = {
   manage_tasks: "Tasks and assignments",
   manage_inspections: "Inspection templates and scheduling",
   file_maintenance_requests: "File and follow building maintenance requests",
+  manage_leave_balances: "Keep leave policies and balances",
   manage_time: "Manual time entry and shift edits",
   manage_schedule: "Create, edit and delete scheduled shifts",
   approve_time_off: "Approve and deny time off",
@@ -26082,6 +26831,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       />
 
       <PersonEmployment af={af} t={t} userId={userId} canOpenStaff={canOpenStaff} />
+      <PersonLeave af={af} t={t} userId={userId} showToast={showToast} canOpenStaff={canOpenStaff} />
       <PersonClearances af={af} token={token} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />

@@ -7456,6 +7456,7 @@ function createStubs() {
     setScene368: (o) => { part368.setScene(o || {}); },
     sent368: () => part368.sent(),
     model368: () => part368.model(),
+    leave368: () => part368.leaveModel(),
     ISSUE_PHOTOS_364: round3.ISSUE_PHOTOS,
     invites361: () => welcomeAll.invites(),
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid

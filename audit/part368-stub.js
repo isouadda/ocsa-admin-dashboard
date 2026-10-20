@@ -484,6 +484,12 @@ module.exports = (ctx) => {
   // GET /api/issues/:id carries maintenanceRequests (routes/issues.js, linksForIssue), and the settings
   // carry maintenance_response_days.
   function besideRoute(method, path, query, body, lang, base) {
+    // This person's own capabilities name the two part 365 added, as middleware/capabilities.js does.
+    if (path === "/api/users/me/permissions" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && a.json.capabilities && typeof a.json.capabilities === "object") a.json = Object.assign({}, a.json, { capabilities: Object.assign({}, a.json.capabilities, { file_maintenance_requests: can("file_maintenance_requests"), manage_leave_balances: can("manage_leave_balances") }) });
+      return a;
+    }
     const iss = /^\/api\/issues\/([^/]+)$/.exec(path);
     if (iss && method === "GET" && iss[1] !== "requests") {
       const a = base();
@@ -513,7 +519,12 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // Leave balances, in audit/part368-leave.js.
+  const leave = require("./part368-leave")({ seed, state, ok, clone, person, can, readsSite });
+
   function route(method, path, query, body, lang, base) {
+    const lv = leave.route(method, path, query, body, lang, base);
+    if (lv) return lv;
     const out = maintenanceRoute(method, path, query, body, lang, base);
     if (out) return out;
     const beside = besideRoute(method, path, query, body, lang, base);
@@ -525,6 +536,7 @@ module.exports = (ctx) => {
   // first site, so the list pages; off takes a capability away from a person; issuePhotos gives an issue
   // its photos, as GET /api/maintenance-requests/from-issue answers them.
   function setScene(o) {
+    leave.setScene(o);
     const x = m();
     if (o.emailFails !== undefined) x.emailFails = !!o.emailFails;
     if (o.off) x.off = Object.assign({}, x.off, o.off);
@@ -542,8 +554,9 @@ module.exports = (ctx) => {
   return {
     route,
     setScene,
-    sent: () => (state.m368 ? state.m368.sent : []),
+    sent: () => (state.m368 ? state.m368.sent : []).concat(leave.sent()),
     model: () => m(),
-    reset: () => { state.m368 = null; },
+    leaveModel: () => leave.model(),
+    reset: () => { state.m368 = null; leave.reset(); },
   };
 };
