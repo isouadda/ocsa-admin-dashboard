@@ -63,6 +63,7 @@ const PLAIN = {
   "common.badBody": "What was sent could not be read. Try again, and if it happens again, reload the page.",
 };
 const STILL_GOING = "This is taking longer than usual and may still be going out. Check before you send it again.";
+const STILL_GOING_ANNOUNCEMENT = "This is taking longer than usual and may still be going out. Press Send again to check: it will not go out twice.";
 const fill = (s, ...v) => v.reduce((x, y, i) => x.split("{" + i + "}").join(String(y)), s);
 const refusal = (method, path, status, code, lang, extra) => ({ method, path, status, code, error: apiWords(code, lang), body: extra || {}, once: true });
 
@@ -390,17 +391,20 @@ async function refusalCases(ctx, lang) {
       results.check(KIND, id(code === "common.bodyTooLarge" ? "body-too-large" : "bad-body"), shown, "the page does not read " + JSON.stringify(plain(d, code)));
     }
     // API-93 and API-108: an announcement the browser gave up on after 30 seconds may still be going out
-    // to every phone, so Send is not offered again until the words change.
+    // to every phone. Since part 368 it carries a clientId made once (the API's part 365), so the page
+    // says so and keeps Send on: a press again is answered with the first announcement.
     stubs.setDelay("/api/announcements", 31500);
     const mark = d.mark();
     await d.page.locator("[data-announcement-send]").click().catch(() => {});
     await wait(31500);
     await d.settle(300);
-    const going = (await d.page.getByText(d.say(STILL_GOING), { exact: true }).count()) > 0;
+    const going = (await d.page.getByText(d.say(STILL_GOING_ANNOUNCEMENT), { exact: true }).count()) > 0;
     const off = await d.page.locator("[data-announcement-send]").isDisabled().catch(() => false);
-    const sent = posts(d, mark, "/api/announcements").length;
-    results.check(KIND, "round3/" + lang + "/findings/api-108-an-announcement-given-up-is-not-sent-again", going && off && sent === 1,
-      !going ? "the page does not say the announcement may still be going out" : !off ? "Send announcement is offered again" : sent + " sends went");
+    const sentNow = posts(d, mark, "/api/announcements");
+    const sent = sentNow.length;
+    const withId = sentNow.length === 1 && sentNow[0].body && /^[0-9a-f-]{36}$/i.test(String(sentNow[0].body.clientId || ""));
+    results.check(KIND, "round3/" + lang + "/findings/api-108-an-announcement-given-up-is-safe-to-send-again", going && !off && sent === 1 && withId,
+      !going ? "the page does not say the announcement may still be going out" : off ? "Send announcement is held off" : !withId ? "the announcement went with no clientId" : sent + " sends went");
   });
 }
 const PLAIN_TASK = "Choose an active staff member to take this task. A client contact or someone who has left cannot take it.";
@@ -484,14 +488,17 @@ async function findingCases(ctx, lang) {
     const raw = /\bZZ\b/.test(content);
     results.check(KIND, id("api-99-no-raw-category-code"), !raw && content.indexOf("Window film care") >= 0, raw ? "the service's category code ZZ is drawn" : "the service is not listed");
 
+    // Since part 368 the two lists page (the API's part 365), so neither says it stops: Show more reads on.
     await goHash(d, "cases");
-    await until(d, "[data-cases-capped]");
-    const capped = await textOf(d, "[data-cases-capped]");
-    results.check(KIND, id("api-100-cases-at-the-limit"), capped === fill(d.say("The newest {0} cases are listed. Pick a status to find an older one."), 200), capped ? "it reads " + JSON.stringify(capped) : "200 cases say nothing about older ones");
+    await until(d, '[data-show-more="cases"]');
+    const capped = await has(d, "[data-cases-capped]");
+    const casesMore = await has(d, '[data-show-more="cases"]');
+    results.check(KIND, id("api-100-cases-past-200-read-on"), !capped && casesMore, capped ? "Cases says the list stops at 200" : "200 cases offer no Show more");
     await d.goto("discipline");
-    await until(d, "[data-discipline-capped]");
-    const warned = await textOf(d, "[data-discipline-capped]");
-    results.check(KIND, id("api-100-warnings-at-the-limit"), warned === fill(d.say("The newest {0} warnings are listed. Narrow the dates or the filters to find an older one."), 500), warned ? "it reads " + JSON.stringify(warned) : "500 warnings with limit 500 say nothing");
+    await until(d, '[data-show-more="discipline"]');
+    const warned = await has(d, "[data-discipline-capped]");
+    const warnMore = await has(d, '[data-show-more="discipline"]');
+    results.check(KIND, id("api-100-warnings-past-500-read-on"), !warned && warnMore, warned ? "Discipline says the list stops at its limit" : "500 warnings offer no Show more");
 
     await goHash(d, "hr");
     await d.page.locator("[data-hr-tab='documents']").first().click().catch(() => {});
@@ -499,13 +506,15 @@ async function findingCases(ctx, lang) {
     await d.clickText(d.say("+ Add Document"), { exact: false });
     await until(d, "[data-hr-doc-file]");
     const accept = (await has(d, "[data-hr-doc-file]")) ? await d.page.locator("[data-hr-doc-file]").getAttribute("accept") : null;
-    results.check(KIND, id("api-103-accept-list"), !!accept && accept.split(",").sort().join(",") === ".doc,.docx,.jpeg,.jpg,.pdf,.png,application/msword,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png",
+    results.check(KIND, id("api-103-accept-list"), !!accept && accept.split(",").sort().join(",") === ".doc,.docx,.heic,.heif,.jpeg,.jpg,.pdf,.png,application/msword,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/heic,image/heif,image/jpeg,image/png",
       accept === null ? "the HR document box takes any file" : "it accepts " + accept);
     if (accept !== null) {
-      await d.page.locator("[data-hr-doc-file]").setInputFiles({ name: "IMG_0412.heic", mimeType: "image/heic", buffer: Buffer.from("not a picture") });
+      // Since part 368 an iPhone's HEIC photo is taken (the API's part 365 turns it into a JPEG); a
+      // page saved from a browser is still refused before it goes.
+      await d.page.locator("[data-hr-doc-file]").setInputFiles({ name: "saved-page.html", mimeType: "text/html", buffer: Buffer.from("<p>not a document</p>") });
       await d.settle(200);
       const why = await textOf(d, "[data-hr-doc-file-refusal]");
-      results.check(KIND, id("api-103-a-wrong-file-refused-before-it-goes"), why === fill(d.say("{0} is not a PDF, JPEG, PNG or Word file."), "IMG_0412.heic"), why ? "it reads " + JSON.stringify(why) : "an iPhone photo is taken without a word");
+      results.check(KIND, id("api-103-a-wrong-file-refused-before-it-goes"), why === fill(d.say("{0} is not a PDF, a JPEG, PNG or HEIC photo, or a Word file."), "saved-page.html"), why ? "it reads " + JSON.stringify(why) : "a saved page is taken without a word");
     } else results.check(KIND, id("api-103-a-wrong-file-refused-before-it-goes"), false, "the HR document box takes any file");
     await d.closeModal().catch(() => {});
 
@@ -513,6 +522,9 @@ async function findingCases(ctx, lang) {
     await goHash(d, "hr");
     await d.page.locator("[data-hr-tab='documents']").first().click().catch(() => {});
     await d.settle(600);
+    // Since part 368 the tab lists newest first, as the API pages it, so the document is found by its name.
+    await d.page.getByPlaceholder(d.say("Search employee, category, file, uploaded by")).first().fill("doc-1.pdf").catch(() => {});
+    await d.settle(300);
     await d.clearCaptures();
     const doc = d.page.getByRole("button", { name: "doc-1.pdf", exact: true }).first();
     const listed = (await doc.count()) > 0;

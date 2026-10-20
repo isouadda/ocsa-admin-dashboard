@@ -23,7 +23,7 @@
 "use strict";
 
 module.exports = (ctx) => {
-  const { seed, state, ok, clone, person, effectiveMap, PNG_BYTES } = ctx;
+  const { seed, state, ok, clone, person, effectiveMap, PNG_BYTES, userProfile } = ctx;
   const T = (lang, en, es) => (lang === "es" ? es : en);
   const bad = (status, code, error, extra) => ({ status, json: Object.assign({ error, code }, extra || {}) });
   const me = () => person();
@@ -157,7 +157,7 @@ module.exports = (ctx) => {
     add({ siteId: S[1].id, area: "Staff restroom", category: "plumbing", urgency: "soon", description: "The staff restroom toilet runs all night.", status: "closed", filedAt: at(addDays(TODAY, -60), "10:20"), firstResponseAt: at(addDays(TODAY, -59), "09:30"), fixedAt: at(addDays(TODAY, -55), "12:00"), closedAt: at(addDays(TODAY, -54), "09:00") });
     add({ siteId: S[0].id, building: "South Wing", area: "Loading entrance", category: "pests", urgency: "routine", description: "Signs of mice by the loading entrance.", status: "cancelled", filedAt: at(addDays(TODAY, -20), "16:45"), cancelledAt: at(addDays(TODAY, -19), "08:00") });
     add({ siteId: S[0].id, building: "North Wing", floor: "1", area: "Lobby", category: "electrical", urgency: "soon", description: "The lobby outlet by the front desk sparks when used.", status: "sent", filedAt: at(TODAY, "18:20"), mailFailed: true });
-    return { contacts, requests, log, photos, counter: n, contactSeq: contacts.length, logSeq: 0, photoSeq: photos.length, followUps: {}, sent: [], emailFails: false, off: {}, responseDays: 2, oldToken: false, renewRefuse: false, renewed: [] };
+    return { contacts, requests, log, photos, counter: n, contactSeq: contacts.length, logSeq: 0, photoSeq: photos.length, followUps: {}, sent: [], emailFails: false, off: {}, responseDays: 2, oldToken: false, renewRefuse: false, renewed: [], announcements: {}, repeats: [], categoryNewOnly: false };
   }
   const m = () => state.m368 || (state.m368 = fresh());
 
@@ -504,7 +504,7 @@ module.exports = (ctx) => {
       const a = base();
       // checklistDayStartsAt is on every answer since the API's part 363 (04:00 unless the owner sets
       // another); the checklist layer under this one answers a case's own.
-      if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({ checklistDayStartsAt: "04:00" }, a.json, { maintenance_response_days: m().responseDays });
+      if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({ checklistDayStartsAt: "04:00", updated_at: round6.stamp }, a.json, { maintenance_response_days: m().responseDays });
       return a;
     }
     if (path === "/api/settings" && (method === "PATCH" || method === "PUT")) {
@@ -547,14 +547,63 @@ module.exports = (ctx) => {
     return b64url({ alg: "HS256", typ: "JWT" }) + "." + b64url({ userId: p.id || "u", role: p.role || "admin", tv: 0, iat, exp: iat + 12 * 3600, n: tokenSeq }) + ".audit-signature-" + tokenSeq;
   };
 
+  const round6 = require("./part368-round6")({ seed, state, ok, clone, person, can, userProfile });
   // Leave balances, in audit/part368-leave.js.
   const leave = require("./part368-leave")({ seed, state, ok, clone, person, can, readsSite });
 
+  // Round 6 beside the rest (the API's part 365): an announcement's clientId (API-108), answered once and
+  // a repeat from the same sender with the first announcement, nothing sent again.
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function round6Route(method, path, query, body, lang, base) {
+    const x = m();
+    if (path === "/api/announcements" && method === "POST" && body && body.clientId !== undefined) {
+      const p = me() || {};
+      if (typeof body.clientId !== "string" || !UUID.test(body.clientId)) return bad(400, "announcements.clientIdInvalid", T(lang, "clientId must be the id this screen made for this announcement", "clientId debe ser el identificador que esta pantalla cre\u00f3 para este anuncio"), { keys: ["clientId"] });
+      const was = x.announcements[body.clientId];
+      if (was && was.by === p.id) { x.repeats.push(body.clientId); return ok(was.json); }
+      if (was) return bad(400, "announcements.clientIdInvalid", T(lang, "clientId must be the id this screen made for this announcement", "clientId debe ser el identificador que esta pantalla cre\u00f3 para este anuncio"), { keys: ["clientId"] });
+      const a = base();
+      if (a && (a.status === 200 || a.status === 201) && a.json) x.announcements[body.clientId] = { by: p.id, json: a.json };
+      return a;
+    }
+    return null;
+  }
+  // The service category (API-99): every answer that carries the column carries it as serviceCategory
+  // beside the key it had before, as helpers/serviceCategory.js answered does; once a case sets
+  // categoryNewOnly, under serviceCategory alone, as the API will answer once the old keys are dropped.
+  const OLD_CATEGORY = ["cims_category", "item_cims_category", "cimsCategory"];
+  const OLD_CATEGORY_RE = /"(cims_category|item_cims_category|cimsCategory)"/;
+  function withCategory(v, newOnly, depth) {
+    if (depth > 10 || !v || typeof v !== "object") return v;
+    if (Array.isArray(v)) return v.map((y) => withCategory(y, newOnly, depth + 1));
+    const oldKey = OLD_CATEGORY.find((k) => Object.prototype.hasOwnProperty.call(v, k));
+    const out = {};
+    Object.keys(v).forEach((k) => {
+      if (newOnly && OLD_CATEGORY.indexOf(k) >= 0) return;
+      out[k] = withCategory(v[k], newOnly, depth + 1);
+      if (k === oldKey && !Object.prototype.hasOwnProperty.call(v, "serviceCategory")) out.serviceCategory = v[k];
+    });
+    if (newOnly && oldKey && out.serviceCategory === undefined) out.serviceCategory = v[oldKey];
+    return out;
+  }
+
   function route(method, path, query, body, lang, base) {
+    const a = routeOf(method, path, query, body, lang, base);
+    if (method === "GET" && a && a.json && typeof a.json === "object" && OLD_CATEGORY_RE.test(JSON.stringify(a.json))) {
+      return Object.assign({}, a, { json: withCategory(a.json, !!m().categoryNewOnly, 0) });
+    }
+    return a;
+  }
+  // Round 6's paging and saves that see a change made since, in audit/part368-round6.js.
+  function routeOf(method, path, query, body, lang, base) {
+    const r6p = round6.route(method, path, query, body, lang, base);
+    if (r6p) return r6p;
     const lv = leave.route(method, path, query, body, lang, base);
     if (lv) return lv;
     const out = maintenanceRoute(method, path, query, body, lang, base);
     if (out) return out;
+    const r6 = round6Route(method, path, query, body, lang, base);
+    if (r6) return r6;
     const beside = besideRoute(method, path, query, body, lang, base);
     if (beside) return beside;
     return base();
@@ -565,12 +614,14 @@ module.exports = (ctx) => {
   // its photos, as GET /api/maintenance-requests/from-issue answers them.
   function setScene(o) {
     leave.setScene(o);
+    round6.setScene(o);
     const x = m();
     if (o.emailFails !== undefined) x.emailFails = !!o.emailFails;
     if (o.off) x.off = Object.assign({}, x.off, o.off);
     if (o.issuePhotos) x.issuePhotos = Object.assign({}, x.issuePhotos || {}, o.issuePhotos);
     if (o.noContactsAt) x.contacts = x.contacts.filter((c) => c.siteId !== o.noContactsAt);
     if (o.oldToken !== undefined) x.oldToken = !!o.oldToken;
+    if (o.categoryNewOnly !== undefined) x.categoryNewOnly = !!o.categoryNewOnly;
     if (o.renewRefuse !== undefined) x.renewRefuse = !!o.renewRefuse;
     if (o.many) {
       for (let i = 0; i < 60; i += 1) {
@@ -586,7 +637,8 @@ module.exports = (ctx) => {
     setScene,
     sent: () => (state.m368 ? state.m368.sent : []).concat(leave.sent()),
     model: () => m(),
+    sinceRefused: (p) => round6.sinceRefused(p),
     leaveModel: () => leave.model(),
-    reset: () => { state.m368 = null; leave.reset(); },
+    reset: () => { state.m368 = null; leave.reset(); round6.reset(); },
   };
 };

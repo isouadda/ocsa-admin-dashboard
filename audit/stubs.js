@@ -6164,7 +6164,7 @@ function createStubs() {
   // What the API's Rounds 5 and 6 answer (part 368), in audit/part368-stub.js: the API as built at
   // ocsa-api main ca4aafa, over every other layer. Maintenance requests answer in every run, since the
   // API's main answers them.
-  const part368 = require("./part368-stub")({ seed, state, ok, clone, person, effectiveMap, PNG_BYTES });
+  const part368 = require("./part368-stub")({ seed, state, ok, clone, person, effectiveMap, PNG_BYTES, userProfile });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7459,6 +7459,7 @@ function createStubs() {
     setScene368: (o) => { part368.setScene(o || {}); },
     sent368: () => part368.sent(),
     model368: () => part368.model(),
+    sinceRefused368: (p) => part368.sinceRefused(p),
     leave368: () => part368.leaveModel(),
     ISSUE_PHOTOS_364: round3.ISSUE_PHOTOS,
     invites361: () => welcomeAll.invites(),

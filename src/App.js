@@ -674,6 +674,28 @@ const choiceWordOf = (lkMap, slug) => { const shown = lkMap(slug, true); const p
 // A service category on a screen that only shows it: the cims_categories lookup's shown label where
 // the page reads the lookup, then the label table through the word table, then Other. The code itself
 // is the category column's, which no screen or export names (finding API-99).
+// The service category (part 368, the API's finding API-99): the API answers it as serviceCategory and,
+// until it drops them, under the keys it had before with the same value. Every read takes serviceCategory
+// first, and every write sends serviceCategory.
+const OLD_CATEGORY_KEYS = ["cims_category", "item_cims_category", "cimsCategory"];
+const catOf = (row) => {
+  if (!row || typeof row !== "object") return undefined;
+  if (row.serviceCategory !== undefined) return row.serviceCategory;
+  const k = OLD_CATEGORY_KEYS.find(x => row[x] !== undefined);
+  return k ? row[k] : undefined;
+};
+// A record's or an activity entry's details with the category named once, as serviceCategory.
+const oneCategoryKey = (meta) => {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return meta;
+  const has = meta.serviceCategory !== undefined;
+  const changed = Array.isArray(meta.fields_changed) && meta.fields_changed.indexOf("serviceCategory") >= 0;
+  if (!has && !changed) return meta;
+  const out = {};
+  Object.keys(meta).forEach(k => { if (!has || OLD_CATEGORY_KEYS.indexOf(k) < 0) out[k] = meta[k]; });
+  if (changed) out.fields_changed = meta.fields_changed.filter(k => OLD_CATEGORY_KEYS.indexOf(k) < 0);
+  return out;
+};
+const withOneCategory = (entries) => (Array.isArray(entries) ? entries.map(e => (e && e.metadata ? { ...e, metadata: oneCategoryKey(e.metadata) } : e)) : entries);
 const serviceCategoryWord = (code, shown) => (shown && shown[code]) || (CIMS_LABELS[code] ? tr(CIMS_LABELS[code]) : code ? tr("Other|category") : "");
 // The same in an English export.
 const serviceCategoryLabel = (code, shown) => (shown && shown[code]) || CIMS_LABELS[code] || (code ? "Other" : "");
@@ -1021,6 +1043,9 @@ export default function AdminDashboard() {
   // A file the API withheld because its log could not be written (part 353, fileWithheld): its words,
   // and Try again, which runs the same open again. Null while there is none.
   const [fileRetry, setFileRetry] = useState(null);
+  // A save that met a change made since, waiting on this person's answer (part 368, API-101).
+  const [changedAsk, setChangedAsk] = useState(null);
+  useEffect(() => { const h = (ev) => setChangedAsk((ev && ev.detail) || null); window.addEventListener("ocsa-changed-since", h); return () => window.removeEventListener("ocsa-changed-since", h); }, []);
   useEffect(() => { const h = (ev) => setFileRetry((ev && ev.detail) || null); window.addEventListener("ocsa-file-withheld", h); return () => window.removeEventListener("ocsa-file-withheld", h); }, []);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
@@ -1791,6 +1816,7 @@ export default function AdminDashboard() {
     </div>
 
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} hrOpen={canOpenPage("hr")} />}
+    {changedAsk && <ChangedSinceWindow t={t} ask={changedAsk} onAnswer={(yes) => { const a = changedAsk; setChangedAsk(null); if (a && typeof a.resolve === "function") a.resolve(yes); }} />}
     {fileRetry && <Mdl t={t} onClose={() => setFileRetry(null)}><div style={{ padding: 20 }} data-file-withheld="">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("The file did not open")}</div>
@@ -2699,14 +2725,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // other as the name with its underscores as spaces, which is what the page has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
   // Any other key the API writes is read as words, and through the table when it has them (Step 196).
   const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
   // A field's value where it is a code: a service category is drawn as its plain word.
   const catShown = lkMap ? lkMap("cims_categories", true) : {};
-  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), catShown) : v);
+  const valueOf = (k, v) => (OLD_CATEGORY_KEYS.concat(["serviceCategory"]).indexOf(k) >= 0 ? serviceCategoryWord(String(v), catShown) : v);
   // The timeline's categories: what its chips say, and what a printed timeline names its filter with.
   const tlCats = [{ id: "all", l: tr("All|timeline") }, { id: "clock", l: tr("Clock") }, { id: "tasks", l: tr("Tasks") }, { id: "inspections", l: tr("Inspections") }, { id: "issues", l: tr("Issues") }, { id: "schedule", l: tr("Schedule") }, { id: "marketplace", l: tr("Marketplace") }, { id: "documents", l: tr("Documents") }, { id: "training", l: tr("Training") }, { id: "profile", l: tr("Profile") }, { id: "timesheets", l: tr("Timesheets") }, { id: "supplies", l: tr("Supplies") }];
   const tlCatWord = (c) => (tlCats.find((x) => x.id === c) || {}).l || c;
@@ -2746,7 +2772,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       if (sd) url += "&startDate=" + sd;
       if (ed) url += "&endDate=" + ed;
       const d = await af(url);
-      setTimeline(d.entries || []); setTlTotal(d.total || 0);
+      setTimeline(withOneCategory(d.entries || [])); setTlTotal(d.total || 0);
     } catch (e) { showToast(e.message, "error"); setTimeline([]); }
     setTlLoading(false);
   };
@@ -2770,14 +2796,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   };
 
   // The next page of the timeline, with the same filters.
-  const loadMoreTimeline = async (userId) => { try { let url = "/api/users/timeline/" + userId + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } };
+  const loadMoreTimeline = async (userId) => { try { let url = "/api/users/timeline/" + userId + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...withOneCategory(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } };
 
   // Fetch timeline entry detail (Session 18)
   const openTimelineDetail = async (entry) => {
     setTlDetailLoading(true);
     try {
       const d = await af("/api/users/timeline-detail/" + entry.entityType + "/" + entry.entityId);
-      setTlDetail({ ...d, entry });
+      setTlDetail({ ...d, record: oneCategoryKey(d.record), relatedItems: Array.isArray(d.relatedItems) ? d.relatedItems.map(oneCategoryKey) : d.relatedItems, entry });
     } catch (e) {
       // If detail fetch fails, still show what we have from the activity log
       setTlDetail({ found: false, entry, record: null, photos: [], relatedItems: [] });
@@ -2978,7 +3004,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // was. Since part 341 a save sends only the fields whose value changed from that, so a field the list
   // never carries, the hourly rate among them, is never sent as blank, and every field left untouched
   // stays as it is. A save with nothing changed closes the window and sends nothing.
+  // The person's record as GET /api/users/:id answers it, read when an edit opens, since only that read
+  // carries its updated time, which the save sends back (part 368, API-101). A person's record moves at
+  // each sign-in, so a save of fields that did not change since goes again without asking.
+  const userReadRef = useRef({});
+  const readUserStamp = (id) => { const k = String(id); userReadRef.current[k] = null; af("/api/users/" + encodeURIComponent(k)).then(d => { if (d && d.user) userReadRef.current[k] = d.user; }).catch(() => {}); };
+  const userFieldLabels = { firstName: tr("First Name"), lastName: tr("Last Name"), phone: tr("Phone"), email: tr("Email"), role: tr("Role"), employeeId: tr("Employee ID"), hourlyRate: tr("Hourly Rate"), birthday: tr("Birthday"), addressLine1: tr("Address Line 1"), addressLine2: tr("Address Line 2"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), emergencyContactName: tr("Emergency Contact"), emergencyContactPhone: tr("Emergency Phone"), preferredLanguage: tr("Preferred Language"), personalNotes: tr("Notes"), employmentType: tr("Employment Type"), hireDate: tr("Hire Date") };
   const openEdit = (s) => {
+    readUserStamp(s.id);
     const opened = { firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null };
     setHireSaid(null);
     setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened }, opened));
@@ -2994,7 +3027,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     // A rate emptied clears it: since the API's part 346 a PATCH takes null for that and refuses "" (users.badRate).
     if (body.hourlyRate === "") body.hourlyRate = null;
     if (!Object.keys(body).length) { setEditForm(null); return; }
-    try { await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: userReadRef.current[String(editForm.id)], labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
   };
 
   // Photo upload
@@ -3039,7 +3072,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       Object.keys(body).forEach(k => { if (k !== "preferredLanguage" && sameValue(body[k], was[k])) delete body[k]; });
       if (body.hourlyRate === "") body.hourlyRate = null;
       if (!Object.keys(body).length) { setProfileEdit(null); return; }
-      await af("/api/users/" + profile.user.id, { method: "PATCH", body });
+      await saveSince(af, "/api/users/" + profile.user.id, { method: "PATCH", body, read: userReadRef.current[String(profile.user.id)], labels: userFieldLabels });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
@@ -3152,7 +3185,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); readUserStamp(u.id); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -3883,12 +3916,12 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   // a word here is drawn as that word, and any other as the name with its underscores as spaces,
   // which is what the window has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
   // Any other key the API writes is read as words, and through the table when it has them (Step 196).
   const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
   // A field's value where it is a code: a service category is drawn as its plain word.
-  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), cimsLabels) : v);
+  const valueOf = (k, v) => (OLD_CATEGORY_KEYS.concat(["serviceCategory"]).indexOf(k) >= 0 ? serviceCategoryWord(String(v), cimsLabels) : v);
   // The kind of record a timeline entry points at, which the printed timeline shows as its category.
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage") };
   const entityOf = (k) => k ? (entityWord[k] || k.replace(/_/g, " ")) : "";
@@ -3943,7 +3976,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       if (tlDateRange.start) url += "&startDate=" + tlDateRange.start;
       if (tlDateRange.end) url += "&endDate=" + tlDateRange.end;
       const d = await af(url);
-      setTimeline(append ? prev => [...prev, ...d.entries] : d.entries);
+      setTimeline(append ? prev => [...prev, ...withOneCategory(d.entries)] : withOneCategory(d.entries));
       setTlTotal(d.total);
       setTlFailed(false);
     } catch (e) { console.warn("Timeline load error:", e); if (!append) setTimeline([]); setTlFailed(true); }
@@ -3964,12 +3997,18 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     return v === "tracked" || v === "reference" ? v : "";
   };
   const [modeBusy, setModeBusy] = useState(false);
+  // Every save of a site sends the updated time of the site as read (part 368, API-101), and keeps the new
+  // one from the answer, so the next save sends it.
+  const siteLabels = { name: tr("Site Name"), addressLine1: tr("Address"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), primeContractor: tr("Prime Contractor"), clientName: tr("Client Name"), clientContactName: tr("Contact Name"), clientContactEmail: tr("Contact Email"), clientContactPhone: tr("Contact Phone"), contractType: tr("Contract Type"), siteNotes: tr("Site Notes"), scopeOfWork: tr("Scope of Work"), status: tr("Status") };
+  const siteRead = () => (siteProfile && siteProfile.site && String(siteProfile.site.id) === String(selectedSite) ? siteProfile.site : null);
+  const keepSiteStamp = (r) => { const at = r && r.site ? stampOf(r.site) : null; if (at) setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, updated_at: at } } : p)); };
   const saveChecklistMode = async (next) => {
     if (modeBusy || !selectedSite) return;
     setModeBusy(true);
     try {
-      await af("/api/sites/" + encodeURIComponent(selectedSite), { method: "PATCH", body: { checklistMode: next } });
+      const r = await saveSince(af, "/api/sites/" + encodeURIComponent(selectedSite), { method: "PATCH", body: { checklistMode: next }, read: siteRead(), labels: siteLabels });
       setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, checklistMode: next } } : p));
+      keepSiteStamp(r);
       showToast(next === "reference" ? tr("Staff no longer check off tasks here.") : tr("Staff check off tasks here again."));
       loadSites();
     } catch (e) { showToast(e.message || tr("Request failed"), "error"); }
@@ -4055,7 +4094,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
 
   const saveSiteField = async (fieldMap) => {
     try {
-      await af("/api/sites/" + selectedSite, { method: "PATCH", body: fieldMap });
+      await saveSince(af, "/api/sites/" + selectedSite, { method: "PATCH", body: fieldMap, read: siteRead(), labels: siteLabels });
       showToast(tr("Saved"));
       refreshProfile();
     } catch (e) { showToast(e.message, "error"); }
@@ -4073,7 +4112,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const submitTask = onceTask(async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
-      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, serviceCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
@@ -4082,7 +4121,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
 
   const submitEditTask = async () => {
     try {
-      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, serviceCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
@@ -4093,7 +4132,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast(tr("Removed|task")); const tasks = await af("/api/sites/" + sid + "/tasks" + EVERY_ITEM); setSt(tasks); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast(tr("Site deactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
+  const deactivateSite = async (id) => { try { await saveSince(af, "/api/sites/" + id, { method: "PATCH", body: { status: "inactive" }, read: siteProfile && siteProfile.site && String(siteProfile.site.id) === String(id) ? siteProfile.site : null, labels: siteLabels }); showToast(tr("Site deactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
 
 
   const uploadFloorPlan = async (file) => {
@@ -4153,7 +4192,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     setTlDetailLoading(true);
     try {
       const d = await af("/api/users/timeline-detail/" + entry.entityType + "/" + entry.entityId);
-      setTlDetail({ ...d, entry });
+      setTlDetail({ ...d, record: oneCategoryKey(d.record), relatedItems: Array.isArray(d.relatedItems) ? d.relatedItems.map(oneCategoryKey) : d.relatedItems, entry });
     } catch (e) {
       setTlDetail({ found: false, entry, record: null, photos: [], relatedItems: [] });
     }
@@ -4295,7 +4334,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           </div>
           {canManageSites && <div style={{ display: "flex", gap: 6 }}>
             {s.status === "active" && <button onClick={() => { if (window.confirm(tr("Deactivate this site?"))) deactivateSite(s.id); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>{tr("Deactivate")}</button>}
-            {s.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + s.id, { method: "PATCH", body: { status: "active" } }); showToast(tr("Site reactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>{tr("Reactivate")}</button>}
+            {s.status !== "active" && <button onClick={async () => { try { await saveSince(af, "/api/sites/" + s.id, { method: "PATCH", body: { status: "active" }, read: s, labels: siteLabels }); showToast(tr("Site reactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>{tr("Reactivate")}</button>}
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
@@ -4418,12 +4457,12 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })}>
+            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })}>
               <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}{tk.critical === true && <Bdg l={tr("Critical|touchpoint")} c={RD} />}</div>
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(catOf(tk), cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
             </div>}
           </div>
@@ -4663,7 +4702,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
             // (decision 1), so a save by anyone else never writes it back.
             const siteBody = Object.assign({}, editSite);
             if (!seesPay) delete siteBody.contractValueMonthly;
-            await af("/api/sites/" + selectedSite, { method: "PATCH", body: siteBody });
+            await saveSince(af, "/api/sites/" + selectedSite, { method: "PATCH", body: siteBody, read: siteRead(), labels: siteLabels });
             showToast(tr("Site updated")); setEditSite(null); refreshProfile(); load();
           } catch (e) { const field = siteDetailsRefusalField(e); if (field && editSite[field] !== undefined) setSiteRefusal({ field, text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
         }}>{tr("Save")}</Btn></div>
@@ -5968,8 +6007,20 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
   const [issuesFailed, setIssuesFailed] = useState(false);
   // The Source filter, All, Staff or Client requests, sends ?source= once the API's Step 250 answers.
   const [source, setSource] = useState("");
-  const load = () => af("/api/issues" + (source ? "?source=" + encodeURIComponent(source) : "")).then(d => { setIssues(Array.isArray(d) ? d : []); setIssuesFailed(false); }).catch(e => { setIssues([]); setIssuesFailed(true); showToast(e.message, "error"); });
-  useEffect(() => { load(); }, [source]);
+  // A page at a time (part 368), the source and the status picked sent with each page; read again after
+  // a change, as many as are shown.
+  const [issNext, setIssNext] = useState("");
+  const [issMore, setIssMore] = useState(false);
+  const issueFilters = () => ({ source, status: filter === "all" ? "" : filter });
+  const load = (keep) => af(pagedPath("/api/issues", issueFilters(), "", keep === true ? issues.length : 0)).then(d => { setIssues(d && Array.isArray(d.issues) ? d.issues : []); setIssNext(d && d.nextCursor ? String(d.nextCursor) : ""); setIssuesFailed(false); }).catch(e => { setIssues([]); setIssNext(""); setIssuesFailed(true); showToast(e.message, "error"); });
+  const moreIssues = async () => {
+    if (!issNext || issMore) return;
+    setIssMore(true);
+    try { const d = await af(pagedPath("/api/issues", issueFilters(), issNext)); setIssues(have => pagedAppend(have, d && d.issues, i => i.id)); setIssNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setIssMore(false);
+  };
+  useEffect(() => { load(); }, [source, filter]);
   // The status picker's own refusal, issues.badStatus or issues.cannotClose, drawn under it in the
   // API's words; any other refusal is toasted as before.
   const [statusDraft, setStatusDraft] = useState("");
@@ -6028,7 +6079,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
     try {
       const d = await af("/api/issues/" + encodeURIComponent(sel.id) + "/verify", { method: "POST", body: note ? { note } : {} });
       if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); }
-      setVerify({ note: "", refusal: "", busy: false }); showToast(tr("Verified")); load();
+      setVerify({ note: "", refusal: "", busy: false }); showToast(tr("Verified")); load(true);
     } catch (e) {
       const code = String((e && e.code) || "");
       setVerify(v => ({ ...v, busy: false, refusal: code === "issues.cannotVerifyOwn" ? tr("Someone other than the person who fixed it checks it.") : (e && e.message) || tr("Request failed") }));
@@ -6046,7 +6097,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
   const sevOf = (s) => sevWord[s] || s;
   const upd = async (id, s) => {
     setStatusRefusal("");
-    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); closeSel(); }
+    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(true); closeSel(); }
     catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose" || e.code === "issues.request.decideFirst")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
   };
   // The reporter line: a staff issue names who reported it; a client request names none, so it reads
@@ -6058,7 +6109,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
   // A photo whose address the guard took away (finding API-68) is not drawn at all.
   const photos = (view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos).filter(p => p && p.photo_url);
   const timed = (iss) => isFinding(iss) || iss.minutes_to_first_response != null || iss.minutes_to_fixed != null;
-  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { setAssignTask(a => (a ? { ...a, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : a)); } });
+  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(true); } catch (e) { setAssignTask(a => (a ? { ...a, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : a)); } });
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
     {onRequests && <ClientRequestsTab af={af} t={t} sites={sites} canViewReports={canViewReports} route={route} onRoute={onRoute} onWaiting={setWaiting} />}
@@ -6066,8 +6117,9 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}
       {requestsOn && <div style={{ marginLeft: "auto", minWidth: 180 }}><Sel t={t} aria-label={tr("Source")} data-issue-source="" value={source} onChange={e => setSource(e.target.value)} options={sourceOptions} style={{ minHeight: 36, padding: "6px 10px", fontSize: 12 }} /></div>}</div>
     {issuesFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
-    {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
-    {issues.length > 0 && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
+    {/* Since part 368 the state picked goes with the read, so an empty list under a state is that state's. */}
+    {!issuesFailed && issues.length === 0 && filter === "all" && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
+    {!issuesFailed && filter !== "all" && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
       <div data-issue-row={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8, flexWrap: "wrap" }}><div style={{ flex: "1 1 200px", minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{isClientIssue(iss) && <Bdg l={tr("Client request")} c={BL} />}{isFinding(iss) && <Bdg l={tr("Inspection|source")} c={GO} />}<Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontSize: 10, color: t.textMut, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><span>{reporterLine(iss)}</span>{iss.reference && <span style={{ fontFamily: "monospace", fontSize: 10 }}>{iss.reference}</span>}{(isClientIssue(iss) || iss.due_state) && <span>{tr("Due")}: <ClockCell t={t} cell={requestClock(iss.due_state, iss.due_at, tr("Done|request"))} name="due" /></span>}{issueHas(iss, "minutes_to_first_response") && timed(iss) && <span data-finding-first-response="">{tr("First response")}: {minutesWords(iss.minutes_to_first_response)}</span>}{issueHas(iss, "minutes_to_fixed") && timed(iss) && <span data-finding-fixed="">{tr("Time to fixed")}: {minutesWords(iss.minutes_to_fixed)}</span>}</div>
@@ -6075,6 +6127,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>{tr("Photo attached")}</div>}
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
+    <ShowMore t={t} next={issNext} busy={issMore} onMore={moreIssues} at="issues" />
     {shown && <Mdl t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => closeSel()} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{shown.title}</div>
@@ -7464,7 +7517,7 @@ function SupplyOrderSigned({ t, af, token, r, mayDecide, onSent }) {
     if (busyRef.current || going || !to.trim()) return;
     busyRef.current = true; setBusy(true); setRefusal("");
     try { const d = await af("/api/supplies/requests/" + encodeURIComponent(r.id) + "/send", { method: "POST", body: { to: to.trim() } }); await onSent(d); }
-    catch (e) { if (sendStillGoing(e)) setGoing(true); setRefusal(sendStillGoing(e) ? tr(SEND_STILL_GOING) : e.message || tr("Request failed")); }
+    catch (e) { if (sendStillGoing(e)) setGoing(true); setRefusal(sendStillGoing(e) ? sendGoingWords(e) : e.message || tr("Request failed")); }
     busyRef.current = false; setBusy(false);
   };
   const vendorLines = o.vendor ? [o.vendor.contactName, o.vendor.contactPhone, o.vendor.contactEmail, o.vendor.address].filter(Boolean) : [];
@@ -7669,7 +7722,19 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
-  const loadRequests = () => af("/api/supplies/requests").then(setRequests).catch(e => showToast(e.message, "error"));
+  // Requests a page at a time (part 368), newest first; read again after a change, as many as are shown.
+  const [reqNext, setReqNext] = useState("");
+  const [reqMore, setReqMore] = useState(false);
+  const reqShown = useRef(0);
+  reqShown.current = Array.isArray(requests) ? requests.length : 0;
+  const loadRequests = (keep) => af(pagedPath("/api/supplies/requests", {}, "", keep === true ? reqShown.current : 0)).then(d => { setRequests(d && Array.isArray(d.requests) ? d.requests : []); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }).catch(e => showToast(e.message, "error"));
+  const moreRequests = async () => {
+    if (!reqNext || reqMore) return;
+    setReqMore(true);
+    try { const d = await af(pagedPath("/api/supplies/requests", {}, reqNext)); setRequests(have => pagedAppend(have, d && d.requests, r => r.id)); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setReqMore(false);
+  };
   useEffect(() => { loadSupplies(); loadRequests(); loadRemoved(); }, []);
   // Step 282: a request whose answer carries items opens in its window by id, so a list read anew
   // redraws it. A decision's answer is laid over the row when it is the request with its items, and
@@ -7679,7 +7744,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const requestDecided = async (d) => {
     const row = d && Array.isArray(d.items) && d.id != null ? d : d && d.request && Array.isArray(d.request.items) && d.request.id != null ? d.request : null;
     if (row) setRequests(rs => rs.map(x => (String(x.id) === String(row.id) ? { ...x, ...row } : x)));
-    await loadRequests();
+    await loadRequests(true);
   };
   // Download for ordering (Step 282): GET /api/supplies/requests/approved.csv?from=&to=&siteId=, the
   // approved lines of the requests not yet fulfilled, for the dates and the site chosen; the last 30
@@ -7721,7 +7786,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     supplySaving.current = false; setSupplyBusy(false);
   };
   const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); loadRemoved(); } catch (e) { showToast(e.message, "error"); } };
-  const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
+  const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(true); } catch (e) { showToast(e.message, "error"); } };
   // The pickers read each choice's shown label and send its code; a card draws a choice's shown label.
   const cats = getOpts("supply_categories", null, true);
   const units = getOpts("supply_units", null, true);
@@ -7763,6 +7828,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     </div></Crd>}
     {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}{r.poNumber ? <span data-request-po={r.poNumber} style={{ color: t.goldText, fontWeight: 600 }}>{" | " + r.poNumber}</span> : null}{r.orderedAt ? <span data-request-ordered="" style={{ color: GR, fontWeight: 600 }}>{" | " + tr("Ordered {0}", fd(r.orderedAt))}</span> : null}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && supplyCanDecide(r) && !supplyOrderOf(r).signed && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
+    {tab === "requests" && <ShowMore t={t} next={reqNext} busy={reqMore} onMore={moreRequests} at="supply-requests" />}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit} disabled={supplyBusy}>{tr("Save")}</Btn></div></div></Mdl>}
     {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} token={token} r={openReq} user={user} sites={sites} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
@@ -9320,19 +9386,23 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
     return () => { alive = false; clearTimeout(h); };
   }, [listState, aud, siteId, role, userIds.join(",")]);
   const audienceBody = () => (aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
-  // An announcement the browser gave up on may still be going out to every phone (findings API-93 and
-  // API-108): the list is read again to show it, and Send stays off until the words are changed.
-  const [going, setGoing] = useState(false);
-  useEffect(() => { setGoing(false); }, [title, body]);
+  // Each announcement carries a clientId made once, at its first press, and kept until it is sent or its
+  // words or people change (part 368, the API's part 365, finding API-108): a press again after the
+  // browser gave up is answered with the first announcement and sends nothing twice, so Send stays on,
+  // and the list is read again to show it.
+  const clientIdRef = useRef(null);
+  useEffect(() => { clientIdRef.current = null; }, [title, body, aud, siteId, role, userIds.join(",")]);
   const send = async () => {
-    if (sendingRef.current || going) return;
+    if (sendingRef.current) return;
     sendingRef.current = true; setSending(true); setErrors({});
+    if (!clientIdRef.current) clientIdRef.current = newDeviceId();
     try {
-      await af("/api/announcements", { method: "POST", body: { title: title.trim(), body: body.trim(), audience: audienceBody() } });
+      await af("/api/announcements", { method: "POST", body: { title: title.trim(), body: body.trim(), audience: audienceBody(), clientId: clientIdRef.current } });
       showToast(tr("Announcement sent."));
+      clientIdRef.current = null;
       setTitle(""); setBody(""); setUserIds([]); load();
     } catch (e) {
-      if (sendStillGoing(e)) { setGoing(true); setErrors({ form: tr(SEND_STILL_GOING) }); load(); }
+      if (sendStillGoing(e)) { setErrors({ form: tr("This is taking longer than usual and may still be going out. Press Send again to check: it will not go out twice.") }); load(); }
       else {
         const field = (e && e.code && announcementCodes[e.code]) || "form";
         setErrors({ [field]: (e && e.message) || tr("Request failed") });
@@ -9395,7 +9465,7 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
         </div>
         {preview && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Reaches {0} people, {1} with phone alerts on.", Number(preview.recipients) || 0, Number(preview.withPush) || 0)}</div>}
         {errLine("form")}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || going || !audienceReady} data-announcement-send="" style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || !audienceReady} data-announcement-send="" style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
       </Crd>
       <Crd t={t}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Sent")}</div>
@@ -12214,7 +12284,7 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
       await af("/api/monthly-reports/" + encodeURIComponent(report.id) + "/send", { method: "POST", body: { to } });
       onSent();
     } catch (e) {
-      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), field: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
+      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: sendGoingWords(e), field: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
       const code = String((e && e.code) || "");
       setRefusal({ text: e.message || tr("Request failed"), field: code === "monthly.noRecipients" || code === "monthly.badEmail" ? "to" : "", keys: Array.isArray(e && e.body && e.body.keys) ? e.body.keys.map(String) : [] });
     }
@@ -12517,7 +12587,8 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     // An answer that arrives after another year was picked is left off that year's page.
     const mine = seq.current;
     try {
-      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { averageEmployees: summaryFigure(figures.averageEmployees), totalHours: summaryFigure(figures.totalHours) } });
+      // The summary as read goes back with its updatedAt (part 368, API-101); certifying moves it too.
+      const d = await saveSince(af, "/api/injury-summary/" + year, { method: "PUT", body: { averageEmployees: summaryFigure(figures.averageEmployees), totalHours: summaryFigure(figures.totalHours) }, read: data, labels: { averageEmployees: tr("Annual average number of employees"), totalHours: tr("Total hours worked by all employees last year") } });
       if (seq.current === mine) { if (d && d.totals) shown(d); else load(); setSavedLine(true); }
       if (onChanged) onChanged();
     } catch (e) {
@@ -12562,7 +12633,7 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     setPosting(true); setPostRefusal(""); setPostSaved(false);
     const mine = seq.current;
     try {
-      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { postedOn: postedOn || null } });
+      const d = await saveSince(af, "/api/injury-summary/" + year, { method: "PUT", body: { postedOn: postedOn || null }, read: data, labels: { postedOn: tr("Date") } });
       if (seq.current === mine && d && d.totals) {
         shown(d);
         if ((d.postedOn ? String(d.postedOn).slice(0, 10) : "") === (postedOn || "")) setPostSaved(true);
@@ -12749,7 +12820,8 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
     setSaving(true);
     const body = { name: name.trim(), description: description.trim(), category: category.trim() || "Custom", source, config: buildConfig(), is_template: true };
     try {
-      if (isEdit) await af("/api/report-engine/definitions/" + initial.id, { method: "PUT", body });
+      // The report as read goes back with its updated time (part 368, API-101).
+      if (isEdit) await saveSince(af, "/api/report-engine/definitions/" + initial.id, { method: "PUT", body, read: initial, labels: { name: tr("Name"), description: tr("Description"), category: tr("Category") } });
       else await af("/api/report-engine/definitions", { method: "POST", body });
       showToast(isEdit ? tr("Report updated") : tr("Report created"));
       onSaved();
@@ -13166,7 +13238,7 @@ function inspectionPageHtml(d, words, sigs) {
     return '<tr style="border-bottom:1px solid #eee">'
       + '<td style="padding:10px 8px;font-size:13px;font-weight:600">' + esc(shownItem(item).label) + "</td>"
       + '<td style="padding:10px 8px;font-size:12px;color:#666">' + esc(words.zoneWord(item)) + "</td>"
-      + '<td style="padding:10px 8px;text-align:center"><span style="background:' + catColor(item.cims_category) + "22;color:" + catColor(item.cims_category) + ';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">' + esc(words.catWord(item.cims_category)) + "</span></td>"
+      + '<td style="padding:10px 8px;text-align:center"><span style="background:' + catColor(catOf(item)) + "22;color:" + catColor(catOf(item)) + ';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">' + esc(words.catWord(catOf(item))) + "</span></td>"
       + '<td style="padding:10px 8px"><div style="display:flex;align-items:center;gap:8px"><div style="background:#eee;border-radius:4px;height:8px;width:200px;overflow:hidden"><div style="background:' + iColor + ";height:100%;width:" + barW + 'px;border-radius:4px"></div></div>'
       + '<span style="font-weight:700;color:' + iColor + ';font-size:13px">' + (sr ? esc(sr.score) : "--") + '<span style="color:#999;font-weight:400;font-size:11px">/' + esc(item.max_score) + "</span></span></div></td>"
       + '<td style="padding:10px 8px;font-size:12px;color:#555;max-width:160px">' + esc((sr && sr.notes) || "") + "</td>"
@@ -14548,7 +14620,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
   const openDetail = async (task) => { setSel(task); try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); } };
   const submitReassign = onceAssign(async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { setReassignForm(f => (f ? { ...f, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : f)); } });
-  const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } });
+  const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, serviceCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } });
   const buildings = [...new Set(tasks.map(tk => tk.building_name).filter(Boolean))];
   const floors = [...new Set(tasks.map(tk => tk.floor_number).filter(Boolean))];
   const zones = [...new Set(tasks.map(tk => tk.zone).filter(Boolean))];
@@ -14925,7 +14997,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
     dlCSV("OCSA_Service_Catalog_" + todayISO() + ".csv",
       ["Service Name", "Description"].concat(seesPay ? ["Rate Structure"] : [], ["Required Certifications", "Service Category", "Active Sites"]),
-      services.map(s => [s.name, s.description || ""].concat(seesPay ? [s.rate_structure || ""] : [], [s.required_certifications || "", serviceCategoryLabel(s.cims_category), s.linked_site_count || 0]))
+      services.map(s => [s.name, s.description || ""].concat(seesPay ? [s.rate_structure || ""] : [], [s.required_certifications || "", serviceCategoryLabel(catOf(s)), s.linked_site_count || 0]))
     );
     showToast(tr("Service catalog exported"));
   };
@@ -14949,7 +15021,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     {seesPay && <div style={{ marginBottom: 12 }}><Lbl>{tr("Rate Structure")}</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder={tr("How is this service priced?")} /></div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Required Certifications")}</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder={tr("Certifications staff must hold...")} /></div>
     <div style={{ marginBottom: 16 }}><Lbl>{tr("Service Category")}</Lbl>
-      <Sel t={t} value={form.cimsCategory || form.cims_category || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
+      <Sel t={t} value={form.serviceCategory || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, serviceCategory: e.target.value })}
         options={Object.keys(CIMS_LABELS).map(c => ({ v: c, l: serviceCategoryWord(c, catShown) }))} />
     </div>
   </>);
@@ -14959,7 +15031,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Service Catalog")}</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export")}</button>
-        {canManageVendors && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
+        {canManageVendors && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", serviceCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
       </div>
     </div>
 
@@ -14968,16 +15040,16 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
         <Crd key={s.id} t={t} style={{ padding: 16, cursor: "pointer" }} onClick={() => loadDetail(s.id)}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 8, background: (cimsColor[s.cims_category] || GO) + "18", border: "1px solid " + (cimsColor[s.cims_category] || GO) + "40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[s.cims_category] || t.goldText} />
+              <div style={{ width: 38, height: 38, borderRadius: 8, background: (cimsColor[catOf(s)] || GO) + "18", border: "1px solid " + (cimsColor[catOf(s)] || GO) + "40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[catOf(s)] || t.goldText} />
               </div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
             </div>
-            <Bdg l={serviceCategoryWord(s.cims_category, catShown)} c={cimsColor[s.cims_category] || GO} />
+            <Bdg l={serviceCategoryWord(catOf(s), catShown)} c={cimsColor[catOf(s)] || GO} />
           </div>
           {s.description && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.description}</div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid " + t.border }}>
-            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(s.cims_category, catShown)}</span>
+            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(catOf(s), catShown)}</span>
             {s.linked_site_count > 0 && <span style={{ fontSize: 10, color: GR }}>{trn("{0} site|count", s.linked_site_count)}</span>}
           </div>
         </Crd>
@@ -14991,7 +15063,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.service.name}</div>
-            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(detail.service.cims_category, catShown)} c={cimsColor[detail.service.cims_category] || GO} /></div>
+            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(catOf(detail.service), catShown)} c={cimsColor[catOf(detail.service)] || GO} /></div>
           </div>
           <button onClick={() => setDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
         </div>
@@ -15034,7 +15106,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
         </div>
 
         {canManageVendors && <div style={{ display: "flex", gap: 8 }}>
-          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", cimsCategory: detail.service.cims_category, cims_category: detail.service.cims_category })}>{tr("Edit")}</Btn>
+          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", serviceCategory: catOf(detail.service) })}>{tr("Edit")}</Btn>
           <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this service?"))) deactivate(detail.service.id); }}>{tr("Remove")}</Btn>
         </div>}
       </div>
@@ -15170,7 +15242,11 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
     if (Object.keys(body).length === 0) { setError(tr("Nothing changed yet.")); return; }
     body.effectiveFrom = effectiveFrom;
     setBusy(true); setError(""); setResult(null);
-    try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id), { method: "PATCH", body })); }
+    // The pattern as read goes back with its updatedAt (part 368, API-101): the fill moves it every six
+    // hours, so a change to fields the fill did not touch goes again without asking.
+    const labels = { days: tr("Days"), startTime: tr("Start Time"), endTime: tr("End Time"), buildingName: tr("Building"), floorNumber: tr("Floor"), serviceCategory: tr("Service category"), notes: tr("Notes"), effectiveFrom: tr("From") };
+    const show = (k, v) => (Array.isArray(v) ? v.join(", ") : v === undefined || v === null || v === "" ? "--" : String(v));
+    try { showResult(await saveSince(af, "/api/schedule/patterns/" + encodeURIComponent(id), { method: "PATCH", body, read: pattern, labels, show })); }
     catch (e) { setError(e.message || tr("Request failed")); }
     setBusy(false);
   };
@@ -16514,9 +16590,11 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     catch (e) { showToast(e.message, "error"); }
   };
 
-  const cancelShift = async (id) => {
+  // A change made since (part 368, API-101): what a pickup's save sends, in words.
+  const pickupLabels = { status: tr("Status"), notes: tr("Notes"), urgency: tr("Urgency"), origin: tr("Reason"), service_category: tr("Service"), start_time: tr("Start Time"), end_time: tr("End Time"), scheduled_date: tr("Date"), site_id: tr("Site"), building_name: tr("Building"), floor_number: tr("Floor") };
+  const cancelShift = async (id, row) => {
     if (!window.confirm(tr("Cancel this open shift? It will no longer be available for pickup."))) return;
-    try { await af("/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" } }); showToast(tr("Shift cancelled")); load(); }
+    try { await saveSince(af, "/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" }, read: row, labels: pickupLabels }); showToast(tr("Shift cancelled")); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
@@ -16611,7 +16689,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{serviceWord(s.service_category)}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={statusWord[s.status] || s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
             { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleOf(s.claimed_by_role)})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
-            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty={tr("No shifts found for this period and filter.")} footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
         })()}
@@ -17013,7 +17091,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: 6 }}>
             {shiftDetail.status === "requested" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Deny")}</Btn>}
-            {shiftDetail.status === "open" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { status: "cancelled" } }); showToast(tr("Shift cancelled")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Cancel")}</Btn>}
+            {shiftDetail.status === "open" && <Btn t={t} v="ghost" onClick={async () => { try { await saveSince(af, "/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { status: "cancelled" }, read: shiftDetail, labels: pickupLabels }); showToast(tr("Shift cancelled")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Cancel")}</Btn>}
             {(shiftDetail.status === "claimed" || shiftDetail.status === "approved") && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/release", { method: "POST" }); showToast(tr("Released|shift")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: OR, borderColor: OR }}>{tr("Release")}</Btn>}
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -17048,7 +17126,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             const body = changedFields(pickupForm(shiftDetail), shiftDetail.editWas);
             if (!Object.keys(body).length) { setShiftDetail({ ...shiftDetail, editing: false }); return; }
             try {
-              await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body });
+              await saveSince(af, "/api/pickups/" + shiftDetail.id, { method: "PATCH", body, read: shiftDetail, labels: pickupLabels });
               showToast(tr("Shift updated")); setShiftDetail(null); load();
             } catch (e) { showToast(e.message, "error"); }
           })}>{tr("Save Changes")}</Btn>
@@ -17254,7 +17332,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     } catch (e) { refuseTemplate(e); }
   };
   const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor" });
-  const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
+  const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
   // Step 314: Include the safety walk, on by default, goes as withSafety.
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true });
@@ -17290,11 +17368,31 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     try { const d = await af("/api/inspections/templates"); setTemplates(d); markInsp("templates", false); } catch (e) { markInsp("templates", true); showToast(e.message, "error"); }
   }, [af]);
 
-  const loadScheduled = useCallback(async () => {
+  // GET /api/inspections/scheduled a page at a time (part 368), newest first, split into the Scheduled and
+  // Completed tabs as before; Show more on either reads the next page. Read again after a change, it
+  // keeps as many as are shown.
+  const [inspNext, setInspNext] = useState("");
+  const [inspMore, setInspMore] = useState(false);
+  const inspRead = useRef([]);
+  const inspKey = (r) => r.id + "|" + (r.result_id || "");
+  const splitInspections = (all) => {
+    inspRead.current = all;
+    setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
+    setCompleted(all.filter(s => s.status === "completed"));
+  };
+  const moreInspections = async () => {
+    if (!inspNext || inspMore) return;
+    setInspMore(true);
+    try { const d = await af(pagedPath("/api/inspections/scheduled", {}, inspNext)); splitInspections(pagedAppend(inspRead.current, d && d.inspections, inspKey)); setInspNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setInspMore(false);
+  };
+  const loadScheduled = useCallback(async (keep) => {
     try {
-      const all = await af("/api/inspections/scheduled");
-      setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
-      setCompleted(all.filter(s => s.status === "completed"));
+      const d = await af(pagedPath("/api/inspections/scheduled", {}, "", keep === true ? inspRead.current.length : 0));
+      const all = d && Array.isArray(d.inspections) ? d.inspections : [];
+      setInspNext(d && d.nextCursor ? String(d.nextCursor) : "");
+      splitInspections(all);
       af("/api/inspections/scheduled?awaiting=review").then(aw => {
         const filtered = Array.isArray(aw) && aw.every(r => r && r.status === "completed") && Array.isArray(all) && all.some(r => r && r.status !== "completed");
         setAwaiting(filtered ? aw : null);
@@ -17347,7 +17445,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!addItemForm.label.trim() || !selectedTemplate) return;
     try {
       await af("/api/inspections/templates/" + selectedTemplate.id + "/items", { method: "POST", body: addItemForm });
-      showToast(tr("Item added")); setAddItemForm({ label: "", zone: "General", cims_category: "SD", max_score: 10 }); openTemplate(selectedTemplate.id);
+      showToast(tr("Item added")); setAddItemForm({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 }); openTemplate(selectedTemplate.id);
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -17357,11 +17455,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   };
 
   const [editItemId, setEditItemId] = useState(null);
-  const [editItemForm, setEditItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
+  const [editItemForm, setEditItemForm] = useState({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 });
 
   const startEditItem = (item) => {
     setEditItemId(item.id);
-    setEditItemForm({ label: item.label, zone: item.zone, cims_category: item.cims_category, max_score: item.max_score });
+    setEditItemForm({ label: item.label, zone: item.zone, serviceCategory: catOf(item), max_score: item.max_score });
   };
 
   const saveItem = async () => {
@@ -17405,7 +17503,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!editInspForm.template_id || !editInspForm.site_id || !editInspForm.scheduled_date) { showToast(tr("Template, site, and date are required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled/" + editInspModal.id, { method: "PATCH", body: { template_id: editInspForm.template_id, site_id: editInspForm.site_id, assigned_to: editInspForm.assigned_to || null, scheduled_date: editInspForm.scheduled_date } });
-      showToast(tr("Inspection updated")); setEditInspModal(null); loadScheduled();
+      showToast(tr("Inspection updated")); setEditInspModal(null); loadScheduled(true);
       if (detailView && detailView.id === editInspModal.id) { openDetail(editInspModal.id); }
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -17413,7 +17511,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!window.confirm(tr("Cancel this inspection?"))) return;
     try {
       await af("/api/inspections/scheduled/" + id, { method: "PATCH", body: { status: "cancelled" } });
-      showToast(tr("Inspection cancelled")); setEditInspModal(null); loadScheduled();
+      showToast(tr("Inspection cancelled")); setEditInspModal(null); loadScheduled(true);
       if (detailView && detailView.id === id) setDetailView(null);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -17430,7 +17528,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, serviceCategoryLabel(item.cims_category, cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
+      return [item.label, item.zone, serviceCategoryLabel(catOf(item), cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
@@ -17451,7 +17549,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     af("/api/inspections/analytics/export" + q).then(rows => {
       if (!rows.length) { showToast(tr("No data to export"), "error"); return; }
       const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(r.item_cims_category, cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(catOf(r), cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));
@@ -17460,8 +17558,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   // The analytics report, printed from a window of its own.
   const printAnalytics = () => {
     const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(sc.site_name)}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(sc.latest_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(sc.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(sc.inspection_count)}</td><td style="padding:8px;font-size:12px;color:#666">${escHtml(fmtDate(sc.latest_date))}</td></tr>`).join("");
-    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(catWord(c.cims_category))}</td><td style="padding:8px;text-align:center;font-weight:700">${escHtml(c.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(c.total_items)}</td><td style="padding:8px;text-align:center">${escHtml(c.total_score)}/${escHtml(c.total_max)}</td></tr>`).join("");
-    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(shownItem(l).label)}</td><td style="padding:8px">${escHtml(zoneWord(l))}</td><td style="padding:8px">${escHtml(catWord(l.cims_category))}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(l.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(l.occurrences)}</td></tr>`).join("");
+    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(catWord(catOf(c)))}</td><td style="padding:8px;text-align:center;font-weight:700">${escHtml(c.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(c.total_items)}</td><td style="padding:8px;text-align:center">${escHtml(c.total_score)}/${escHtml(c.total_max)}</td></tr>`).join("");
+    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(shownItem(l).label)}</td><td style="padding:8px">${escHtml(zoneWord(l))}</td><td style="padding:8px">${escHtml(catWord(catOf(l)))}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(l.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(l.occurrences)}</td></tr>`).join("");
     const html = `<!DOCTYPE html><html><head><title>${escHtml(tr("Inspection Analytics Report"))}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">${escHtml(tr("Inspection Analytics Report"))}</div><div style="font-size:14px;color:#555;margin-top:4px">${escHtml(tr("Last {0} to {1}", analyticsRange.start, analyticsRange.end))}${escHtml(analyticsSite ? "" : " " + tr("(All Sites)"))}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${escHtml(clientConfig.company.name)}</div><div style="font-size:12px;color:#666;margin-top:2px">${escHtml(new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" }))}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Site Performance"))}</h3><table><thead><tr><th>${escHtml(tr("Site"))}</th><th style="text-align:center">${escHtml(tr("Latest Score"))}</th><th style="text-align:center">${escHtml(tr("Average"))}</th><th style="text-align:center">${escHtml(tr("Inspections"))}</th><th>${escHtml(tr("Latest Date"))}</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Category Breakdown"))}</h3><table><thead><tr><th>${escHtml(tr("Category"))}</th><th style="text-align:center">${escHtml(tr("Avg Score"))}</th><th style="text-align:center">${escHtml(tr("Items Scored"))}</th><th style="text-align:center">${escHtml(tr("Points"))}</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Areas Needing Improvement"))}</h3><table><thead><tr><th>${escHtml(tr("Item"))}</th><th>${escHtml(tr("Zone"))}</th><th>${escHtml(tr("Category"))}</th><th style="text-align:center">${escHtml(tr("Avg Score"))}</th><th style="text-align:center">${escHtml(tr("Occurrences"))}</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${escHtml(tr("Generated by {0} Operations Platform", clientConfig.company.shortName))}</div></body></html>`;
     const w = window.open("", "_blank");
     w.document.write(html); w.document.close();
@@ -17573,7 +17671,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             return (
               <Crd key={item.id} t={t} style={{ padding: 0, overflow: "hidden" }}>
                 <button onClick={() => toggleExpand(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                  <div style={{ padding: "4px 8px", borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
+                  <div style={{ padding: "4px 8px", borderRadius: 6, background: (CIMS_C[catOf(item)] || BL) + "1A", fontSize: 10, fontWeight: 600, color: CIMS_C[catOf(item)] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(catOf(item))}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{shownItem(item).label}</div>
                     <div style={{ fontSize: 11, color: t.textMut }}>{zoneWord(item)}</div>
@@ -17734,7 +17832,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                         <div style={{ marginBottom: 6 }}><Inp t={t} value={editItemForm.label} onChange={e => setEditItemForm({ ...editItemForm, label: e.target.value })} placeholder={tr("Item label")} style={{ fontSize: 12 }} /></div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
                           <Sel t={t} value={editItemForm.zone} onChange={e => setEditItemForm({ ...editItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: tr(z + "|zone") }))} />
-                          <Sel t={t} value={editItemForm.cims_category} onChange={e => setEditItemForm({ ...editItemForm, cims_category: e.target.value })} options={getOpts("cims_categories", null, true)} />
+                          <Sel t={t} value={editItemForm.serviceCategory} onChange={e => setEditItemForm({ ...editItemForm, serviceCategory: e.target.value })} options={getOpts("cims_categories", null, true)} />
                         </div>
                         <div style={{ marginBottom: 8 }}><Inp t={t} type="number" min="1" max="100" value={editItemForm.max_score} onChange={e => setEditItemForm({ ...editItemForm, max_score: parseInt(e.target.value) || 10 })} placeholder={tr("Max score")} style={{ fontSize: 12 }} /></div>
                         <div style={{ display: "flex", gap: 6 }}>
@@ -17744,7 +17842,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                       </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px" }}>
-                        <div style={{ padding: "3px 7px", borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
+                        <div style={{ padding: "3px 7px", borderRadius: 5, background: (CIMS_C[catOf(item)] || BL) + "1A", fontSize: 9, fontWeight: 600, color: CIMS_C[catOf(item)] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(catOf(item))}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
                           <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - {tr("max {0} pts", item.max_score)}</div>
@@ -17764,7 +17862,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                 <div style={{ marginBottom: 8 }}><Lbl>{tr("Item Label *")}</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder={tr("e.g. Toilets scrubbed and sanitized")} onKeyDown={e => e.key === "Enter" && addItem()} /></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <div><Lbl>{tr("Zone")}</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: tr(z + "|zone") }))} /></div>
-                  <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={addItemForm.cims_category} onChange={e => setAddItemForm({ ...addItemForm, cims_category: e.target.value })} options={getOpts("cims_categories", null, true)} /></div>
+                  <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={addItemForm.serviceCategory} onChange={e => setAddItemForm({ ...addItemForm, serviceCategory: e.target.value })} options={getOpts("cims_categories", null, true)} /></div>
                 </div>
                 <div style={{ marginBottom: 10 }}><Lbl>{tr("Max Score (points)")}</Lbl><Inp t={t} type="number" min="1" max="100" value={addItemForm.max_score} onChange={e => setAddItemForm({ ...addItemForm, max_score: parseInt(e.target.value) || 10 })} /></div>
                 <Btn t={t} onClick={addItem} style={{ width: "100%" }}>{tr("Add Item")}</Btn>
@@ -17805,6 +17903,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
           })()}
+          <ShowMore t={t} next={inspNext} busy={inspMore} onMore={moreInspections} at="inspections-scheduled" />
         </div>
       )}
 
@@ -17834,6 +17933,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
+          <ShowMore t={t} next={inspNext} busy={inspMore} onMore={moreInspections} at="inspections-completed" />
         </div>
       )}
 
@@ -17947,11 +18047,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {catBreakdown.map(cat => {
                       const pct = Number(cat.avg_score_pct);
-                      const catColor = CIMS_C[cat.cims_category] || BL;
+                      const catColor = CIMS_C[catOf(cat)] || BL;
                       return (
-                        <Crd key={cat.cims_category} t={t} style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <Crd key={catOf(cat)} t={t} style={{ flex: "1 1 160px", minWidth: 140 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{catWord(cat.cims_category)}</span>
+                            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{catWord(catOf(cat))}</span>
                             <span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: pct >= 80 ? GR : pct >= 60 ? OR : RD }}>{pct}%</span>
                           </div>
                           <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
@@ -17989,7 +18089,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                               <td style={{ padding: "10px 12px", fontWeight: 600, color: t.text }}>{shownItem(li).label}</td>
                               <td style={{ padding: "10px 8px", color: t.textSec }}>{zoneWord(li)}</td>
                               <td style={{ padding: "10px 8px" }}>
-                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[li.cims_category] || BL) + "18", color: CIMS_C[li.cims_category] || BL }}>{catWord(li.cims_category)}</span>
+                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[catOf(li)] || BL) + "18", color: CIMS_C[catOf(li)] || BL }}>{catWord(catOf(li))}</span>
                               </td>
                               <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 600, color: lColor }}>{lPct}%</td>
                               <td style={{ padding: "10px 8px", textAlign: "center", color: t.textMut }}>{li.occurrences}</td>
@@ -18861,14 +18961,107 @@ function fileWithheld(e, again) {
   announce("ocsa-file-withheld", { words: (e.body && e.body.error) || e.words || e.message || tr("Request failed"), again });
   return true;
 }
+// ===== SAVES THAT SEE A CHANGE MADE SINCE (part 368; the API's part 365, finding API-101) =====
+// An office edit sends the updatedAt it read with the record. When the record changed since, the API saves
+// nothing and answers 409 common.changedSince with current, the record as it is now. The fields this person
+// edited (what the body sends that differs from what was read) are then compared, current against what
+// the screen read. When none of them changed, as when a person's record moves at a sign-in or a pattern at
+// the fill, the save goes again with the new updatedAt without asking. When one did, a window shows what
+// each says now beside what was typed and asks before saving again; keeping what it says now saves nothing
+// and refuses in the API's words. A record read with no updated time sends none and saves as before.
+const stampOf = (rec) => (rec && (rec.updatedAt || rec.updated_at)) || null;
+const snakeOf = (k) => String(k).replace(/[A-Z]/g, c => "_" + c.toLowerCase());
+const camelOf = (k) => String(k).replace(/_([a-z])/g, (m, c) => c.toUpperCase());
+const fieldIn = (rec, k) => { if (!rec || typeof rec !== "object") return undefined; if (rec[k] !== undefined) return rec[k]; if (rec[snakeOf(k)] !== undefined) return rec[snakeOf(k)]; return rec[camelOf(k)]; };
+const sameSince = (a, b) => { const n = (v) => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).trim()); return n(a) === n(b); };
+// The window's question, answered true (save what was typed) or false (keep what it says now).
+const askChangedSince = (detail) => new Promise(resolve => { announce("ocsa-changed-since", { ...detail, resolve }); });
+async function saveSince(af, path, o) {
+  let read = o.read;
+  let stamp = stampOf(read);
+  if (!stamp) return af(path, { method: o.method, body: o.body });
+  const edited = Object.keys(o.body).filter(k => k !== "updatedAt" && !sameSince(o.body[k], fieldIn(o.read, k)));
+  for (let round = 0; ; round += 1) {
+    try { return await af(path, { method: o.method, body: { ...o.body, updatedAt: stamp } }); }
+    catch (e) {
+      const current = e && e.status === 409 && e.code === "common.changedSince" && e.body ? e.body.current : null;
+      if (!current || !stampOf(current) || round >= 3) throw e;
+      const moved = edited.filter(k => !sameSince(fieldIn(current, k), fieldIn(read, k)));
+      if (moved.length > 0) {
+        const show = (k, v) => (o.show ? o.show(k, v) : v === undefined || v === null || v === "" ? "--" : typeof v === "object" ? JSON.stringify(v) : String(v));
+        const yes = await askChangedSince({ fields: moved.map(k => ({ key: k, label: (o.labels && o.labels[k]) || metaKeyWords(k), now: show(k, fieldIn(current, k)), yours: show(k, o.body[k]) })) });
+        if (!yes) { if (o.onKept) o.onKept(current); throw e; }
+      }
+      read = current;
+      stamp = stampOf(current);
+    }
+  }
+}
+// The window itself, drawn over any screen by the shell while a save waits on it.
+function ChangedSinceWindow({ t, ask, onAnswer }) {
+  return (<Mdl t={t} onClose={() => onAnswer(false)}><div style={{ padding: 20 }} data-changed-since="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("This changed since you opened it")}</div>
+      <button onClick={() => onAnswer(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("Someone else changed what you edited since you opened it. Nothing is saved until you choose.")}</div>
+    <div style={{ overflowX: "auto", marginBottom: 16 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <thead><tr>{[tr("Field"), tr("What it says now"), tr("What you typed")].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: ".5px", borderBottom: "1px solid " + t.border }}>{h}</th>)}</tr></thead>
+      <tbody>{(ask.fields || []).map(f => <tr key={f.key} data-changed-field={f.key}><td style={{ padding: "8px", color: t.text, fontWeight: 600 }}>{f.label}</td><td data-changed-now="" style={{ padding: "8px", color: t.textSec, overflowWrap: "anywhere" }}>{f.now}</td><td data-changed-yours="" style={{ padding: "8px", color: t.text, overflowWrap: "anywhere" }}>{f.yours}</td></tr>)}</tbody>
+    </table></div>
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" data-changed-keep="" onClick={() => onAnswer(false)} style={{ minHeight: 44 }}>{tr("Keep what it says now")}</Btn>
+      <Btn t={t} data-changed-save="" onClick={() => onAnswer(true)} style={{ minHeight: 44 }}>{tr("Save what I typed")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// ===== THE LONG LISTS, PAGED (part 368; the API's part 365, findings API-100 and API-109) =====
+// Cases, Discipline, Training records, HR documents, Signatures, Issues, Scheduled inspections and Supply
+// requests read a page at a time: the first page with cursor empty, then Show more while the answer hands
+// a nextCursor, which goes back with the same filters. Every such read sends cursor, never limit alone, so
+// the API answers its paged shape, 50 rows a page. Reading the list again after a change asks for as many
+// rows as are shown, up to 200, so nothing already shown drops off. A read that needs every row (a review,
+// a duplicate check, a report) sends neither and is answered as before.
+const PAGE_ROWS = 50;
+const PAGE_ROWS_MAX = 200;
+function pagedPath(path, filters, cursor, keep) {
+  const q = [];
+  Object.keys(filters || {}).forEach(k => { const v = filters[k]; if (v !== undefined && v !== null && v !== "") q.push(encodeURIComponent(k) + "=" + encodeURIComponent(v)); });
+  q.push("cursor=" + encodeURIComponent(cursor || ""));
+  if (keep && keep > PAGE_ROWS) q.push("limit=" + Math.min(PAGE_ROWS_MAX, keep));
+  return path + "?" + q.join("&");
+}
+// Rows already shown, with a page's rows after them, each once by its id.
+const pagedAppend = (have, page, idOf) => { const seen = new Set((have || []).map(x => String(idOf(x)))); return (have || []).concat((page || []).filter(x => !seen.has(String(idOf(x))))); };
+// Every page of a list, for a download that holds the whole of it.
+async function everyPage(af, path, filters, key) {
+  let rows = [], cursor = "", n = 0;
+  do {
+    const d = await af(pagedPath(path, filters, cursor, PAGE_ROWS_MAX));
+    rows = rows.concat(d && Array.isArray(d[key]) ? d[key] : []);
+    cursor = d && d.nextCursor ? String(d.nextCursor) : "";
+    n += 1;
+  } while (cursor && n < 500);
+  return rows;
+}
+// Show more under a paged list, while it has a next page.
+function ShowMore({ t, next, busy, onMore, at }) {
+  if (!next) return null;
+  return (<div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" data-show-more={at} onClick={onMore} disabled={busy} style={{ minHeight: 44 }}>{busy ? tr("Loading...") : tr("Show more")}</Btn></div>);
+}
 // ===== SENDS THAT MAIL OR PUSH (part 364, findings API-93 and API-108) =====
 // The API mails or pushes before it answers, and nothing on its side makes a second press send once: a
 // purchase order, a quote, a monthly report, a warning's delivery, a corrective action's Tell the client
 // and an announcement. Each Send is held off from the press until the answer, with a ref so a second click
 // in the same moment sends nothing. A send the browser gave up on after its 30 seconds may still be going
 // out, so that window does not offer it again and says to check first.
-const sendStillGoing = (e) => !!e && e.code === "network.timeout";
+// Since the API's part 365 (finding API-93) each of the five office sends that mail claims itself first, and
+// a second press while the first runs is answered 409 <area>.sending, which is read the same way: still
+// going out, Send stays off, in the API's own words (part 368).
+const SENDING_CODES = /^(supplies|quotes|monthly|discipline|forms)\.sending$/;
+const sendStillGoing = (e) => !!e && (e.code === "network.timeout" || (e.status === 409 && SENDING_CODES.test(String(e.code || ""))));
 const SEND_STILL_GOING = "This is taking longer than usual and may still be going out. Check before you send it again.";
+const sendGoingWords = (e) => (e && e.status === 409 && e.message ? e.message : tr(SEND_STILL_GOING));
 // A raw file read's refusal as an error that carries what the API sent: its words, status and code.
 const fileRefusal = (status, body, words) => { const err = new Error(words); err.status = status; err.code = body && body.code; err.body = body || {}; return err; };
 // An HR Records document opened in a new tab through the API's own stream, the way the folder opens one:
@@ -19067,7 +19260,7 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
       setDone({ sent: Number(d && d.sent) || 0, failed: Number(d && d.failed) || 0, markedSent: !(d && d.markedSent === false) });
       if (d && d.quote) onSent(d.quote);
     } catch (e) {
-      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), code: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
+      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: sendGoingWords(e), code: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
       setRefusal({ text: e.message || tr("Request failed"), code: String((e && e.code) || ""), keys: quoteKeysOf(e) });
       if (e && e.body && e.body.quote) onSent(e.body.quote);
     }
@@ -19464,9 +19657,11 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInput = useRef(null);
 
+  // What was read, with its updated time, which a save sends back (part 368, API-101).
+  const readRef = useRef(null);
   const load = async () => {
     setLoading(true);
-    try { const d = await af("/api/settings"); setForm(d); setFailed(false); }
+    try { const d = await af("/api/settings"); readRef.current = d; setForm(d); setFailed(false); }
     catch (e) { setFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
@@ -19503,7 +19698,9 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         if (!Number.isInteger(n) || n < 1 || n > 30) { setOshaRefusal({ text: tr("Type a whole number of business days from 1 to 30."), keys: ["maintenance_response_days"] }); setSaving(false); return; }
         body.maintenance_response_days = n;
       }
-      const updated = await af("/api/settings", { method: "PATCH", body });
+      const labels = { display_name: tr("Display name"), legal_name: tr("Legal name"), address: tr("Address"), phone: tr("Phone"), email: tr("Email"), website: tr("Website"), logo_url: tr("Logo") };
+      const updated = await saveSince(af, "/api/settings", { method: "PATCH", body, read: readRef.current, labels, onKept: (now) => { readRef.current = now; setForm(now); } });
+      readRef.current = updated;
       setForm(updated);
       showToast(tr("Company settings saved"));
     } catch (e) {
@@ -20121,7 +20318,9 @@ function HolidaysPanel({ af, t, showToast, initial }) {
       .catch(e => { if (seq.current === mine) { setList([]); setFailed(e.message || tr("This did not load.")); } });
   }, [af, year, retired]);
   useEffect(() => { if (firstRef.current) { firstRef.current = false; return; } setList(null); load(); }, [load]);
-  const open = (h) => { setRefusal({ text: "", field: "" }); setWin(h ? { mode: "edit", id: h.id, date: h.date, name: h.name || "", note: h.note || "" } : { mode: "add", id: null, date: "", name: "", note: "" }); };
+  // An edit keeps the holiday as read, whose updatedAt the save sends back (part 368, API-101).
+  const open = (h) => { setRefusal({ text: "", field: "" }); setWin(h ? { mode: "edit", id: h.id, date: h.date, name: h.name || "", note: h.note || "", read: h } : { mode: "add", id: null, date: "", name: "", note: "" }); };
+  const holidayLabels = { date: tr("Date"), name: tr("Name"), note: tr("Note"), active: tr("Active") };
   const set = (k, v) => setWin(w => ({ ...w, [k]: v }));
   const ready = !!(win && /^\d{4}-\d{2}-\d{2}$/.test(win.date) && win.name.trim());
   const send = async () => {
@@ -20130,7 +20329,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
     const body = { date: win.date, name: win.name.trim(), note: win.note.trim() || null };
     try {
       if (win.mode === "add") await af("/api/holidays", { method: "POST", body });
-      else await af("/api/holidays/" + encodeURIComponent(win.id), { method: "PATCH", body });
+      else await saveSince(af, "/api/holidays/" + encodeURIComponent(win.id), { method: "PATCH", body, read: win.read, labels: holidayLabels });
       showToast(win.mode === "add" ? tr("Holiday added.") : tr("Holiday saved."));
       // A day saved in the other year on the switch opens that year.
       const y = Number(win.date.slice(0, 4));
@@ -20145,7 +20344,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
   const retire = async (h) => {
     if (busy || !window.confirm(tr("Retire {0}? It stops counting as a holiday and stays on record.", h.name || holidayDay(h.date)))) return;
     setBusy(h.id); setRowError({});
-    try { await af("/api/holidays/" + encodeURIComponent(h.id), { method: "PATCH", body: { active: false } }); showToast(tr("Holiday retired.")); load(); }
+    try { await saveSince(af, "/api/holidays/" + encodeURIComponent(h.id), { method: "PATCH", body: { active: false }, read: h, labels: holidayLabels }); showToast(tr("Holiday retired.")); load(); }
     catch (e) { setRowError({ [h.id]: e.message || tr("Request failed") }); }
     setBusy("");
   };
@@ -20312,15 +20511,17 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Name required"), "error"); return; }
     try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast(tr("Category created")); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
+  // Each lookup save sends the updated time of the category or value as read (part 368, API-101).
+  const lookupLabels = { label: tr("Label"), description: tr("Description"), value: tr("Value"), color: tr("Color"), is_active: tr("Active"), show_other_input: tr("Other") };
   const submitEditCat = async () => {
-    try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description }, read: editCatForm.read, labels: lookupLabels }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteCat = async (id) => {
     if (!window.confirm(tr("Remove this list and its values from the lists shown?"))) return;
     try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleCatActive = async (cat) => {
-    try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active }, read: cat, labels: lookupLabels }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   // Value CRUD
@@ -20329,14 +20530,14 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast(tr("Value added")); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditVal = async () => {
-    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); const fixed = await saveValSpanish(); showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input }, read: editValForm.read, labels: lookupLabels }); const fixed = await saveValSpanish(); showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
     if (!window.confirm(tr("Remove this value from this list?"))) return;
     try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleValActive = async (val) => {
-    try { await af("/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active }, read: val, labels: lookupLabels }); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const moveVal = async (val, dir) => {
     const vals = activeCat.values.slice().sort((a, b) => a.sort_order - b.sort_order);
@@ -20440,7 +20641,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || tr("No description")}{activeCat.is_system ? " | " + tr("System category") : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "", read: activeCat })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? tr("Deactivate") : tr("Activate")}</button>
               {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
               <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add Value")}</button>
@@ -20462,7 +20663,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
-                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
+                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input, read: v })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
                   <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Remove from this list")}</button>
                 </div>
               </div>
@@ -21214,7 +21415,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       const field = code === "forms.noRecipients" || code === "forms.badEmail" ? "to" : keys.find(k => TELL_FIELDS.indexOf(k) >= 0) || "";
       // A send the browser gave up on may still be mailing (finding API-93): it is not offered again.
-      if (sendStillGoing(e)) setTelling(x => (x ? { ...x, busy: false, going: true, refusal: { text: tr(SEND_STILL_GOING), field: "", keys: [] } } : x));
+      if (sendStillGoing(e)) setTelling(x => (x ? { ...x, busy: false, going: true, refusal: { text: sendGoingWords(e), field: "", keys: [] } } : x));
       else setTelling(x => (x ? { ...x, busy: false, refusal: { text: (e && e.message) || tr("Request failed"), field, keys } } : x));
     }
     tellRef.current = false;
@@ -23123,8 +23324,11 @@ function SurveyScheduleEditor({ af, t, siteId, initial, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const savingRef = useRef(false);
+  // The schedule as read, whose updatedAt a save sends back (part 368, API-101); the daily send moves it.
+  const readRef = useRef(null);
   const take = useCallback((d) => {
     const s = d && d.schedule && typeof d.schedule === "object" ? d.schedule : null;
+    readRef.current = s;
     setContacts(s && Array.isArray(s.contacts) ? s.contacts.map(c => ({ name: String((c && c.name) || ""), email: String((c && c.email) || "") })) : []);
     setFrequency(s && SURVEY_FREQUENCIES.some(f => f.v === s.frequency) ? s.frequency : "monthly");
     setDay(s && Number(s.dayOfMonth) >= 1 && Number(s.dayOfMonth) <= 28 ? Number(s.dayOfMonth) : 1);
@@ -23147,7 +23351,8 @@ function SurveyScheduleEditor({ af, t, siteId, initial, onSaved }) {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true); setSaved(false); setRefusal({ field: "", text: "", keys: [] });
     try {
-      const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/survey-schedule", { method: "PUT", body: { contacts, frequency, dayOfMonth: day } });
+      const show = (k, v) => (k === "contacts" && Array.isArray(v) ? v.map(c => [c && c.name, c && c.email].filter(Boolean).join(" ")).join(", ") || "--" : v === undefined || v === null || v === "" ? "--" : String(v));
+      const d = await saveSince(af, "/api/sites/" + encodeURIComponent(siteId) + "/survey-schedule", { method: "PUT", body: { contacts, frequency, dayOfMonth: day }, read: readRef.current, labels: { contacts: tr("Contacts"), frequency: tr("Frequency"), dayOfMonth: tr("Day of the month") }, show });
       if (d && d.schedule) { take(d); if (onSaved) onSaved(d); }
       setSaved(true);
     } catch (e) {
@@ -26348,7 +26553,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     if (busyRef.current) return;
     busyRef.current = true; setBusy(what); setRefusal({ text: "", field: "" });
     try { await fn(); } catch (e) {
-      if (what === "send" && sendStillGoing(e)) { setSendGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), field: "send" }); } else refuse(e, "");
+      if (what === "send" && sendStillGoing(e)) { setSendGoing(true); setRefusal({ text: sendGoingWords(e), field: "send" }); } else refuse(e, "");
     }
     busyRef.current = false; setBusy("");
   };
@@ -27034,13 +27239,26 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
   // step GET /api/discipline/person/:userId suggests next, as the folder's Issue a warning does.
   const [issueFor, setIssueFor] = useState(null);
   const [issueWin, setIssueWin] = useState(null);
-  const load = useCallback(() => {
-    const q = ["userId", "siteId", "type", "status", "from", "to", "issuedBy"].filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k]));
+  // GET /api/discipline a page at a time (part 368), the filters sent with each page; the counts are the
+  // API's, over every warning the filters match. Read again after a change, it keeps as many as are shown.
+  const filters = useMemo(() => { const o = {}; ["userId", "siteId", "type", "status", "from", "to", "issuedBy"].forEach(k => { if (f[k]) o[k] = f[k]; }); return o; }, [f.userId, f.siteId, f.type, f.status, f.from, f.to, f.issuedBy]);
+  const shownRef = useRef(0);
+  const [next, setNext] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
+  const load = useCallback((keep) => {
     setFailed("");
-    af("/api/discipline" + (q.length ? "?" + q.join("&") : "")).then(d => setData(d && Array.isArray(d.warnings) ? d : { warnings: [], counts: { byType: {}, total: 0 } }))
-      .catch(e => { setData({ warnings: [], counts: { byType: {}, total: 0 } }); setFailed(e.message || tr("This did not load.")); });
-  }, [af, f.userId, f.siteId, f.type, f.status, f.from, f.to, f.issuedBy]);
+    af(pagedPath("/api/discipline", filters, "", keep === true ? shownRef.current : 0)).then(d => { setData(d && Array.isArray(d.warnings) ? d : { warnings: [], counts: { byType: {}, total: 0 } }); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); })
+      .catch(e => { setData({ warnings: [], counts: { byType: {}, total: 0 } }); setNext(""); setFailed(e.message || tr("This did not load.")); });
+  }, [af, filters]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { shownRef.current = data && Array.isArray(data.warnings) ? data.warnings.length : 0; }, [data]);
+  const more = async () => {
+    if (!next || moreBusy) return;
+    setMoreBusy(true);
+    try { const d = await af(pagedPath("/api/discipline", filters, next)); setData(have => ({ ...(d || {}), warnings: pagedAppend(have && have.warnings, d && d.warnings, w => w.id) })); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setMoreBusy(false);
+  };
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const rows = data ? data.warnings.filter(w => !f.category || w.category === f.category) : [];
@@ -27079,9 +27297,13 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     { header: tr("Delivered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => delivered(w) },
     { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (signatureOf(w) ? <SignatureChip t={t} sig={signatureOf(w)} /> : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
   ];
-  const exportCsv = () => {
+  // Export saves every warning the filters match, every page of them, the category narrowed as on screen.
+  const exportCsv = async () => {
+    let all;
+    try { all = (await everyPage(af, "/api/discipline", filters, "warnings")).filter(w => !f.category || w.category === f.category); }
+    catch (e) { showToast(e.message, "error"); return; }
     const hdr = [tr("Person"), tr("Step"), tr("Category"), tr("Date of the incident"), tr("Status"), tr("Issued by"), tr("Delivered"), tr("Signed")];
-    dlCSV("warnings-" + toISO(new Date()) + ".csv", hdr, rows.map(w => [personName(w), warningStepWord(w.type, steps.steps), warningCategoryWord(w.category, steps.categories), w.incidentDate ? fdLong(w.incidentDate) : "", warningStatusWord(w.status), (w.issuedBy && w.issuedBy.name) || "", delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : ""]));
+    dlCSV("warnings-" + toISO(new Date()) + ".csv", hdr, all.map(w => [personName(w), warningStepWord(w.type, steps.steps), warningCategoryWord(w.category, steps.categories), w.incidentDate ? fdLong(w.incidentDate) : "", warningStatusWord(w.status), (w.issuedBy && w.issuedBy.name) || "", delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : ""]));
   };
   return (<div data-discipline-page="">
     <SecT t={t} action={tr("Issue a warning")} onAction={() => setIssueFor({ userId: "", busy: false, said: "" })}>{tr("Discipline")}</SecT>
@@ -27102,9 +27324,8 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     </div>
     {data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
-      <>{data && Number(data.limit) > 0 && Array.isArray(data.warnings) && data.warnings.length >= Number(data.limit) && <div data-discipline-capped={String(data.limit)} style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("The newest {0} warnings are listed. Narrow the dates or the filters to find an older one.", Number(data.limit))}</div>}
-      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /></>}
-    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={load} />}
+      <>      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /><ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="discipline" /></>}
+    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={() => load(true)} />}
     {issueFor && <Mdl t={t} onClose={() => { if (!issueFor.busy) setIssueFor(null); }}><div data-discipline-issue-for="" style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue a warning")}</div>
@@ -27454,9 +27675,7 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
 }
 
 // Step 333: #cases/<id>, where an hr_case_* notice points, opens that case once the page is up.
-// GET /api/hr-cases answers the newest 200 cases at most (routes/hr-cases.js, LIMIT 200) and says nothing
-// when it stops, so a list that long says so (finding API-100; paging waits on the API).
-const CASES_LIST_MAX = 200;
+// GET /api/hr-cases is read a page at a time, the status picked sent with each page (part 368).
 function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, route = [], onRoute }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
@@ -27482,11 +27701,22 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
 
   // Step 332: a refused list is drawn in the API's words, in one line, in the table's place.
   const [refused, setRefused] = useState("");
-  const load = async (status) => {
+  const [next, setNext] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
+  const caseFilters = (status) => ({ status: status && status !== "needs_response" ? status : "" });
+  // The first page of a status, or, read again after a change, as many cases as are shown.
+  const load = async (status, keep) => {
     setLoading(true);
-    try { const d = await af("/api/hr-cases" + (status && status !== "needs_response" ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); setRefused(""); }
+    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(status), "", keep ? cases.length : 0)); setCases(d && Array.isArray(d.cases) ? d.cases : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); setRefused(""); }
     catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     setLoading(false);
+  };
+  const more = async () => {
+    if (!next || moreBusy) return;
+    setMoreBusy(true);
+    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(statusFilter), next)); setCases(have => pagedAppend(have, d && d.cases, c => c.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setMoreBusy(false);
   };
   useEffect(() => { load(statusFilter); }, [statusFilter]);
 
@@ -27523,6 +27753,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
   // The case's own subject is never offered: the route answers 400 for that choice. Since Step 332 the
   // list is every active admin and supervisor, and the escalation contacts the API lists after them.
   const escalateOptions = detail ? subjects.filter(p => !detail.subject || String(p.id) !== String(detail.subject.id)) : [];
+  // A change made since (part 368, API-101): the fields a case save sends, in words, with their values.
+  const caseFieldLabels = { status: tr("Status"), assigned_to: tr("Held by"), escalated_to: tr("Escalated|case"), resolution_notes: tr("Resolution notes"), closing_note: tr("Closing note") };
+  const caseFieldShow = (k, v) => (k === "status" ? statusLabel[v] || v || "--" : k === "assigned_to" ? ((v && typeof v === "object" ? v.name : (allStaff.find(p => String(p.id) === String(v)) || {}).name) || (v ? String(v) : tr("Nobody yet"))) : v && typeof v === "object" ? (v.name || JSON.stringify(v)) : v ? String(v) : "--");
   const save = async () => {
     if (!detail) return;
     const body = {};
@@ -27542,9 +27775,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
     if (Object.keys(body).length === 0) { showToast(tr("Nothing to update"), "error"); return; }
     setSaving(true); setClosingSaid("");
     try {
-      const d = withLog(await af("/api/hr-cases/" + detail.id, { method: "PATCH", body }));
+      const d = withLog(await saveSince(af, "/api/hr-cases/" + detail.id, { method: "PATCH", body, read: detail, labels: caseFieldLabels, show: caseFieldShow, onKept: (now) => setDetail(cur => (cur && cur.id === detail.id ? { ...cur, ...now } : cur)) }));
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "", closingNote: "" });
-      showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
+      showToast(tr("Case updated")); load(statusFilter, true); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       if (keys.indexOf("closing_note") >= 0 || keys.indexOf("closingNote") >= 0) setClosingSaid(e.message || tr("Request failed"));
@@ -27558,9 +27791,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
     if (!detail || holdBusy) return;
     setHoldBusy(true); setHoldError("");
     try {
-      const d = withLog(await af("/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo } }));
+      const d = withLog(await saveSince(af, "/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo }, read: detail, labels: caseFieldLabels, show: caseFieldShow, onKept: (now) => setDetail(cur => (cur && cur.id === detail.id ? { ...cur, ...now } : cur)) }));
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "", closingNote: "" }); setHandTo(""); setClosingSaid("");
-      showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
+      showToast(tr("Case updated")); load(statusFilter, true); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) { setHoldError(e.message || tr("Request failed")); }
     setHoldBusy(false);
   };
@@ -27609,12 +27842,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
 
   return (<div>
     <SecT t={t} action={officeCases ? tr("Open a case") : undefined} onAction={officeCases ? () => setOpening(true) : undefined}>{tr("Cases")}</SecT>
-    {opening && <OpenCaseWindow af={af} t={t} allStaff={allStaff} me={user} showToast={showToast} onClose={() => setOpening(false)} onOpened={() => { setOpening(false); load(statusFilter); if (onSaved) onSaved(); }} />}
+    {opening && <OpenCaseWindow af={af} t={t} allStaff={allStaff} me={user} showToast={showToast} onClose={() => setOpening(false)} onOpened={() => { setOpening(false); load(statusFilter, true); if (onSaved) onSaved(); }} />}
     {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => { if (detail && caseLogUpdates(detail)) refreshLog(detail.id); }} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
-    {!loading && cases.length >= CASES_LIST_MAX && <div data-cases-capped={String(CASES_LIST_MAX)} style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("The newest {0} cases are listed. Pick a status to find an older one.", CASES_LIST_MAX)}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
+    {!loading && <ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="cases" />}
 
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -27644,7 +27877,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
       {detail.formResponseId ? <CaseReport key={String(detail.formResponseId)} af={af} t={t} id={detail.formResponseId} /> : null}
-      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter); if (onSaved) onSaved(); }} />}
+      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter, true); if (onSaved) onSaved(); }} />}
       {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
@@ -27798,8 +28031,20 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     hrSending.current = true;
     try { await work(); } finally { hrSending.current = false; }
   };
-  const loadDocs = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/documents" + q); setDocs(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
-  const loadTraining = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/training" + q); setTraining(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
+  // HR documents and training records a page at a time (part 368), the person picked sent with each page;
+  // read again after a change, as many as are shown. Search and the table's own pages work on what is read.
+  const [docsNext, setDocsNext] = useState("");
+  const [trNext, setTrNext] = useState("");
+  const [hrMoreBusy, setHrMoreBusy] = useState(false);
+  const docsShown = useRef(0);
+  const trShown = useRef(0);
+  docsShown.current = Array.isArray(docs) ? docs.length : 0;
+  trShown.current = Array.isArray(training) ? training.length : 0;
+  const nextOf = (d) => (d && d.nextCursor ? String(d.nextCursor) : "");
+  const loadDocs = useCallback(async (keep) => { try { const d = await af(pagedPath("/api/hr/documents", { user_id: selUser || "" }, "", keep === true ? docsShown.current : 0)); setDocs(d && Array.isArray(d.documents) ? d.documents : []); setDocsNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
+  const loadTraining = useCallback(async (keep) => { try { const d = await af(pagedPath("/api/hr/training", { user_id: selUser || "" }, "", keep === true ? trShown.current : 0)); setTraining(d && Array.isArray(d.records) ? d.records : []); setTrNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
+  const moreDocs = async () => { if (!docsNext || hrMoreBusy) return; setHrMoreBusy(true); try { const d = await af(pagedPath("/api/hr/documents", { user_id: selUser || "" }, docsNext)); setDocs(have => pagedAppend(have, d && d.documents, x => x.id)); setDocsNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } setHrMoreBusy(false); };
+  const moreTraining = async () => { if (!trNext || hrMoreBusy) return; setHrMoreBusy(true); try { const d = await af(pagedPath("/api/hr/training", { user_id: selUser || "" }, trNext)); setTraining(have => pagedAppend(have, d && d.records, x => x.id)); setTrNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } setHrMoreBusy(false); };
   const loadOnboarding = useCallback(async () => { if (!selUser) { setOnboarding([]); return; } try { const d = await af("/api/hr/onboarding/" + selUser); setOnboarding(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const [complianceFailed, setComplianceFailed] = useState(false);
   const loadCompliance = useCallback(async () => { try { const d = await af("/api/hr/compliance"); setCompliance(d); setComplianceFailed(false); } catch (e) { setComplianceFailed(true); showToast(e.message, "error"); } }, [af, showToast]);
@@ -27840,7 +28085,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         // Edit existing document: metadata only (category, notes, expiry_date)
         const patchBody = {
           category: form.category,
-          notes: form.notes || null,
+          // Emptied notes are cleared with null, which the API's part 365 reads as clear (API-105); a
+          // blank string would keep them.
+          notes: form.notes && String(form.notes).trim() ? form.notes : null,
           expiry_date: form.expiry_date || null,
         };
         docResult = await af("/api/jotform/employee-documents/" + form.id, { method: "PATCH", body: patchBody });
@@ -27881,7 +28128,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         } catch (linkErr) { console.warn("Jotform link failed:", linkErr.message); linkSaid = linkErr.message || tr("Request failed"); }
       }
 
-      loadDocs();
+      loadDocs(true);
       if (folderUserId) setFolderRefresh(v => v + 1);
       // Session 25 Phase 3: keep Compliance staff summary in sync with document changes
       if (compliance) loadCompliance();
@@ -27895,7 +28142,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     } catch (e) { showToast(e.message, "error"); }
   });
 
-  const deleteDoc = async (id) => { if (!window.confirm(tr("Remove this document from this list?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteDoc = async (id) => { if (!window.confirm(tr("Remove this document from this list?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadDocs(true); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   // A training record opens for editing with what it holds kept in _was, and Save sends only the fields
   // changed from that (DASH-36), so the list row it was opened from is never sent back whole.
@@ -27910,13 +28157,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         await af("/api/hr/training/" + form.id, { method: "PUT", body }); showToast(tr("Training record updated"));
       }
       else { await af("/api/hr/training", { method: "POST", body: form }); showToast(tr("Training record added")); }
-      setShowModal(null); setForm({}); loadTraining();
+      setShowModal(null); setForm({}); loadTraining(true);
       if (folderUserId) setFolderRefresh(v => v + 1);
       if (compliance) loadCompliance();
     } catch (e) { showToast(e.message, "error"); }
   });
 
-  const deleteTraining = async (id) => { if (!window.confirm(tr("Remove this training record from this list?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteTraining = async (id) => { if (!window.confirm(tr("Remove this training record from this list?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadTraining(true); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const initOnboarding = async () => {
     if (!selUser) { showToast(tr("Select an employee first"), "error"); return; }
@@ -28030,7 +28277,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {/* DOCUMENTS TAB */}
       {tab === "documents" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} document|count", docs.length)}</div>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} document|count", docs.length)}{docsNext ? " " + tr("so far") : ""}</div>
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Document")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -28053,6 +28300,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={docs.length === 0 ? tr("No documents found. Use Add Document to upload.") : tr("No documents match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setDocPage} />} />;
         })()}
+        <ShowMore t={t} next={docsNext} busy={hrMoreBusy} onMore={moreDocs} at="hr-documents" />
       </div>}
 
       {/* TRAINING TAB: its own tabs once a route of the API's Step 256 answers (Step 257) */}
@@ -28071,7 +28319,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} isAdmin={isAdmin} focusAttempt={trFocus && trFocus.attempt} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}{trNext ? " " + tr("so far") : ""}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Btn t={t} v="ghost" onClick={() => setRoomOpen(true)} style={{ minHeight: 44 }}>{tr("Log training for several people")}</Btn>
             <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
@@ -28099,6 +28347,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
+        <ShowMore t={t} next={trNext} busy={hrMoreBusy} onMore={moreTraining} at="hr-training" />
       </div>}
 
       {/* ONBOARDING TAB */}
@@ -28275,7 +28524,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ]; return (<>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} item|count", otherDocs.length)}</div>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} item|count", otherDocs.length)}{docsNext ? " " + tr("so far") : ""}</div>
           <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Other")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -28283,6 +28532,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? tr("No items filed under Other. Use Add Other to upload.") : tr("No items match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
+        <ShowMore t={t} next={docsNext} busy={hrMoreBusy} onMore={moreDocs} at="hr-other" />
         </>); })()}
       </div>}
 
@@ -28296,7 +28546,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c, form.category)).map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
           {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
             <input type="file" data-hr-doc-file="" accept={HR_DOC_ACCEPT} onChange={e => setFile(e.target.files[0])} style={{ fontSize: 13, color: t.text }} />
-            <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A PDF, JPEG, PNG or Word file, up to 25 MB. Save an iPhone photo as a JPEG first.")}</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A PDF, a JPEG, PNG or HEIC photo, or a Word file, up to 25 MB.")}</div>
             {hrDocFileWhy(file) && <div role="alert" data-hr-doc-file-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{hrDocFileWhy(file)}</div>}</div>)}
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date (optional)")}</div>
             <Inp t={t} type="date" value={form.expiry_date || ""} onChange={e => setForm({ ...form, expiry_date: e.target.value })} /></div>
@@ -28343,7 +28593,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </Mdl>}
 
       {/* LOG TRAINING FOR SEVERAL PEOPLE */}
-      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} topicsLive={topicsLive} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(); if (compliance) loadCompliance(); }} />}
+      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} topicsLive={topicsLive} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(true); if (compliance) loadCompliance(); }} />}
 
       {/* ONBOARDING STEP MODAL */}
       {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
@@ -29763,10 +30013,12 @@ function TrainingTime({ af, t, token, sites = [], showToast }) {
 // What POST /api/jotform/employees/:userId/documents takes (routes/jotform.js, finding API-103): a PDF,
 // JPEG, PNG or Word file up to 25 MB, by its type or its name, one at a time. HEIC is not among them yet,
 // so the box offers these alone and says so before anything is sent.
-const HR_DOC_ACCEPT = ".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const HR_DOC_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+// Since the API's part 365 (finding API-103) the upload reads a file's type off its bytes and turns an
+// iPhone's HEIC or HEIF photo into a JPEG, so the box takes those too (part 368).
+const HR_DOC_ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const HR_DOC_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 const HR_DOC_MAX_BYTES = 25 * 1024 * 1024;
-const hrDocFileWhy = (f) => (!f ? "" : HR_DOC_TYPES.indexOf(f.type) < 0 && !/\.(pdf|jpe?g|png|docx?)$/i.test(f.name || "") ? tr("{0} is not a PDF, JPEG, PNG or Word file.", f.name) : f.size > HR_DOC_MAX_BYTES ? tr("{0} is over 25 MB.", f.name) : "");
+const hrDocFileWhy = (f) => (!f ? "" : HR_DOC_TYPES.indexOf(f.type) < 0 && !/\.(pdf|jpe?g|png|heic|heif|docx?)$/i.test(f.name || "") ? tr("{0} is not a PDF, a JPEG, PNG or HEIC photo, or a Word file.", f.name) : f.size > HR_DOC_MAX_BYTES ? tr("{0} is over 25 MB.", f.name) : "");
 const recordHasCertificate = (r) => !!(r && (r.certificate_path || r.certificatePath || r.certificate === true));
 const CERTIFICATE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
@@ -31374,18 +31626,33 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
   const [site, setSite] = useState("");
   const [state, setState] = useState("open");
   const [again, setAgain] = useState(0);
+  // A page at a time (part 368), newest first from the API, the filters sent with each page; a change
+  // reads again as many as are shown. The order on screen is the page's own: Not right first, then the
+  // oldest of what is read; Show more brings the older ones.
+  const [next, setNext] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
+  const shown = useRef(0);
+  shown.current = Array.isArray(list) ? list.length : 0;
+  const filters = { kind, siteId: site, state };
+  const keepRef = useRef({ key: "", again: 0 });
   useEffect(() => {
     let alive = true;
     setFailed(false);
-    const q = [];
-    if (kind) q.push("kind=" + encodeURIComponent(kind));
-    if (site) q.push("siteId=" + encodeURIComponent(site));
-    q.push("state=" + encodeURIComponent(state));
-    af("/api/signatures" + (q.length ? "?" + q.join("&") : ""))
-      .then(d => { if (alive) setList(d && Array.isArray(d.requests) ? d.requests : []); })
-      .catch(e => { if (alive) { setList([]); setFailed(true); showToast(e.message, "error"); } });
+    const key = [kind, site, state].join("|");
+    const keep = keepRef.current.key === key && keepRef.current.again !== again ? shown.current : 0;
+    keepRef.current = { key, again };
+    af(pagedPath("/api/signatures", { kind, siteId: site, state }, "", keep))
+      .then(d => { if (alive) { setList(d && Array.isArray(d.requests) ? d.requests : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); } })
+      .catch(e => { if (alive) { setList([]); setNext(""); setFailed(true); showToast(e.message, "error"); } });
     return () => { alive = false; };
   }, [af, kind, site, state, again, showToast]);
+  const more = async () => {
+    if (!next || moreBusy) return;
+    setMoreBusy(true);
+    try { const d = await af(pagedPath("/api/signatures", filters, next)); setList(have => pagedAppend(have, d && d.requests, r => r.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setMoreBusy(false);
+  };
   const rank = (r) => (r.state === "disputed" ? 0 : r.state === "waiting" ? 1 : 2);
   const sentAt = (r) => Date.parse(r.requestedAt || "") || 0;
   const rows = (list || []).filter(r => state !== "open" || signatureOpen(r))
@@ -31416,7 +31683,7 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
     </Crd>
     {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} /></Crd>
-      : <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(String(r.id))} empty={state === "open" ? tr("Nothing is waiting for a signature.") : tr("No request matches.")} />}
+      : <><DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(String(r.id))} empty={state === "open" ? tr("Nothing is waiting for a signature.") : tr("No request matches.")} /><ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="signatures" /></>}
     {open && <SignatureRequestWindow af={af} t={t} requestId={open} onClose={closeOpen} onChanged={() => setAgain(n => n + 1)} showToast={showToast} />}
   </div>);
 }

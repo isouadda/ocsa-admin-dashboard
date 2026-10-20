@@ -1796,6 +1796,17 @@ const SHOTS = [
   { name: "leave-starting", entry: "Enter starting balances",
     open: "leave/starting", ready: "[data-leave-start-box]",
     act: async (c) => { await c.page.locator('[data-leave-start-box="u-staff-6"]').fill("10"); } },
+  { name: "changed-since-window", entry: "Save over a change someone else made", arm: (stubs, on) => { if (!on) stubs.setScene368({ since: null }); },
+    open: "settings", ready: '[data-settings-tab="company"]',
+    act: async (c) => {
+      await click(c, '[data-settings-tab="company"]');
+      await c.page.waitForTimeout(500);
+      const read = c.stubs.handle({ method: "GET", url: "http://stub.invalid/api/settings?locale=" + c.lang, headers: { authorization: "Bearer x", "accept-language": c.lang }, lang: c.lang }).json;
+      c.stubs.setScene368({ since: { "/api/settings": Object.assign({}, read, { display_name: "Orchard Cove Group", updated_at: "2026-03-17T13:00:00.000Z" }) } });
+      await c.page.locator("label", { hasText: c.lang === "es" ? "Nombre para mostrar" : "Display name" }).first().locator("xpath=following-sibling::input[1]").fill("Orchard Cove Services");
+      await c.page.getByRole("button", { name: c.lang === "es" ? "Guardar" : "Save" }).last().click();
+      await until(c, "[data-changed-since]");
+    } },
   { name: "time-off-take-back", entry: "Take back an approved time off request",
     open: "schedule/timeoff/to-369", ready: '[data-time-off-window="to-369"] [data-time-off-rescind]' },
   { name: "settings-maintenance-days", entry: "Set the days before a maintenance request reminds its sender",

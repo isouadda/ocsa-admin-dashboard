@@ -2759,6 +2759,9 @@ async function step338(d, origin, p, stubs) {
     return "";
   });
 }
+// What a staff save sent apart from updatedAt, the updated time the edit read, which every office edit
+// sends beside the fields changed since part 368 (the API's part 365, finding API-101).
+const edited368 = (b) => { const o = Object.assign({}, b || {}); delete o.updatedAt; return o; };
 
 // Part 341, changing a hire date, with the API's part 340 armed here. Edit Staff Info, the list's
 // pencil, sends only the fields whose value changed from what it opened with, and the list carries no
@@ -2827,7 +2830,7 @@ async function step341(d, origin, p, stubs) {
       if ((await d.page.locator("[data-hire-date]").count()) > 0) return "Edit Staff Info draws Hire Date";
       await editBox341(d).locator("input").nth(2).fill("2155550199");
       const sent = await saved341(d, stubs, saveButton341(d));
-      if (!sent || JSON.stringify(sent.body) !== JSON.stringify({ phone: "2155550199" })) return "the save sent " + JSON.stringify(sent && sent.body);
+      if (!sent || JSON.stringify(edited368(sent.body)) !== JSON.stringify({ phone: "2155550199" })) return "the save sent " + JSON.stringify(sent && sent.body);
       await profileEdit341(d, "u-staff-6");
       if ((await d.page.locator("[data-hire-date]").count()) > 0) return "the profile's Edit draws Hire Date";
       await go(d, "staff", null, "table tbody tr");
@@ -2850,7 +2853,7 @@ async function step341(d, origin, p, stubs) {
     await editWindow341(d, "u-staff-6");
     await d.page.locator('[data-hire-date="edit"] input').fill("2025-04-01");
     const sent = await saved341(d, stubs, saveButton341(d));
-    if (!sent || sent.id !== "u-staff-6" || JSON.stringify(sent.body) !== JSON.stringify({ hireDate: "2025-04-01" })) return "the save sent " + JSON.stringify(sent && sent.body);
+    if (!sent || sent.id !== "u-staff-6" || JSON.stringify(edited368(sent.body)) !== JSON.stringify({ hireDate: "2025-04-01" })) return "the save sent " + JSON.stringify(sent && sent.body);
     await editWindow341(d, "u-staff-6");
     const now = await d.page.locator('[data-hire-date="edit"] input').inputValue();
     return now !== "2025-04-01" ? "the window opens again on " + JSON.stringify(now) : "";
@@ -2859,7 +2862,7 @@ async function step341(d, origin, p, stubs) {
     await editWindow341(d, "u-staff-6");
     await editBox341(d).locator('input[type="number"]').fill("19.75");
     const sent = await saved341(d, stubs, saveButton341(d));
-    return !sent || JSON.stringify(sent.body) !== JSON.stringify({ hourlyRate: "19.75" }) ? "the save sent " + JSON.stringify(sent && sent.body) : "";
+    return !sent || JSON.stringify(edited368(sent.body)) !== JSON.stringify({ hourlyRate: "19.75" }) ? "the save sent " + JSON.stringify(sent && sent.body) : "";
   });
   await check("a profile's Edit fills a missing hire date, and users.badHireDate shows under the field", async () => {
     await profileEdit341(d, "u-staff-7");

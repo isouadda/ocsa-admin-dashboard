@@ -950,13 +950,257 @@ async function sessionCases(ctx, lang) {
   });
 }
 
+// ---- What Round 6 built (section 4) ----------------------------------------------------------------------
+// The cursor the stub hands out after a page: base64url of [list, offset].
+const cursorAt = (list, offset) => Buffer.from(JSON.stringify([list, offset])).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+// One list read a page at a time: its first read sends cursor empty and no limit, Show more sends the
+// next cursor with the same filters, and Show more goes once the last page is read.
+async function pagedCheck(d, results, id, o) {
+  const mark = d.mark();
+  await o.open();
+  await d.settle(900);
+  // The first page as last read, once the filters are picked.
+  const first = reads(d, mark, o.path).filter((c) => q(c).has("cursor") && q(c).get("cursor") === "").slice(-1);
+  const plain = reads(d, mark, o.path).filter((c) => !q(c).has("cursor") && !q(c).has("limit") && !(o.otherRead && o.otherRead.test(String(c.query || ""))));
+  const btn = '[data-show-more="' + o.at + '"]';
+  const offered = await has(d, btn);
+  const m2 = d.mark();
+  if (offered) { await d.page.locator(btn).first().click().catch(() => {}); await d.settle(900); }
+  const second = reads(d, m2, o.path);
+  const gone = !(await has(d, btn));
+  const f0 = first[0] ? q(first[0]) : null, f1 = second[0] ? q(second[0]) : null;
+  const sameFilters = !!f0 && !!f1 && Object.keys(o.filters || {}).every((k) => f0.get(k) === o.filters[k] && f1.get(k) === o.filters[k]);
+  const ok = !!f0 && f0.get("cursor") === "" && !f0.has("limit") && plain.length === 0 && offered && !!f1 && f1.get("cursor") === cursorAt(o.list, 50) && sameFilters && gone;
+  results.check(KIND, id, ok,
+    !f0 ? "the list was read with no cursor: " + say(reads(d, mark, o.path).map((c) => c.query)) : f0.has("limit") ? "the first page sent limit" : !offered ? "no Show more under a list of 70" : !f1 ? "Show more read nothing"
+      : "the pages were read with " + say([first[0].query, second[0].query]) + (sameFilters ? "" : " where the filters " + say(o.filters) + " are meant on both") + (gone ? "" : "; Show more stayed after the last page"));
+}
+
+async function round6Cases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/round6/" + x;
+
+  // Paging: each list longer than one page.
+  await withDriver(ctx, { name: "paging", lang, arm: (stubs) => stubs.setScene368({ listsMany: true }) }, async (d) => {
+    await pagedCheck(d, results, id("paging/cases"), { path: /^\/api\/hr-cases$/, list: "hr_cases", at: "cases", filters: { status: "open" },
+      open: async () => { await goHash(d, "cases"); await d.settle(400); await d.page.getByText(d.say("Open|case"), { exact: true }).first().click().catch(() => {}); } });
+    await pagedCheck(d, results, id("paging/discipline"), { path: /^\/api\/discipline$/, list: "discipline", at: "discipline", filters: { status: "open" },
+      open: async () => { await goHash(d, "discipline"); await d.settle(400); await d.page.locator('[data-discipline-page] select[aria-label="' + d.say("Status") + '"]').first().selectOption("open").catch(() => {}); } });
+    await pagedCheck(d, results, id("paging/hr-documents"), { path: /^\/api\/hr\/documents$/, list: "documents", at: "hr-documents",
+      open: async () => { await goHash(d, "hr"); await d.page.locator("[data-hr-tab='documents']").first().click().catch(() => {}); } });
+    await pagedCheck(d, results, id("paging/hr-training"), { path: /^\/api\/hr\/training$/, list: "training", at: "hr-training",
+      open: async () => { await goHash(d, "hr"); await d.page.locator("[data-hr-tab='training']").first().click().catch(() => {}); await d.settle(300); if (await has(d, "[data-training-view='records']")) await d.page.locator("[data-training-view='records']").first().click().catch(() => {}); } });
+    await pagedCheck(d, results, id("paging/signatures"), { path: /^\/api\/signatures$/, list: "signatures", at: "signatures", filters: { state: "open" },
+      open: async () => { await goHash(d, "hr/signatures"); } });
+    await pagedCheck(d, results, id("paging/issues"), { path: /^\/api\/issues$/, list: "issues", at: "issues", filters: { status: "open" },
+      open: async () => { await goHash(d, "issues"); await d.settle(400); await d.page.getByText(d.say("open|issues"), { exact: true }).first().click().catch(() => {}); } });
+    await pagedCheck(d, results, id("paging/scheduled-inspections"), { path: /^\/api\/inspections\/scheduled$/, list: "inspections", at: "inspections-scheduled", otherRead: /awaiting=review/,
+      open: async () => { await goHash(d, "inspections"); await d.settle(300); await d.page.getByText(d.say("Scheduled|inspections"), { exact: true }).first().click().catch(() => {}); } });
+    await pagedCheck(d, results, id("paging/supply-requests"), { path: /^\/api\/supplies\/requests$/, list: "supply_requests", at: "supply-requests",
+      open: async () => { await goHash(d, "supplies"); await d.page.locator('[data-supplies-tab="requests"]').first().click().catch(() => {}); } });
+  });
+
+  // Part 364's line that said a list stops at its limit is gone, with 200 cases and 500 warnings on record.
+  await withDriver(ctx, { name: "no-limit-line", lang, arm: (stubs) => stubs.setFindings364(true) }, async (d) => {
+    await goHash(d, "cases");
+    await d.page.getByText(d.say("All|cases"), { exact: true }).first().click().catch(() => {});
+    await d.settle(700);
+    const casesLine = await has(d, "[data-cases-capped]");
+    const casesMore = await has(d, '[data-show-more="cases"]');
+    await goHash(d, "discipline");
+    await d.settle(700);
+    const warnLine = await has(d, "[data-discipline-capped]");
+    const warnMore = await has(d, '[data-show-more="discipline"]');
+    results.check(KIND, id("paging/no-line-that-the-list-stops"), !casesLine && !warnLine && casesMore && warnMore,
+      (casesLine ? "Cases says the list stops at 200; " : "") + (warnLine ? "Discipline says the list stops at its limit; " : "") + "Show more " + (casesMore && warnMore ? "is" : "is not") + " offered on both");
+  });
+
+  // API-93: a second press while the first still sends is 409 <area>.sending, read as still going out.
+  await withDriver(ctx, { name: "sending", lang, arm: (s) => s.setStep308Holder(true) }, async (d, stubs) => {
+    await goHash(d, "supplies");
+    await d.page.locator('[data-supplies-tab="requests"]').click();
+    await until(d, '[data-request-open="sr-9"]');
+    await d.page.locator('[data-request-open="sr-9"]').click();
+    await until(d, "[data-request-approve-all]");
+    await d.page.locator("[data-request-approve-all]").click();
+    await until(d, "[data-order-vendor]");
+    await d.page.locator("[data-order-vendor]").selectOption("v-1");
+    await d.drawSignature();
+    await d.page.locator("[data-order-sign] [data-signature-box] button").first().click();
+    await until(d, "[data-order-send]");
+    const words = lang === "es" ? "Esta orden se est\u00e1 enviando ahora. Espere a que termine antes de enviarla de nuevo." : "This order is being sent now. Wait for it to finish before sending it again.";
+    stubs.setRefusal({ method: "POST", path: "/api/supplies/requests/sr-9/send", status: 409, code: "supplies.sending", error: words, body: {}, once: true });
+    await d.page.locator("[data-order-send]").click().catch(() => {});
+    await d.settle(800);
+    const said = await textOf(d, "[data-order-send-refusal]");
+    const off = await d.page.locator("[data-order-send], [data-order-send-again]").first().isDisabled().catch(() => false);
+    results.check(KIND, id("api-93-sending-read-as-still-going-out"), said === words && off, "after 409 supplies.sending the window reads " + say(said) + (off ? "" : " and Send is offered again"));
+  });
+
+  // API-108: each announcement carries a clientId made once; a press again after the browser gave up is
+  // answered with the first announcement.
+  await withDriver(ctx, { name: "announcement", lang }, async (d, stubs) => {
+    await d.goto("announcements");
+    await until(d, "[data-announcement-send]");
+    await d.page.getByLabel(d.say("Title"), { exact: true }).fill("Parking lot closed Friday").catch(() => {});
+    await d.page.getByLabel(d.say("Message"), { exact: true }).fill("The north lot is closed Friday for repaving.").catch(() => {});
+    stubs.setDelay("/api/announcements", 31500);
+    const mark = d.mark();
+    await d.page.locator("[data-announcement-send]").click().catch(() => {});
+    await wait(31500);
+    await d.settle(300);
+    stubs.clearDelays();
+    const on = !(await d.page.locator("[data-announcement-send]").isDisabled().catch(() => true));
+    await d.page.locator("[data-announcement-send]").click().catch(() => {});
+    await d.settle(800);
+    const posts = writes(d, mark, "POST", /^\/api\/announcements$/);
+    const ids = posts.map((c) => c.body && c.body.clientId);
+    const repeats = stubs.model368().repeats.length;
+    results.check(KIND, id("api-108-one-client-id-per-announcement"), posts.length === 2 && /^[0-9a-f-]{36}$/i.test(String(ids[0] || "")) && ids[0] === ids[1] && on && repeats === 1,
+      "two presses sent " + posts.length + " posts with clientIds " + say(ids) + (on ? "" : "; Send was held off after the browser gave up") + "; the API answered " + repeats + " repeat(s)");
+  });
+
+  // API-101: Company settings, a change made since to another field, saved again without asking.
+  const settingsOpen = async (d) => { await goHash(d, "settings"); await d.page.locator('[data-settings-tab="company"]').first().click().catch(() => {}); await d.settle(500); };
+  const nameBox = (d) => d.page.locator("label", { hasText: d.say("Display name") }).first().locator("xpath=following-sibling::input[1]");
+  await withDriver(ctx, { name: "since-quiet", lang }, async (d, stubs) => {
+    await settingsOpen(d);
+    const now = await d.page.evaluate(() => null);
+    const read = stubs.handle({ method: "GET", url: "http://stub.invalid/api/settings?locale=" + lang, headers: { authorization: "Bearer x", "accept-language": lang }, lang }).json;
+    stubs.setScene368({ since: { "/api/settings": Object.assign({}, read, { phone: "2155550177", updated_at: "2026-03-17T13:00:00.000Z" }) } });
+    await nameBox(d).fill("Orchard Cove Services").catch(() => {});
+    const mark = d.mark();
+    await d.page.getByRole("button", { name: d.say("Save") }).last().click().catch(() => {});
+    await d.settle(1200);
+    const sent = writes(d, mark, "PATCH", /^\/api\/settings$/);
+    const asked = await has(d, "[data-changed-since]");
+    results.check(KIND, id("api-101-a-change-elsewhere-saves-again-without-asking"), sent.length === 2 && sent[0].body.updatedAt === "2026-03-17T12:00:00.000Z" && sent[1].body.updatedAt === "2026-03-17T13:00:00.000Z" && !asked && now === null,
+      "the save sent " + sent.length + " PATCHes with updatedAt " + say(sent.map((c) => c.body && c.body.updatedAt)) + (asked ? " and asked" : ""));
+  });
+  // The same, with the field this person edited changed since: asked, and saved what was typed.
+  await withDriver(ctx, { name: "since-ask", lang }, async (d, stubs) => {
+    await settingsOpen(d);
+    const read = stubs.handle({ method: "GET", url: "http://stub.invalid/api/settings?locale=" + lang, headers: { authorization: "Bearer x", "accept-language": lang }, lang }).json;
+    stubs.setScene368({ since: { "/api/settings": Object.assign({}, read, { display_name: "Orchard Cove Group", updated_at: "2026-03-17T13:00:00.000Z" }) } });
+    await nameBox(d).fill("Orchard Cove Services").catch(() => {});
+    const mark = d.mark();
+    await d.page.getByRole("button", { name: d.say("Save") }).last().click().catch(() => {});
+    await until(d, "[data-changed-since]", 4000);
+    const row = await d.page.evaluate(() => { const r = document.querySelector('[data-changed-field="display_name"]'); return r ? r.innerText.replace(/\s+/g, " ").trim() : null; });
+    await d.page.locator("[data-changed-save]").click().catch(() => {});
+    await d.settle(1000);
+    const sent = writes(d, mark, "PATCH", /^\/api\/settings$/);
+    const wantRow = d.say("Display name") + " Orchard Cove Group Orchard Cove Services";
+    results.check(KIND, id("api-101-a-change-to-the-same-field-asks-first"), row === wantRow && sent.length === 2 && sent[1].body.updatedAt === "2026-03-17T13:00:00.000Z" && sent[1].body.display_name === "Orchard Cove Services",
+      row === null ? "no window asked before saving over the change" : "the window read " + say(row) + " where " + say(wantRow) + " is meant; " + sent.length + " PATCHes");
+  });
+  // A case's status changed since: asked, and keeping what it says now saves nothing.
+  await withDriver(ctx, { name: "since-case", lang }, async (d, stubs) => {
+    await goHash(d, "cases/hc-1");
+    await until(d, '[data-case-window="hc-1"]', 6000);
+    const read = stubs.handle({ method: "GET", url: "http://stub.invalid/api/hr-cases/hc-1?locale=" + lang, headers: { authorization: "Bearer x", "accept-language": lang }, lang }).json;
+    stubs.setScene368({ since: { "/api/hr-cases/hc-1": Object.assign({}, read, { status: "in_review", updatedAt: "2026-03-17T13:00:00.000Z" }) } });
+    await d.page.locator('[data-case-window="hc-1"] [data-case-status]').first().selectOption("escalated").catch(() => {});
+    const mark = d.mark();
+    await d.page.locator('[data-case-window="hc-1"]').getByRole("button", { name: d.say("Save changes") }).first().click().catch(() => {});
+    await until(d, "[data-changed-since]", 4000);
+    const row = await d.page.evaluate(() => { const r = document.querySelector('[data-changed-field="status"]'); return r ? Array.from(r.children).map((x) => x.innerText.trim()) : null; });
+    await d.page.locator("[data-changed-keep]").click().catch(() => {});
+    await d.settle(800);
+    const sent = writes(d, mark, "PATCH", /^\/api\/hr-cases\/hc-1$/);
+    results.check(KIND, id("api-101-a-case-changed-since-is-kept-when-asked"), !!row && row[0] === d.say("Status") && row[1] === d.say("In review|case") && row[2] === d.say("Escalated|case") && sent.length === 1 && sent[0].body.updatedAt === read.updatedAt,
+      !row ? "no window asked before saving over the change" : "the window read " + say(row) + "; " + sent.length + " PATCH(es) went with " + say(sent.map((c) => c.body && c.body.updatedAt)));
+  });
+  // A person's record moved at a sign-in since the edit opened: saved again without asking.
+  await withDriver(ctx, { name: "since-person", lang }, async (d, stubs) => {
+    const who = "u-staff-5";
+    await goHash(d, "staff/" + who);
+    await until(d, "[data-profile-edit]", 6000);
+    await d.page.locator("[data-profile-edit]").first().click().catch(() => {});
+    await d.settle(600);
+    const read = stubs.handle({ method: "GET", url: "http://stub.invalid/api/users/" + who + "?locale=" + lang, headers: { authorization: "Bearer x", "accept-language": lang }, lang }).json.user;
+    stubs.setScene368({ since: { ["/api/users/" + who]: Object.assign({}, read, { lastLoginAt: "2026-03-17T13:00:00.000Z", updatedAt: "2026-03-17T13:00:00.000Z" }) } });
+    const phone = d.page.locator("div").filter({ has: d.page.locator("label", { hasText: new RegExp("^" + d.say("Phone") + "$") }) }).locator("input").last();
+    await phone.fill("2155550188").catch(() => {});
+    const mark = d.mark();
+    await d.page.getByRole("button", { name: d.say("Save") }).last().click().catch(() => {});
+    await d.settle(1200);
+    const sent = writes(d, mark, "PATCH", new RegExp("^/api/users/" + who + "$"));
+    const asked = await has(d, "[data-changed-since]");
+    results.check(KIND, id("api-101-a-sign-in-since-saves-again-without-asking"), !!who && sent.length === 2 && sent[0].body.updatedAt === read.updatedAt && sent[1].body.updatedAt === "2026-03-17T13:00:00.000Z" && !asked && !!phone,
+      !who ? "no staff row to open" : "the save sent " + sent.length + " PATCHes with updatedAt " + say(sent.map((c) => c.body && c.body.updatedAt)) + (asked ? " and asked" : ""));
+  });
+
+  // API-103: the HR document box takes an iPhone's HEIC photo.
+  await withDriver(ctx, { name: "heic", lang }, async (d) => {
+    await goHash(d, "hr");
+    await d.page.locator("[data-hr-tab='documents']").first().click().catch(() => {});
+    await d.settle(400);
+    await d.clickText(d.say("+ Add Document"), { exact: false });
+    await until(d, "[data-hr-doc-file]");
+    const accept = (await has(d, "[data-hr-doc-file]")) ? await d.page.locator("[data-hr-doc-file]").getAttribute("accept") : "";
+    await d.page.locator("[data-hr-doc-file]").setInputFiles({ name: "IMG_0412.HEIC", mimeType: "image/heic", buffer: Buffer.from("heic bytes") }).catch(() => {});
+    await d.settle(200);
+    const why = await textOf(d, "[data-hr-doc-file-refusal]");
+    const page = await d.page.evaluate(() => document.body.innerText);
+    results.check(KIND, id("api-103-the-hr-document-box-takes-heic"), /\.heic/.test(accept || "") && /\.heif/.test(accept || "") && !why && page.indexOf(d.say("A PDF, a JPEG, PNG or HEIC photo, or a Word file, up to 25 MB.")) >= 0,
+      "the box accepts " + say(accept) + (why ? " and refuses an iPhone photo: " + say(why) : ""));
+    await d.closeModal().catch(() => {});
+  });
+
+  // API-99: the category read from serviceCategory first, so the page reads the same once the old key
+  // is gone, and a save sends serviceCategory.
+  await withDriver(ctx, { name: "category", lang }, async (d, stubs) => {
+    await goHash(d, "services");
+    await d.settle(600);
+    if (d.waitToastGone) await d.waitToastGone().catch(() => {});
+    const before = await d.page.evaluate(() => (document.querySelector("main") || document.body).innerText);
+    stubs.setScene368({ categoryNewOnly: true });
+    await goHash(d, "services");
+    await d.settle(600);
+    const after = await d.page.evaluate(() => (document.querySelector("main") || document.body).innerText);
+    const diff = (() => { const a = before.split("\n"), b = after.split("\n"); const i = a.findIndex((x, k) => x !== b[k]); return i < 0 ? "" : say([a[i], b[i]]); })();
+    results.check(KIND, id("api-99-the-category-reads-the-same-under-serviceCategory"), before === after && before.length > 0, "the Service Catalog reads differently once the answers carry serviceCategory alone: " + diff);
+    await d.clickText("Daily janitorial", { exact: false }).catch(() => {});
+    await d.settle(500);
+    await d.clickText(d.say("Edit"), { exact: true }).catch(() => {});
+    await d.settle(300);
+    const mark = d.mark();
+    await d.page.locator("select").filter({ has: d.page.locator('option[value="HSE"]') }).last().selectOption("HSE").catch(() => {});
+    await d.page.getByRole("button", { name: d.say("Save") }).last().click().catch(() => {});
+    await d.settle(800);
+    const sent = writes(d, mark, "PATCH", /^\/api\/services\/[^/]+$/);
+    const b = sent[0] ? sent[0].body || {} : {};
+    results.check(KIND, id("api-99-a-save-sends-serviceCategory"), sent.length === 1 && b.serviceCategory === "HSE" && b.cimsCategory === undefined && b.cims_category === undefined,
+      !sent.length ? "the service was not saved" : "the save sent " + say(Object.keys(b).filter((k) => /categor/i.test(k)).map((k) => k + "=" + b[k])));
+  });
+
+  // API-105, already so on main: emptied notes on an HR document are cleared with null.
+  await withDriver(ctx, { name: "notes", lang }, async (d) => {
+    await goHash(d, "hr");
+    await d.page.locator("[data-hr-tab='documents']").first().click().catch(() => {});
+    await d.settle(500);
+    await d.page.getByRole("button", { name: d.say("Edit") }).first().click().catch(() => {});
+    await d.settle(400);
+    const box = d.page.locator("div").filter({ has: d.page.locator("label", { hasText: d.say("Notes") }) }).locator("textarea, input[type=text]").last();
+    await box.fill("   ").catch(() => {});
+    const mark = d.mark();
+    await d.page.getByRole("button", { name: d.say("Save") }).last().click().catch(() => {});
+    await d.settle(800);
+    const sent = writes(d, mark, "PATCH", /^\/api\/jotform\/employee-documents\/[^/]+$/);
+    results.check(KIND, id("guard-api-105-emptied-notes-are-cleared-with-null"), sent.length === 1 && sent[0].body && sent[0].body.notes === null,
+      !sent.length ? "the document was not saved" : "the save sent notes " + say(sent[0].body && sent[0].body.notes));
+  });
+}
+
 async function run(ctx) {
   for (const lang of LANGS) {
     await maintenanceCases(ctx, lang);
     await leaveCases(ctx, lang);
     await checklistCases(ctx, lang);
     await sessionCases(ctx, lang);
+    await round6Cases(ctx, lang);
   }
 }
 
-module.exports = { run, maintenanceCases, leaveCases, checklistCases, sessionCases };
+module.exports = { run, maintenanceCases, leaveCases, checklistCases, sessionCases, round6Cases };
