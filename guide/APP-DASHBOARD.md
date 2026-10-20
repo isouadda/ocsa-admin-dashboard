@@ -1401,6 +1401,7 @@ Who can do this: admins and supervisors
 8. Under **Issue** (**Emitir**), click **Issue** (**Emitir**). **A verbal warning is a note of the conversation, placed on the record. It takes no signatures.** (**Una advertencia verbal es una nota de la conversación que queda en el registro. No lleva firmas.**)
 9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
 Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
+Picture: discipline-issue-for
 Picture: warning-verbal-window
 Last checked: 2026-10-20
 
