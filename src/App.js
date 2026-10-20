@@ -182,6 +182,74 @@ function sessionRefusal(path, status, e) {
   if (status === 403 && code === "auth.mustSetPin") announce("ocsa-must-set-pin", { words: (e && e.error) || "" });
   return null;
 }
+// ===== ADDRESSES THE API SENDS (part 364, findings API-68 and API-119) =====
+// The API stores some addresses as they were sent, so an address for a picture, a video, a file or a
+// page is kept only when a browser opens it safely: https: or http:, a path on this site, a data:
+// picture, or a blob: this page made. Anything else (javascript:, data:text/html, file:, a //host with no
+// scheme, or /\host, which a browser reads as //host) becomes null as the answer arrives, under any key
+// whose name ends in url, urls or src, so no screen draws it as a link or a picture. An empty string
+// stays. The staff app's guard is the same (its part 359).
+const ADDRESS_KEY = /(url|urls|src)$/i;
+const safeAddress = (u) => {
+  if (typeof u !== "string") return u;
+  const a = u.trim();
+  if (a === "" || /^https?:\/\//i.test(a) || /^\/(?![/\\])/.test(a) || /^data:image\/[a-z0-9.+-]+[;,]/i.test(a) || /^blob:/i.test(a)) return u;
+  return null;
+};
+function withSafeAddresses(v, depth) {
+  if ((depth || 0) > 12 || !v || typeof v !== "object") return v;
+  if (Array.isArray(v)) { v.forEach(x => withSafeAddresses(x, (depth || 0) + 1)); return v; }
+  Object.keys(v).forEach((k) => {
+    if (ADDRESS_KEY.test(k) && typeof v[k] === "string") { v[k] = safeAddress(v[k]); return; }
+    if (ADDRESS_KEY.test(k) && Array.isArray(v[k])) v[k] = v[k].filter(x => typeof x !== "string" || safeAddress(x) !== null);
+    withSafeAddresses(v[k], (depth || 0) + 1);
+  });
+  return v;
+}
+
+// ===== THE REFUSALS NEW SINCE ROUND 2 (part 364, the API's parts 357 and 360) =====
+// Each is said in plain words with what to do next, in the screen's language, whichever screen sent the
+// call; the API's own words stay on err.body.error, and a code not here keeps them. A screen that can
+// point at the field or the shift a refusal names draws these words there.
+const PLAIN_REFUSALS = {
+  "pickups.alreadyPosted": "This shift is already posted for pickup or has a drop request waiting. Open it on Shift Pickup to change or cancel that posting first.",
+  "issues.request.decideFirst": "This client request is waiting for approval or was declined. Approve or decline it on the Client requests tab first. A declined request stays declined.",
+  "issues.cannotAssign": "This issue is closed, declined or waiting for approval, so it cannot be assigned. Reopen it, or approve the request first.",
+  "issues.assigneeNotStaff": "Choose an active staff member. A client contact or someone who has left cannot take an issue.",
+  "tasks.badAssignee": "Choose an active staff member to take this task. A client contact or someone who has left cannot take it.",
+  "inspections.completedLocked": "This inspection is completed, so it cannot be cancelled or reopened, and its safety walk stays as it is. Schedule a new inspection if another visit is needed.",
+  "supplies.requestFulfilled": "This request was already fulfilled, so it cannot change. Make a new request for anything more.",
+  "common.bodyTooLarge": "What was sent is too large. Send less at once, or a smaller file.",
+  "common.badBody": "What was sent could not be read. Try again, and if it happens again, reload the page.",
+};
+// supplies.badDetails names what was wrong in keys: the words say which part to fix.
+const SUPPLY_DETAIL_WORDS = [
+  [/^to$/, "Type a working email address to send it to."],
+  [/^vendorId$/, "Choose an active vendor for this order."],
+  [/^deliverTo$/, "Fill in where the order is delivered, in 500 characters or fewer."],
+  [/^signature$/, "Sign in the box, then try again."],
+  [/^status$/, "Choose Approved or Denied."],
+  [/^items/, "Check each item: approve or deny it, with an approved quantity of at least 1."],
+];
+// The keys a refusal names, as strings.
+const refusalKeys = (e) => (e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []);
+function plainRefusal(status, e, path) {
+  const code = e && e.code;
+  if (!code) return "";
+  if (code === "uploads.tooLarge") {
+    const mb = Number(e.maxBytes) > 0 ? Math.round(Number(e.maxBytes) / 1048576) : 0;
+    return mb ? tr("This file is over {0} MB. Choose a smaller file.", mb) : tr("This file is too large. Choose a smaller file.");
+  }
+  if (status === 403 && code === "access.insufficientPermissions" && e.capability === "manage_schedule") {
+    return String(path || "").indexOf("/api/pickups") === 0 ? tr("Changing shifts on Shift Pickup needs permission to manage the schedule. Ask an admin to give it to you.") : tr("Changing the schedule needs permission to manage the schedule. Ask an admin to give it to you.");
+  }
+  if (code === "supplies.badDetails") {
+    const keys = Array.isArray(e.keys) ? e.keys.map(String) : [];
+    const hit = SUPPLY_DETAIL_WORDS.find(([re]) => keys.some(k => re.test(k)));
+    return tr(hit ? hit[1] : "Some details are missing or not valid. Check what you entered and try again.");
+  }
+  return PLAIN_REFUSALS[code] ? tr(PLAIN_REFUSALS[code]) : "";
+}
 async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
   const res = await apiRequest(API + "/api/uploads?bucket=" + encodeURIComponent(bucket) + "&ext=" + encodeURIComponent(ext), {
@@ -189,8 +257,20 @@ async function apiUpload(file, bucket, token) {
     headers: { "Authorization": "Bearer " + token, "Content-Type": file.type },
     body: file,
   });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(sessionRefusal("/api/uploads", res.status, e) || e.error || tr("Upload failed")); }
-  return res.json();
+  if (!res.ok) { const e = await res.json().catch(() => ({})); const err = new Error(sessionRefusal("/api/uploads", res.status, e) || plainRefusal(res.status, e, "/api/uploads") || e.error || tr("Upload failed")); err.status = res.status; err.code = e.code; err.body = e; throw err; }
+  return withSafeAddresses(await res.json());
+}
+// A file the API hands out is drawn in a new tab only as a type a browser shows without running anything
+// in it: a PDF, or a JPEG, PNG, GIF or WebP picture. Anything else, an HTML page or an SVG drawing among
+// them, is saved instead, so a file stored under the type its uploader claimed never runs as a page of
+// this site (finding API-103: the API serves an employee document as the type it was sent with).
+const INLINE_FILE = /^(application\/pdf|image\/(jpeg|png|gif|webp))$/i;
+function showFileBlob(blob, name) {
+  const type = String((blob && blob.type) || "").split(";")[0].trim();
+  const url = URL.createObjectURL(blob);
+  if (INLINE_FILE.test(type)) window.open(url, "_blank");
+  else { const a = document.createElement("a"); a.href = url; a.download = name || "file"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 // attachment; filename="<code>-<id>.pdf" -> <code>-<id>.pdf. Anything unreadable falls back.
 const filenameFrom = (header, fallback) => {
@@ -203,7 +283,7 @@ const filenameFrom = (header, fallback) => {
 // 401 signs out and a refusal arrives with the words the API sent and its status.
 async function apiDownload(path, token, fallbackName) {
   const r = await apiRequest(API + path, { headers: { "Authorization": "Bearer " + token } });
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || plainRefusal(r.status, e, path) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
 // A file the API makes, fetched through apiDownload and handed to the browser to save under the name
@@ -222,8 +302,8 @@ async function saveDownload(path, token, fallbackName, name) {
 // sent, its status and its code.
 async function apiMultipart(path, token, formData) {
   const r = await apiRequest(API + path, { method: "POST", headers: { "Authorization": "Bearer " + token }, body: formData });
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
-  return r.json();
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || plainRefusal(r.status, e, path) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  return withSafeAddresses(await r.json());
 }
 // A 409 schedule.clearanceMissing (Step 211) is announced as well as thrown, whichever screen sent the
 // call, and the shell draws it with the person's name and a way to their clearances by the userId the
@@ -233,11 +313,11 @@ async function apiFetch(path, opts = {}) {
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
   if (!r.ok) {
-    const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
+    const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal(path, r.status, e) || plainRefusal(r.status, e, path) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
     if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, userId: e.userId == null ? null : e.userId, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
     throw err;
   }
-  return r.json();
+  return withSafeAddresses(await r.json());
 }
 // An answer the API writes as it goes. The request is apiFetch's, through apiRequest, so the address,
 // the token, the body and Accept-Language are what apiFetch would send, and a refusal before the
@@ -250,7 +330,7 @@ async function apiStream(path, opts = {}, onEvent) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const refusal = (status, e) => {
-    const err = new Error(sessionRefusal(path, status, e) || (e && e.error) || tr("Request failed")); err.status = status; err.code = e && e.code; err.body = e; return err;
+    const err = new Error(sessionRefusal(path, status, e) || plainRefusal(status, e, path) || (e && e.error) || tr("Request failed")); err.status = status; err.code = e && e.code; err.body = e; return err;
   };
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
   if (!r.ok) throw refusal(r.status, await r.json().catch(() => ({})));
@@ -466,7 +546,18 @@ const fd = d => new Date(d).toLocaleDateString(localeTag(), { month: "short", da
 // A DATE the API sends names a day, not an instant: its first ten characters, built from parts, so it
 // is that day in every time zone. Read as an instant, a date at UTC midnight is the evening before
 // anywhere west of Greenwich. fd and ft stay for a time stamp, which is an instant.
-const localDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d); };
+// Since part 364 (finding API-96) every day is the company's: a day, or a date column the API sends as
+// that day at midnight UTC, is its first ten characters, and any other instant is the day it is on the
+// company's clock, so a moment after 8 PM in the office is never drawn as tomorrow.
+const companyDayOf = (v) => {
+  if (v === null || v === undefined || v === "") return "";
+  const text = typeof v === "string" ? v.trim() : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{4}-\d{2}-\d{2}T00:00:00(\.0+)?(Z|[+-]00:?00)$/i.test(text)) return text.slice(0, 10);
+  const at = v instanceof Date ? v.getTime() : Date.parse(text);
+  return Number.isFinite(at) ? crWall(at).day : "";
+};
+const localDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(companyDayOf(d) || String(d || "")); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d); };
 const fdDay = d => localDate(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
 const fdLong = d => localDate(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" });
 const ff = d => new Date(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -517,14 +608,25 @@ const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supp
 // an item reads the item's own fields, so the English is what it shows and what it saves.
 // A key the API writes into a record's metadata, site_name or siteName, as the words site name.
 const metaKeyWords = (k) => String(k || "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ").toLowerCase();
+// An object or a list inside a record, as words: each key as its field's name and its value, so no
+// record a screen or a print draws shows a raw key (finding API-99).
+const detailObjectText = (v, fieldOf) => {
+  if (v === null || v === undefined) return "";
+  if (Array.isArray(v)) return v.map(x => (x && typeof x === "object" ? detailObjectText(x, fieldOf) : String(x))).filter(Boolean).join(", ");
+  if (typeof v !== "object") return String(v);
+  return Object.entries(v).filter(([, x]) => x !== null && x !== undefined && x !== "").map(([k, x]) => fieldOf(k) + ": " + detailObjectText(x, fieldOf)).join("; ");
+};
 const shownItem = (it) => { const d = (it && it.display) || {}; return { label: d.label || it.label, description: d.description || it.description, zone: d.zone || it.zone }; };
 // A pick list choice on a screen that only shows it: the shown label where the API sent one that
 // differs from the English label, and the code otherwise, which is what the English screen has
 // always drawn. The code is still what every form holds and every call sends.
 const choiceWordOf = (lkMap, slug) => { const shown = lkMap(slug, true); const plain = lkMap(slug); return (c) => (shown[c] && shown[c] !== plain[c] ? shown[c] : c); };
 // A service category on a screen that only shows it: the cims_categories lookup's shown label where
-// the page reads the lookup, then the label table through the word table, then the code.
-const serviceCategoryWord = (code, shown) => (shown && shown[code]) || (CIMS_LABELS[code] ? tr(CIMS_LABELS[code]) : code);
+// the page reads the lookup, then the label table through the word table, then Other. The code itself
+// is the category column's, which no screen or export names (finding API-99).
+const serviceCategoryWord = (code, shown) => (shown && shown[code]) || (CIMS_LABELS[code] ? tr(CIMS_LABELS[code]) : code ? tr("Other|category") : "");
+// The same in an English export.
+const serviceCategoryLabel = (code, shown) => (shown && shown[code]) || CIMS_LABELS[code] || (code ? "Other" : "");
 // A site's checklist read answers only today's items of the caller's open shift unless it is told
 // otherwise, which a manager testing from the portal has. Every read that feeds an editor or its
 // pickers asks for every item of every shift.
@@ -1521,7 +1623,7 @@ export default function AdminDashboard() {
         {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
         {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canReadHrRecords={hasCap("read_hr_records")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} route={route} onRoute={replaceRoute} hrOpen={canOpenPage("hr")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1870,8 +1972,13 @@ function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t 
 // that change it, and HR Records' folder shows the same card read only. Nothing shows until
 // GET /api/users/:id/employment answers with status and events; until then the profile keeps
 // Deactivate and Reactivate as they were.
+// A person's personal details (the API's part 360, finding API-74): GET /api/users/:id and
+// /api/users/profile/:id leave these keys out for a reader the rank rule does not let read the person.
+// A record with none of them is one held back, and the profile says so instead of drawing them empty.
+const PERSONAL_KEYS = ["birthday", "addressLine1", "addressLine2", "city", "state", "zipCode", "emergencyContactName", "emergencyContactPhone", "personalNotes"];
+const personalHeldBack = (u) => !!(u && typeof u === "object" && u.id != null && PERSONAL_KEYS.every(k => !Object.prototype.hasOwnProperty.call(u, k)));
 const employmentAnswerOf = (d) => (d && typeof d === "object" && typeof d.status === "string" && Array.isArray(d.events) ? d : null);
-const EMPLOYMENT_KIND = { ended: "Employment ended", leave: "On leave", returned: "Returned from leave", rehired: "Rehired", status_changed: "Status changed", confirmed: "Confirmed still working" };
+const EMPLOYMENT_KIND = { ended: "Employment ended", leave: "On leave", returned: "Returned from leave", rehired: "Rehired", status_changed: "Status changed", confirmed: "Confirmed still working", end_cancelled: "End taken back" };
 const employmentKindWord = (k) => (EMPLOYMENT_KIND[k] ? tr(EMPLOYMENT_KIND[k]) : String(k || ""));
 // The event that explains the state a person is in: an ended event for someone terminated, a leave for
 // someone inactive. A person in either state without one reads No reason recorded.
@@ -1893,14 +2000,51 @@ const loadEmploymentReasons = (af) => {
   }
   return employmentReasonsCache[lang];
 };
+// An end taken back before its day (the API's part 357): on the end, cancelled { eventId, at, by: { name } };
+// on the end_cancelled entry, cancelledEnd { eventId, lastDay, takesEffectOn, reason, reasonLabel }.
+const employmentTakenBack = (c) => { const who = employmentWho(c.by); const when = c.at ? irDay(c.at) : "--"; return who ? tr("Taken back by {0} on {1}", who, when) : tr("Taken back on {0}", when); };
+const employmentEndTakenBack = (x) => [x.lastDay ? tr("The end after {0} was taken back and never took effect", fdLong(x.lastDay)) : tr("The end was taken back and never took effect"), x.reasonLabel ? String(x.reasonLabel) : ""].filter(Boolean).join(". ");
+// Take back an end still waiting for its day: POST /api/users/:id/employment/pending-end/cancel, asked
+// once. The answer, { pendingEnd: null, employment }, is the history to draw; 409
+// employment.noPendingEnd and every other refusal are drawn in the API's words in the window.
+function TakeBackEndWindow({ af, t, userId, name, pending, onClose, onDone, showToast }) {
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [said, setSaid] = useState("");
+  const send = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setSaid("");
+    try {
+      const d = await af("/api/users/" + encodeURIComponent(String(userId)) + "/employment/pending-end/cancel", { method: "POST", body: {} });
+      if (showToast) showToast(tr("The end was taken back."));
+      onDone(d);
+    } catch (e) { setSaid(e.message || tr("Request failed")); }
+    busyRef.current = false; setBusy(false);
+  };
+  const who = name || tr("this person");
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-employment-window="take-back">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Take back the end")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {said && <div data-employment-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said}</div>}
+    <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 14 }}>{pending && pending.lastDay ? tr("Take back the end of the employment of {0} after {1}? They stay as they are, and the end never takes effect. The history keeps it, marked taken back.", who, fdLong(pending.lastDay)) : tr("Take back the end of the employment of {0}? They stay as they are, and the end never takes effect. The history keeps it, marked taken back.", who)}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={send} disabled={busy} data-employment-take-back-send="" style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Take back")}</Btn>
+    </div>
+  </div></Mdl>);
+}
 // The latest ended event in a person's history, whose rehireEligible says whether they left eligible.
 const employmentLastEnded = (d) => ((d && Array.isArray(d.events) ? d.events : []).filter(e => e && e.kind === "ended").sort((a, b) => String(b.recordedAt || "").localeCompare(String(a.recordedAt || "")))[0] || null);
 
 // The Employment card: the status with its reason, the last day or the expected return, rehire
 // eligibility for an ended employment, the note, who recorded it and when, and every event newest
 // first. onRecord, when given, offers Record the reason for a person whose state has none; staffHref,
-// when given, is the read only card's link to Staff Management, where the buttons are.
-function EmploymentCard({ t, data, onRecord, staffHref }) {
+// when given, is the read only card's link to Staff Management, where the buttons are. onTakeBack,
+// when given, offers Take back on an end still waiting for its day (the API's part 357). An end taken
+// back says when and by whom, and the end_cancelled entry names the end it took back.
+function EmploymentCard({ t, data, onRecord, staffHref, onTakeBack }) {
   const [open, setOpen] = useState(false);
   const cur = data.current || null;
   const explained = employmentExplains(data.status, cur);
@@ -1914,6 +2058,8 @@ function EmploymentCard({ t, data, onRecord, staffHref }) {
     ev.kind === "ended" && ev.rehireEligible === false ? tr("Not eligible for rehire") : "",
     ev.kind === "leave" && ev.expectedReturn ? tr("Expected back {0}", fdLong(ev.expectedReturn)) : "",
     ev.waiting === true && ev.takesEffectOn ? tr("Takes effect on {0}", fdLong(ev.takesEffectOn)) : "",
+    ev.kind === "ended" && ev.cancelled && typeof ev.cancelled === "object" ? employmentTakenBack(ev.cancelled) : "",
+    ev.kind === "end_cancelled" && ev.cancelledEnd && typeof ev.cancelledEnd === "object" ? employmentEndTakenBack(ev.cancelledEnd) : "",
   ].filter(Boolean).join(". ");
   // An end recorded with a last day ahead waits (the API's part 346): the person stays as they are,
   // and the end takes effect at the start of takesEffectOn, the day after the last day.
@@ -1931,6 +2077,7 @@ function EmploymentCard({ t, data, onRecord, staffHref }) {
       {explained && cur.kind === "ended" && <div style={line}>{[cur.lastDay ? tr("Last day {0}", fdLong(cur.lastDay)) : "", cur.rehireEligible === true ? tr("Eligible for rehire") : cur.rehireEligible === false ? tr("Not eligible for rehire") : ""].filter(Boolean).join(". ")}</div>}
       {explained && cur.kind === "leave" && cur.expectedReturn && <div style={line}>{tr("Expected back {0}", fdLong(cur.expectedReturn))}</div>}
       {pending && <div data-employment-pending-end={pending.takesEffectOn || ""} style={{ ...line, color: OR, fontWeight: 600 }}>{tr("Employment ends after {0}. It takes effect on {1}.", fdLong(pending.lastDay), fdLong(pending.takesEffectOn))}{pending.reasonLabel ? " " + String(pending.reasonLabel) : ""}</div>}
+      {pending && onTakeBack && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-employment-take-back={pending.eventId || ""} onClick={onTakeBack} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Take back")}</Btn></div>}
       {explained && cur.note ? <div style={{ ...line, color: t.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cur.note}</div> : null}
       {explained && <div style={{ ...line, color: t.textMut }}>{recorded(cur)}</div>}
       {employmentNeedsReason(data) && <div data-employment-no-reason="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
@@ -1940,7 +2087,7 @@ function EmploymentCard({ t, data, onRecord, staffHref }) {
       {events.length > 0 && <div style={{ marginTop: 10 }}>
         <Btn t={t} v="ghost" aria-expanded={open} onClick={() => setOpen(o => !o)} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("History ({0})", events.length)}</Btn>
         {open && <div data-employment-history="" style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid " + t.border }}>
-          {events.map((ev, i) => (<div key={ev.id || i} style={{ padding: "6px 0", borderTop: i ? "1px solid " + t.border : "none", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
+          {events.map((ev, i) => (<div key={ev.id || i} data-employment-event={ev.kind || ""} data-employment-event-cancelled={ev.cancelled ? "yes" : undefined} style={{ padding: "6px 0", borderTop: i ? "1px solid " + t.border : "none", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 600, color: t.text }}>{employmentKindWord(ev.kind)}</div>
             {detail(ev) ? <div>{detail(ev)}</div> : null}
             {ev.note ? <div style={{ color: t.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
@@ -2499,7 +2646,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)) {
           const label = fieldOf(k);
           let val = String(valueOf(k, v));
-          if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
+          if (typeof v === "object" && !Array.isArray(v)) val = detailObjectText(v, fieldOf);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
             html += '<div class="field" style="grid-column:span 2"><div class="label">' + escHtml(label) + '</div><img src="' + escUrl(v) + '" style="max-width:300px;max-height:200px;border-radius:6px;margin-top:4px" /></div>';
@@ -2703,8 +2850,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   };
 
   // The profile editor's fields as the profile was read, which the editor opens with and the save is held
-  // to.
-  const profileOpened = (u) => ({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, hireDate: hireDayOf(u.hireDate), hireDateWas: hireDayOf(u.hireDate), employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" });
+  // to. A record whose personal details the API held back (part 360, finding API-74) opens with none of
+  // them, so no save can send them back.
+  const profileOpened = (u) => {
+    const f = { firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, hireDate: hireDayOf(u.hireDate), hireDateWas: hireDayOf(u.hireDate), employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" };
+    if (personalHeldBack(u)) PERSONAL_KEYS.forEach(k => { delete f[k]; });
+    return f;
+  };
   // Save profile personal info. Like the list's pencil, a save sends only the fields whose value changed
   // from what the editor opened with (DASH-03), so a field left alone is never written back stale and
   // a box the API left empty is never sent as blank. Role, employment type and hourly rate are
@@ -2718,6 +2870,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       // The language goes only when it was changed, so the one the account holds, French among them,
       // is never written over by the code the picker shows for it (Step 243).
       const body = withHireDate(Object.assign({}, profileEdit));
+      if (personalHeldBack(profile.user)) PERSONAL_KEYS.forEach(k => { delete body[k]; });
       if (langCode(body.preferredLanguage) === langCode(profile.user.preferredLanguage)) delete body.preferredLanguage;
       if (!canEmploy) { delete body.role; delete body.employmentType; delete body.hourlyRate; }
       Object.keys(body).forEach(k => { if (k !== "preferredLanguage" && sameValue(body[k], was[k])) delete body[k]; });
@@ -2818,7 +2971,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         </>}
       />
 
-      {empWin && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} lkMap={lkMap} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
+      {empWin && empWin.mode === "take-back" && employment && <TakeBackEndWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} pending={employment.pendingEnd} showToast={showToast} onClose={() => setEmpWin(null)} onDone={(d) => { setEmpWin(null); const next = d && employmentAnswerOf(d.employment); if (next) setEmployment(next); else loadEmployment(u.id); }} />}
+      {empWin && empWin.mode !== "take-back" && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} lkMap={lkMap} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
@@ -2831,7 +2985,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Employment")}</div>
           <div role="alert" style={{ fontSize: 13, color: employmentSaid.again ? RD : t.text, marginTop: 8, lineHeight: 1.5 }}>{employmentSaid.text}{employmentSaid.again ? <button onClick={() => loadEmployment(u.id)} data-employment-again="" style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Try again")}</button> : null}</div>
         </div></Crd>}
-        {employment && <EmploymentCard t={t} data={employment} onRecord={canEmploy && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
+        {employment && <EmploymentCard t={t} data={employment} onRecord={canEmploy && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} onTakeBack={canEmploy && canChange(u) && !(user && String(user.id) === String(u.id)) ? () => setEmpWin({ mode: "take-back" }) : null} />}
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
@@ -2844,10 +2998,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.phone || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.email || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Hire Date")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hireDate ? fmtDate(u.hireDate) : tr("Not set")}</div></div>
-              <div style={{ fontSize: 11, color: t.textMut }}>{tr("Birthday")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.birthday ? fmtDate(u.birthday) : tr("Not set")}</div></div>
+              {!personalHeldBack(u) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Birthday")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.birthday ? fmtDate(u.birthday) : tr("Not set")}</div></div>}
               {canEmploy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Hourly Rate")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : tr("Not set")}</div></div>}
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Preferred Language")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{langLabel(u.preferredLanguage)}</div></div>
             </div>
+            {personalHeldBack(u) ? <div data-profile-personal-held="" style={{ marginTop: 14, fontSize: 12, color: t.textSec, lineHeight: 1.5, padding: "8px 10px", background: t.hover, borderRadius: 6 }}>{tr("This person's birthday, address, emergency contact and personal notes are not shown to you.")}</div> : <>
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Address")}</div>
               <div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.addressLine1 ? (u.addressLine1 + (u.addressLine2 ? ", " + u.addressLine2 : "") + (u.city ? ", " + u.city : "") + (u.state ? ", " + u.state : "") + (u.zipCode ? " " + u.zipCode : "")) : tr("Not set")}</div>
@@ -2857,6 +3012,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Emergency Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.emergencyContactPhone || tr("Not set")}</div></div>
             </div>
             {u.personalNotes && <div style={{ marginTop: 14 }}><div style={{ fontSize: 11, color: t.textMut }}>{tr("Notes")}</div><div style={{ color: t.textSec, marginTop: 2, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", background: t.hover, borderRadius: 6 }}>{u.personalNotes}</div></div>}
+            </>}
           </div> : <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><Lbl>{tr("First Name")}</Lbl><Inp t={t} value={pe.firstName || ""} onChange={e => setProfileEdit({ ...pe, firstName: e.target.value })} /></div>
@@ -2872,8 +3028,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               {hireDateField("profile", pe, setProfileEdit)}
               {canEmploy && <div><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={pe.employmentType || ""} onChange={e => setProfileEdit({ ...pe, employmentType: e.target.value || null })} options={employmentOpts} /></div>}
               {canEmploy && <div><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>}
-              <div><Lbl>{tr("Birthday")}</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>
+              {!personalHeldBack(u) && <div><Lbl>{tr("Birthday")}</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>}
             </div>
+            {personalHeldBack(u) && <div data-profile-personal-held="edit" style={{ marginBottom: 10, fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("This person's birthday, address, emergency contact and personal notes are not shown to you, so they cannot be changed here.")}</div>}
+            {!personalHeldBack(u) && <>
             <div style={{ marginBottom: 10 }}><Lbl>{tr("Address Line 1")}</Lbl><Inp t={t} value={pe.addressLine1 || ""} onChange={e => setProfileEdit({ ...pe, addressLine1: e.target.value })} placeholder={tr("Street address")} /></div>
             <div style={{ marginBottom: 10 }}><Lbl>{tr("Address Line 2")}</Lbl><Inp t={t} value={pe.addressLine2 || ""} onChange={e => setProfileEdit({ ...pe, addressLine2: e.target.value })} placeholder={tr("Apt, suite, etc.")} /></div>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -2885,8 +3043,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>{tr("Emergency Contact")}</Lbl><Inp t={t} value={pe.emergencyContactName || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactName: e.target.value })} placeholder={tr("Full name")} /></div>
               <div><Lbl>{tr("Emergency Phone")}</Lbl><Inp t={t} value={pe.emergencyContactPhone || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactPhone: e.target.value })} placeholder={tr("Phone number")} /></div>
             </div>
+            </>}
             <div style={{ marginBottom: 10 }}><Lbl>{tr("Preferred Language")}</Lbl><Sel t={t} aria-label={tr("Preferred Language")} value={langCode(pe.preferredLanguage)} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} options={langOptsFor(profile.user.preferredLanguage, frenchKept)} /></div>
-            <div style={{ marginBottom: 14 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} value={pe.personalNotes || ""} onChange={e => setProfileEdit({ ...pe, personalNotes: e.target.value })} rows={3} placeholder={tr("Internal notes about this employee...")} /></div>
+            {!personalHeldBack(u) && <div style={{ marginBottom: 14 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} value={pe.personalNotes || ""} onChange={e => setProfileEdit({ ...pe, personalNotes: e.target.value })} rows={3} placeholder={tr("Internal notes about this employee...")} /></div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setEmpIdError(""); setProfileEdit(null); }}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveProfileInfo}>{tr("Save Changes")}</Btn></div>
           </div>}
         </Crd>
@@ -2989,7 +3148,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               return <div key={k} style={{ fontSize: 11 }}>
                 <div style={{ color: t.textMut, fontSize: 9, textTransform: "uppercase", marginBottom: 1 }}>{fieldOf(k)}</div>
                 {isUrl ? <a href={linkUrl(v)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
-                  : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(valueOf(k, v))}</div>}
+                  : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? detailObjectText(v, fieldOf) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(valueOf(k, v))}</div>}
               </div>;
             })}
           </div>
@@ -2997,14 +3156,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Photos ({0})", tlDetail.photos.length)}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {tlDetail.photos.map((p, i) => <a key={i} href={linkUrl(p.photo_url || p.file_url || "")} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
+              {tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <a key={i} href={linkUrl(p.photo_url || p.file_url || "")} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
             </div>
           </div>}
           {/* Related items */}
           {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Related Items ({0})", tlDetail.relatedItems.length)}</div>
             {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: 10, background: t.hover, borderRadius: 6, marginBottom: 4, fontSize: 11 }}>
-              {Object.entries(item).filter(([k, v]) => v !== null && v !== undefined && k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k)).slice(0, 6).map(([k, v]) => <span key={k} style={{ marginRight: 12 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{typeof v === "object" ? JSON.stringify(v).substring(0, 80) : String(v).substring(0, 80)}</span></span>)}
+              {Object.entries(item).filter(([k, v]) => v !== null && v !== undefined && k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k)).slice(0, 6).map(([k, v]) => <span key={k} style={{ marginRight: 12 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{typeof v === "object" ? detailObjectText(v, fieldOf).substring(0, 80) : String(valueOf(k, v)).substring(0, 80)}</span></span>)}
             </div>)}
           </div>}
         </div>}
@@ -3899,7 +4058,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)) {
           const label = fieldOf(k);
           let val = String(valueOf(k, v));
-          if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
+          if (typeof v === "object" && !Array.isArray(v)) val = detailObjectText(v, fieldOf);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
             html += '<div class="field" style="grid-column:span 2"><div class="label">' + escHtml(label) + '</div><img src="' + escUrl(v) + '" style="max-width:300px;max-height:200px;border-radius:6px;margin-top:4px" /></div>';
@@ -4288,7 +4447,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
               if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><img src={v} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
-              let val = typeof v === "object" ? JSON.stringify(v) : String(valueOf(k, v));
+              let val = typeof v === "object" ? detailObjectText(v, fieldOf) : String(valueOf(k, v));
               if (val.length > 200) val = val.substring(0, 200) + "...";
               return <div key={k}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><div style={{ fontSize: 12, color: t.text, marginTop: 2 }}>{val}</div></div>;
             })}
@@ -4296,7 +4455,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>}
         {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos ({0})", tlDetail.photos.length)}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.map((p, i) => <img key={i} src={p.photo_url || p.file_url || ""} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <img key={i} src={p.photo_url || p.file_url || ""} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
         </div>}
         {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Related Items ({0})", tlDetail.relatedItems.length)}</div>
@@ -4350,7 +4509,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions (optional)")}</Lbl><TArea t={t} value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder={tr("Step-by-step instructions, tips, or notes for the cleaner...")} rows={3} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video (optional)")}</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
-          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
+          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(err && err.message ? tr("Upload failed: {0}", err.message) : tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
         {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v, crit: v ? addTask.crit : false })} />}
@@ -4367,7 +4526,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder={tr("Step-by-step instructions, tips, or notes...")} rows={4} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video")}</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
-          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
+          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(err && err.message ? tr("Upload failed: {0}", err.message) : tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>{tr("YouTube link attached")}</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt={tr("Task reference")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
         {taskEs && taskEs.id === editTask.id && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: R.sm, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
@@ -5375,7 +5534,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
         {Number(r.reportsCount) > 1 && <Bdg l={trn("Asked {0} times|count", Number(r.reportsCount))} c={OR} />}
       </div>
       {r.note && <div data-request-note="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.note}</div>}
-      {Array.isArray(r.photos) && r.photos.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.map((p, i) => <a key={p.id || i} href={linkUrl(p.url)} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
+      {Array.isArray(r.photos) && r.photos.some(p => p && p.url) && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.filter(p => p && p.url).map((p, i) => <a key={p.id || i} href={linkUrl(p.url)} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <div style={cellSt}>{tr("Site")}<div style={valSt}>{r.siteName || "--"}</div></div>
         <div style={cellSt}>{tr("Area")}<div style={valSt}>{r.area || tr("Whole site|request QR")}</div></div>
@@ -5708,7 +5867,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const upd = async (id, s) => {
     setStatusRefusal("");
     try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); closeSel(); }
-    catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
+    catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose" || e.code === "issues.request.decideFirst")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
   };
   // The reporter line: a staff issue names who reported it; a client request names none, so it reads
   // Client request, and its reference follows.
@@ -5716,9 +5875,10 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const sourceOptions = [{ v: "", l: tr("All sources") }, { v: "staff", l: tr("Staff|source") }].concat(findingsOn ? [{ v: "inspection", l: tr("Inspection|source") }] : [], [{ v: "client_request", l: tr("Client requests") }]);
   // The window's shape: the single read's view over the row it opened from.
   const shown = sel ? (view ? Object.assign({}, sel, issueOfView(view)) : sel) : null;
-  const photos = view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos;
+  // A photo whose address the guard took away (finding API-68) is not drawn at all.
+  const photos = (view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos).filter(p => p && p.photo_url);
   const timed = (iss) => isFinding(iss) || iss.minutes_to_first_response != null || iss.minutes_to_fixed != null;
-  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } });
+  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { setAssignTask(a => (a ? { ...a, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : a)); } });
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
     {onRequests && <ClientRequestsTab af={af} t={t} sites={sites} canViewReports={canViewReports} route={route} onRoute={onRoute} onWaiting={setWaiting} />}
@@ -5797,7 +5957,9 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      {assignTask.said && !assignTask.saidAt && <div data-issue-assign-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{assignTask.said}</div>}
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value, said: "", saidAt: "" })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={assignTask.saidAt === "userId" ? { borderColor: RD } : undefined} />
+        {assignTask.said && assignTask.saidAt === "userId" && <div data-issue-assign-refusal="userId" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4, lineHeight: 1.5 }}>{assignTask.said}</div>}</div>
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask} disabled={assignBusy}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
@@ -5909,14 +6071,18 @@ function SupplyOrderSigned({ t, af, token, r, mayDecide, onSent }) {
   const o = supplyOrderOf(r);
   const [to, setTo] = useState(() => o.orderedTo || (o.vendor && o.vendor.contactEmail) || "");
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [going, setGoing] = useState(false);
   const [refusal, setRefusal] = useState("");
   const [pdf, setPdf] = useState(false);
+  // One press mails the vendor once (finding API-93): the ref holds a second click in the same moment,
+  // and a send the browser gave up on is not offered again here.
   const send = async () => {
-    if (busy || !to.trim()) return;
-    setBusy(true); setRefusal("");
+    if (busyRef.current || going || !to.trim()) return;
+    busyRef.current = true; setBusy(true); setRefusal("");
     try { const d = await af("/api/supplies/requests/" + encodeURIComponent(r.id) + "/send", { method: "POST", body: { to: to.trim() } }); await onSent(d); }
-    catch (e) { setRefusal(e.message || tr("Request failed")); }
-    setBusy(false);
+    catch (e) { if (sendStillGoing(e)) setGoing(true); setRefusal(sendStillGoing(e) ? tr(SEND_STILL_GOING) : e.message || tr("Request failed")); }
+    busyRef.current = false; setBusy(false);
   };
   const vendorLines = o.vendor ? [o.vendor.contactName, o.vendor.contactPhone, o.vendor.contactEmail, o.vendor.address].filter(Boolean) : [];
   return (<div data-order-signed={o.po} style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
@@ -5933,8 +6099,8 @@ function SupplyOrderSigned({ t, af, token, r, mayDecide, onSent }) {
     {mayDecide && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10 }}>
       <div style={{ flex: "1 1 220px", minWidth: 0 }}><Lbl>{tr("Send to")}</Lbl><Inp t={t} type="email" aria-label={tr("Send to")} data-order-send-to="" value={to} onChange={e => { setTo(e.target.value); setRefusal(""); }} /></div>
       {o.orderedAt
-        ? <Btn t={t} v="ghost" data-order-send-again="" disabled={busy || !to.trim()} onClick={send}>{busy ? tr("Sending...") : tr("Send again")}</Btn>
-        : <Btn t={t} data-order-send="" disabled={busy || !to.trim()} onClick={send}>{busy ? tr("Sending...") : tr("Send to {0}", to.trim() || "--")}</Btn>}
+        ? <Btn t={t} v="ghost" data-order-send-again="" disabled={busy || going || !to.trim()} onClick={send}>{busy ? tr("Sending...") : tr("Send again")}</Btn>
+        : <Btn t={t} data-order-send="" disabled={busy || going || !to.trim()} onClick={send}>{busy ? tr("Sending...") : tr("Send to {0}", to.trim() || "--")}</Btn>}
     </div>}
     {refusal && <div role="alert" data-order-send-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
     {pdf && <PdfWindow token={token} t={t} onClose={() => setPdf(false)} boxProps={{ "data-order-pdf": o.po }} title={tr("Purchase order")} sub={o.po} pathFor={() => o.pdf} fallbackName={(o.po || "purchase-order") + ".pdf"} oneLanguage />}
@@ -7089,7 +7255,7 @@ const WS_FILE_MAX = 25 * 1024 * 1024;
 // thrown with the API's words, the way apiFetch throws one.
 const wsFetchFile = async (token, f, save) => {
   const r = await apiRequest(API + "/api/workspace/files/" + encodeURIComponent(f.id), { headers: { "Authorization": "Bearer " + (token || "") } });
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal("/api/workspace/files", r.status, e) || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(sessionRefusal("/api/workspace/files", r.status, e) || plainRefusal(r.status, e, "/api/workspace/files") || e.error || tr("Request failed")); err.status = r.status; err.code = e.code; throw err; }
   if ((r.headers.get("Content-Type") || "").indexOf("application/json") >= 0) {
     const d = await r.json().catch(() => ({}));
     const url = d && (d.url || d.signedUrl || d.signed_url);
@@ -7100,7 +7266,8 @@ const wsFetchFile = async (token, f, save) => {
   const blob = await r.blob();
   const url = URL.createObjectURL(blob);
   if (save) { const a = document.createElement("a"); a.href = url; a.download = f.name || filenameFrom(r.headers.get("Content-Disposition"), "file"); document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-  else window.open(url, "_blank");
+  else if (INLINE_FILE.test(String(blob.type || "").split(";")[0].trim())) window.open(url, "_blank");
+  else { const a = document.createElement("a"); a.href = url; a.download = f.name || filenameFrom(r.headers.get("Content-Disposition"), "file"); document.body.appendChild(a); a.click(); document.body.removeChild(a); }
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 };
 
@@ -7770,16 +7937,23 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
     return () => { alive = false; clearTimeout(h); };
   }, [listState, aud, siteId, role, userIds.join(",")]);
   const audienceBody = () => (aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
+  // An announcement the browser gave up on may still be going out to every phone (findings API-93 and
+  // API-108): the list is read again to show it, and Send stays off until the words are changed.
+  const [going, setGoing] = useState(false);
+  useEffect(() => { setGoing(false); }, [title, body]);
   const send = async () => {
-    if (sendingRef.current) return;
+    if (sendingRef.current || going) return;
     sendingRef.current = true; setSending(true); setErrors({});
     try {
       await af("/api/announcements", { method: "POST", body: { title: title.trim(), body: body.trim(), audience: audienceBody() } });
       showToast(tr("Announcement sent."));
       setTitle(""); setBody(""); setUserIds([]); load();
     } catch (e) {
-      const field = (e && e.code && announcementCodes[e.code]) || "form";
-      setErrors({ [field]: (e && e.message) || tr("Request failed") });
+      if (sendStillGoing(e)) { setGoing(true); setErrors({ form: tr(SEND_STILL_GOING) }); load(); }
+      else {
+        const field = (e && e.code && announcementCodes[e.code]) || "form";
+        setErrors({ [field]: (e && e.message) || tr("Request failed") });
+      }
     }
     sendingRef.current = false; setSending(false);
   };
@@ -7838,7 +8012,7 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
         </div>
         {preview && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Reaches {0} people, {1} with phone alerts on.", Number(preview.recipients) || 0, Number(preview.withPush) || 0)}</div>}
         {errLine("form")}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || !audienceReady} style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || going || !audienceReady} data-announcement-send="" style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
       </Crd>
       <Crd t={t}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Sent")}</div>
@@ -10612,6 +10786,8 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
   const [refusal, setRefusal] = useState({ text: "", field: "", keys: [] });
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
+  // A send the browser gave up on may still be mailing (finding API-93), so it is not offered again here.
+  const [going, setGoing] = useState(false);
   useEffect(() => {
     if (!report || !report.siteId) return undefined;
     let alive = true;
@@ -10631,12 +10807,13 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
     setDraft({ name: "", email: "" });
   };
   const send = async () => {
-    if (sendingRef.current) return;
+    if (sendingRef.current || going) return;
     sendingRef.current = true; setSending(true); setRefusal({ text: "", field: "", keys: [] });
     try {
       await af("/api/monthly-reports/" + encodeURIComponent(report.id) + "/send", { method: "POST", body: { to } });
       onSent();
     } catch (e) {
+      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), field: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
       const code = String((e && e.code) || "");
       setRefusal({ text: e.message || tr("Request failed"), field: code === "monthly.noRecipients" || code === "monthly.badEmail" ? "to" : "", keys: Array.isArray(e && e.body && e.body.keys) ? e.body.keys.map(String) : [] });
     }
@@ -10644,13 +10821,13 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
   };
   const named = (c, i) => refusal.field === "to" && refusal.keys.some(k => k === c.email || k === String(i) || k.indexOf("to." + i) === 0 || k.indexOf("to[" + i + "]") === 0);
   const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-monthly-send="">
+  return (<Mdl t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-monthly-send="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send to the client")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{report.siteName || tr("No site")} &middot; {monthlyPeriod(report)}</div>
       </div>
-      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={sending}><XI sz={18} c={t.textMut} /></button>
     </div>
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The email carries the report as a PDF, a link to acknowledge it, and the site's rating survey.")}</div>
     {refusal.text && refusal.field !== "to" && <div data-monthly-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 12 }}>{refusal.text}</div>}
@@ -10672,7 +10849,7 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
     {refusal.text && refusal.field === "to" && <div data-monthly-refusal="to" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal.text}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={sending} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-      <Btn t={t} onClick={send} disabled={sending || to.length === 0} style={{ minHeight: 44, minWidth: 96 }}>{sending ? tr("Sending...") : tr("Send")}</Btn>
+      <Btn t={t} onClick={send} disabled={sending || going || to.length === 0} data-monthly-send-go="" style={{ minHeight: 44, minWidth: 96 }}>{sending ? tr("Sending...") : tr("Send")}</Btn>
     </div>
   </div></Mdl>);
 }
@@ -11293,7 +11470,7 @@ const KEPT_FORMS = {
 };
 const keptEsc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const keptTime = (at) => (at ? new Date(at).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "");
-const keptDay = (d) => (d ? fdLong(String(d).slice(0, 10)) : "");
+const keptDay = (d) => (d ? fdLong(companyDayOf(d) || String(d).slice(0, 10)) : "");
 const keptMonth = (ym) => { const [y, m] = String(ym).split("-").map(Number); return y && m ? new Date(y, m - 1, 1).toLocaleDateString(localeTag(), { month: "long", year: "numeric" }) : ""; };
 // The months a range touches, YYYY-MM, first to last.
 const keptMonths = (range) => {
@@ -11306,8 +11483,9 @@ const keptMonths = (range) => {
 const keptInitials = (name) => String(name || "").trim().split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join("");
 const keptOnce = (list) => list.filter((v, i) => v && list.indexOf(v) === i);
 const keptInRange = (day, range) => !!day && day >= range.start && day <= range.end;
-// A day a row carries, YYYY-MM-DD where the browser is, from a date or a moment.
-const keptDayOf = (v) => (!v ? "" : /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : toISO(new Date(v)));
+// A day a row carries, YYYY-MM-DD on the company's clock, from a date or a moment (finding API-96: a
+// date column at midnight UTC is its own day).
+const keptDayOf = (v) => (!v ? "" : companyDayOf(v) || toISO(new Date(v)));
 
 // A page is { code, site, range, asOf, parts }. Each part is one section of the form, in its order:
 //   { h, fields: [[label, value]] }     a label and its value, a blank line where there is none
@@ -12443,7 +12621,7 @@ async function reviewSections(af, value) {
   // 8. People: staff at the end of the period, who left and why, who is on leave, and warnings by step.
   S[8] = [{ h: "People", num: 8 }];
   if (people.ok) {
-    const lastDay = (g) => (g.h && (g.h.terminationDate || (g.h.events.find(e => e.kind === "ended") || {}).lastDay)) || "";
+    const lastDay = (g) => keptDayOf((g.h && (g.h.terminationDate || (g.h.events.find(e => e.kind === "ended") || {}).lastDay)) || "");
     const left = people.v.gone.filter(g => keptInRange(lastDay(g), range));
     const afterEnd = people.v.gone.filter(g => lastDay(g) && lastDay(g) > range.end).length;
     const hiredBy = (u) => !u.hireDate || keptDayOf(u.hireDate) <= range.end;
@@ -12968,7 +13146,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   const updateFilter = (key, val) => { const nf = { ...filters, [key]: val }; setFilters(nf); load(nf); };
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
   const openDetail = async (task) => { setSel(task); try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); } };
-  const submitReassign = onceAssign(async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { showToast(e.message, "error"); } });
+  const submitReassign = onceAssign(async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { setReassignForm(f => (f ? { ...f, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : f)); } });
   const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } });
   const buildings = [...new Set(tasks.map(tk => tk.building_name).filter(Boolean))];
   const floors = [...new Set(tasks.map(tk => tk.floor_number).filter(Boolean))];
@@ -13032,7 +13210,9 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
     {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><PersonPick t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      {reassignForm.said && !reassignForm.saidAt && <div data-task-reassign-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{reassignForm.said}</div>}
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><PersonPick t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value, said: "", saidAt: "" })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={reassignForm.saidAt === "userId" ? { borderColor: RD } : undefined} />
+        {reassignForm.said && reassignForm.saidAt === "userId" && <div data-task-reassign-refusal="userId" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4, lineHeight: 1.5 }}>{reassignForm.said}</div>}</div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign} disabled={assignBusy}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
@@ -13045,7 +13225,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder={tr("Step-by-step instructions or notes...")} rows={3} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video (optional)")}</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
-        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setCreateForm(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setCreateForm(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(err && err.message ? tr("Upload failed: {0}", err.message) : tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         {createForm.mediaUrl && (createForm.mediaType === "video" ? <div style={{ marginTop: 8 }}><video src={createForm.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 160 }} /></div> : <div style={{ marginTop: 8 }}><img src={createForm.mediaUrl} alt={tr("Attached")} style={{ width: "100%", borderRadius: 8, maxHeight: 160, objectFit: "cover" }} /></div>)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div></div>
@@ -13344,7 +13524,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
     dlCSV("OCSA_Service_Catalog_" + todayISO() + ".csv",
       ["Service Name", "Description"].concat(seesPay ? ["Rate Structure"] : [], ["Required Certifications", "Service Category", "Active Sites"]),
-      services.map(s => [s.name, s.description || ""].concat(seesPay ? [s.rate_structure || ""] : [], [s.required_certifications || "", CIMS_LABELS[s.cims_category] || s.cims_category || "", s.linked_site_count || 0]))
+      services.map(s => [s.name, s.description || ""].concat(seesPay ? [s.rate_structure || ""] : [], [s.required_certifications || "", serviceCategoryLabel(s.cims_category), s.linked_site_count || 0]))
     );
     showToast(tr("Service catalog exported"));
   };
@@ -13534,7 +13714,8 @@ function useFrenchKept(af) {
 }
 const runsPastMidnight = (start, end) => !!start && !!end && String(end) < String(start);
 const OVERNIGHT_NOTE = "This shift runs past midnight. Pick the day it starts.";
-const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
+// Today on the company's clock (finding API-96).
+const todayISO = () => companyDayOf(new Date());
 
 function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenOther }) {
   const [pattern, setPattern] = useState(null);
@@ -13767,7 +13948,7 @@ function AffectedShift({ af, t, requestId, sh, choice, onChoice, said, disabled 
   const opts = [{ v: "", l: tr("Choose a person") }].concat((cands || []).map(c => ({ v: String(c.id), l: String(c.name || ""), group: c.assignedHere ? tr("Assigned to this site") : tr("Everyone else"),
     hint: [c.weekHours != null && c.weekHours !== "" ? trn("{0} hour this week|count", Math.round(Number(c.weekHours) * 10) / 10) : "", c.overtime ? tr("Overtime") : ""].filter(Boolean).join(", ") })));
   const chosen = (cands || []).find(c => choice && String(c.id) === String(choice.userId));
-  return (<div data-affected-shift={String(sh.shiftId)} style={{ padding: "8px 0", borderTop: "1px solid " + t.border }}>
+  return (<div data-affected-shift={String(sh.shiftId)} data-affected-refused={said ? "yes" : undefined} style={Object.assign({ padding: "8px 0", borderTop: "1px solid " + t.border }, said ? { outline: "2px solid " + RD, outlineOffset: 2, borderRadius: 6, padding: "8px 6px" } : {})}>
     <div style={{ fontSize: 12, color: t.text, marginBottom: 6 }}>{line}</div>
     <Sel t={t} aria-label={tr("What happens to this shift")} data-affected-action="" value={action} disabled={disabled} onChange={e => onChoice({ action: e.target.value, userId: "" })} options={COVER_ACTIONS.map(([v, l]) => ({ v, l: tr(l) }))} />
     {action === "reassign" && <div style={{ marginTop: 6 }}>
@@ -13824,12 +14005,17 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
     });
     return { out, held };
   };
-  // A refusal that names a shift is drawn under it, and any other in the window.
-  const sayRefusal = (e) => {
+  // A refusal that names a shift is drawn under it, outlined, and any other in the window. The API names
+  // a shift by its place in what was sent, keys ["shifts[i]"] (the API's part 360: pickups.alreadyPosted
+  // and the other time off refusals of a shift), or by shiftId.
+  const sayRefusal = (e, sent) => {
     const b = (e && e.body) || {};
-    const sid = b.shiftId != null ? String(b.shiftId) : "";
-    if (sid && (affected || []).some(sh => String(sh.shiftId) === sid)) setShiftSaid({ [sid]: e.message || tr("Request failed") });
-    else setError(e.message || tr("Request failed"));
+    const text = e.message || tr("Request failed");
+    const ids = b.shiftId != null ? [String(b.shiftId)] : [];
+    (Array.isArray(b.keys) ? b.keys : []).forEach(k => { const m = /^shifts\[(\d+)\]/.exec(String(k)); const x = m && sent ? sent[Number(m[1])] : null; if (x) ids.push(String(x.shiftId)); });
+    const named = ids.filter(id => (affected || []).some(sh => String(sh.shiftId) === id));
+    if (named.length) setShiftSaid(named.reduce((m, id) => Object.assign(m, { [id]: text }), {}));
+    else setError(text);
   };
   const coverSave = async () => {
     if (sending.current) return;
@@ -13843,7 +14029,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       showToast(tr("Shifts updated."));
       await reload();
       if (onDecided) onDecided();
-    } catch (e) { sayRefusal(e); }
+    } catch (e) { sayRefusal(e, out); }
     sending.current = false; setCovering(false);
   };
   // Step 334: opened from the week or the month, the window holds only what the calendar carries, so
@@ -13868,7 +14054,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       showToast(kind === "deny" ? tr("Time off denied. They get a notice in the app.") : tr("Time off approved. They get a notice in the app."));
       if (onDecided) onDecided();
     } catch (e) {
-      sayRefusal(e);
+      sayRefusal(e, picked.out);
       if (e.status === 409) { await reload(); if (onDecided) onDecided(); }
     }
     sending.current = false; setBusy(false);
@@ -14612,7 +14798,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={supervisorOptions(schedSupervisors, inspForm.assigned_to)} /></div>
       <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
-        <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
+        {inspModal.status !== "completed" ? <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn> : <span />}
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setInspModal(null)}>{tr("Close")}</Btn><Btn t={t} onClick={submitInspReschedule}>{tr("Reschedule")}</Btn></div>
       </div>
     </div></Mdl>}
@@ -15758,7 +15944,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, cimsLabels[item.cims_category] || CIMS_LABELS[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
+      return [item.label, item.zone, serviceCategoryLabel(item.cims_category, cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
@@ -15779,7 +15965,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     af("/api/inspections/analytics/export" + q).then(rows => {
       if (!rows.length) { showToast(tr("No data to export"), "error"); return; }
       const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (cimsLabels[r.item_cims_category] || CIMS_LABELS[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(r.item_cims_category, cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));
@@ -16128,7 +16314,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>{tr("Unassigned")}</span> },
               { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
-              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{canManageInspections && <button title={tr("Cancel")} aria-label={tr("Cancel")} onClick={e => { e.stopPropagation(); cancelInspection(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{canManageInspections && si.status !== "completed" && <button title={tr("Cancel")} aria-label={tr("Cancel")} onClick={e => { e.stopPropagation(); cancelInspection(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
@@ -17189,8 +17375,27 @@ function fileWithheld(e, again) {
   announce("ocsa-file-withheld", { words: (e.body && e.body.error) || e.words || e.message || tr("Request failed"), again });
   return true;
 }
+// ===== SENDS THAT MAIL OR PUSH (part 364, findings API-93 and API-108) =====
+// The API mails or pushes before it answers, and nothing on its side makes a second press send once: a
+// purchase order, a quote, a monthly report, a warning's delivery, a corrective action's Tell the client
+// and an announcement. Each Send is held off from the press until the answer, with a ref so a second click
+// in the same moment sends nothing. A send the browser gave up on after its 30 seconds may still be going
+// out, so that window does not offer it again and says to check first.
+const sendStillGoing = (e) => !!e && e.code === "network.timeout";
+const SEND_STILL_GOING = "This is taking longer than usual and may still be going out. Check before you send it again.";
 // A raw file read's refusal as an error that carries what the API sent: its words, status and code.
 const fileRefusal = (status, body, words) => { const err = new Error(words); err.status = status; err.code = body && body.code; err.body = body || {}; return err; };
+// An HR Records document opened in a new tab through the API's own stream, the way the folder opens one:
+// the bytes are read with the session's token and handed to the browser as a local address that lasts a
+// minute. A refusal throws in the API's words.
+async function openEmployeeDocument(token, docId, name) {
+  const resp = await apiRequest(API + "/api/jotform/employee-documents/" + encodeURIComponent(String(docId)) + "/file?action=view", { headers: { Authorization: "Bearer " + (token || "") } });
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    throw fileRefusal(resp.status, errBody, (errBody && errBody.error) || tr("Request failed"));
+  }
+  showFileBlob(await resp.blob(), filenameFrom(resp.headers.get("Content-Disposition"), name || "document"));
+}
 
 // ===== THE HR FILE ACCESS REPORT (part 353, against the API's part 352) =====
 // For the super admin and anyone the super admin granted view_hr_access_report, which no role holds: GET
@@ -17359,6 +17564,8 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(null);
   const sendingRef = useRef(false);
+  // A send the browser gave up on may still be mailing (finding API-93), so it is not offered again here.
+  const [going, setGoing] = useState(false);
   const to = (picked ? contact : []).concat(added);
   const addOne = () => {
     const email = draft.email.trim();
@@ -17367,13 +17574,14 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
     setDraft({ name: "", email: "" });
   };
   const send = async () => {
-    if (sendingRef.current || to.length === 0) return;
+    if (sendingRef.current || going || to.length === 0) return;
     sendingRef.current = true; setSending(true); setRefusal({ text: "", code: "", keys: [] });
     try {
       const d = await af("/api/quotes/" + encodeURIComponent(quote.id) + "/send", { method: "POST", body: { to, message: message.trim() || null, locale: lang } });
       setDone({ sent: Number(d && d.sent) || 0, failed: Number(d && d.failed) || 0, markedSent: !(d && d.markedSent === false) });
       if (d && d.quote) onSent(d.quote);
     } catch (e) {
+      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), code: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
       setRefusal({ text: e.message || tr("Request failed"), code: String((e && e.code) || ""), keys: quoteKeysOf(e) });
       if (e && e.body && e.body.quote) onSent(e.body.quote);
     }
@@ -17420,7 +17628,7 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 12 }}><span style={{ fontSize: 12, color: t.textMut, marginRight: 4 }}>{tr("Language of the PDF")}</span>{LANGUAGES.map(langBtn)}</div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
         <Btn t={t} v="ghost" onClick={onClose} disabled={sending} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-        <Btn t={t} onClick={send} disabled={sending || to.length === 0} style={{ minHeight: 44, minWidth: 96 }}>{sending ? tr("Sending...") : tr("Send")}</Btn>
+        <Btn t={t} onClick={send} disabled={sending || going || to.length === 0} data-quote-send-go="" style={{ minHeight: 44, minWidth: 96 }}>{sending ? tr("Sending...") : tr("Send")}</Btn>
       </div>
     </div>)}
   </div></Mdl>);
@@ -19485,7 +19693,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   };
   const tellTo = () => (telling ? telling.offered.filter(c => telling.picked[c.email]).map(c => ({ name: c.name, email: c.email })).concat(telling.added) : []);
   const tellClient = async () => {
-    if (tellRef.current || !telling) return;
+    if (tellRef.current || !telling || telling.going) return;
     const to = tellTo();
     tellRef.current = true; setTelling(x => ({ ...x, busy: true, refusal: { text: "", field: "", keys: [] } }));
     try {
@@ -19497,7 +19705,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       const code = String((e && e.code) || "");
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       const field = code === "forms.noRecipients" || code === "forms.badEmail" ? "to" : keys.find(k => TELL_FIELDS.indexOf(k) >= 0) || "";
-      setTelling(x => (x ? { ...x, busy: false, refusal: { text: (e && e.message) || tr("Request failed"), field, keys } } : x));
+      // A send the browser gave up on may still be mailing (finding API-93): it is not offered again.
+      if (sendStillGoing(e)) setTelling(x => (x ? { ...x, busy: false, going: true, refusal: { text: tr(SEND_STILL_GOING), field: "", keys: [] } } : x));
+      else setTelling(x => (x ? { ...x, busy: false, refusal: { text: (e && e.message) || tr("Request failed"), field, keys } } : x));
     }
     tellRef.current = false;
   };
@@ -19945,7 +20155,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
           </div>))}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             <Btn t={t} v="ghost" onClick={() => setTelling(null)} disabled={telling.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-            <Btn t={t} onClick={tellClient} disabled={telling.busy || tellTo().length === 0 || !telling.whatHappened.trim() || !telling.whatWasDone.trim() || !telling.prevention.trim()} data-tell-client-send="" style={{ minHeight: 44, minWidth: 96 }}>{telling.busy ? tr("Sending...") : tr("Send")}</Btn>
+            <Btn t={t} onClick={tellClient} disabled={telling.busy || telling.going || tellTo().length === 0 || !telling.whatHappened.trim() || !telling.whatWasDone.trim() || !telling.prevention.trim()} data-tell-client-send="" style={{ minHeight: 44, minWidth: 96 }}>{telling.busy ? tr("Sending...") : tr("Send")}</Btn>
           </div>
         </div>}
       </div>}
@@ -21344,7 +21554,8 @@ const escHtml = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace
 const safeUrl = (v) => {
   const u = String(v == null ? "" : v).replace(/[\t\n\r]/g, "").replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "");
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(u);
-  if (!scheme) return u;
+  // A //host or /\host with no scheme is another site, which a browser opens as one (API-68).
+  if (!scheme) return /^[/\\]{2}/.test(u) ? null : u;
   return /^(https?|blob)$/i.test(scheme[1]) || /^data:image\//i.test(u) ? u : null;
 };
 // An address written into src or href in a page built as a string, escaped, and "" when it is refused.
@@ -22316,7 +22527,7 @@ const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added
 // Where an alias came from, as the API stores it (user_aliases.source), drawn as its word.
 const ALIAS_SOURCE_WORDS = { manual_link: "Linked by hand", admin_added: "Added by an admin", auto_learned: "Learned from a match" };
 const aliasSourceWord = (v) => (ALIAS_SOURCE_WORDS[v] ? tr(ALIAS_SOURCE_WORDS[v]) : String(v || ""));
-function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false, canOpenCase = false }) {
+function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false, canOpenCase = false, canReadHrRecords = true }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
   // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
@@ -22692,8 +22903,11 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   useEffect(() => { if (maintenance) { loadSyncDiagnostic(); loadFailures(); } }, [maintenance]);
   // Session 27: Aliases loads on open. Also load users for the add-form dropdown
   // if they haven't been fetched yet (mirrors the submission detail modal pattern).
+  // The alias list names each person with the names and personal emails typed on their paperwork, so it
+  // is read and drawn only for a holder of read_hr_records, whose HR Records it belongs with (finding
+  // API-73; the API still answers it to management until its fix).
   useEffect(() => {
-    if (maintenance) {
+    if (maintenance && canReadHrRecords) {
       loadAliases();
       if (usersForLinking.length === 0) {
         af("/api/jotform/users-for-linking").then(us => setUsersForLinking(us || [])).catch(() => {});
@@ -23570,7 +23784,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {tab === "links" && canManageSettings && <CustomerLinksTab af={af} token={token} t={t} sites={sites} siteFilter={linkSite} onSiteFilter={v => { if (onRoute) onRoute(v ? ["links", "site", v] : ["links"]); }} />}
 
       {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
-      {maintenance && (
+      {maintenance && !canReadHrRecords && <div data-jotform-aliases-held="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginTop: 8 }}><div style={panelHead}>{tr("Aliases")}</div>{tr("The alias list names people with the names and personal emails on their paperwork, so it is shown only to people with HR Records access.")}</div>}
+      {maintenance && canReadHrRecords && (
         <div>
           <div style={panelHead}>{tr("Aliases")}</div>
           {/* HEADER */}
@@ -24084,6 +24299,28 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
   </div></Mdl>);
 }
 
+// A clearance's file (the API's part 357). documentId names the HR Records document the clearance or the
+// review was recorded with: Open the file reads it through the API's stream, and Who opened this sits
+// beside it. null says the record was entered with no file. An answer without the key, a supervisor's
+// among them, draws nothing.
+function ClearanceFile({ af, token, t, kind, documentId, recorded }) {
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState("");
+  if (documentId === undefined || !recorded) return null;
+  if (documentId === null || documentId === "") return <div data-clearance-no-file={kind} style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Entered with no file.")}</div>;
+  const open = async () => {
+    if (busy) return;
+    setBusy(true); setSaid("");
+    try { await openEmployeeDocument(token, documentId); } catch (e) { if (!fileWithheld(e, open)) setSaid(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+    <button type="button" data-clearance-file={kind} data-clearance-file-id={String(documentId)} onClick={open} disabled={busy} style={{ background: "none", border: "none", padding: "2px 4px", minHeight: 32, color: t.goldText, fontSize: 11, fontWeight: 600, textDecoration: "underline", cursor: busy ? "wait" : "pointer", fontFamily: FONT_BODY }}>{busy ? tr("Loading...") : tr("Open the file")}</button>
+    <WhoOpened af={af} t={t} kind="clearance_file" id={documentId} />
+    {said && <span data-clearance-file-refusal={kind} role="alert" style={{ fontSize: 11, color: RD }}>{said}</span>}
+  </div>);
+}
+
 // A person's clearances on their HR record: each of the three with its issued date, its expiry and its
 // state, the earlier ones of a kind under it as history, and the Act 168 review. All of it comes from
 // GET /api/clearances?userId=, the person's row with their history, each clearance they have held
@@ -24091,7 +24328,7 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
 // datesOnly (DASH-07, decision 4): a clearance's status and dates, Add or renew and Correct a date, for
 // someone without read_hr_records. The Act 168 disclosure, a correction's reason and the files stay
 // with read_hr_records, so they are not drawn or offered.
-function PersonClearances({ af, t, userId, name, focus = false, datesOnly = false }) {
+function PersonClearances({ af, token, t, userId, name, focus = false, datesOnly = false }) {
   const [person, setPerson] = useState(undefined);
   const [win, setWin] = useState(null);
   const [open, setOpen] = useState({});
@@ -24127,6 +24364,7 @@ function PersonClearances({ af, t, userId, name, focus = false, datesOnly = fals
             <div style={{ flex: "1 1 220px", minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(k.label)}</div>
               <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{c.issuedDate ? tr("Issued {0}, expires {1}", fdLong(c.issuedDate), c.expiresOn ? fdLong(c.expiresOn) : "--") : tr("None on file")}</div>
+              {!datesOnly && <ClearanceFile af={af} token={token} t={t} kind={k.key} documentId={c.documentId} recorded={!!c.certificationId} />}
               {!datesOnly && currentCorrections(k.key, c).map(correctedLine)}
             </div>
             <ClearanceChip state={c.state || "missing"} />
@@ -24147,6 +24385,7 @@ function PersonClearances({ af, t, userId, name, focus = false, datesOnly = fals
           <div style={{ flex: "1 1 220px", minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(ACT168_LABEL)}</div>
             <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{act.completedOn ? (datesOnly ? tr("Completed on {0}", fdLong(act.completedOn)) : tr("Completed on {0}. Disclosure: {1}.", fdLong(act.completedOn), act.disclosure ? tr("Yes") : tr("No"))) : tr("None on file")}</div>
+            {!datesOnly && <ClearanceFile af={af} token={token} t={t} kind="act168" documentId={act.documentId} recorded={!!act.reviewId} />}
           </div>
           <ClearanceChip state={act.state === "done" ? "done" : "missing"} />
           {!datesOnly && <Btn t={t} onClick={() => setWin({ mode: "act168" })} style={small}>{tr("Record the review")}</Btn>}
@@ -24595,7 +24834,16 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     const field = code === "discipline.controllerRequired" ? "controllerDiscussedOn" : code === "discipline.adminOnly" ? "type" : code === "discipline.noEmail" || code === "discipline.sendFailed" ? "send" : (keys.find(k => FIELDS.indexOf(k) >= 0) || fallback || "");
     setRefusal({ text: (e && e.message) || tr("Request failed"), field });
   };
-  const run = async (what, fn) => { if (busyRef.current) return; busyRef.current = true; setBusy(what); setRefusal({ text: "", field: "" }); try { await fn(); } catch (e) { refuse(e, ""); } busyRef.current = false; setBusy(""); };
+  // A delivery the browser gave up on may still be mailing (finding API-93), so Send is not offered again.
+  const [sendGoing, setSendGoing] = useState(false);
+  const run = async (what, fn) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(what); setRefusal({ text: "", field: "" });
+    try { await fn(); } catch (e) {
+      if (what === "send" && sendStillGoing(e)) { setSendGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), field: "send" }); } else refuse(e, "");
+    }
+    busyRef.current = false; setBusy("");
+  };
   const bodyOf = (x) => ({
     userId, type: x.type, category: x.category || null, incidentDate: x.incidentDate || null, description: String(x.description || "").trim() || null,
     policyRef: String(x.policyRef || "").trim() || null, expectations: String(x.expectations || "").trim() || null, expectedBy: x.expectedBy || null,
@@ -24753,7 +25001,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
         {sentLine && <div data-warning-sent="" style={{ fontSize: 12, color: GR, marginBottom: 8 }}>{sentLine}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
           {type === "termination" && <Btn t={t} v="danger" onClick={() => setEndOpen(true)} style={small}>{tr("End employment")}</Btn>}
-          <Btn t={t} onClick={send} disabled={!!busy || !deliver.method} style={{ minHeight: 44, minWidth: 96 }}>{busy === "send" ? tr("Sending...") : tr("Send")}</Btn>
+          <Btn t={t} onClick={send} disabled={!!busy || sendGoing || !deliver.method} data-warning-send="" style={{ minHeight: 44, minWidth: 96 }}>{busy === "send" ? tr("Sending...") : tr("Send")}</Btn>
         </div>
         {isAdmin && <div style={{ marginTop: 16 }}>
           {!rescinding ? <Btn t={t} v="ghost" onClick={() => setRescinding(true)} style={small}>{tr("Rescind")}</Btn> : <div data-warning-rescind="">
@@ -25011,18 +25259,14 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         const errBody = await resp.json().catch(() => ({}));
         throw fileRefusal(resp.status, errBody, tr("PDF fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      // Revoke after a delay to give the browser time to load
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      showFileBlob(await resp.blob(), filenameFrom(resp.headers.get("Content-Disposition"), "report.pdf"));
     } catch (e) { if (!fileWithheld(e, () => viewPdf(submissionUuid))) showToast(e.message, "error"); }
     finally { setPdfBusy(null); }
   };
 
   // Session 25 Phase 3: open a private-bucket document via the authenticated streaming endpoint.
   // Mirrors viewPdf above but for employee_documents rows in the folder timeline.
-  const viewDoc = async (docId) => {
+  const viewDoc = async (docId, name) => {
     try {
       const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
@@ -25032,11 +25276,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         const errBody = await resp.json().catch(() => ({}));
         throw fileRefusal(resp.status, errBody, tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (e) { if (!fileWithheld(e, () => viewDoc(docId))) showToast(e.message, "error"); }
+      showFileBlob(await resp.blob(), filenameFrom(resp.headers.get("Content-Disposition"), name || "document"));
+    } catch (e) { if (!fileWithheld(e, () => viewDoc(docId, name))) showToast(e.message, "error"); }
   };
 
   const expiryBadge = (d) => {
@@ -25125,7 +25366,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       />
 
       <PersonEmployment af={af} t={t} userId={userId} canOpenStaff={canOpenStaff} />
-      <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
+      <PersonClearances af={af} token={token} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
       <PersonProperty af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
@@ -25324,7 +25565,8 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     </div>
     {data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
-      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} />}
+      <>{data && Number(data.limit) > 0 && Array.isArray(data.warnings) && data.warnings.length >= Number(data.limit) && <div data-discipline-capped={String(data.limit)} style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("The newest {0} warnings are listed. Narrow the dates or the filters to find an older one.", Number(data.limit))}</div>}
+      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /></>}
     {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={load} />}
   </div>);
 }
@@ -25338,11 +25580,31 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
 // formResponseId, which the API's Step 327 links the case by (the contract names no key, see the pull
 // request).
 const caseReportLine = (r) => tr("From the filed report: {0}", [r.name + (r.code ? " (" + r.code + ")" : ""), r.site, r.at ? irWhen(r.at) : ""].filter(Boolean).join(", "));
+// A case opened from a filed report (the API's part 360, finding API-90): the case view's formResponseId
+// names the report. It is read as this reader may read it and drawn with a way to open it; a report the
+// reader may not read, or one that is gone, draws nothing.
+function CaseReport({ af, t, id }) {
+  const [r, setR] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/forms/responses/" + encodeURIComponent(String(id))).then(d => { if (alive && d && d.draft) setR(d.draft); }).catch(e => { console.warn("Case report:", e.message); });
+    return () => { alive = false; };
+  }, [af, id]);
+  if (!r) return null;
+  const line = [String(r.formName || r.formCode || tr("Report")) + (r.formName && r.formCode ? " (" + r.formCode + ")" : ""), r.siteName || "", r.submittedAt ? irWhen(r.submittedAt) : ""].filter(Boolean).join(", ");
+  return (<div data-case-report={String(id)} style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <div style={{ flex: "1 1 220px", minWidth: 0 }}><Lbl>{tr("Opened from a filed report")}</Lbl><div style={{ fontSize: 13, color: t.text, overflowWrap: "anywhere" }}>{line}</div></div>
+    <Btn t={t} v="ghost" data-case-report-open="" onClick={() => openFiledReport(id)} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Open the report")}</Btn>
+  </div>);
+}
 function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast, report = null }) {
   const [f, setF] = useState(() => ({ summary: report ? caseReportLine(report) + "\n\n" : "", subjects: [], pick: "", onBehalfOf: "", aboutManagement: "", assignedTo: "" }));
   const [refusal, setRefusal] = useState({ text: "", field: "" });
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  // 400 speakUp.reportNotReadable: the report cannot go with the case. Its words go under the report's
+  // line, with a way to open the case without it.
+  const [noReport, setNoReport] = useState(false);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const nameOf = (p) => ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "";
   const people = (allStaff || []).filter(p => p && p.role !== "client_contact" && (!p.status || p.status === "active"));
@@ -25353,10 +25615,10 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
     if (busyRef.current || !f.summary.trim() || !f.aboutManagement) return;
     busyRef.current = true; setBusy(true); setRefusal({ text: "", field: "" });
     try {
-      const d = await af("/api/hr-cases", { method: "POST", body: Object.assign({ summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null }, report ? { formResponseId: report.id } : {}) });
+      const d = await af("/api/hr-cases", { method: "POST", body: Object.assign({ summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null }, report && !noReport ? { formResponseId: report.id } : {}) });
       if (showToast) showToast(tr("Case opened."));
       onOpened(d && d.case ? d.case : d);
-    } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => FIELDS.indexOf(k) >= 0) || "" }); }
+    } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: e && e.code === "speakUp.reportNotReadable" && report ? "report" : keys.find(k => FIELDS.indexOf(k) >= 0) || "" }); }
     busyRef.current = false; setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-case-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
@@ -25367,7 +25629,9 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
     </div>
     {refusal.text && !refusal.field && <div data-case-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
-    {report && <div data-open-case-report={report.id} style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The filed report is linked to this case.")}</div>}
+    {report && <div data-open-case-report={report.id} style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{noReport ? tr("The case will be opened without the report.") : tr("The filed report is linked to this case.")}
+      {refusal.text && refusal.field === "report" && <div data-case-refusal="report" role="alert" style={{ color: RD, marginTop: 4 }}>{refusal.text} <button type="button" data-open-case-without-report="" onClick={() => { setNoReport(true); setRefusal({ text: "", field: "" }); }} style={{ minHeight: 32, padding: "0 6px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: FONT_BODY }}>{tr("Open it without the report")}</button></div>}
+    </div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("What happened")}</Lbl><TArea t={t} rows={4} aria-label={tr("What happened")} value={f.summary} onChange={e => set("summary", e.target.value)} style={box("summary")} />{under("summary")}</div>
     <div style={{ marginBottom: 12 }}>
       <Lbl>{tr("About whom")}</Lbl>
@@ -25432,7 +25696,11 @@ function caseLogDetail(u, statusLabel) {
   return "";
 }
 const caseLogUpdates = (d) => (d && Array.isArray(d.updates) ? d.updates : null);
-const localInputOf = (v) => { const x = new Date(v); const p = (n) => String(n).padStart(2, "0"); return x.getFullYear() + "-" + p(x.getMonth() + 1) + "-" + p(x.getDate()) + "T" + p(x.getHours()) + ":" + p(x.getMinutes()); };
+// When it happened is a time on the company's clock (finding API-97): the box opens on the company's time
+// now, and what is typed is read as the company's wall time and sent as an instant with its zone, whatever
+// zone the computer is in.
+const localInputOf = (v) => { const w = crWall(v); const p = (n) => String(n).padStart(2, "0"); return w.day + "T" + p(Math.floor(w.minutes / 60)) + ":" + p(w.minutes % 60); };
+const companyInstantOf = (v) => { const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(String(v || "")); return m ? crInstant(m[1], Number(m[2]) * 60 + Number(m[3])) : NaN; };
 const fileDataUrl = (file) => new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => reject(new Error(tr("This file could not be read."))); fr.readAsDataURL(file); });
 const caseFileWhy = (f) => (CASE_FILE_TYPES.indexOf(f.type) < 0 && !/\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(f.name || "") ? tr("{0} is not a JPEG, PNG, WebP or HEIC picture or a PDF.", f.name) : f.size > CASE_FILE_MAX_BYTES ? tr("{0} is over 10 MB.", f.name) : "");
 
@@ -25544,7 +25812,7 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
     if (body.length > CASE_LOG_BODY_MAX) { setSaid({ text: tr("Keep it to {0} characters.", CASE_LOG_BODY_MAX), keys: ["body"] }); return; }
     let occurredAt = null;
     if (whenTouched && when) {
-      const at = new Date(when);
+      const at = new Date(companyInstantOf(when));
       if (isNaN(at.getTime())) { setSaid({ text: tr("Choose when it happened."), keys: ["occurredAt"] }); return; }
       if (at.getTime() > Date.now()) { setSaid({ text: tr("When it happened cannot be later than now."), keys: ["occurredAt"] }); return; }
       occurredAt = at.toISOString();
@@ -25635,6 +25903,9 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
 }
 
 // Step 333: #cases/<id>, where an hr_case_* notice points, opens that case once the page is up.
+// GET /api/hr-cases answers the newest 200 cases at most (routes/hr-cases.js, LIMIT 200) and says nothing
+// when it stops, so a list that long says so (finding API-100; paging waits on the API).
+const CASES_LIST_MAX = 200;
 function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, route = [], onRoute }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
@@ -25791,6 +26062,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
     {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => { if (detail && caseLogUpdates(detail)) refreshLog(detail.id); }} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
+    {!loading && cases.length >= CASES_LIST_MAX && <div data-cases-capped={String(CASES_LIST_MAX)} style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("The newest {0} cases are listed. Pick a status to find an older one.", CASES_LIST_MAX)}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
 
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
@@ -25820,6 +26092,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
         {holdError && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{holdError}</div>}
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
+      {detail.formResponseId ? <CaseReport key={String(detail.formResponseId)} af={af} t={t} id={detail.formResponseId} /> : null}
       {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter); if (onSaved) onSaved(); }} />}
       {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
@@ -25978,7 +26251,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // Session 25 Phase 3: open a private-bucket document via the authenticated streaming endpoint.
   // Uses raw fetch (not af) because the response is a binary blob, not JSON.
-  const viewDoc = async (docId) => {
+  const viewDoc = async (docId, name) => {
     try {
       const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
@@ -25988,11 +26261,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         const errBody = await resp.json().catch(() => ({}));
         throw fileRefusal(resp.status, errBody, tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (e) { if (!fileWithheld(e, () => viewDoc(docId))) showToast(e.message, "error"); }
+      showFileBlob(await resp.blob(), filenameFrom(resp.headers.get("Content-Disposition"), name || "document"));
+    } catch (e) { if (!fileWithheld(e, () => viewDoc(docId, name))) showToast(e.message, "error"); }
   };
 
   // Session 25 Phase 3: submitDoc routes through the Phase 2 endpoints.
@@ -26003,6 +26273,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     try {
       if (!form.user_id) { showToast(tr("Employee is required"), "error"); return; }
       if (!form.category) { showToast(tr("Category is required"), "error"); return; }
+      if (!form.id && hrDocFileWhy(file)) { showToast(hrDocFileWhy(file), "error"); return; }
 
       let docResult;
 
@@ -26196,7 +26467,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           const columns = [
             { header: tr("Employee"), render: d => <span style={{ color: t.text }}>{d.user_name}</span> },
             { header: tr("Category"), render: d => <span style={{ color: t.text }}>{tr(HR_CATEGORY_LABEL(d.category))}</span> },
-            { header: tr("File"), render: d => d.file_name ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><button onClick={() => viewDoc(d.id)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button><WhoOpened af={af} t={t} kind="employee_document" id={d.id} name={d.file_name} /></span> : <span style={{ color: t.textMut }}>{tr("No file")}</span> },
+            { header: tr("File"), render: d => d.file_name ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><button onClick={() => viewDoc(d.id, d.file_name)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button><WhoOpened af={af} t={t} kind="employee_document" id={d.id} name={d.file_name} /></span> : <span style={{ color: t.textMut }}>{tr("No file")}</span> },
             { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
             { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
             { header: tr("Date"), tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
@@ -26418,7 +26689,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "other" && <div>
         {(() => { const otherDocs = docs.filter(d => d.category === "other"); const searched = otherDocs.filter(d => { if (!otQ.trim()) return true; const hay = ((d.user_name || "") + " " + (d.file_name || "") + " " + (d.notes || "")).toLowerCase(); return hay.includes(otQ.trim().toLowerCase()); }); const totalPages = Math.max(1, Math.ceil(searched.length / hrPerPage)); const cur = Math.min(otPage, totalPages); const items = searched.slice((cur - 1) * hrPerPage, cur * hrPerPage); const columns = [
             { header: tr("Employee"), render: d => <span style={{ color: t.text }}>{d.user_name}</span> },
-            { header: tr("File"), render: d => d.file_name ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><button onClick={() => viewDoc(d.id)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button><WhoOpened af={af} t={t} kind="employee_document" id={d.id} name={d.file_name} /></span> : <span style={{ color: t.textMut }}>{tr("No file")}</span> },
+            { header: tr("File"), render: d => d.file_name ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><button onClick={() => viewDoc(d.id, d.file_name)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button><WhoOpened af={af} t={t} kind="employee_document" id={d.id} name={d.file_name} /></span> : <span style={{ color: t.textMut }}>{tr("No file")}</span> },
             { header: tr("Notes"), tdStyle: { color: t.textSec, fontSize: 12, maxWidth: 280 }, render: d => d.notes || "" },
             { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
             { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
@@ -26446,7 +26717,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Category")}</div>
             <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c, form.category)).map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
           {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
-            <input type="file" onChange={e => setFile(e.target.files[0])} style={{ fontSize: 13, color: t.text }} /></div>)}
+            <input type="file" data-hr-doc-file="" accept={HR_DOC_ACCEPT} onChange={e => setFile(e.target.files[0])} style={{ fontSize: 13, color: t.text }} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A PDF, JPEG, PNG or Word file, up to 25 MB. Save an iPhone photo as a JPEG first.")}</div>
+            {hrDocFileWhy(file) && <div role="alert" data-hr-doc-file-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{hrDocFileWhy(file)}</div>}</div>)}
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date (optional)")}</div>
             <Inp t={t} type="date" value={form.expiry_date || ""} onChange={e => setForm({ ...form, expiry_date: e.target.value })} /></div>
           <JotformPickerField af={af} form={form} setForm={setForm} t={t} />
@@ -27908,15 +28181,20 @@ function TrainingTime({ af, t, token, sites = [], showToast }) {
 // ===== CERTIFICATES FROM OUTSIDE COURSES (Step 263, STEP262_CONTRACT.md section 4) =====
 // A record carries a certificate when the API's Step 262 says so: certificate_path on a training_records
 // row, or certificate on a My training row.
+// What POST /api/jotform/employees/:userId/documents takes (routes/jotform.js, finding API-103): a PDF,
+// JPEG, PNG or Word file up to 25 MB, by its type or its name, one at a time. HEIC is not among them yet,
+// so the box offers these alone and says so before anything is sent.
+const HR_DOC_ACCEPT = ".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const HR_DOC_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+const HR_DOC_MAX_BYTES = 25 * 1024 * 1024;
+const hrDocFileWhy = (f) => (!f ? "" : HR_DOC_TYPES.indexOf(f.type) < 0 && !/\.(pdf|jpe?g|png|docx?)$/i.test(f.name || "") ? tr("{0} is not a PDF, JPEG, PNG or Word file.", f.name) : f.size > HR_DOC_MAX_BYTES ? tr("{0} is over 25 MB.", f.name) : "");
 const recordHasCertificate = (r) => !!(r && (r.certificate_path || r.certificatePath || r.certificate === true));
 const CERTIFICATE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
 // A record's certificate, read with the token and opened in a new tab.
 async function openTrainingCertificate(token, recordId) {
   const f = await apiDownload("/api/hr/training/" + encodeURIComponent(recordId) + "/certificate", token, "certificate.pdf");
-  const url = URL.createObjectURL(f.blob);
-  window.open(url, "_blank");
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  showFileBlob(f.blob, f.filename);
 }
 // The same, with a refusal shown: a certificate the API withheld offers Try again (part 353).
 const openCertificateOf = (token, recordId, showToast) => openTrainingCertificate(token, recordId).catch(e => { if (!fileWithheld(e, () => openCertificateOf(token, recordId, showToast)) && showToast) showToast(e.message, "error"); });
@@ -29361,9 +29639,7 @@ function DocumentWhoMustSign({ af, t, doc, reqs, isAdmin = false, people = [], o
 // A PNG the API keeps, read with the token and opened in a new tab.
 async function openSignatureImage(token, path) {
   const f = await apiDownload(path, token, "signature.png");
-  const url = URL.createObjectURL(f.blob);
-  window.open(url, "_blank");
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  showFileBlob(f.blob, f.filename);
 }
 
 // The assessor's print: a page per site with the document, its current version, and each person who

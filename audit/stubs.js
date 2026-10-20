@@ -6150,6 +6150,11 @@ function createStubs() {
   // over every other layer.
   let step361 = false;
   const welcomeAll = require("./welcome-all-stub")({ seed, state, ok, clone, person, effectiveMap });
+  // What the API's Rounds 3 and 4 gave the dashboard (part 364), in audit/round3-stub.js: the API as built
+  // at ocsa-api a1e7e58, on once a run arms it with setStep364, over every other layer; what main answers
+  // that the dashboard's half of a finding meets, with setFindings364 as well.
+  let step364 = false;
+  const round3 = require("./round3-stub")({ seed, state, ok, clone, person, effectiveMap, plusDays, PDF_BYTES });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7328,7 +7333,8 @@ function createStubs() {
     const inner = () => (step283 ? step283Route(method, path, u.searchParams, body, record.language, signedIn, over341) : over341());
     const under361 = () => (step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner());
     const beneath = () => (step361 ? welcomeAll.route(method, path, u.searchParams, body, record.language, under361) : under361());
-    const answer = step358 ? checklist358.route(method, path, u.searchParams, body, record.language, beneath) : beneath();
+    const under364 = () => (step358 ? checklist358.route(method, path, u.searchParams, body, record.language, beneath) : beneath());
+    const answer = step364 ? round3.route(method, path, u.searchParams, body, record.language, under364) : under364();
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7354,6 +7360,7 @@ function createStubs() {
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
     setDelay: (path, ms) => { delays.push({ path, ms }); },
+    clearDelays: () => { delays.length = 0; },
     // The next answer Help is given, whichever of its two routes the page asks.
     setAgentStream: (s) => { agentStream = s || null; },
     // A shift open at a site for the person signed in as persona, or none with null.
@@ -7426,6 +7433,15 @@ function createStubs() {
     // The welcome email to everyone who has not signed in (part 361): the people and the invite route of
     // audit/welcome-all-stub.js, on or off; every invite to those people since, with when it arrived.
     setStep361: (v) => { step361 = v !== false; },
+    // Part 364: the API's Rounds 3 and 4 (audit/round3-stub.js), what a run sent it, and the scenes its
+    // cases set.
+    setStep364: (v) => { step364 = v !== false; },
+    setFindings364: (v) => { round3.setFindings(v); },
+    setRaceTakeBack364: (v) => { round3.setRaceTakeBack(v); },
+    setUnreadable364: (ids) => { round3.setUnreadable(ids); },
+    setCapabilityOff364: (userId, key) => { round3.setCapabilityOff(userId, key); },
+    sent364: () => round3.sent(),
+    ISSUE_PHOTOS_364: round3.ISSUE_PHOTOS,
     invites361: () => welcomeAll.invites(),
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
     // over whichever steps the run arms.
@@ -7572,6 +7588,7 @@ function createStubs() {
       step353 = false; state.r2 = null; state.r2pending = null; state.r2people = null; round2.setPeople(false);
       step358 = false; checklist358.reset();
       step361 = false; state.wa = null;
+      step364 = false; state.r3 = null; round3.setFindings(false);
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

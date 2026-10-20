@@ -16,13 +16,6 @@
       "where": "src/App.js:23437, 23720, 23860-23920"
     },
     {
-      "case": "october/time/log-training-day-is-the-company-day/utc",
-      "finding": "DASH-42",
-      "shows": "At 9:30 PM in New York, on a browser set to UTC, Log training for several people starts on 2026-03-18 where the company day is 2026-03-17.",
-      "why": "todayISO and toISO(new Date()) read the browser clock; nothing in src reads clientConfig.company.timeZone for today.",
-      "where": "src/App.js:445, 12384, 25238 and every todayISO default"
-    },
-    {
       "noCase": true,
       "match": "^coverage window in (EmploymentWindow|BlockWindowWindow|RequestWindow|SupplyRequestWindow|TicketWindow|TicketsExportWindow|HolidaysPanel|LinkQrWindow|OpenCaseWindow|TrainingTopicWindow|PersonTrainingWindow|UploadCertificateWindow|AssignTrainingWindow|SignOffWindow|SignHereWindow|SignatureRequestWindow|IssuePropertyWindow|ReturnPropertyWindow|TurnOffLinkWindow) \\(onClose\\)$|^coverage window in TrainingMatrix \\(setOpen\\)$",
       "finding": "DASH-71",
