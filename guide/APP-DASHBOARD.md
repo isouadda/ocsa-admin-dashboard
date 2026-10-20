@@ -221,11 +221,12 @@ Who can do this: admins and supervisors
 4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person under **Assign To *** (**Asignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and click **Assign Task** (**Asignar la tarea**). It appears on their **Assigned** tab in the portal.
 5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
 6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
+7. When the building has to fix it, click **Send to building maintenance** (**Enviar a mantenimiento del edificio**) under **Building maintenance** (**Mantenimiento del edificio**). Once sent, the issue shows **Sent as {0}** (**Enviado como {0}**) with the request's reference and **Open the request** (**Abrir la solicitud**). See Send an issue to building maintenance.
 If it does not work: When the issue cannot be assigned, the Assign window says why in red: **This issue is closed, declined or waiting for approval, so it cannot be assigned. Reopen it, or approve the request first.** (**Este problema está cerrado, rechazado o espera aprobación, así que no se puede asignar. Vuelva a abrirlo, o apruebe la solicitud primero.**), or, under the person, **Choose an active staff member. A client contact or someone who has left cannot take an issue.** (**Elija a un miembro activo del personal. Un contacto de cliente o alguien que ya se fue no puede tomar un problema.**)
-Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, incidencias.
+Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, building maintenance, incidencias.
 Picture: issues-issue-window
 Picture: issues-assign-task
-Last checked: 2026-10-19
+Last checked: 2026-10-20
 
 ## Create a task for a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -2688,4 +2689,68 @@ Who can do this: admins and supervisors
 2. A press outside the window, on the dimmed screen around it, closes it too. Once something has been typed or chosen in it, the dashboard asks first: **Close this window? What you entered here will be lost.** (**¿Cerrar esta ventana? Lo que ingresó aquí se perderá.**)
 3. Click Cancel in that question to keep the window and what is in it, or OK to close it.
 Words people use for this: window closed by itself, lost what i typed, tapped outside, closed by accident, cerrar la ventana.
+Last checked: 2026-10-20
+
+## Send a maintenance request to a building (admin dashboard)
+Who can do this: admins and supervisors, at the sites they can see, and anyone given File and follow building maintenance requests
+1. Click **Maintenance requests** (**Solicitudes de mantenimiento**) in the side panel, under **Issues** (**Incidencias**). To send one for a single site, you can also open the site in **Sites** (**Sitios**) and click its **Maintenance** (**Mantenimiento**) tab.
+2. Click **New maintenance request** (**Nueva solicitud de mantenimiento**).
+3. Choose the site under **Site *** (**Sitio ***). Fill in the **Building** (**Edificio**), the **Floor** (**Piso**) and the **Area or room** (**Área o sala**) where the problem is.
+4. Choose the **Category *** (**Categoría ***) and the **Urgency *** (**Urgencia ***), and write **What is wrong *** (**Qué está mal ***): where it is, what you see, and since when.
+5. To send photos, click **Add photos** (**Agregar fotos**) and pick up to 6.
+6. Check **It goes to** (**Se envía a**). It lists the site's maintenance contacts for that building and those who cover the whole site. The office is copied, and replies come to the office.
+7. Click **Send to building maintenance** (**Enviar a mantenimiento del edificio**). The request gets a reference such as MR-2026-0008, and its window opens.
+If it does not work: When the site has no active maintenance contact, the window says so and Send stays off. Click **Add a contact** (**Agregar un contacto**) to add one on the site's page, or ask an admin to. When the email did not go, the request is still saved: open it and click **Send the email again** (**Enviar el correo de nuevo**).
+Words people use for this: maintenance request, building maintenance, work order, leak, broken, repair, landlord, property manager, facilities, report a building problem, solicitud de mantenimiento.
+Picture: maintenance-new
+Last checked: 2026-10-20
+
+## Follow a maintenance request and record the building's answer (admin dashboard)
+Who can do this: admins and supervisors, at the sites they can see, and anyone given File and follow building maintenance requests
+1. Click **Maintenance requests** (**Solicitudes de mantenimiento**). The counts at the top show how many are **Sent** (**Enviada**), **Acknowledged** (**Recibida por el edificio**), **Scheduled** (**Programada**), **Fixed** (**Reparada**), **Closed** (**Cerrada**) and **Cancelled** (**Cancelada**). Click one to see only those, or **All** (**Todas**).
+2. Narrow the list with **Any urgency** (**Cualquier urgencia**), **Any category** (**Cualquier categoría**), **All sites** (**Todos los sitios**) and **Any age** (**Cualquier antigüedad**). The newest is first. Click **Show more** (**Mostrar más**) at the bottom for older ones; the filters stay.
+3. A request the building has not answered in time reads **No response yet** (**Sin respuesta todavía**) in red. The person who sent it is reminded once.
+4. Click a request to open it. It shows what was sent, the photos, **Who it went to** (**A quién se envió**) and when, and the **Record, newest first** (**Registro, lo más reciente primero**).
+5. When the building answers, click **Record a response** (**Registrar una respuesta**). Choose **How it came** (**Cómo llegó**), write a **Note** (**Nota**), and choose a **New status** (**Nuevo estado**), a **Scheduled date** (**Fecha programada**) or **Photos** (**Fotos**) if there are any. Click **Save** (**Guardar**). To change only the status, choose **No response, an update only** (**Sin respuesta, solo una actualización**). The record stays with the office; the building does not see it.
+6. To write to the building again, click **Send a follow-up** (**Enviar un seguimiento**) and confirm. One follow-up goes each day.
+7. A notice about a request, on the bell or on this computer, opens its window.
+If it does not work: When the email did not go, the request says **The email did not go.** (**El correo no se envió.**): click **Send the email again** (**Enviar el correo de nuevo**). A second follow-up on the same day is refused, and the window says so.
+Words people use for this: maintenance request, building maintenance, work order, follow up with the building, did the building answer, leak, broken, repair status, scheduled repair, solicitud de mantenimiento.
+Picture: maintenance-page
+Picture: maintenance-request-window
+Last checked: 2026-10-20
+
+## Keep a site's maintenance contacts (admin dashboard)
+Who can do this: admins, and anyone given Site records and floor plans
+1. Click **Sites** (**Sitios**), click the site, and click its **Maintenance** (**Mantenimiento**) tab.
+2. **Maintenance contacts** (**Contactos de mantenimiento**) lists the people its requests are emailed to, the primary contact first, with what each one covers. A contact that covers the whole site has no building.
+3. To add one, click **Add a contact** (**Agregar un contacto**). Fill in **Name *** (**Nombre ***) and **Email *** (**Correo ***), and the company and phone if you have them. Under **Building or area it covers** (**Edificio o área que cubre**), type the building, or leave it blank for the whole site. Tick **Primary contact** (**Contacto principal**) for the main one. Click **Save** (**Guardar**).
+4. To change one, click **Edit** (**Editar**) on its row, change what you need and click **Save** (**Guardar**).
+5. When someone leaves the job, click **Turn off** (**Desactivar**) and confirm. Requests stop going to them, and their row stays, so **Turn on** (**Activar**) brings them back.
+6. **Maintenance requests at this site** (**Solicitudes de mantenimiento en este sitio**), below the contacts, lists the site's own requests.
+Words people use for this: maintenance contact, building engineer, property manager, landlord contact, who gets maintenance requests, contacto de mantenimiento.
+Picture: maintenance-contacts
+Picture: maintenance-contact-window
+Last checked: 2026-10-20
+
+## Send an issue to building maintenance (admin dashboard)
+Who can do this: admins and supervisors, at the sites they can see, and anyone given File and follow building maintenance requests
+1. Click **Issues** (**Incidencias**) and click the issue.
+2. Under **Building maintenance** (**Mantenimiento del edificio**), click **Send to building maintenance** (**Enviar a mantenimiento del edificio**).
+3. The form opens with the issue's site, its zone as the area, and its title and description as what is wrong. Under **The issue's photos to send** (**Las fotos del problema que se envían**), keep ticked the photos to send.
+4. Fill in the building and the floor, choose the category and the urgency, and check who it goes to.
+5. Click **Send to building maintenance** (**Enviar a mantenimiento del edificio**). The issue then shows **Sent as {0}** (**Enviado como {0}**) with the reference, and **Open the request** (**Abrir la solicitud**) opens it.
+If it does not work: An issue goes to the building once. When it was already sent, the issue names the request instead of sending it again.
+Words people use for this: send to the building, building maintenance, work order from an issue, landlord, leak, broken, maintenance request.
+Picture: issue-send-maintenance
+Last checked: 2026-10-20
+
+## Set the days before a maintenance request reminds its sender (admin dashboard)
+Who can do this: admins, and anyone given Company settings and branding
+1. Click **Settings** (**Configuración**) and stay on **Company** (**Empresa**).
+2. Under **Maintenance requests** (**Solicitudes de mantenimiento**), type the number of **Business days before a reminder** (**Días hábiles antes de un recordatorio**), from 1 to 30. Weekends and company holidays do not count.
+3. Click **Save Company Settings** (**Guardar la configuración de la empresa**).
+4. A request the building has not answered after that many business days reminds the person who sent it, once.
+Words people use for this: maintenance reminder, no response from the building, how long the building has to answer, maintenance days.
+Picture: settings-maintenance-days
 Last checked: 2026-10-20

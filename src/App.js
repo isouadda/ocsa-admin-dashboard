@@ -395,7 +395,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -597,6 +597,7 @@ const CamI = p => <Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l
 const SnI = p => <Ic d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" {...p} />;
 const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p} />;
 const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />; const ChkI = p => <Ic d="M20 6L9 17l-5-5" {...p} />;
+const MntI = p => <Ic d="M3 21h18 M5 21V8l7-5 7 5v13 M9 21v-5h6v5 M10 10h4" {...p} />;
 const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
 const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
 const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...p} />;
@@ -699,7 +700,7 @@ const LoadFailed = ({ t, onRetry, text, style }) => <div style={{ padding: 20, t
 // A page that waits on this person's capabilities (DASH-20) says Loading until the API has answered them,
 // and only then opens or says it is for admins.
 const CapsPendingNotice = ({ t }) => <div data-caps-pending="" style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
-const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
+const AdminOnlyNotice = ({ t, onBack, text }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{text || tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
 const CHART_PALETTE = [GO, BL, GR, OR, TL, RD, GL];
@@ -977,6 +978,10 @@ export default function AdminDashboard() {
   // Whether GET /api/library answers a list (Step 306): Library joins the side panel for everyone who
   // signs in, since everyone reads every document. Read once a session.
   const [libraryOn, setLibraryOn] = useState(false);
+  // Whether GET /api/maintenance-requests/options answers this person (part 368, the API's part 365): a
+  // holder of file_maintenance_requests, admins and supervisors by default. Maintenance requests joins the
+  // side panel and each site gains its Maintenance tab. The answer's maxPhotos is the most a request takes.
+  const [maintenance, setMaintenance] = useState(null);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -1014,6 +1019,7 @@ export default function AdminDashboard() {
     if (id === "periodic") return periodicOn;
     if (id === "tickets") return ticketsOn;
     if (id === "library") return libraryOn;
+    if (id === "maintenance") return !!maintenance;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -1025,7 +1031,7 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
+  }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn, maintenance]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -1096,7 +1102,7 @@ export default function AdminDashboard() {
   // Whether the session's first round of probes has answered (DASH-27).
   const [probesIn, setProbesIn] = useState(false);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setProbesIn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setMaintenance(null); setProbesIn(false); return undefined; }
     // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
     // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
     let alive = true; let soft = false; let timer = null;
@@ -1108,6 +1114,7 @@ export default function AdminDashboard() {
     probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
     probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
     probes.push(af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLibraryOn(false); console.warn("Library:", e.message); }));
+    probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? { maxPhotos: Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d.responseDays } : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
     probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
     Promise.all(probes).then(() => { if (alive) setProbesIn(true); if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
     return () => { alive = false; clearTimeout(timer); };
@@ -1414,6 +1421,8 @@ export default function AdminDashboard() {
     ]},
     { label: tr("Quality"), items: [
       { id: "issues", l: tr("Issues"), i: AlI },
+      // Part 368: building problems sent to each building's own maintenance team.
+      ...(canOpenPage("maintenance") ? [{ id: "maintenance", l: tr("Maintenance requests"), i: MntI }] : []),
       { id: "assigned", l: tr("Assigned Tasks"), i: WkI },
       { id: "inspections", l: tr("Inspections"), i: ClpI },
       ...(canOpenPage("periodic") ? [{ id: "periodic", l: tr("Periodic work"), i: HsI }] : []),
@@ -1435,7 +1444,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1680,11 +1689,12 @@ export default function AdminDashboard() {
           : capsPending || (route[0] === "signatures" && !signaturesIn) ? <CapsPendingNotice t={t} />
           : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
-        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes") && canEmploy} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
+        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} maintenance={maintenance} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes") && canEmploy} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "checklist" && <ChecklistResultsPage af={af} t={t} sites={sites} route={route} user={user} showToast={showToast} />}
-        {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} />}
+        {page === "issues" && <IssuesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} maintenance={maintenance} canManageSites={hasCap("manage_sites")} />}
+        {page === "maintenance" && (canOpenPage("maintenance") ? <MaintenancePage af={af} t={t} token={token} sites={sites} showToast={showToast} route={route} onRoute={replaceRoute} maintenance={maintenance} canManageSites={hasCap("manage_sites")} /> : !probesIn ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Maintenance requests open for the people who file them. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} sites={sites} user={user} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
@@ -3665,7 +3675,7 @@ const siteDetailsRefusalField = (e) => {
   if (names("contractreference", "contract_reference")) return "contractReference";
   return "";
 };
-function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute, onOpenLinks }) {
+function SitesPage({ af, token, showToast, maintenance = null, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute, onOpenLinks }) {
   // A record's field, on Record Detail and its print: a field that carries pay or money only for a holder
   // of manage_employment (decision 1, DASH-22).
   const seesPay = useContext(PayCtx);
@@ -4193,7 +4203,9 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       ...(workload ? [{ k: "plan", l: tr("Workload plan") }] : []),
       { k: "chat", l: tr("Chat") }, { k: "timeline", l: tr("Timeline") },
       ...(blocksLive ? [{ k: "blocks", l: tr("Shift names") }] : []),
-      ...(survey ? [{ k: "survey", l: tr("Client survey") }] : [])
+      ...(survey ? [{ k: "survey", l: tr("Client survey") }] : []),
+      // Part 368: the site's maintenance contacts and its own maintenance requests.
+      ...(maintenance ? [{ k: "maintenance", l: tr("Maintenance|site tab") }] : [])
     ];
 
     return (<div>
@@ -4445,6 +4457,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
       {/* SHIFT NAMES TAB (Step 196) */}
       {siteTab === "blocks" && blocksLive && <ShiftNamesPanel key={selectedSite} af={af} t={t} siteId={selectedSite} canEdit={canManageTasks} showToast={showToast} />}
+      {siteTab === "maintenance" && maintenance && <SiteMaintenancePanel key={selectedSite} af={af} t={t} token={token} site={s} sites={sites} canManageSites={canManageSites} canFile={maintenance.canFile !== false} maxPhotos={maintenance.maxPhotos} showToast={showToast} />}
 
       {/* CLIENT SURVEY TAB (Step 196) */}
       {siteTab === "survey" && survey && <Crd t={t} style={{ marginBottom: 16 }}>
@@ -5861,7 +5874,7 @@ const issueOfView = (v) => ({
   due_at: v.dueAt, due_state: v.dueState, first_response_at: v.firstResponseAt, resolved_at: v.resolvedAt, resolved_by_name: nameOf(v.resolvedBy) || null,
   verified_at: v.verifiedAt, verified_by_name: nameOf(v.verifiedBy) || null, minutes_to_first_response: v.minutesToFirstResponse, minutes_to_fixed: v.minutesToFixed, fixed_by_due: v.fixedByDue,
 });
-function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute }) {
+function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute, maintenance = null, canManageSites = false }) {
   const [onceAssign, assignBusy] = useBusyGuard();
   // Since the API's Step 250 the page has two tabs, Staff issues and Client requests, the second with
   // a count of those waiting for approval, drawn once GET /api/issues/requests answers.
@@ -5899,9 +5912,29 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   // API's words; any other refusal is toasted as before.
   const [statusDraft, setStatusDraft] = useState("");
   const [statusRefusal, setStatusRefusal] = useState("");
+  // Part 368: Send to building maintenance. maintSend is the new request's start, GET
+  // /api/maintenance-requests/from-issue/:issueId's prefill with the issue's photos and the site's contacts,
+  // while its window is open. The issue's read carries maintenanceRequests, the requests it was sent as.
+  const [maintSend, setMaintSend] = useState(null);
+  const [maintSaid, setMaintSaid] = useState("");
+  // The requests the issue was sent as, once this window has sent or found one; until then the read's.
+  const [maintLinks, setMaintLinks] = useState(null);
+  const linksNow = () => (maintLinks != null ? maintLinks : (view && Array.isArray(view.maintenanceRequests) ? view.maintenanceRequests : []));
+  const addLink = (m) => setMaintLinks([m].concat(linksNow().filter(x => String(x.id) !== String(m.id))));
+  const [onceMaint, maintBusy] = useBusyGuard();
+  const startMaint = onceMaint(async (iss) => {
+    setMaintSaid("");
+    try {
+      const d = await af("/api/maintenance-requests/from-issue/" + encodeURIComponent(iss.id));
+      if (d && d.existing && d.existing.id) { addLink({ id: d.existing.id, reference: d.existing.reference, status: d.existing.status, statusName: d.existing.statusName }); setMaintSaid(tr("This issue was already sent to the building as {0}.", d.existing.reference)); return; }
+      const p = (d && d.prefill) || {};
+      setMaintSend(Object.assign({}, p, { issuePhotos: Array.isArray(d && d.issuePhotos) ? d.issuePhotos : [], contacts: Array.isArray(d && d.contacts) ? d.contacts : [] }));
+    } catch (e) { setMaintSaid((e && e.message) || tr("Request failed")); }
+  });
   const openIssue = async (iss) => {
     setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); setStatusDraft(iss.status || ""); setStatusRefusal("");
-    if (findingsOn) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); } } catch (e) { console.warn("Issue:", e.message); } }
+    setMaintSend(null); setMaintSaid(""); setMaintLinks(null);
+    if (findingsOn || maintenance) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); } } catch (e) { console.warn("Issue:", e.message); } }
     try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(Array.isArray(a) ? a : []); } catch (e) { setActivity([]); }
     try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(Array.isArray(p) ? p : []); } catch (e) { setAllPhotos([]); }
   };
@@ -6021,6 +6054,15 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       {shown.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{shown.assignment_note}</div>}
       {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
       {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={shown.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {maintenance && <div data-issue-maintenance="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Building maintenance")}</div>
+        {linksNow().map(m => <div key={m.id} data-issue-maintenance-request={m.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+          <span style={{ fontSize: 13, color: t.text }}>{tr("Sent as {0}", m.reference)}</span><Bdg l={maintStatusWord(m.status, m.statusName)} c={maintStatusColor(m.status, t)} />
+          <Btn t={t} v="ghost" onClick={() => { closeSel(); window.location.hash = "maintenance/" + encodeURIComponent(m.id); }} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Open the request")}</Btn>
+        </div>)}
+        {!linksNow().some(m => m.status !== "cancelled") && <Btn t={t} v="ghost" data-issue-send-maintenance="" onClick={() => startMaint(shown)} disabled={maintBusy} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{maintBusy ? tr("Loading...") : tr("Send to building maintenance")}</Btn>}
+        {maintSaid && <div data-issue-maintenance-said="" role="status" style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{maintSaid}</div>}
+      </div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
         {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? tr("Reported") : a.action === "assigned" ? tr("Assigned|issue") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "status_changed" ? tr("Status Changed") : a.action === "resolution_photo" ? tr("Resolution Photo") : a.action === "photo_added" ? tr("Photo Added") : requestActivityWord(a); const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span>{a.user_name ? <span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span> : null}</div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && a.action !== "client_mailed" && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -6048,7 +6090,511 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask} disabled={assignBusy}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
+    {maintSend && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={maintSend} maxPhotos={maintenance ? maintenance.maxPhotos : 6} canManageSites={canManageSites} onClose={() => setMaintSend(null)}
+      onFiled={(req, warning) => {
+        setMaintSend(null);
+        if (req) addLink({ id: req.id, reference: req.reference, status: req.status, statusName: req.statusName, filedAt: req.filedAt });
+        if (warning) showToast(warning, "error"); else showToast(tr("Sent to building maintenance as {0}", req ? req.reference : ""));
+      }} />}
     </>}
+  </div>);
+}
+
+// ===== MAINTENANCE REQUESTS (part 368, against the API's part 365) =====
+// A building problem (a leak, a light, a door, plumbing) goes by email to the building's own maintenance
+// team, and the office keeps the record of how the building answered: the building never signs in.
+// Holders of file_maintenance_requests (admins and supervisors by default) file and follow requests at the
+// sites they may read; a site's maintenance contacts are changed by holders of manage_sites. The page and
+// the site's tab open once GET /api/maintenance-requests/options answers this person. Every code below is
+// what the API sends and is sent back; the words are the screen's, and a code the screen has no word for
+// is drawn as the API names it.
+const MAINT_STATUS_WORDS = { sent: "Sent|maintenance", acknowledged: "Acknowledged|maintenance", scheduled: "Scheduled|maintenance", fixed: "Fixed|maintenance", closed: "Closed|maintenance", cancelled: "Cancelled|maintenance" };
+const MAINT_STATUSES = Object.keys(MAINT_STATUS_WORDS);
+const maintStatusWord = (s, name) => (MAINT_STATUS_WORDS[s] ? tr(MAINT_STATUS_WORDS[s]) : (name || String(s || "")));
+// Sent waits on the building, acknowledged and scheduled are on their way, fixed is done, and closed and
+// cancelled are over.
+const maintStatusColor = (s, t) => ({ sent: BL, acknowledged: PU, scheduled: OR, fixed: GR, closed: t.textMut, cancelled: RD }[s] || t.textMut);
+const MAINT_CATEGORY_WORDS = { plumbing: "Plumbing", electrical: "Electrical", lighting: "Lighting", hvac: "HVAC", doors_locks: "Doors and locks", leak_water: "Leak or water", pests: "Pests", elevator: "Elevator", safety: "Safety|maintenance", other: "Other|maintenance" };
+const maintCategoryWord = (c, name) => (MAINT_CATEGORY_WORDS[c] ? tr(MAINT_CATEGORY_WORDS[c]) : (name || String(c || "")));
+const MAINT_URGENCY_WORDS = { routine: "Routine|maintenance", soon: "Soon|maintenance", urgent_safety: "Urgent, safety" };
+const maintUrgencyWord = (u, name) => (MAINT_URGENCY_WORDS[u] ? tr(MAINT_URGENCY_WORDS[u]) : (name || String(u || "")));
+const maintUrgencyColor = (u, t) => ({ routine: t.textMut, soon: OR, urgent_safety: RD }[u] || t.textMut);
+const MAINT_CHANNEL_WORDS = { phone: "By phone", email: "By email", in_person: "In person|maintenance" };
+const maintChannelWord = (c, name) => (MAINT_CHANNEL_WORDS[c] ? tr(MAINT_CHANNEL_WORDS[c]) : (name || String(c || "")));
+const MAINT_LOG_WORDS = { response: "Response received", note: "Note|maintenance", status: "Status change", scheduled: "Scheduled date", photo: "Photos|maintenance", email: "Email|maintenance" };
+const maintLogWord = (k, name) => (MAINT_LOG_WORDS[k] ? tr(MAINT_LOG_WORDS[k]) : (name || String(k || "")));
+// The age filter, as the list reads it: minAgeDays and maxAgeDays are calendar days since the filing on
+// the company's clock.
+const MAINT_AGES = [{ v: "", l: "Any age" }, { v: "week", l: "Filed in the last 7 days", max: 7 }, { v: "month", l: "8 to 30 days old", min: 8, max: 30 }, { v: "older", l: "Over 30 days old", min: 31 }];
+// The contacts a request about this building goes to, as the API picks them (helpers/maintenanceRequests.js
+// recipientsOf): the site's active contacts naming the building and those covering the whole site, or every
+// active contact when none names it; one per address.
+const sameBuildingText = (a, b) => { const n = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase(); return n(a) !== "" && n(a) === n(b); };
+function maintRecipients(contacts, building) {
+  const active = (contacts || []).filter(c => c && c.isActive);
+  let picked = active;
+  if (String(building || "").trim() && active.some(c => sameBuildingText(c.building, building))) picked = active.filter(c => sameBuildingText(c.building, building) || !String(c.building || "").trim());
+  const seen = new Set();
+  return picked.filter(c => { const k = String(c.email || "").trim().toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+}
+// A request's place: its building, floor and area, the parts it names.
+const maintPlace = (r) => [r && r.building, r && r.floor && String(r.floor).trim() ? (/^\d+$/.test(String(r.floor).trim()) ? tr("Floor {0}", String(r.floor).trim()) : r.floor) : "", r && r.area].filter(x => x && String(x).trim()).join(", ");
+// One stored photo, read behind the token from GET /api/maintenance-requests/:id/photos/:photoId.
+function MaintPhoto({ t, token, requestId, photo, n }) {
+  const [url, setUrl] = useState("");
+  const [failed, setFailed] = useState(false);
+  const src = "/api/maintenance-requests/" + encodeURIComponent(requestId) + "/photos/" + encodeURIComponent(photo.id);
+  useEffect(() => {
+    let alive = true; let made = "";
+    apiDownload(src, token, photo.name || "photo.jpg")
+      .then(f => { made = URL.createObjectURL(f.blob); if (alive) setUrl(made); else URL.revokeObjectURL(made); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [src, token]);
+  const box = { width: 120, height: 90, borderRadius: 8, border: "1px solid " + t.borderSolid, objectFit: "cover", background: t.inputBg };
+  if (failed) return <div data-maint-photo={photo.id} style={{ ...box, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: t.textMut, padding: 6, textAlign: "center" }}>{tr("This photo did not load.")}</div>;
+  if (!url) return <div data-maint-photo={photo.id} style={box} />;
+  return <a href={url} target="_blank" rel="noopener noreferrer" data-maint-photo={photo.id}><img src={url} alt={tr("Photo {0}", n)} style={box} /></a>;
+}
+// The photos a person picks, up to the number left, each 10 MB at most as sent: JPEG, PNG, WebP or a phone's
+// HEIC, which the API turns into a JPEG.
+const MAINT_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,.heic,.heif";
+function MaintPhotoPick({ t, files, onChange, left, name }) {
+  const ref = useRef(null);
+  const pick = (e) => {
+    const list = Array.from((e.target && e.target.files) || []);
+    if (ref.current) ref.current.value = "";
+    onChange(files.concat(list).slice(0, Math.max(0, left)));
+  };
+  return (<div data-maint-photos={name || ""}>
+    <input ref={ref} type="file" multiple accept={MAINT_PHOTO_ACCEPT} onChange={pick} aria-label={tr("Add photos")} style={{ display: "none" }} />
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      {files.map((f, i) => <span key={i} data-maint-photo-picked={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 4px 4px 10px", borderRadius: R.pill, background: t.cardAlt, fontSize: 12, color: t.text, maxWidth: "100%" }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{f.name}</span>
+        <button onClick={() => onChange(files.filter((_, j) => j !== i))} aria-label={tr("Remove {0}", f.name)} style={xBtn}><XI sz={14} c={t.textMut} /></button>
+      </span>)}
+      {files.length < left && <Btn t={t} v="ghost" onClick={() => ref.current && ref.current.click()} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Add photos")}</Btn>}
+    </div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{left > 0 ? tr("Up to {0} more photos, 10 MB each.", left - files.length) : tr("No more photos fit on this request.")}</div>
+  </div>);
+}
+// The refusal words for a maintenance request's own codes: the API's words, with the field its keys name.
+const maintRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || ""), requestId: e && e.body && e.body.requestId ? String(e.body.requestId) : "" });
+
+// New maintenance request. start is what the window opens with: a site, or GET
+// /api/maintenance-requests/from-issue/:issueId's prefill, issuePhotos and contacts for an issue.
+function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, maxPhotos = 6, canManageSites = false, onClose, onFiled }) {
+  const fromIssue = !!start.issueId;
+  const [form, setForm] = useState(() => ({ siteId: start.siteId ? String(start.siteId) : "", building: start.building || "", floor: start.floor || "", area: start.area || "", category: start.category || "", urgency: start.urgency || "", description: start.description || "" }));
+  const [files, setFiles] = useState([]);
+  const [issuePicked, setIssuePicked] = useState(() => (Array.isArray(start.issuePhotos) ? start.issuePhotos.map(p => String(p.id)) : []));
+  const [contacts, setContacts] = useState(() => (fromIssue && Array.isArray(start.contacts) ? start.contacts : null));
+  const [contactsFailed, setContactsFailed] = useState(false);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const readContacts = useCallback(async (siteId) => {
+    if (!siteId) { setContacts(null); return; }
+    setContactsFailed(false);
+    try { const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts"); setContacts(Array.isArray(d && d.contacts) ? d.contacts : []); }
+    catch (e) { setContacts(null); setContactsFailed(true); }
+  }, [af]);
+  useEffect(() => { if (!fromIssue) readContacts(form.siteId); }, [form.siteId, fromIssue, readContacts]);
+  const to = contacts ? maintRecipients(contacts, form.building) : [];
+  const buildings = Array.from(new Set((contacts || []).filter(c => c.isActive && String(c.building || "").trim()).map(c => String(c.building).trim())));
+  const left = Math.max(0, maxPhotos - issuePicked.length);
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  const needs = !form.siteId ? "siteId" : !form.category ? "category" : !form.urgency ? "urgency" : !form.description.trim() ? "description" : "";
+  const submit = once(async () => {
+    if (needs) { setSaid({ text: tr("Fill in the site, the category, the urgency and what is wrong."), keys: [needs], code: "" }); return; }
+    setSaid(null);
+    const body = { siteId: form.siteId, category: form.category, urgency: form.urgency, description: form.description.trim() };
+    ["building", "floor", "area"].forEach(k => { if (form[k].trim()) body[k] = form[k].trim(); });
+    if (fromIssue) { body.issueId = String(start.issueId); if (issuePicked.length) body.issuePhotoIds = issuePicked; }
+    try {
+      let d;
+      if (files.length) {
+        const fdata = new FormData();
+        Object.keys(body).forEach(k => fdata.append(k, Array.isArray(body[k]) ? body[k].join(",") : body[k]));
+        files.forEach(f => fdata.append("photos", f));
+        d = await apiMultipart("/api/maintenance-requests", token, fdata);
+      } else d = await af("/api/maintenance-requests", { method: "POST", body });
+      onFiled(d && d.request ? d.request : null, d && d.warning ? (d.warning.message || tr("The request is saved, and its email did not go. Send it again from the request.")) : "");
+    } catch (e) { setSaid(maintRefusal(e)); if (e && e.code === "maintenance.noContact") readContacts(form.siteId); }
+  });
+  const siteName = (sites.find(s => String(s.id) === String(form.siteId)) || {}).name || start.siteName || "";
+  const noContact = !!(contacts && to.length === 0) || (said && said.code === "maintenance.noContact");
+  const already = said && said.code === "maintenance.issueAlreadySent" && said.text;
+  return (<Mdl t={t} tall onClose={onClose}><div data-maint-new="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{fromIssue ? tr("Send to building maintenance") : tr("New maintenance request")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("This emails the building's own maintenance team, with the office copied. Their answers are recorded on the request.")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl>
+      {fromIssue ? <div data-maint-field="siteId" style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{siteName}</div>
+        : <Sel t={t} data-maint-field="siteId" aria-label={tr("Site")} value={form.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose a site...") }, ...sites.filter(s => s.status !== "inactive").map(s => ({ v: String(s.id), l: s.name }))]} style={bad("siteId") ? { borderColor: RD } : undefined} />}
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("Building")}</Lbl><Inp t={t} data-maint-field="building" aria-label={tr("Building")} list="maint-buildings" maxLength={200} value={form.building} onChange={e => set("building", e.target.value)} style={bad("building") ? { borderColor: RD } : undefined} />
+        <datalist id="maint-buildings">{buildings.map(b => <option key={b} value={b} />)}</datalist></div>
+      <div><Lbl>{tr("Floor")}</Lbl><Inp t={t} data-maint-field="floor" aria-label={tr("Floor")} maxLength={100} value={form.floor} onChange={e => set("floor", e.target.value)} style={bad("floor") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Area or room")}</Lbl><Inp t={t} data-maint-field="area" aria-label={tr("Area or room")} maxLength={200} value={form.area} onChange={e => set("area", e.target.value)} style={bad("area") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("Category *")}</Lbl><Sel t={t} data-maint-field="category" aria-label={tr("Category")} value={form.category} onChange={e => set("category", e.target.value)} options={[{ v: "", l: tr("Choose...") }, ...Object.keys(MAINT_CATEGORY_WORDS).map(c => ({ v: c, l: maintCategoryWord(c) }))]} style={bad("category") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Urgency *")}</Lbl><Sel t={t} data-maint-field="urgency" aria-label={tr("Urgency")} value={form.urgency} onChange={e => set("urgency", e.target.value)} options={[{ v: "", l: tr("Choose...") }, ...Object.keys(MAINT_URGENCY_WORDS).map(u => ({ v: u, l: maintUrgencyWord(u) }))]} style={bad("urgency") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("What is wrong *")}</Lbl><TArea t={t} data-maint-field="description" aria-label={tr("What is wrong")} rows={4} maxLength={4000} value={form.description} onChange={e => set("description", e.target.value)} placeholder={tr("Where it is, what you see, and since when.")} style={bad("description") ? { borderColor: RD } : undefined} /></div>
+    {fromIssue && Array.isArray(start.issuePhotos) && start.issuePhotos.length > 0 && <div data-maint-issue-photos="" style={{ marginBottom: 12 }}><Lbl>{tr("The issue's photos to send")}</Lbl>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{start.issuePhotos.map((p, i) => { const on = issuePicked.indexOf(String(p.id)) >= 0; return <label key={p.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer" }}>
+        {p.url ? <img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 6, border: "2px solid " + (on ? GO : t.border) }} /> : null}
+        <span style={chkWrap}><input type="checkbox" data-maint-issue-photo={p.id} checked={on} onChange={() => { const nextPicked = on ? issuePicked.filter(x => x !== String(p.id)) : issuePicked.concat([String(p.id)]); if (nextPicked.length > maxPhotos) return; setIssuePicked(nextPicked); setFiles(f => f.slice(0, Math.max(0, maxPhotos - nextPicked.length))); setSaid(null); }} aria-label={tr("Send photo {0}", i + 1)} /></span>
+      </label>; })}</div></div>}
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Photos")}</Lbl><MaintPhotoPick t={t} files={files} onChange={(f) => { setFiles(f); setSaid(null); }} left={left} name="new" /></div>
+    <div data-maint-recipients="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (noContact ? t.redBorder : t.border) }}>
+      <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("It goes to")}</div>
+      {!form.siteId && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Choose a site to see who it goes to.")}</div>}
+      {form.siteId && contactsFailed && <LoadFailed t={t} onRetry={() => readContacts(form.siteId)} text={tr("The site's maintenance contacts did not load.")} style={{ padding: 4, textAlign: "left" }} />}
+      {form.siteId && !contactsFailed && contacts == null && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+      {form.siteId && to.map(c => <div key={c.id} data-maint-recipient={c.id} style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{c.name}{c.company ? ", " + c.company : ""} <span style={{ color: t.textSec }}>{c.email}</span>{c.isPrimary ? <span style={{ marginLeft: 6 }}><Bdg l={tr("Primary")} c={GO} /></span> : null}</div>)}
+      {form.siteId && to.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("The office is copied, and replies come to the office.")}</div>}
+      {form.siteId && noContact && <div data-maint-no-contact="" role="alert" style={{ fontSize: 12, color: RD, lineHeight: 1.5 }}>{tr("This site has no active maintenance contact. Add one on the site's page before sending.")}
+        {canManageSites ? <button data-maint-add-contact-link="" onClick={() => { onClose(); window.location.hash = "sites/" + encodeURIComponent(form.siteId) + "/maintenance"; }} style={{ minHeight: 44, marginLeft: 6, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Add a contact")}</button>
+          : <span style={{ color: t.textSec }}> {tr("Ask an admin to add one.")}</span>}</div>}
+    </div>
+    {said && !(said.code === "maintenance.noContact") && <div data-maint-new-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{said.text}
+      {already && said.requestId ? <button data-maint-open-existing="" onClick={() => { onClose(); window.location.hash = "maintenance/" + encodeURIComponent(said.requestId); }} style={{ minHeight: 44, marginLeft: 6, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open it")}</button> : null}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-maint-send="" onClick={submit} disabled={busy || noContact || !form.siteId}>{busy ? tr("Sending...") : tr("Send to building maintenance")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// One request's window: what was filed, the photos, who it went to and when, the internal log newest first,
+// Record a response, and Send a follow-up.
+function MaintenanceRequestWindow({ af, t, token, id, onClose, onChanged, showToast }) {
+  const [req, setReq] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const blank = { open: false, channel: "phone", note: "", status: "", scheduledFor: "" };
+  const [form, setForm] = useState(blank);
+  const [files, setFiles] = useState([]);
+  const [said, setSaid] = useState("");
+  const [once, busy] = useBusyGuard();
+  const base = "/api/maintenance-requests/" + encodeURIComponent(id);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af(base); setReq(d && d.request ? d.request : null); if (!d || !d.request) setFailed(true); }
+    catch (e) { setFailed(true); }
+  }, [af, base]);
+  useEffect(() => { load(); }, [load]);
+  const took = (d) => { if (d && d.request) setReq(d.request); if (onChanged) onChanged(); };
+  const record = once(async () => {
+    const r = req; if (!r) return;
+    const moves = form.status && form.status !== r.status;
+    const note = form.note.trim();
+    if (!form.channel && !note && !moves && !form.scheduledFor && files.length === 0) { setSaid(tr("Say how the building answered, or add a note, a status, a date or a photo.")); return; }
+    if (form.status === "scheduled" && !form.scheduledFor && !r.scheduledFor) { setSaid(tr("Choose the day the work is scheduled for.")); return; }
+    setSaid("");
+    let saved = 0;
+    try {
+      if (form.channel) { took(await af(base + "/log", { method: "POST", body: Object.assign({ kind: "response", channel: form.channel }, note ? { body: note } : {}) })); saved += 1; }
+      else if (note) { took(await af(base + "/log", { method: "POST", body: { kind: "note", body: note } })); saved += 1; }
+      if (moves) { took(await af(base + "/log", { method: "POST", body: Object.assign({ kind: "status", status: form.status }, form.status === "scheduled" && form.scheduledFor ? { scheduledFor: form.scheduledFor } : {}) })); saved += 1; }
+      else if (form.scheduledFor) { took(await af(base + "/log", { method: "POST", body: { kind: "scheduled", scheduledFor: form.scheduledFor } })); saved += 1; }
+      if (files.length) { const fdata = new FormData(); fdata.append("kind", "photo"); files.forEach(f => fdata.append("photos", f)); took(await apiMultipart(base + "/log", token, fdata)); saved += 1; }
+      setForm(blank); setFiles([]);
+      showToast(tr("Saved on the request"));
+    } catch (e) {
+      setSaid(saved ? tr("Part of this was saved, and the rest was not: {0}", (e && e.message) || tr("Request failed")) : ((e && e.message) || tr("Request failed")));
+      if (saved) { setForm(f => ({ ...f, channel: "", note: "" })); load(); }
+    }
+  });
+  const followUp = once(async () => {
+    const r = req; if (!r) return;
+    if (!window.confirm(tr("Email the building's maintenance contacts again about {0}?", r.reference))) return;
+    try {
+      const d = await af(base + "/follow-up", { method: "POST" });
+      took(d);
+      if (d && d.warning) showToast(d.warning.message || tr("The follow-up did not go."), "error"); else showToast(tr("Follow-up sent"));
+    } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  });
+  const resend = once(async () => {
+    try {
+      const d = await af(base + "/resend", { method: "POST" });
+      took(d);
+      if (d && d.warning) showToast(d.warning.message || tr("The email did not go."), "error"); else showToast(tr("Email sent"));
+    } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  });
+  const r = req;
+  const done = r && (r.status === "closed" || r.status === "cancelled");
+  const allowed = r && Array.isArray(r.allowedStatuses) ? r.allowedStatuses : [];
+  const log = r && Array.isArray(r.log) ? r.log.slice().reverse() : [];
+  const filedPhotos = r && Array.isArray(r.photos) ? r.photos.filter(p => p.inEmail) : [];
+  const cell = (label, value, key) => <div data-maint-detail={key} style={{ fontSize: 11, color: t.textMut }}>{label}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{value}</div></div>;
+  const emailLine = (e) => {
+    if (!e) return "";
+    if (e.status === "sent") return tr("Emailed {0}.", irWhen(e.at));
+    if (e.status === "notSent") return tr("Not emailed yet.");
+    return tr("The email did not go.");
+  };
+  const entryText = (en) => {
+    if (en.kind === "email" && en.email) {
+      const which = en.email.which === "followUp" ? tr("Follow-up emailed") : tr("Request emailed");
+      return en.email.status === "sent" ? which : tr("{0}: it did not go", which);
+    }
+    if (en.kind === "response") return tr("Response received {0}", maintChannelWord(en.channel, en.channelName).toLowerCase());
+    if (en.kind === "status") return tr("Status: {0}", maintStatusWord(en.toStatus, en.toStatusName));
+    if (en.kind === "scheduled") return tr("Scheduled for {0}", en.scheduledFor ? fdLong(en.scheduledFor) : "--");
+    return maintLogWord(en.kind, en.kindName);
+  };
+  return (<Mdl t={t} tall onClose={onClose}><div data-maint-window={id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Maintenance request")}</div>
+        {r && <div data-maint-reference="" style={{ fontFamily: "monospace", fontSize: 13, color: t.textSec, marginTop: 2 }}>{r.reference}</div>}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {failed && !r && <LoadFailed t={t} onRetry={load} />}
+    {!failed && !r && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {r && <>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}><span data-maint-status={r.status}><Bdg l={maintStatusWord(r.status, r.statusName)} c={maintStatusColor(r.status, t)} /></span><Bdg l={maintUrgencyWord(r.urgency, r.urgencyName)} c={maintUrgencyColor(r.urgency, t)} /><Bdg l={maintCategoryWord(r.category, r.categoryName)} c={BL} /></div>
+      {r.noResponse && <div data-maint-no-response="" style={{ fontSize: 12, color: RD, fontWeight: 600, marginBottom: 10 }}>{tr("No response from the building yet. It was due by {0}.", r.responseDueOn ? fdLong(r.responseDueOn) : "--")}</div>}
+      {!r.noResponse && r.responseDueOn && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("The building has until {0} to answer before the filer is reminded.", fdLong(r.responseDueOn))}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 14 }}>
+        {cell(tr("Site"), r.siteName || "--", "site")}
+        {cell(tr("Building, floor and area"), maintPlace(r) || tr("Not given"), "place")}
+        {cell(tr("Filed"), irWhen(r.filedAt) + (r.filedBy && r.filedBy.name ? ", " + tr("by {0}", r.filedBy.name) : ""), "filed")}
+        {cell(tr("First response"), r.firstResponseAt ? irWhen(r.firstResponseAt) : tr("None yet"), "first-response")}
+        {r.scheduledFor && cell(tr("Scheduled for"), fdLong(r.scheduledFor), "scheduled")}
+        {r.fixedAt && cell(tr("Fixed"), irWhen(r.fixedAt), "fixed")}
+      </div>
+      <Lbl>{tr("What is wrong")}</Lbl>
+      <div data-maint-description="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap", marginBottom: 14 }}>{r.description}</div>
+      {r.issueId && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" data-maint-open-issue="" onClick={() => { onClose(); window.location.hash = "issues/" + encodeURIComponent(r.issueId); }} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Open the issue it came from")}</Btn></div>}
+      {filedPhotos.length > 0 && <div style={{ marginBottom: 14 }}><Lbl>{tr("Photos ({0})", filedPhotos.length)}</Lbl><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{filedPhotos.map((p, i) => <MaintPhoto key={p.id} t={t} token={token} requestId={r.id} photo={p} n={i + 1} />)}</div></div>}
+      <div data-maint-sent-to="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (r.email && r.email.status !== "sent" ? t.redBorder : t.border) }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Who it went to")}</div>
+        <div data-maint-email={r.email ? r.email.status : ""} style={{ fontSize: 12, color: r.email && r.email.status !== "sent" ? RD : t.textSec, marginBottom: 6 }}>{emailLine(r.email)}</div>
+        {(r.recipients || []).map((c, i) => <div key={c.contactId || i} data-maint-went-to={c.contactId || ""} style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{c.name}{c.company ? ", " + c.company : ""} <span style={{ color: t.textSec }}>{c.email}</span></div>)}
+        {r.email && r.email.cc && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("The office was copied.")}</div>}
+        {r.followUpCount > 0 && <div data-maint-follow-ups="" style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{trn("{0} follow-ups sent, the last {1}.|count", r.followUpCount, irWhen(r.lastFollowUpAt))}</div>}
+        {r.canResend && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-maint-resend="" onClick={resend} disabled={busy} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Send the email again")}</Btn></div>}
+      </div>
+      {!done && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {!form.open && <Btn t={t} data-maint-record="" onClick={() => { setForm({ ...blank, open: true }); setSaid(""); }} style={{ minHeight: 44 }}>{tr("Record a response")}</Btn>}
+        {r.canFollowUp && <Btn t={t} v="ghost" data-maint-follow-up="" onClick={followUp} disabled={busy} style={{ minHeight: 44 }}>{tr("Send a follow-up")}</Btn>}
+      </div>}
+      {done && <div data-maint-done="" style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>{r.status === "closed" ? tr("This request is closed.") : tr("This request is cancelled.")}</div>}
+      {form.open && !done && <div data-maint-response-form="" style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Record a response")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
+          <div><Lbl>{tr("How it came")}</Lbl><Sel t={t} data-maint-response="channel" aria-label={tr("How it came")} value={form.channel} onChange={e => { setForm(f => ({ ...f, channel: e.target.value })); setSaid(""); }} options={Object.keys(MAINT_CHANNEL_WORDS).map(c => ({ v: c, l: maintChannelWord(c) })).concat([{ v: "", l: tr("No response, an update only") }])} /></div>
+          <div><Lbl>{tr("New status")}</Lbl><Sel t={t} data-maint-response="status" aria-label={tr("New status")} value={form.status} onChange={e => { setForm(f => ({ ...f, status: e.target.value })); setSaid(""); }} options={[{ v: "", l: tr("Keep it {0}", maintStatusWord(r.status, r.statusName).toLowerCase()) }].concat(allowed.map(s => ({ v: s, l: maintStatusWord(s) })))} /></div>
+          <div><Lbl>{tr("Scheduled date")}</Lbl><Inp t={t} type="date" data-maint-response="scheduledFor" aria-label={tr("Scheduled date")} value={form.scheduledFor} onChange={e => { setForm(f => ({ ...f, scheduledFor: e.target.value })); setSaid(""); }} /></div>
+        </div>
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} data-maint-response="note" aria-label={tr("Note")} rows={3} maxLength={4000} value={form.note} onChange={e => { setForm(f => ({ ...f, note: e.target.value })); setSaid(""); }} placeholder={tr("What the building said.")} /></div>
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Photos")}</Lbl><MaintPhotoPick t={t} files={files} onChange={(f) => { setFiles(f); setSaid(""); }} left={6} name="response" /></div>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("This stays in the office's record. The building does not see it.")}</div>
+        {said && <div data-maint-response-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setForm(blank); setFiles([]); setSaid(""); }}>{tr("Cancel")}</Btn><Btn t={t} data-maint-response-save="" onClick={record} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+      </div>}
+      <Lbl>{tr("Record, newest first")}</Lbl>
+      {log.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing recorded yet.")}</div>}
+      <div data-maint-log="">{log.map((en, i) => <TimelineRow key={en.id} t={t} last={i === log.length - 1} node={<div style={{ width: 12, height: 12, borderRadius: "50%", marginTop: 4, background: en.kind === "status" ? maintStatusColor(en.toStatus, t) : en.kind === "email" ? (en.email && en.email.status === "sent" ? BL : RD) : GO }} />}>
+        <div data-maint-entry={en.kind} style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{entryText(en)}</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{irWhen(en.occurredAt || en.createdAt)}{en.createdBy && en.createdBy.name ? ", " + en.createdBy.name : ""}</span>
+        </div>
+        {en.body && <div style={{ fontSize: 12, color: t.textSec, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{en.body}</div>}
+        {en.kind === "email" && en.email && en.email.to && en.email.to.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("To {0}", en.email.to.join(", "))}</div>}
+        {Array.isArray(en.photos) && en.photos.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{en.photos.map((p, j) => <MaintPhoto key={p.id} t={t} token={token} requestId={r.id} photo={p} n={j + 1} />)}</div>}
+      </TimelineRow>)}</div>
+    </>}
+  </div></Mdl>);
+}
+
+// The list of requests: the company's on the page, or one site's on its tab (siteId). Counts by status sit
+// on top and filter it; urgency, category, site and age filter it too, and every filter holds across
+// pages. Newest first, 50 at a time, with Show more while the API hands a nextCursor.
+function MaintenanceList({ af, t, sites = [], siteId = "", onOpen, reloadKey = 0 }) {
+  const [status, setStatus] = useState("");
+  const [urgency, setUrgency] = useState("");
+  const [category, setCategory] = useState("");
+  const [siteF, setSiteF] = useState("");
+  const [age, setAge] = useState("");
+  const [rows, setRows] = useState([]);
+  const [next, setNext] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const site = siteId || siteF;
+  const filters = useMemo(() => {
+    const p = new URLSearchParams();
+    if (site) p.set("siteId", site);
+    if (urgency) p.set("urgency", urgency);
+    if (category) p.set("category", category);
+    const a = MAINT_AGES.find(x => x.v === age);
+    if (a && a.min != null) p.set("minAgeDays", String(a.min));
+    if (a && a.max != null) p.set("maxAgeDays", String(a.max));
+    return p;
+  }, [site, urgency, category, age]);
+  const listQuery = (cursor) => { const p = new URLSearchParams(filters); if (status) p.set("status", status); p.set("cursor", cursor || ""); return "?" + p.toString(); };
+  const asked = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++asked.current;
+    setLoading(true); setFailed(false);
+    const sq = filters.toString();
+    af("/api/maintenance-requests/summary" + (sq ? "?" + sq : "")).then(d => { if (n === asked.current) setSummary(d && d.counts ? d : null); }).catch(() => { if (n === asked.current) setSummary(null); });
+    try {
+      const d = await af("/api/maintenance-requests" + listQuery(""));
+      if (n !== asked.current) return;
+      setRows(Array.isArray(d && d.requests) ? d.requests : []); setNext(d && d.nextCursor ? d.nextCursor : null);
+    } catch (e) { if (n === asked.current) { setRows([]); setNext(null); setFailed(true); } }
+    if (n === asked.current) setLoading(false);
+  }, [af, filters, status]);
+  useEffect(() => { load(); }, [load, reloadKey]);
+  const more = async () => {
+    if (!next || moreBusy) return;
+    const n = asked.current;
+    setMoreBusy(true);
+    try {
+      const d = await af("/api/maintenance-requests" + listQuery(next));
+      if (n === asked.current) { setRows(cur => cur.concat(Array.isArray(d && d.requests) ? d.requests : [])); setNext(d && d.nextCursor ? d.nextCursor : null); }
+    } catch (e) { setFailed(true); }
+    setMoreBusy(false);
+  };
+  const counts = summary && summary.counts ? summary.counts : null;
+  const tabs = [{ id: "", label: tr("All|maintenance"), count: counts ? summary.total : undefined }].concat(MAINT_STATUSES.map(s => ({ id: s, label: maintStatusWord(s), count: counts ? (counts[s] || 0) : undefined, color: maintStatusColor(s, t) })));
+  const pick = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
+  const columns = [
+    { header: tr("Reference"), render: r => <div><div style={{ fontFamily: "monospace", fontSize: 12, color: t.text, fontWeight: 600, whiteSpace: "nowrap" }}>{r.reference}</div>{r.noResponse && <div data-maint-row-no-response="" style={{ fontSize: 11, color: RD, fontWeight: 600, marginTop: 2 }}>{tr("No response yet|maintenance")}</div>}</div> },
+    ...(siteId ? [] : [{ header: tr("Site"), render: r => <div style={{ fontSize: 12, color: t.text }}>{r.siteName}</div> }]),
+    { header: tr("Where and what"), render: r => <div style={{ minWidth: 160 }}><div style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>{maintCategoryWord(r.category, r.categoryName)}{maintPlace(r) ? ", " + maintPlace(r) : ""}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{r.description}</div></div> },
+    { header: tr("Urgency"), render: r => <Bdg l={maintUrgencyWord(r.urgency, r.urgencyName)} c={maintUrgencyColor(r.urgency, t)} /> },
+    { header: tr("Status"), render: r => <span data-maint-row-status={r.status}><Bdg l={maintStatusWord(r.status, r.statusName)} c={maintStatusColor(r.status, t)} /></span> },
+    { header: tr("Filed"), render: r => <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "nowrap" }}>{fdLong(r.filedAt)}<div style={{ fontSize: 11, color: t.textMut }}>{Number(r.ageDays) > 0 ? trn("{0} days ago|count", Number(r.ageDays)) : tr("Today")}</div></div> },
+  ];
+  return (<div data-maint-list={siteId || "all"}>
+    <div data-maint-counts=""><FilterTabs t={t} value={status} onChange={setStatus} tabs={tabs} /></div>
+    {summary && summary.fixed && summary.fixed.medianDays != null && <div data-maint-median="" style={{ fontSize: 12, color: t.textSec, marginTop: -6, marginBottom: 10 }}>{tr("Half of the requests fixed took {0} days or fewer.", String(summary.fixed.medianDays))}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 12 }}>
+      <Sel t={t} data-maint-filter="urgency" aria-label={tr("Urgency")} value={urgency} onChange={e => setUrgency(e.target.value)} options={[{ v: "", l: tr("Any urgency") }, ...Object.keys(MAINT_URGENCY_WORDS).map(u => ({ v: u, l: maintUrgencyWord(u) }))]} style={pick} />
+      <Sel t={t} data-maint-filter="category" aria-label={tr("Category")} value={category} onChange={e => setCategory(e.target.value)} options={[{ v: "", l: tr("Any category") }, ...Object.keys(MAINT_CATEGORY_WORDS).map(c => ({ v: c, l: maintCategoryWord(c) }))]} style={pick} />
+      {!siteId && <Sel t={t} data-maint-filter="site" aria-label={tr("Site")} value={siteF} onChange={e => setSiteF(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: String(s.id), l: s.name }))]} style={pick} />}
+      <Sel t={t} data-maint-filter="age" aria-label={tr("Age")} value={age} onChange={e => setAge(e.target.value)} options={MAINT_AGES.map(a => ({ v: a.v, l: tr(a.l) }))} style={pick} />
+    </div>
+    {failed && rows.length === 0 ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r)} empty={loading ? tr("Loading...") : tr("No maintenance requests match.")} />}
+    {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" data-maint-more="" onClick={more} disabled={moreBusy}>{moreBusy ? tr("Loading...") : tr("Show more")}</Btn></div>}
+  </div>);
+}
+
+// The Maintenance requests page (Quality, under Issue Tracker): the company's list, New maintenance request,
+// and #maintenance/<id>, where a notice about a request opens its window.
+function MaintenancePage({ af, t, token, sites = [], showToast, route = [], onRoute, maintenance = {}, canManageSites = false }) {
+  const [creating, setCreating] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const openId = route[0] ? String(route[0]) : "";
+  const open = (id) => { if (onRoute) onRoute([String(id)]); };
+  const close = () => { if (onRoute) onRoute([]); };
+  return (<div data-maint-page="">
+    <SecT t={t} action={tr("New maintenance request")} onAction={() => setCreating({})}>{tr("Maintenance requests")}</SecT>
+    <div style={{ fontSize: 13, color: t.textSec, marginTop: -6, marginBottom: 14, lineHeight: 1.5 }}>{tr("Building problems sent to each building's own maintenance team, and how they answered.")}</div>
+    <MaintenanceList af={af} t={t} sites={sites} onOpen={r => open(r.id)} reloadKey={reloadKey} />
+    {creating && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={creating} maxPhotos={maintenance.maxPhotos || 6} canManageSites={canManageSites} onClose={() => setCreating(null)}
+      onFiled={(req, warning) => { setCreating(null); setReloadKey(k => k + 1); if (warning) showToast(warning, "error"); else showToast(tr("Sent to building maintenance as {0}", req ? req.reference : "")); if (req) open(req.id); }} />}
+    {openId && <MaintenanceRequestWindow af={af} t={t} token={token} id={openId} onClose={close} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
+  </div>);
+}
+
+// A site's maintenance contacts: the people its requests are emailed to. Add, edit and turn off are
+// manage_sites'; a contact is never deleted.
+function MaintenanceContactWindow({ af, t, siteId, contact = null, onClose, onSaved }) {
+  const was = useMemo(() => ({ name: contact ? contact.name || "" : "", company: contact ? contact.company || "" : "", email: contact ? contact.email || "" : "", phone: contact ? contact.phone || "" : "", building: contact ? contact.building || "" : "", isPrimary: contact ? !!contact.isPrimary : false }), [contact]);
+  const [form, setForm] = useState(was);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const save = once(async () => {
+    if (!form.name.trim() || !form.email.trim()) { setSaid({ text: tr("Fill in the name and the email."), keys: [!form.name.trim() ? "name" : "email"], code: "" }); return; }
+    const now = { name: form.name.trim(), company: form.company.trim() || null, email: form.email.trim(), phone: form.phone.trim() || null, building: form.building.trim() || null, isPrimary: !!form.isPrimary };
+    const body = contact ? changedFields(now, { ...was, company: was.company || null, phone: was.phone || null, building: was.building || null }) : now;
+    if (contact && Object.keys(body).length === 0) { onClose(); return; }
+    try {
+      const path = "/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts" + (contact ? "/" + encodeURIComponent(contact.id) : "");
+      const d = await af(path, { method: contact ? "PATCH" : "POST", body });
+      onSaved(d && d.contact ? d.contact : null);
+    } catch (e) { setSaid(maintRefusal(e)); }
+  });
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  const field = (k, label, extra) => <div style={{ marginBottom: 12 }}><Lbl>{tr(label)}</Lbl><Inp t={t} data-maint-contact-field={k} aria-label={tr(label.replace(/ \*$/, ""))} value={form[k]} onChange={e => set(k, e.target.value)} style={bad(k) ? { borderColor: RD } : undefined} {...(extra || {})} /></div>;
+  return (<Mdl t={t} onClose={onClose}><div data-maint-contact-window={contact ? contact.id : "new"} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{contact ? tr("Edit maintenance contact") : tr("Add a maintenance contact")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {field("name", "Name *", { maxLength: 200 })}
+    {field("company", "Company", { maxLength: 200 })}
+    {field("email", "Email *", { type: "email", maxLength: 320 })}
+    {field("phone", "Phone", { type: "tel", maxLength: 40 })}
+    {field("building", "Building or area it covers", { maxLength: 200 })}
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: -8, marginBottom: 12 }}>{tr("Leave it blank when this contact covers the whole site.")}</div>
+    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: t.text, marginBottom: 12, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-maint-contact-field="isPrimary" checked={form.isPrimary} onChange={e => set("isPrimary", e.target.checked)} /></span>{tr("Primary contact")}</label>
+    {said && <div data-maint-contact-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-maint-contact-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div></Mdl>);
+}
+// A site's Maintenance tab: its contacts, and its own requests with New maintenance request.
+function SiteMaintenancePanel({ af, t, token, site, sites = [], canManageSites = false, canFile = false, maxPhotos = 6, showToast }) {
+  const [contacts, setContacts] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [openId, setOpenId] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [once, busy] = useBusyGuard();
+  const siteId = String(site.id);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts?includeInactive=true"); setContacts(Array.isArray(d && d.contacts) ? d.contacts : []); }
+    catch (e) { setContacts(null); setFailed(true); }
+  }, [af, siteId]);
+  useEffect(() => { load(); }, [load]);
+  const turn = once(async (c, on) => {
+    if (!on && !window.confirm(tr("Turn off {0}? Requests stop going to them.", c.name))) return;
+    try { await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts/" + encodeURIComponent(c.id), { method: "PATCH", body: { isActive: on } }); showToast(on ? tr("Contact turned on") : tr("Contact turned off")); load(); }
+    catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  });
+  const active = (contacts || []).filter(c => c.isActive);
+  const columns = [
+    { header: tr("Name"), render: c => <div data-maint-contact={c.id} style={{ opacity: c.isActive ? 1 : 0.6 }}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{c.name} {c.isPrimary && <Bdg l={tr("Primary")} c={GO} />}</div>{c.company && <div style={{ fontSize: 11, color: t.textSec }}>{c.company}</div>}</div> },
+    { header: tr("Email and phone"), render: c => <div style={{ fontSize: 12, color: t.textSec, opacity: c.isActive ? 1 : 0.6 }}>{c.email}{c.phone ? <div>{c.phone}</div> : null}</div> },
+    { header: tr("Covers"), render: c => <div style={{ fontSize: 12, color: t.text }}>{c.building || tr("The whole site")}</div> },
+    { header: tr("Status"), render: c => <Bdg l={c.isActive ? tr("Active") : tr("Turned off")} c={c.isActive ? GR : t.textMut} /> },
+    ...(canManageSites ? [{ header: "", align: "right", render: c => <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" data-maint-contact-edit={c.id} onClick={() => setEditing(c)} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Edit")}</Btn>
+      <Btn t={t} v="ghost" data-maint-contact-turn={c.id} onClick={() => turn(c, !c.isActive)} disabled={busy} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{c.isActive ? tr("Turn off|maintenance contact") : tr("Turn on|maintenance contact")}</Btn>
+    </div> }] : []),
+  ];
+  return (<div data-site-maintenance={siteId}>
+    <SecT t={t} action={canManageSites ? tr("Add a contact") : null} onAction={() => setEditing({})}>{tr("Maintenance contacts")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: -6, marginBottom: 10, lineHeight: 1.5 }}>{tr("A request about a building goes to the contacts for that building and those covering the whole site. The primary contact is listed first.")}</div>
+    {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={columns} rows={contacts || []} rowKey={c => c.id} empty={contacts == null ? tr("Loading...") : tr("No maintenance contacts yet. Requests cannot be sent until one is added.")} />}
+    {contacts && active.length === 0 && contacts.length > 0 && <div data-maint-none-active="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{tr("No contact is turned on, so requests cannot be sent.")}</div>}
+    <div style={{ height: 18 }} />
+    {canFile && <>
+      <SecT t={t} action={tr("New maintenance request")} onAction={() => setCreating(true)}>{tr("Maintenance requests at this site")}</SecT>
+      <MaintenanceList af={af} t={t} sites={sites} siteId={siteId} onOpen={r => setOpenId(String(r.id))} reloadKey={reloadKey} />
+    </>}
+    {editing && <MaintenanceContactWindow af={af} t={t} siteId={siteId} contact={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); showToast(tr("Contact saved")); load(); }} />}
+    {creating && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={{ siteId }} maxPhotos={maxPhotos} canManageSites={canManageSites} onClose={() => setCreating(false)}
+      onFiled={(req, warning) => { setCreating(false); setReloadKey(k => k + 1); if (warning) showToast(warning, "error"); else showToast(tr("Sent to building maintenance as {0}", req ? req.reference : "")); if (req) setOpenId(String(req.id)); }} />}
+    {openId && <MaintenanceRequestWindow af={af} t={t} token={token} id={openId} onClose={() => setOpenId("")} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
   </div>);
 }
 
@@ -9814,6 +10360,9 @@ function noticePlace(n) {
   // Round 2 (part 353): a held sign-in names the person (subjectId) and opens their profile, where
   // Unlock is (the API's tellHeld links #staff).
   if (st === "sign_in_held") return { page: "staff", hash: sid ? "staff/" + enc(sid) : "staff" };
+  // Part 368: a maintenance request's status and its no-response notice name the request and open its
+  // window on Maintenance requests (the API links #maintenance/<id>).
+  if ((st === "maintenance_status" || st === "maintenance_no_response") && sid) return { page: "maintenance", hash: "maintenance/" + enc(sid) };
   if (/^shift(_|$)/.test(st)) return { page: "schedule", hash: "" };
   return null;
 }
@@ -18151,12 +18700,19 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         pay_period_start_day: form.pay_period_start_day || "Saturday",
       };
       OSHA_COMPANY_FIELDS.forEach(f => { if (Object.prototype.hasOwnProperty.call(form, f.key)) body[f.key] = form[f.key] == null ? null : (String(form[f.key]).trim() || null); });
+      // Part 368: the business days a building has to answer a maintenance request, 1 to 30, sent once
+      // GET /api/settings answers it.
+      if (Object.prototype.hasOwnProperty.call(form, "maintenance_response_days")) {
+        const n = Number(String(form.maintenance_response_days == null ? "" : form.maintenance_response_days).trim());
+        if (!Number.isInteger(n) || n < 1 || n > 30) { setOshaRefusal({ text: tr("Type a whole number of business days from 1 to 30."), keys: ["maintenance_response_days"] }); setSaving(false); return; }
+        body.maintenance_response_days = n;
+      }
       const updated = await af("/api/settings", { method: "PATCH", body });
       setForm(updated);
       showToast(tr("Company settings saved"));
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
-      if (keys.some(k => OSHA_COMPANY_FIELDS.some(f => f.key === k))) setOshaRefusal({ text: e.message || tr("Request failed"), keys });
+      if (keys.some(k => k === "maintenance_response_days" || OSHA_COMPANY_FIELDS.some(f => f.key === k))) setOshaRefusal({ text: e.message || tr("Request failed"), keys });
       showToast(e.message, "error");
     }
     setSaving(false);
@@ -18300,6 +18856,19 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         </div>
       </Crd>}
 
+      {Object.prototype.hasOwnProperty.call(form, "maintenance_response_days") && <Crd t={t} style={{ flex: "1 1 100%", minWidth: "min(320px, 100%)", padding: 18 }}>
+        <div data-settings-maintenance="">
+          <div style={sec}>{tr("Maintenance requests")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>{tr("When the building has not answered a maintenance request after this many business days, the person who sent it is reminded.")}</div>
+          <div style={{ maxWidth: 240 }}>
+            <label style={lbl}>{tr("Business days before a reminder")}</label>
+            <input aria-label={tr("Business days before a reminder")} data-settings-field="maintenance_response_days" inputMode="numeric" style={{ ...inp, ...(oshaRefusal.keys.indexOf("maintenance_response_days") >= 0 ? { borderColor: RD } : {}) }} value={form.maintenance_response_days == null ? "" : String(form.maintenance_response_days)} onChange={e => { set("maintenance_response_days", e.target.value.replace(/[^0-9]/g, "").slice(0, 2)); setOshaRefusal({ text: "", keys: [] }); }} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("1 to 30. Weekends and company holidays do not count.")}</div>
+            {oshaRefusal.keys.indexOf("maintenance_response_days") >= 0 && <div data-settings-refusal="maintenance_response_days" role="alert" style={{ fontSize: 12, color: RD, marginTop: 3 }}>{oshaRefusal.text}</div>}
+          </div>
+        </div>
+      </Crd>}
+
       <div style={{ width: "100%", display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tr("Reset")}</button>
         <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? tr("Saving...") : tr("Save Company Settings")}</button>
@@ -18328,6 +18897,7 @@ const CAPABILITY_LABELS = {
   manage_integrations: "Integrations and forms",
   manage_tasks: "Tasks and assignments",
   manage_inspections: "Inspection templates and scheduling",
+  file_maintenance_requests: "File and follow building maintenance requests",
   manage_time: "Manual time entry and shift edits",
   manage_schedule: "Create, edit and delete scheduled shifts",
   approve_time_off: "Approve and deny time off",

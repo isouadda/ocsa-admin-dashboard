@@ -1742,6 +1742,35 @@ const SHOTS = [
       await click(c, "[data-employment-take-back]");
       await until(c, '[data-employment-window="take-back"] [data-employment-take-back-send]');
     } },
+  // Part 368: maintenance requests (audit/part368-stub.js answers them in every run).
+  { name: "maintenance-new", entry: "Send a maintenance request to a building",
+    open: "maintenance", ready: "[data-maint-list] table tbody tr",
+    act: async (c) => {
+      await press(c, "New maintenance request"); await until(c, "[data-maint-new]");
+      await c.page.locator('[data-maint-field="siteId"]').selectOption("s-1");
+      await c.page.locator('[data-maint-field="building"]').fill("North Wing");
+      await c.page.locator('[data-maint-field="area"]').fill("Restroom 2B");
+      await c.page.locator('[data-maint-field="category"]').selectOption("leak_water");
+      await c.page.locator('[data-maint-field="urgency"]').selectOption("urgent_safety");
+      await c.page.locator('[data-maint-field="description"]').fill(c.lang === "es" ? "Sale agua debajo del segundo lavabo." : "Water is leaking under the second sink.");
+      await until(c, "[data-maint-recipient]");
+    } },
+  { name: "maintenance-page", entry: "Follow a maintenance request and record the building's answer",
+    open: "maintenance", ready: "[data-maint-list] table tbody tr" },
+  { name: "maintenance-request-window", entry: "Follow a maintenance request and record the building's answer",
+    open: "maintenance/mr-2", ready: '[data-maint-window="mr-2"] [data-maint-reference]',
+    act: async (c) => { await click(c, "[data-maint-record]"); await until(c, "[data-maint-response-form]"); } },
+  { name: "maintenance-contacts", entry: "Keep a site's maintenance contacts",
+    open: "sites/s-1/maintenance", ready: "[data-site-maintenance] table tbody tr" },
+  { name: "maintenance-contact-window", entry: "Keep a site's maintenance contacts",
+    open: "sites/s-1/maintenance", ready: "[data-site-maintenance] table tbody tr",
+    act: async (c) => { await click(c, '[data-maint-contact-edit="mc-1"]'); await until(c, '[data-maint-contact-window="mc-1"]'); } },
+  { name: "issue-send-maintenance", entry: "Send an issue to building maintenance",
+    open: "issues/i-5", ready: "[data-issue-send-maintenance]",
+    act: async (c) => { await click(c, "[data-issue-send-maintenance]"); await until(c, "[data-maint-new]"); } },
+  { name: "settings-maintenance-days", entry: "Set the days before a maintenance request reminds its sender",
+    open: "settings", ready: "[data-settings-maintenance]",
+    act: async (c) => { await show(c, "[data-settings-maintenance]"); } },
 ];
 
 
