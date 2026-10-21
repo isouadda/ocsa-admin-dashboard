@@ -224,7 +224,8 @@ async function run({ d, results, seed, stubs, lang }) {
     narrowed = d.callsSince(before).find((c) => c.method === "GET" && c.path === "/api/hr/documents") || null;
   }
   // Break: the option's value the person's name rather than their id.
-  check("hr-filter-narrows-to-the-person", !!(narrowed && narrowed.query === "?user_id=" + person.id),
+  // Since part 368 the documents are read a page at a time, so the read also carries cursor (API-100).
+  check("hr-filter-narrows-to-the-person", !!(narrowed && new URLSearchParams(String(narrowed.query || "").replace(/^\?/, "")).get("user_id") === person.id),
     !narrowed ? "picking a person read no documents" : "the documents were read with " + JSON.stringify(narrowed.query) + " where the person's id is " + JSON.stringify(person.id));
   opened = await d.clickText(d.say("+ Add Document"), { exact: false }).catch(() => false);
   const employee = opened ? await optionsUnder(d, d.say("Employee"), true) : null;

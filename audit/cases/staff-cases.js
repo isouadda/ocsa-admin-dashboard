@@ -86,7 +86,13 @@ const sentSince = (d, mark, method, re) => d.callsSince(mark).filter((c) => c.me
 // A body held to the one written out by hand: every field, with the same value, and nothing more.
 function sameBody(call, want) {
   if (!call) return "nothing was sent";
-  const got = call.body || {};
+  // Since part 368 every office edit also sends updatedAt, the updated time the screen read (the API's
+  // part 365, finding API-101), held here to an instant when the body written by hand names none.
+  const got = Object.assign({}, call.body || {});
+  if (want.updatedAt === undefined && got.updatedAt !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(String(got.updatedAt))) return "updatedAt sent " + JSON.stringify(got.updatedAt) + " where the time the screen read is meant";
+    delete got.updatedAt;
+  }
   const keys = Array.from(new Set(Object.keys(got).concat(Object.keys(want)))).sort();
   const off = keys.filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want[k]));
   return off.length === 0 ? null

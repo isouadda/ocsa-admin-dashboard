@@ -1,5 +1,6 @@
-// What the API answers for Checklist Results (the dashboard's part 358), as ocsa-api main abfb2e6 builds
-// it, laid over every other layer once a run arms it with setChecklist358:
+// What the API answers for Checklist Results (the dashboard's parts 358 and 368), as ocsa-api main ca4aafa
+// builds it (part 363 added the item's shift, the summary, periodic work on a day, each shift's window
+// and the checklist day's start), laid over every other layer once a run arms it with setChecklist358:
 //
 //   GET /api/sites/:id/checklist-record?from=&to=&shift=   routes/sites.js and helpers/checklistRecord.js:
 //       from and to both days, from not after to, 31 days at most, else 400 records.badRange with keys;
@@ -9,13 +10,22 @@
 //       work due every day, every other day work due unless it was checked the day before, weekly to
 //       quarterly work due from the start of its period until it is done (a check that day still
 //       counts it due), as needed never due. done, completedAt, completedBy and notes are the day's
-//       first check's, and checks lists every check that day.
+//       first check's, checks lists every check that day, and shift names the item's shift, null for
+//       an item tied to none (part 363).
+//   GET /api/reports/checklist-summary?from=&to=            routes/reports.js and buildSummary (part
+//       363): every active site by name, each day of its whole record counted by countDay: due the
+//       items listed as due, done those of them done, checks every check listed; the range refused as
+//       the record refuses it; a reference site notTracked with no days.
 //   GET /api/sites/:siteId/shift-blocks/schedule?date=      helpers/blockSchedule.js: every shift with
-//       its displayLabel and the blocks that run that day, each with its window, in time order.
+//       its displayLabel, its startTime, endTime and crossesMidnight (shiftWindow, part 363) and the
+//       blocks that run that day, each with its window, in time order.
 //   GET /api/shift-sessions/by-site                          routes/shiftSessions.js: the base answer, with
 //       the model's sites answered from the model, one row per person per day, the latest.
-//   GET /api/periodic-work?siteId=                           helpers/periodicWork.js: the model site's
-//       repeating work with its last check, by whom, and its state on today's checklist day.
+//   GET /api/periodic-work?siteId=&on=                       helpers/periodicWork.js: the model site's
+//       repeating work with its last check before the day ended, by whom, and its state on the
+//       checklist day on= names, today's by default (part 363); a bad day is 400 records.badFilter.
+//   GET /api/settings                                        the base answer with checklistDayStartsAt,
+//       HH:MM (part 363), 04:00 unless a case sets another with setDayStarts358.
 //
 // The model: Harbor Point Center (S[0]) runs Day (8:00 AM to 4:00 PM, two blocks) and Night (6:00 PM to
 // 10:00 PM), with work in five zones, work tied to no shift, weekly, monthly and quarterly work and an
@@ -53,8 +63,11 @@ module.exports = (ctx) => {
   const addDays = (day, n) => { const d = new Date(day + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const isDay = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s + "T00:00:00Z").toISOString().slice(0, 10) === s;
   const between = (a, b) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
-  // The checklist day a check belongs to: the company's day, from 4:00 AM.
-  const dayOf = (at) => { const w = wall(at); return w.minutes < 240 ? addDays(w.day, -1) : w.day; };
+  // The checklist day a check belongs to: the company's day, from the time the day starts (4:00 AM
+  // unless a case sets another, as company_settings.checklist_day_starts_at does).
+  let dayStartsAt = "04:00";
+  const startsMinutes = () => Number(dayStartsAt.slice(0, 2)) * 60 + Number(dayStartsAt.slice(3, 5));
+  const dayOf = (at) => { const w = wall(at); return w.minutes < startsMinutes() ? addDays(w.day, -1) : w.day; };
   const weekday = (day) => new Date(day + "T12:00:00Z").getUTCDay();
 
   // ---- the model -------------------------------------------------------------------------------------
@@ -183,6 +196,7 @@ module.exports = (ctx) => {
           display: { label: lang === "es" ? i.es : i.label, zone: lang === "es" ? (ZONES[i.zone] || i.zone) : i.zone },
           frequency: i.frequency, period, priority: "standard", touchpoint: false, critical: false, due, done: onDay.length > 0,
           completedAt: first ? first.at : null, completedBy: first ? person(first.by) : null, notes: null, checks: onDay.map(view),
+          shift: i.shift || null,
         });
       });
       days.push({ date: day, shift: shift || null, items: rows });
@@ -193,14 +207,8 @@ module.exports = (ctx) => {
 
   function recordRoute(siteId, query, lang) {
     const from = String(query.get("from") || "").trim(), to = String(query.get("to") || "").trim();
-    const keys = [];
-    if (!isDay(from)) keys.push("from");
-    if (!isDay(to)) keys.push("to");
-    if (keys.length === 0 && (from > to || between(from, to) + 1 > RANGE_MAX)) keys.push("from", "to");
-    if (keys.length) {
-      return refuse(400, { error: T(lang, "Check the dates: each is a day, the first is not after the last, and a record covers at most 31 days",
-        "Revise las fechas: cada una es un día, la primera no puede ser posterior a la última y un registro abarca como máximo 31 días"), code: "records.badRange", keys });
-    }
+    const no = badRange(from, to, lang);
+    if (no) return no;
     if (REFERENCE.indexOf(siteId) >= 0) {
       return ok({ site: { id: siteId, name: (S.find((s) => s.id === siteId) || {}).name || "" }, from, to, shift: null, touchpointOnly: false, days: [], notTracked: true, checklistMode: "reference" });
     }
@@ -218,13 +226,67 @@ module.exports = (ctx) => {
     return ok(record(siteId, from, to, shift, lang));
   }
 
+  // The range's refusal, as helpers/checklistRecord.js readRange answers it, or null.
+  function badRange(from, to, lang) {
+    const keys = [];
+    if (!isDay(from)) keys.push("from");
+    if (!isDay(to)) keys.push("to");
+    if (keys.length === 0 && (from > to || between(from, to) + 1 > RANGE_MAX)) keys.push("from", "to");
+    return keys.length ? refuse(400, { error: T(lang, "Check the dates: each is a day, the first is not after the last, and a record covers at most 31 days",
+      "Revise las fechas: cada una es un d\u00eda, la primera no puede ser posterior a la \u00faltima y un registro abarca como m\u00e1ximo 31 d\u00edas"), code: "records.badRange", keys }) : null;
+  }
+  // One day of a record as the summary counts it (countDay).
+  const countDay = (day) => {
+    let due = 0, done = 0, checks = 0;
+    day.items.forEach((i) => { if (i.due) { due += 1; if (i.done) done += 1; } checks += i.checks.length; });
+    return { date: day.date, due, done, checks };
+  };
+  function summaryRoute(query, lang) {
+    const from = String(query.get("from") || "").trim(), to = String(query.get("to") || "").trim();
+    const no = badRange(from, to, lang);
+    if (no) return no;
+    const sites = S.filter((s) => s.status === "active").slice().sort((a, b) => String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
+    return ok({ from, to, sites: sites.map((s) => (REFERENCE.indexOf(s.id) >= 0
+      ? { siteId: s.id, siteName: s.name, notTracked: true, days: [] }
+      : { siteId: s.id, siteName: s.name, notTracked: false, days: record(s.id, from, to, null, lang).days.map(countDay) })) });
+  }
+
+  // A shift's window from its blocks, as helpers/blockSchedule.js shiftWindow reads them: a night shift
+  // (a block past midnight, or every start from noon on at 6:00 PM or later with one before noon) reads
+  // every time before noon as the next morning's; the earliest start, the latest end, HH:MM:SS.
+  const hmOf = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+  const clockOf = (m) => { const x = ((m % 1440) + 1440) % 1440; return String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0") + ":00"; };
+  function shiftWindow(blocks) {
+    const timed = blocks.filter((b) => b.start);
+    if (!timed.length) return { startTime: null, endTime: null, crossesMidnight: false };
+    const starts = timed.map((b) => hmOf(b.start));
+    const crosses = (b) => b.end && hmOf(b.end) < hmOf(b.start) && hmOf(b.start) >= 1080 && hmOf(b.end) < 720;
+    const afterNoon = starts.filter((m) => m >= 720);
+    const night = timed.some(crosses) || (afterNoon.length > 0 && Math.min.apply(null, afterNoon) >= 1080 && starts.some((m) => m < 720));
+    let first = null, last = null;
+    timed.forEach((b) => {
+      const s0 = hmOf(b.start);
+      const start = night && s0 < 720 ? s0 + 1440 : s0;
+      const length = b.end ? (hmOf(b.end) - s0 + 1440) % 1440 : 0;
+      if (first === null || start < first) first = start;
+      if (last === null || start + length > last) last = start + length;
+    });
+    return { startTime: clockOf(first), endTime: clockOf(last), crossesMidnight: last >= 1440 };
+  }
+
+  // A case's scene: lateBlock gives the Night shift a last block from 10:00 PM with no end of its own,
+  // which shiftWindow reads as ending at its start.
+  let scene = {};
+  const shiftsOf = (siteId) => (SHIFTS[siteId] || []).map((s) => (scene.lateBlock && siteId === S[0].id && s.label === "Night"
+    ? Object.assign({}, s, { blocks: s.blocks.concat([{ id: "crb-4", label: "Late", es: "Tarde noche", start: "22:00", end: null }]) }) : s));
+
   function scheduleRoute(siteId, query, lang) {
     const date = query.get("date") || TODAY;
     if (!isDay(date)) return refuse(400, { error: T(lang, "Check the details", "Revise los datos"), code: "shiftBlocks.badDetails", keys: ["date"] });
     const items = itemsOf(siteId);
     return ok({
       siteId, day: date, weekday: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][weekday(date)], checklistMode: REFERENCE.indexOf(siteId) >= 0 ? "reference" : "standard",
-      shifts: (SHIFTS[siteId] || []).map((s) => ({
+      shifts: shiftsOf(siteId).map((s) => Object.assign({
         label: s.label, displayLabel: lang === "es" ? s.es : s.label,
         blocks: s.blocks.map((b) => ({
           id: b.id, shiftLabel: s.label, label: b.label, display: { label: lang === "es" ? b.es : b.label }, startTime: b.start, endTime: b.end, crossesMidnight: false,
@@ -232,7 +294,7 @@ module.exports = (ctx) => {
           steps: items.filter((i) => i.block === b.id).map((i) => ({ id: i.id, label: i.label, display: { label: lang === "es" ? i.es : i.label, zone: lang === "es" ? (ZONES[i.zone] || i.zone) : i.zone },
             frequency: i.frequency, daysOfWeek: null, period: PERIOD_OF[i.frequency] || "today", dueToday: i.frequency !== "as_needed", doneThisPeriod: null, shownToday: true })),
         })),
-      })),
+      }, shiftWindow(s.blocks))),
     });
   }
 
@@ -272,14 +334,17 @@ module.exports = (ctx) => {
     return a;
   }
 
-  // Periodic work at a model site, on today's checklist day.
-  function periodicRoute(siteId, lang) {
+  // Periodic work at a model site, on the checklist day on= names, today's by default: each item's
+  // latest check made before that day ended.
+  function periodicRoute(siteId, query, lang) {
+    const on = query.get("on") ? String(query.get("on")).trim() : TODAY;
+    if (!isDay(on)) return refuse(400, { error: T(lang, "Check the filters", "Revise los filtros"), code: "records.badFilter", keys: ["on"] });
     const out = [];
     itemsOf(siteId).filter((i) => ["week", "month", "quarter"].indexOf(PERIOD_OF[i.frequency]) >= 0).forEach((i) => {
-      const checks = checksOf(siteId, i);
+      const checks = checksOf(siteId, i).filter((c) => c.day <= on);
       const last = checks.length ? checks[checks.length - 1] : null;
       const period = PERIOD_OF[i.frequency];
-      const start = periodStart(period, TODAY);
+      const start = periodStart(period, on);
       const done = !!last && last.day >= start;
       const next = done ? (period === "week" ? addDays(start, 7) : period === "month" ? periodStart("month", addDays(start, 32)) : periodStart("quarter", addDays(start, 95))) : start;
       const end = period === "week" ? addDays(next, 6) : period === "month" ? addDays(periodStart("month", addDays(next, 32)), -1) : addDays(periodStart("quarter", addDays(next, 95)), -1);
@@ -298,7 +363,13 @@ module.exports = (ctx) => {
     const sch = /^\/api\/sites\/([^/]+)\/shift-blocks\/schedule$/.exec(path);
     if (sch && SHIFTS[decodeURIComponent(sch[1])]) return scheduleRoute(decodeURIComponent(sch[1]), query, lang);
     if (path === "/api/shift-sessions/by-site") return sessionsRoute(query, base);
-    if (path === "/api/periodic-work" && query.get("siteId") && ITEMS[query.get("siteId")] && REFERENCE.indexOf(query.get("siteId")) < 0) return periodicRoute(query.get("siteId"), lang);
+    if (path === "/api/periodic-work" && query.get("siteId") && ITEMS[query.get("siteId")] && REFERENCE.indexOf(query.get("siteId")) < 0) return periodicRoute(query.get("siteId"), query, lang);
+    if (path === "/api/reports/checklist-summary") return summaryRoute(query, lang);
+    if (path === "/api/settings") {
+      const a = base();
+      if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { checklistDayStartsAt: dayStartsAt });
+      return a;
+    }
     return base();
   }
 
@@ -306,8 +377,12 @@ module.exports = (ctx) => {
     route,
     // A check a case adds, as a person makes it: on day at hm, by "one" or "two".
     addCheck: (siteId, taskId, day, hm, by) => { added.push({ siteId, taskId, day, hm, by }); },
-    reset: () => { added = []; },
+    reset: () => { added = []; dayStartsAt = "04:00"; scene = {}; },
+    setScene: (o) => { scene = Object.assign({}, scene, o || {}); },
+    // The time the checklist day starts, HH:MM, as the owner sets it in company_settings.
+    setDayStartsAt: (hm) => { dayStartsAt = /^\d{2}:\d{2}$/.test(String(hm)) ? String(hm) : "04:00"; },
     // What the cases read the model by: the seeded day, the people, and the record the API would answer.
-    model: { SEEDED, TODAY, ONE: nameOf(ONE), TWO: nameOf(TWO), SHIFTS, ITEMS, REFERENCE, record: (siteId, from, to, shift, lang) => record(siteId, from, to, shift, lang || "en") },
+    model: { SEEDED, TODAY, ONE: nameOf(ONE), TWO: nameOf(TWO), SHIFTS, ITEMS, REFERENCE, record: (siteId, from, to, shift, lang) => record(siteId, from, to, shift, lang || "en"),
+      summaryDay: (siteId, day) => countDay(record(siteId, day, day, null, "en").days[0]) },
   };
 };

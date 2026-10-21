@@ -294,7 +294,9 @@ async function supervisorWork(ctx) {
     await d.clickText(d.say("Save Changes"), { exact: true });
     await d.settle(500);
     const patch = d.callsSince(mark).find((c) => c.method === "PATCH" && c.path === "/api/users/u-staff-5");
-    const sent = patch && patch.body ? patch.body : null;
+    // Since part 368 the save also sends updatedAt, the updated time the edit read (API-101), set aside here.
+    const sent = patch && patch.body ? Object.assign({}, patch.body) : null;
+    if (sent) delete sent.updatedAt;
     results.check(KIND, "round1/dash-03/profile-save-sends-only-the-change", offers.length === 0 && !!sent && JSON.stringify(sent) === JSON.stringify({ phone: "2155550188" }),
       offers.length ? "the profile's Edit offers " + offers.join(" and ") + " to a supervisor" : !sent ? "Save sent no PATCH" : "Save sent " + JSON.stringify(sent) + " for one changed phone number");
   } catch (e) {

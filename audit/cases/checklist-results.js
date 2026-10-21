@@ -15,8 +15,8 @@
 //   zones          a zone picked by its button and by its bar shows its tasks alone; checks per person
 //   range          each shift's totals over a range, a row a day, and a day opened from the table and
 //                  from the chart
-//   all sites      a card per site with its ring and trend, a reference site not tracked, and a card
-//                  opening its site
+//   all sites      a card per site with its ring and trend, counted the summary's way since part 368, a
+//                  reference site not tracked, and a card opening its site
 //   live           today is read again within 32 seconds and shows a check made since; a past day is
 //                  not read again
 //   list           Not done only, search, and the CSV holding exactly the rows on screen
@@ -274,7 +274,9 @@ async function rangeCases(ctx) {
     const cards = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-site-card]")).map((el) => ({ id: el.getAttribute("data-cr-site-card"),
       due: el.getAttribute("data-cr-due"), done: el.getAttribute("data-cr-done"), text: el.innerText, charts: el.querySelectorAll(".apexcharts-canvas").length })));
     const card = (id) => cards.find((c) => c.id === id) || null;
-    const total = (siteId) => { const w = expected(M, siteId, M.SEEDED, M.SEEDED).groups; return Object.keys(w).reduce((a, k) => ({ due: a.due + w[k].due, done: a.done + w[k].done }), { due: 0, done: 0 }); };
+    // Since part 368 a card is the summary's count (GET /api/reports/checklist-summary, countDay): every
+    // item the record lists as due, weekly to seasonal work included, done of due.
+    const total = (siteId) => M.summaryDay(siteId, M.SEEDED);
     const t1 = total(S1), t2 = total(S2);
     const ok = cards.length === 3 && card(S1) && card(S1).due === String(t1.due) && card(S1).done === String(t1.done) && card(S1).charts === 2
       && card(S2) && card(S2).due === String(t2.due) && card(S2).done === String(t2.done) && card(S3) && card(S3).due === null && card(S3).text.indexOf("Not tracked") >= 0;

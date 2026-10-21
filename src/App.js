@@ -28,6 +28,29 @@ const API_DEADLINE_MS = 30000;
 const API_UPLOAD_DEADLINE_MS = 120000;
 // How many calls are out right now, which the update check asks before it reloads.
 let apiInFlight = 0;
+// The session renewed (part 368, DASH-23; the API's part 363 POST /api/auth/renew). A renewed token
+// stands in for the token it renewed on every call, whatever screen still holds the first one: the
+// Authorization header is read here and given the latest token of its line. The screens keep the token
+// they were drawn with, so a renewal draws nothing again and loses nothing typed.
+const renewedTokens = new Map();
+const latestToken = (tok) => { let x = tok; for (let i = 0; i < 100 && renewedTokens.has(x); i += 1) x = renewedTokens.get(x); return x; };
+function withLatestToken(headers) {
+  if (!headers || renewedTokens.size === 0) return headers;
+  const k = ["Authorization", "authorization"].find(x => typeof headers[x] === "string" && headers[x].indexOf("Bearer ") === 0);
+  if (!k) return headers;
+  const was = headers[k].slice(7), now = latestToken(was);
+  return now === was ? headers : { ...headers, [k]: "Bearer " + now };
+}
+// When the API made a token, from the iat its payload carries, or null for one that carries none.
+function tokenIssuedAt(tok) {
+  try {
+    const part = String(tok || "").split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const p = JSON.parse(atob(b64 + "===".slice((b64.length + 3) % 4)));
+    return p && Number.isFinite(p.iat) ? p.iat * 1000 : null;
+  } catch (e) { return null; }
+}
 function apiRequest(url, init = {}) {
   const ctl = typeof AbortController === "function" ? new AbortController() : null;
   const b = init.body;
@@ -36,7 +59,7 @@ function apiRequest(url, init = {}) {
   const timer = ctl ? setTimeout(() => { timedOut = true; ctl.abort(); }, sendsFile ? API_UPLOAD_DEADLINE_MS : API_DEADLINE_MS) : null;
   if (ctl && init.signal) { if (init.signal.aborted) ctl.abort(); else init.signal.addEventListener("abort", () => ctl.abort()); }
   apiInFlight += 1;
-  return fetch(withLocale(url), { ...init, signal: ctl ? ctl.signal : init.signal, headers: { ...init.headers, "Accept-Language": getLang() } })
+  return fetch(withLocale(url), { ...init, signal: ctl ? ctl.signal : init.signal, headers: { ...withLatestToken(init.headers), "Accept-Language": getLang() } })
     .then(r => { clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1); return r; }, e => {
       clearTimeout(timer); apiInFlight = Math.max(0, apiInFlight - 1);
       if (timedOut) { const err = new Error(tr("The connection timed out. Try again.")); err.status = 0; err.code = "network.timeout"; throw err; }
@@ -378,6 +401,11 @@ const writeAuth = (token, user, remember = true) => {
   try { (keep ? localStorage : sessionStorage).setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {}
   try { (keep ? sessionStorage : localStorage).removeItem(AUTH_KEY); } catch {}
 };
+// A session's token is renewed once it is an hour old, for someone who used the dashboard in the last
+// 30 minutes, checked every 5 minutes (part 368, DASH-23).
+const SESSION_RENEW_AFTER_MS = 60 * 60000;
+const SESSION_IDLE_MS = 30 * 60000;
+const SESSION_RENEW_CHECK_MS = 5 * 60000;
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} try { sessionStorage.removeItem(AUTH_KEY); } catch {} };
 // The device id every sign-in sends for the second sign-in step (Step 232, Part C; STEP225_CONTRACT.md):
 // made once with crypto.randomUUID() and kept as ocsa-device-id. A browser that refuses storage makes a
@@ -395,7 +423,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -408,8 +436,8 @@ const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"
 // name yet keeps today's behavior: Cases, HR Records and the employment controls read the API's own
 // answer for those three (capNamed in the shell), never these defaults.
 const CAP_ROLE_DEFAULTS = {
-  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
-  supervisor: { manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true, file_maintenance_requests: true, manage_leave_balances: true },
+  supervisor: { file_maintenance_requests: true, manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
   staff: {},
 };
 // The owner's decision 1 (Round 1, Oct 15, 2026): nobody without manage_employment sees a dollar figure,
@@ -597,6 +625,8 @@ const CamI = p => <Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l
 const SnI = p => <Ic d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" {...p} />;
 const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p} />;
 const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />; const ChkI = p => <Ic d="M20 6L9 17l-5-5" {...p} />;
+const LvI = p => <Ic d="M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M9 15h6" {...p} />;
+const MntI = p => <Ic d="M3 21h18 M5 21V8l7-5 7 5v13 M9 21v-5h6v5 M10 10h4" {...p} />;
 const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
 const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
 const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...p} />;
@@ -644,6 +674,28 @@ const choiceWordOf = (lkMap, slug) => { const shown = lkMap(slug, true); const p
 // A service category on a screen that only shows it: the cims_categories lookup's shown label where
 // the page reads the lookup, then the label table through the word table, then Other. The code itself
 // is the category column's, which no screen or export names (finding API-99).
+// The service category (part 368, the API's finding API-99): the API answers it as serviceCategory and,
+// until it drops them, under the keys it had before with the same value. Every read takes serviceCategory
+// first, and every write sends serviceCategory.
+const OLD_CATEGORY_KEYS = ["cims_category", "item_cims_category", "cimsCategory"];
+const catOf = (row) => {
+  if (!row || typeof row !== "object") return undefined;
+  if (row.serviceCategory !== undefined) return row.serviceCategory;
+  const k = OLD_CATEGORY_KEYS.find(x => row[x] !== undefined);
+  return k ? row[k] : undefined;
+};
+// A record's or an activity entry's details with the category named once, as serviceCategory.
+const oneCategoryKey = (meta) => {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return meta;
+  const has = meta.serviceCategory !== undefined;
+  const changed = Array.isArray(meta.fields_changed) && meta.fields_changed.indexOf("serviceCategory") >= 0;
+  if (!has && !changed) return meta;
+  const out = {};
+  Object.keys(meta).forEach(k => { if (!has || OLD_CATEGORY_KEYS.indexOf(k) < 0) out[k] = meta[k]; });
+  if (changed) out.fields_changed = meta.fields_changed.filter(k => OLD_CATEGORY_KEYS.indexOf(k) < 0);
+  return out;
+};
+const withOneCategory = (entries) => (Array.isArray(entries) ? entries.map(e => (e && e.metadata ? { ...e, metadata: oneCategoryKey(e.metadata) } : e)) : entries);
 const serviceCategoryWord = (code, shown) => (shown && shown[code]) || (CIMS_LABELS[code] ? tr(CIMS_LABELS[code]) : code ? tr("Other|category") : "");
 // The same in an English export.
 const serviceCategoryLabel = (code, shown) => (shown && shown[code]) || CIMS_LABELS[code] || (code ? "Other" : "");
@@ -699,7 +751,7 @@ const LoadFailed = ({ t, onRetry, text, style }) => <div style={{ padding: 20, t
 // A page that waits on this person's capabilities (DASH-20) says Loading until the API has answered them,
 // and only then opens or says it is for admins.
 const CapsPendingNotice = ({ t }) => <div data-caps-pending="" style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
-const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
+const AdminOnlyNotice = ({ t, onBack, text }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{text || tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
 const CHART_PALETTE = [GO, BL, GR, OR, TL, RD, GL];
@@ -977,12 +1029,23 @@ export default function AdminDashboard() {
   // Whether GET /api/library answers a list (Step 306): Library joins the side panel for everyone who
   // signs in, since everyone reads every document. Read once a session.
   const [libraryOn, setLibraryOn] = useState(false);
+  // Whether GET /api/maintenance-requests/options answers this person (part 368, the API's part 365): a
+  // holder of file_maintenance_requests, admins and supervisors by default. Maintenance requests joins the
+  // side panel and each site gains its Maintenance tab. The answer's maxPhotos is the most a request takes.
+  const [maintenance, setMaintenance] = useState(null);
+  // Whether GET /api/leave/policies answers this person (part 368, the API's part 365): holders of
+  // read_hr_records or manage_leave_balances, admins by default. Leave balances joins the side panel under
+  // HR Records, and the HR folder and a site's General Info show the policy each follows.
+  const [leaveOn, setLeaveOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
   // A file the API withheld because its log could not be written (part 353, fileWithheld): its words,
   // and Try again, which runs the same open again. Null while there is none.
   const [fileRetry, setFileRetry] = useState(null);
+  // A save that met a change made since, waiting on this person's answer (part 368, API-101).
+  const [changedAsk, setChangedAsk] = useState(null);
+  useEffect(() => { const h = (ev) => setChangedAsk((ev && ev.detail) || null); window.addEventListener("ocsa-changed-since", h); return () => window.removeEventListener("ocsa-changed-since", h); }, []);
   useEffect(() => { const h = (ev) => setFileRetry((ev && ev.detail) || null); window.addEventListener("ocsa-file-withheld", h); return () => window.removeEventListener("ocsa-file-withheld", h); }, []);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
@@ -1014,6 +1077,8 @@ export default function AdminDashboard() {
     if (id === "periodic") return periodicOn;
     if (id === "tickets") return ticketsOn;
     if (id === "library") return libraryOn;
+    if (id === "maintenance") return !!maintenance;
+    if (id === "leave") return leaveOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -1025,7 +1090,9 @@ export default function AdminDashboard() {
     // The role defaults here do not hold it, so the item waits for the API to name it.
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn]);
+  }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn, maintenance, leaveOn]);
+  // What the HR folder and a site's page need to know about leave balances (part 368).
+  const leaveCtx = useMemo(() => ({ on: leaveOn, canManage: leaveOn && hasCap("manage_leave_balances") }), [leaveOn, hasCap]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -1096,7 +1163,7 @@ export default function AdminDashboard() {
   // Whether the session's first round of probes has answered (DASH-27).
   const [probesIn, setProbesIn] = useState(false);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setProbesIn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setMaintenance(null); setLeaveOn(false); setProbesIn(false); return undefined; }
     // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
     // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
     let alive = true; let soft = false; let timer = null;
@@ -1108,6 +1175,8 @@ export default function AdminDashboard() {
     probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
     probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
     probes.push(af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLibraryOn(false); console.warn("Library:", e.message); }));
+    probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? { maxPhotos: Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d.responseDays } : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
+    probes.push(af("/api/leave/policies").then(d => { if (alive) setLeaveOn(!!(d && Array.isArray(d.policies))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLeaveOn(false); console.warn("Leave balances:", e.message); }));
     probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
     Promise.all(probes).then(() => { if (alive) setProbesIn(true); if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
     return () => { alive = false; clearTimeout(timer); };
@@ -1243,7 +1312,7 @@ export default function AdminDashboard() {
   // none. Choose your PIN goes with the session.
   const [signedOutWords, setSignedOutWords] = useState("");
   const [mustSetPin, setMustSetPin] = useState(false);
-  const signOut = useCallback((words) => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
+  const signOut = useCallback((words) => { clearAuth(); renewedTokens.clear(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); setMustSetPin(false); setSignedOutWords(typeof words === "string" ? words : ""); }, []);
   // A session that was signed in and ends by itself lets this computer's alerts go (DASH-41).
   const signedInNow = useRef(false);
   useEffect(() => { signedInNow.current = !!token; }, [token]);
@@ -1256,6 +1325,34 @@ export default function AdminDashboard() {
     if (pushSupported() && pushPermission() === "granted") { try { await Promise.race([turnOffComputerAlerts(af), new Promise(resolve => setTimeout(resolve, SIGN_OUT_PUSH_MS))]); } catch (e) {} }
     signOut();
   };
+  // The session is renewed while someone uses the dashboard (part 368, DASH-23): every 5 minutes, and at
+  // a click or a key at most once a minute, a token an hour old or more goes to POST /api/auth/renew
+  // when the person clicked or typed in the last 30 minutes. The new token is kept where the session is
+  // kept and stands in for the old one on every call. A dashboard left alone keeps its token's 12 hours
+  // and then signs out, as before. A refusal ends the session the way any 401 does; a renewal that does
+  // not answer is tried at the next check.
+  const userNow = useRef(null);
+  useEffect(() => { userNow.current = user; }, [user]);
+  useEffect(() => {
+    if (!token || mustSetPin) return undefined;
+    let used = Date.now(), checked = 0, busy = false, alive = true;
+    const check = async () => {
+      if (busy || !alive) return;
+      const cur = latestToken(token), at = tokenIssuedAt(cur), now = Date.now();
+      if (at === null || now - at < SESSION_RENEW_AFTER_MS || now - used > SESSION_IDLE_MS) return;
+      busy = true;
+      try {
+        const d = await apiFetch("/api/auth/renew", { method: "POST", token: cur });
+        if (alive && d && typeof d.token === "string" && d.token && d.token !== cur) { renewedTokens.set(cur, d.token); writeAuth(d.token, userNow.current, rememberRef.current); }
+      } catch (e) { console.warn("Session renew:", e.message); }
+      finally { busy = false; }
+    };
+    const touch = () => { used = Date.now(); if (checked === 0 || used - checked >= 60000) { checked = used || 1; check(); } };
+    const iv = setInterval(check, SESSION_RENEW_CHECK_MS);
+    window.addEventListener("pointerdown", touch, true);
+    window.addEventListener("keydown", touch, true);
+    return () => { alive = false; clearInterval(iv); window.removeEventListener("pointerdown", touch, true); window.removeEventListener("keydown", touch, true); };
+  }, [token, mustSetPin]);
   // A 403 auth.mustSetPin from any route draws Choose your PIN and nothing else (STEP283_CONTRACT.md
   // section 1.1), for the person signed in.
   useEffect(() => { const h = () => setMustSetPin(true); window.addEventListener("ocsa-must-set-pin", h); return () => window.removeEventListener("ocsa-must-set-pin", h); }, []);
@@ -1400,6 +1497,8 @@ export default function AdminDashboard() {
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       ...(canOpenPage("hr") ? [{ id: "hr", l: tr("HR Records"), i: FolI }] : []),
+      // Part 368: everyone's leave balances, their policies and the payroll system's hours files.
+      ...(canOpenPage("leave") ? [{ id: "leave", l: tr("Leave balances"), i: LvI }] : []),
       ...(canOpenPage("hr-access") ? [{ id: "hr-access", hash: "hr/access-report", l: tr("HR file access report"), i: RecI }] : []),
       // DASH-06: someone without HR Records whom GET /api/signatures answers opens Waiting for
       // signatures from its own item; with HR Records it stays a tab there.
@@ -1414,6 +1513,8 @@ export default function AdminDashboard() {
     ]},
     { label: tr("Quality"), items: [
       { id: "issues", l: tr("Issues"), i: AlI },
+      // Part 368: building problems sent to each building's own maintenance team.
+      ...(canOpenPage("maintenance") ? [{ id: "maintenance", l: tr("Maintenance requests"), i: MntI }] : []),
       { id: "assigned", l: tr("Assigned Tasks"), i: WkI },
       { id: "inspections", l: tr("Inspections"), i: ClpI },
       ...(canOpenPage("periodic") ? [{ id: "periodic", l: tr("Periodic work"), i: HsI }] : []),
@@ -1435,7 +1536,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1469,7 +1570,7 @@ export default function AdminDashboard() {
   // A row of the More menu, the row the user menu draws.
   const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
 
-  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><PayCtx.Provider value={!!canEmploy}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><PayCtx.Provider value={!!canEmploy}><LeaveCtx.Provider value={leaveCtx}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
     {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
         closed again by a pick, by its own close button and by Escape. */}
@@ -1680,11 +1781,13 @@ export default function AdminDashboard() {
           : capsPending || (route[0] === "signatures" && !signaturesIn) ? <CapsPendingNotice t={t} />
           : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "training" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={trainingRoute} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} trainingPage />}
-        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes") && canEmploy} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
+        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} maintenance={maintenance} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes") && canEmploy} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "checklist" && <ChecklistResultsPage af={af} t={t} sites={sites} route={route} user={user} showToast={showToast} />}
-        {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} />}
+        {page === "issues" && <IssuesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} maintenance={maintenance} canManageSites={hasCap("manage_sites")} />}
+        {page === "leave" && (canOpenPage("leave") ? <LeavePage af={af} t={t} token={token} sites={sites} showToast={showToast} route={route} onRoute={replaceRoute} canOpenStaff={canOpenPage("staff")} /> : !probesIn ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Leave balances open for HR Records and for the people who keep the balances. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
+        {page === "maintenance" && (canOpenPage("maintenance") ? <MaintenancePage af={af} t={t} token={token} sites={sites} showToast={showToast} route={route} onRoute={replaceRoute} maintenance={maintenance} canManageSites={hasCap("manage_sites")} /> : !probesIn ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Maintenance requests open for the people who file them. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} sites={sites} user={user} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
@@ -1713,6 +1816,7 @@ export default function AdminDashboard() {
     </div>
 
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} hrOpen={canOpenPage("hr")} />}
+    {changedAsk && <ChangedSinceWindow t={t} ask={changedAsk} onAnswer={(yes) => { const a = changedAsk; setChangedAsk(null); if (a && typeof a.resolve === "function") a.resolve(yes); }} />}
     {fileRetry && <Mdl t={t} onClose={() => setFileRetry(null)}><div style={{ padding: 20 }} data-file-withheld="">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("The file did not open")}</div>
@@ -1734,7 +1838,7 @@ export default function AdminDashboard() {
     {toast && <Tst t={toast} />}
     {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
+  </div></LeaveCtx.Provider></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
@@ -2621,14 +2725,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // other as the name with its underscores as spaces, which is what the page has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
   // Any other key the API writes is read as words, and through the table when it has them (Step 196).
   const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
   // A field's value where it is a code: a service category is drawn as its plain word.
   const catShown = lkMap ? lkMap("cims_categories", true) : {};
-  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), catShown) : v);
+  const valueOf = (k, v) => (OLD_CATEGORY_KEYS.concat(["serviceCategory"]).indexOf(k) >= 0 ? serviceCategoryWord(String(v), catShown) : v);
   // The timeline's categories: what its chips say, and what a printed timeline names its filter with.
   const tlCats = [{ id: "all", l: tr("All|timeline") }, { id: "clock", l: tr("Clock") }, { id: "tasks", l: tr("Tasks") }, { id: "inspections", l: tr("Inspections") }, { id: "issues", l: tr("Issues") }, { id: "schedule", l: tr("Schedule") }, { id: "marketplace", l: tr("Marketplace") }, { id: "documents", l: tr("Documents") }, { id: "training", l: tr("Training") }, { id: "profile", l: tr("Profile") }, { id: "timesheets", l: tr("Timesheets") }, { id: "supplies", l: tr("Supplies") }];
   const tlCatWord = (c) => (tlCats.find((x) => x.id === c) || {}).l || c;
@@ -2668,7 +2772,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       if (sd) url += "&startDate=" + sd;
       if (ed) url += "&endDate=" + ed;
       const d = await af(url);
-      setTimeline(d.entries || []); setTlTotal(d.total || 0);
+      setTimeline(withOneCategory(d.entries || [])); setTlTotal(d.total || 0);
     } catch (e) { showToast(e.message, "error"); setTimeline([]); }
     setTlLoading(false);
   };
@@ -2692,14 +2796,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   };
 
   // The next page of the timeline, with the same filters.
-  const loadMoreTimeline = async (userId) => { try { let url = "/api/users/timeline/" + userId + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } };
+  const loadMoreTimeline = async (userId) => { try { let url = "/api/users/timeline/" + userId + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...withOneCategory(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } };
 
   // Fetch timeline entry detail (Session 18)
   const openTimelineDetail = async (entry) => {
     setTlDetailLoading(true);
     try {
       const d = await af("/api/users/timeline-detail/" + entry.entityType + "/" + entry.entityId);
-      setTlDetail({ ...d, entry });
+      setTlDetail({ ...d, record: oneCategoryKey(d.record), relatedItems: Array.isArray(d.relatedItems) ? d.relatedItems.map(oneCategoryKey) : d.relatedItems, entry });
     } catch (e) {
       // If detail fetch fails, still show what we have from the activity log
       setTlDetail({ found: false, entry, record: null, photos: [], relatedItems: [] });
@@ -2900,7 +3004,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // was. Since part 341 a save sends only the fields whose value changed from that, so a field the list
   // never carries, the hourly rate among them, is never sent as blank, and every field left untouched
   // stays as it is. A save with nothing changed closes the window and sends nothing.
+  // The person's record as GET /api/users/:id answers it, read when an edit opens, since only that read
+  // carries its updated time, which the save sends back (part 368, API-101). A person's record moves at
+  // each sign-in, so a save of fields that did not change since goes again without asking.
+  const userReadRef = useRef({});
+  const readUserStamp = (id) => { const k = String(id); userReadRef.current[k] = null; af("/api/users/" + encodeURIComponent(k)).then(d => { if (d && d.user) userReadRef.current[k] = d.user; }).catch(() => {}); };
+  const userFieldLabels = { firstName: tr("First Name"), lastName: tr("Last Name"), phone: tr("Phone"), email: tr("Email"), role: tr("Role"), employeeId: tr("Employee ID"), hourlyRate: tr("Hourly Rate"), birthday: tr("Birthday"), addressLine1: tr("Address Line 1"), addressLine2: tr("Address Line 2"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), emergencyContactName: tr("Emergency Contact"), emergencyContactPhone: tr("Emergency Phone"), preferredLanguage: tr("Preferred Language"), personalNotes: tr("Notes"), employmentType: tr("Employment Type"), hireDate: tr("Hire Date") };
   const openEdit = (s) => {
+    readUserStamp(s.id);
     const opened = { firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null };
     setHireSaid(null);
     setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened }, opened));
@@ -2916,7 +3027,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     // A rate emptied clears it: since the API's part 346 a PATCH takes null for that and refuses "" (users.badRate).
     if (body.hourlyRate === "") body.hourlyRate = null;
     if (!Object.keys(body).length) { setEditForm(null); return; }
-    try { await af("/api/users/" + editForm.id, { method: "PATCH", body }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: userReadRef.current[String(editForm.id)], labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
   };
 
   // Photo upload
@@ -2961,7 +3072,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       Object.keys(body).forEach(k => { if (k !== "preferredLanguage" && sameValue(body[k], was[k])) delete body[k]; });
       if (body.hourlyRate === "") body.hourlyRate = null;
       if (!Object.keys(body).length) { setProfileEdit(null); return; }
-      await af("/api/users/" + profile.user.id, { method: "PATCH", body });
+      await saveSince(af, "/api/users/" + profile.user.id, { method: "PATCH", body, read: userReadRef.current[String(profile.user.id)], labels: userFieldLabels });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
@@ -3074,7 +3185,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); readUserStamp(u.id); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -3665,7 +3776,7 @@ const siteDetailsRefusalField = (e) => {
   if (names("contractreference", "contract_reference")) return "contractReference";
   return "";
 };
-function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute, onOpenLinks }) {
+function SitesPage({ af, token, showToast, maintenance = null, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute, onOpenLinks }) {
   // A record's field, on Record Detail and its print: a field that carries pay or money only for a holder
   // of manage_employment (decision 1, DASH-22).
   const seesPay = useContext(PayCtx);
@@ -3805,12 +3916,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   // a word here is drawn as that word, and any other as the name with its underscores as spaces,
   // which is what the window has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
   // Any other key the API writes is read as words, and through the table when it has them (Step 196).
   const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
   // A field's value where it is a code: a service category is drawn as its plain word.
-  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), cimsLabels) : v);
+  const valueOf = (k, v) => (OLD_CATEGORY_KEYS.concat(["serviceCategory"]).indexOf(k) >= 0 ? serviceCategoryWord(String(v), cimsLabels) : v);
   // The kind of record a timeline entry points at, which the printed timeline shows as its category.
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage") };
   const entityOf = (k) => k ? (entityWord[k] || k.replace(/_/g, " ")) : "";
@@ -3865,7 +3976,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       if (tlDateRange.start) url += "&startDate=" + tlDateRange.start;
       if (tlDateRange.end) url += "&endDate=" + tlDateRange.end;
       const d = await af(url);
-      setTimeline(append ? prev => [...prev, ...d.entries] : d.entries);
+      setTimeline(append ? prev => [...prev, ...withOneCategory(d.entries)] : withOneCategory(d.entries));
       setTlTotal(d.total);
       setTlFailed(false);
     } catch (e) { console.warn("Timeline load error:", e); if (!append) setTimeline([]); setTlFailed(true); }
@@ -3886,12 +3997,18 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     return v === "tracked" || v === "reference" ? v : "";
   };
   const [modeBusy, setModeBusy] = useState(false);
+  // Every save of a site sends the updated time of the site as read (part 368, API-101), and keeps the new
+  // one from the answer, so the next save sends it.
+  const siteLabels = { name: tr("Site Name"), addressLine1: tr("Address"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), primeContractor: tr("Prime Contractor"), clientName: tr("Client Name"), clientContactName: tr("Contact Name"), clientContactEmail: tr("Contact Email"), clientContactPhone: tr("Contact Phone"), contractType: tr("Contract Type"), siteNotes: tr("Site Notes"), scopeOfWork: tr("Scope of Work"), status: tr("Status") };
+  const siteRead = () => (siteProfile && siteProfile.site && String(siteProfile.site.id) === String(selectedSite) ? siteProfile.site : null);
+  const keepSiteStamp = (r) => { const at = r && r.site ? stampOf(r.site) : null; if (at) setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, updated_at: at } } : p)); };
   const saveChecklistMode = async (next) => {
     if (modeBusy || !selectedSite) return;
     setModeBusy(true);
     try {
-      await af("/api/sites/" + encodeURIComponent(selectedSite), { method: "PATCH", body: { checklistMode: next } });
+      const r = await saveSince(af, "/api/sites/" + encodeURIComponent(selectedSite), { method: "PATCH", body: { checklistMode: next }, read: siteRead(), labels: siteLabels });
       setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, checklistMode: next } } : p));
+      keepSiteStamp(r);
       showToast(next === "reference" ? tr("Staff no longer check off tasks here.") : tr("Staff check off tasks here again."));
       loadSites();
     } catch (e) { showToast(e.message || tr("Request failed"), "error"); }
@@ -3977,7 +4094,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
   const saveSiteField = async (fieldMap) => {
     try {
-      await af("/api/sites/" + selectedSite, { method: "PATCH", body: fieldMap });
+      await saveSince(af, "/api/sites/" + selectedSite, { method: "PATCH", body: fieldMap, read: siteRead(), labels: siteLabels });
       showToast(tr("Saved"));
       refreshProfile();
     } catch (e) { showToast(e.message, "error"); }
@@ -3995,7 +4112,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const submitTask = onceTask(async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
-      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, serviceCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
@@ -4004,7 +4121,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
   const submitEditTask = async () => {
     try {
-      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, serviceCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
@@ -4015,7 +4132,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast(tr("Removed|task")); const tasks = await af("/api/sites/" + sid + "/tasks" + EVERY_ITEM); setSt(tasks); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast(tr("Site deactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
+  const deactivateSite = async (id) => { try { await saveSince(af, "/api/sites/" + id, { method: "PATCH", body: { status: "inactive" }, read: siteProfile && siteProfile.site && String(siteProfile.site.id) === String(id) ? siteProfile.site : null, labels: siteLabels }); showToast(tr("Site deactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
 
 
   const uploadFloorPlan = async (file) => {
@@ -4075,7 +4192,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     setTlDetailLoading(true);
     try {
       const d = await af("/api/users/timeline-detail/" + entry.entityType + "/" + entry.entityId);
-      setTlDetail({ ...d, entry });
+      setTlDetail({ ...d, record: oneCategoryKey(d.record), relatedItems: Array.isArray(d.relatedItems) ? d.relatedItems.map(oneCategoryKey) : d.relatedItems, entry });
     } catch (e) {
       setTlDetail({ found: false, entry, record: null, photos: [], relatedItems: [] });
     }
@@ -4193,7 +4310,9 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       ...(workload ? [{ k: "plan", l: tr("Workload plan") }] : []),
       { k: "chat", l: tr("Chat") }, { k: "timeline", l: tr("Timeline") },
       ...(blocksLive ? [{ k: "blocks", l: tr("Shift names") }] : []),
-      ...(survey ? [{ k: "survey", l: tr("Client survey") }] : [])
+      ...(survey ? [{ k: "survey", l: tr("Client survey") }] : []),
+      // Part 368: the site's maintenance contacts and its own maintenance requests.
+      ...(maintenance ? [{ k: "maintenance", l: tr("Maintenance|site tab") }] : [])
     ];
 
     return (<div>
@@ -4215,7 +4334,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           </div>
           {canManageSites && <div style={{ display: "flex", gap: 6 }}>
             {s.status === "active" && <button onClick={() => { if (window.confirm(tr("Deactivate this site?"))) deactivateSite(s.id); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>{tr("Deactivate")}</button>}
-            {s.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + s.id, { method: "PATCH", body: { status: "active" } }); showToast(tr("Site reactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>{tr("Reactivate")}</button>}
+            {s.status !== "active" && <button onClick={async () => { try { await saveSince(af, "/api/sites/" + s.id, { method: "PATCH", body: { status: "active" }, read: s, labels: siteLabels }); showToast(tr("Site reactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>{tr("Reactivate")}</button>}
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
@@ -4234,6 +4353,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
       {/* GENERAL INFO TAB */}
       {siteTab === "general" && <div>
+        {/* Part 368: the leave policy people at this site follow unless they have their own. */}
+        <SiteLeavePolicy key={"leave-" + s.id} af={af} t={t} siteId={s.id} showToast={showToast} />
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Contract Details")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -4336,12 +4457,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })}>
+            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })}>
               <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}{tk.critical === true && <Bdg l={tr("Critical|touchpoint")} c={RD} />}</div>
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(catOf(tk), cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
             </div>}
           </div>
@@ -4445,6 +4566,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
       {/* SHIFT NAMES TAB (Step 196) */}
       {siteTab === "blocks" && blocksLive && <ShiftNamesPanel key={selectedSite} af={af} t={t} siteId={selectedSite} canEdit={canManageTasks} showToast={showToast} />}
+      {siteTab === "maintenance" && maintenance && <SiteMaintenancePanel key={selectedSite} af={af} t={t} token={token} site={s} sites={sites} canManageSites={canManageSites} canFile={maintenance.canFile !== false} maxPhotos={maintenance.maxPhotos} showToast={showToast} />}
 
       {/* CLIENT SURVEY TAB (Step 196) */}
       {siteTab === "survey" && survey && <Crd t={t} style={{ marginBottom: 16 }}>
@@ -4580,7 +4702,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             // (decision 1), so a save by anyone else never writes it back.
             const siteBody = Object.assign({}, editSite);
             if (!seesPay) delete siteBody.contractValueMonthly;
-            await af("/api/sites/" + selectedSite, { method: "PATCH", body: siteBody });
+            await saveSince(af, "/api/sites/" + selectedSite, { method: "PATCH", body: siteBody, read: siteRead(), labels: siteLabels });
             showToast(tr("Site updated")); setEditSite(null); refreshProfile(); load();
           } catch (e) { const field = siteDetailsRefusalField(e); if (field && editSite[field] !== undefined) setSiteRefusal({ field, text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
         }}>{tr("Save")}</Btn></div>
@@ -4740,25 +4862,39 @@ function OpsPage({ af, t, allStaff }) {
   </div>);
 }
 
-// ===== CHECKLIST RESULTS (part 358) =====
+// ===== CHECKLIST RESULTS (parts 358 and 368) =====
 // What was done at a site on any day, on the dashboard itself: one site on one day, a site over a range
-// of days, or every site at once, with a report laid out for paper. Everything is read from the kept
+// of days, or every site at once, with a report laid out for paper. A site is read from its kept
 // checklist record, GET /api/sites/:id/checklist-record (the API's Step 238, management, 31 days at
-// most), which answers each day's items with whether each was done, when, by whom and every check.
-// The record names no shift on an item, so a site with two or more shifts (the day's schedule, GET
-// /api/sites/:siteId/shift-blocks/schedule) is read once for each shift, and an item every shift's read
-// holds is one tied to no shift, drawn once under Any shift. A shift's window is its timed blocks' on
-// that schedule, or its sessions' when it has none. Who worked is who started that shift (GET
-// /api/shift-sessions/by-site, Live Ops' read) and who checked its work, and the repeating work's last
-// check is Periodic work's (GET /api/periodic-work). Counting is the checklist's own: per visit, daily
+// most), once for the site and the days: each day's items with whether each was done, when, by whom,
+// every check, and since the API's part 363 the item's shift, null for one tied to no shift, which is
+// drawn once under Any shift at a site with two or more shifts (the day's schedule, GET
+// /api/sites/:siteId/shift-blocks/schedule). A shift's window is the schedule's startTime and endTime
+// for it, the end on the next day when crossesMidnight, or its sessions' when it has no timed block.
+// Who worked is who started that shift (GET /api/shift-sessions/by-site, Live Ops' read) and who checked
+// its work, and the repeating work's last check is Periodic work's on the day shown (GET
+// /api/periodic-work?siteId=&on=). Counting on a site's page is the checklist's own: per visit, daily
 // and every other day work due that day, done of due; weekly to seasonal work in its own section; as
-// needed never counted. Times are on the company's clock, and today is the company's checklist day,
-// from 4:00 AM. Today is read again every 30 seconds while the page is on screen; a past day is read
-// once. The view lives in the address, #checklist/<site or all>/<period>[/<shift>], the period
-// today, yesterday, last7, month, one day, or two days joined by "..".
+// needed never counted. All sites is one read, GET /api/reports/checklist-summary?from=&to=, which
+// counts every item the record lists as due, weekly to seasonal work included. Times are on the
+// company's clock, and today is the company's checklist day, from checklistDayStartsAt on GET
+// /api/settings (4:00 AM until it is read). Today is read again every 30 seconds while the page is on
+// screen; a past day is read once. The view lives in the address, #checklist/<site or all>/<period>
+// [/<shift>], the period today, yesterday, last7, month, one day, or two days joined by "..".
 const CR_TZ = clientConfig.company.timeZone;
-// The checklist day starts at 4:00 AM on the company's clock, the API's default for it.
+// The checklist day starts at 4:00 AM on the company's clock, the API's default for it, until the
+// company's own time is read from GET /api/settings, once a session (part 368).
 const CR_DAY_STARTS = 4 * 60;
+const crDayStart = { minutes: CR_DAY_STARTS, read: false };
+function crReadDayStart(af) {
+  if (crDayStart.read) return Promise.resolve(crDayStart.minutes);
+  return af("/api/settings").then(d => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String((d && d.checklistDayStartsAt) || ""));
+    if (m && Number(m[1]) < 24 && Number(m[2]) < 60) crDayStart.minutes = Number(m[1]) * 60 + Number(m[2]);
+    crDayStart.read = true;
+    return crDayStart.minutes;
+  }).catch(() => crDayStart.minutes);
+}
 const CR_LIVE_MS = 30000;
 const CR_QUARTER = 15 * 60000;
 const crClock = new Intl.DateTimeFormat("en-US", { timeZone: CR_TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -4770,7 +4906,7 @@ function crWall(at) {
 }
 const crAddDays = (day, n) => { const d = new Date(day + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const crDaysIn = (from, to) => { const out = []; for (let d = from; d <= to && out.length < 400; d = crAddDays(d, 1)) out.push(d); return out; };
-const crToday = () => { const w = crWall(Date.now()); return w.minutes < CR_DAY_STARTS ? crAddDays(w.day, -1) : w.day; };
+const crToday = () => { const w = crWall(Date.now()); return w.minutes < crDayStart.minutes ? crAddDays(w.day, -1) : w.day; };
 // The instant a time on the company's clock names: minutes after the midnight that starts day.
 function crInstant(day, minutes) {
   const want = Date.parse(day + "T00:00:00Z") + minutes * 60000;
@@ -4822,31 +4958,14 @@ function crStats(items) {
     first: checks.length ? checks[0].at : null, last: checks.length ? checks[checks.length - 1].at : null };
 }
 
-// A shift's window on a day, from the schedule's timed blocks (an anytime block has none): { start,
-// end } as instants, or null, whatever order the schedule lists the blocks in. The blocks that start
-// before noon are read either on the day itself or as the next morning, whichever makes the shift the
-// shorter, so a night shift from 10:00 PM to 6:00 AM is eight hours and a day shift stays on its day.
-// The end is the latest end, and none when the block that starts last has no end of its own.
-const CR_MORNING_UNTIL = 12 * 60;
+// A shift's window on a day, from the schedule's answer (the API's part 363, helpers/blockSchedule.js
+// shiftWindow): { start, end } as instants, the start on the day and the end on the day or, when the
+// shift crosses midnight, on the next; null for a shift with no timed block that day.
 function crShiftWindow(shift, day) {
-  const timed = (shift && Array.isArray(shift.blocks) ? shift.blocks : []).filter(b => b && b.kind !== "anytime" && crMinutes(b.startTime) !== null);
-  if (timed.length === 0) return null;
-  const read = (next) => {
-    const spans = timed.map(b => {
-      const s = crMinutes(b.startTime), e = crMinutes(b.endTime);
-      const off = next && s < CR_MORNING_UNTIL ? 1 : 0;
-      return { at: crInstant(crAddDays(day, off), s), end: e === null ? null : crInstant(crAddDays(day, off + (e <= s ? 1 : 0)), e) };
-    });
-    const start = Math.min(...spans.map(x => x.at));
-    const lastStart = Math.max(...spans.map(x => x.at));
-    const ends = spans.filter(x => x.end !== null).map(x => x.end);
-    const latest = ends.length ? Math.max(...ends) : null;
-    const end = latest !== null && latest > start && spans.filter(x => x.at === lastStart).some(x => x.end !== null) ? latest : null;
-    return { start, end, span: Math.max(lastStart, latest || 0) - start };
-  };
-  const same = read(false), next = read(true);
-  const w = next.span < same.span ? next : same;
-  return { start: w.start, end: w.end };
+  const s = crMinutes(shift && shift.startTime);
+  if (s === null) return null;
+  const e = crMinutes(shift.endTime);
+  return { start: crInstant(day, s), end: e === null ? null : crInstant(crAddDays(day, shift.crossesMidnight === true ? 1 : 0), e) };
 }
 // Without a schedule, the window a shift's sessions give: the first start, and the last end once every
 // one has ended.
@@ -4897,62 +5016,51 @@ function crWhoWorked(g, people, multi) {
 }
 
 // Every read one site's view needs: the schedule of its last day (the site's shifts and that day's
-// windows), the record once for each shift, or once for the whole site, and on one day the people who
-// started a shift there and Periodic work's last checks. The answer is { notTracked, shifts, days,
-// people, periodic, multi }, each day { date, groups: [{ key, name, items }] }, or the API's refusal,
-// thrown in its own words.
+// windows), the record once for the site and the days, and on one day the people who started a shift
+// there and Periodic work on that day. The answer is { notTracked, shifts, days, people, periodic, multi },
+// each day { date, groups: [{ key, name, items }] }, or the API's refusal, thrown in its own words. At a
+// site with two or more shifts each item goes under its own shift, the schedule's shifts first, in their
+// order, then any other the record names, and an item with no shift under Any shift.
 async function crReadSite(af, siteId, from, to, today) {
   const sid = encodeURIComponent(siteId);
   const sched = await af("/api/sites/" + sid + "/shift-blocks/schedule?date=" + to).catch(() => null);
   const shifts = (sched && Array.isArray(sched.shifts) ? sched.shifts : []).filter(s => s && s.label);
   const multi = shifts.length >= 2;
-  const labels = multi ? shifts.map(s => s.label) : [null];
-  const base = "/api/sites/" + sid + "/checklist-record?from=" + from + "&to=" + to;
   const oneDay = from === to;
-  const [recs, board, periodic] = await Promise.all([
-    Promise.all(labels.map(l => af(base + (l ? "&shift=" + encodeURIComponent(l) : "")))),
+  const [rec, board, periodic] = await Promise.all([
+    af("/api/sites/" + sid + "/checklist-record?from=" + from + "&to=" + to),
     oneDay ? af("/api/shift-sessions/by-site" + (from === today ? "?date=" + from : "?start_date=" + from + "&end_date=" + from)).catch(() => null) : null,
-    oneDay ? af("/api/periodic-work?siteId=" + sid).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
+    oneDay ? af("/api/periodic-work?siteId=" + sid + "&on=" + from).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
   ]);
-  if (recs.some(r => !r || typeof r !== "object")) throw new Error(tr("This did not load."));
-  if (recs.some(r => r.notTracked === true)) return { notTracked: true, shifts, days: [], people: [], periodic: null, multi };
-  if (recs.some(r => !Array.isArray(r.days))) throw new Error(tr("This did not load."));
+  if (!rec || typeof rec !== "object") throw new Error(tr("This did not load."));
+  if (rec.notTracked === true) return { notTracked: true, shifts, days: [], people: [], periodic: null, multi };
+  if (!Array.isArray(rec.days)) throw new Error(tr("This did not load."));
   const nameOf = (l) => { const s = shifts.find(x => x.label === l); return (s && (s.displayLabel || s.label)) || l; };
   const one = shifts.length === 1 ? shifts[0].label : null;
+  const labels = shifts.map(s => s.label);
   const days = crDaysIn(from, to).map(date => {
-    const held = new Map();
-    recs.forEach((r, ri) => {
-      const d0 = r.days.find(x => x && x.date === date);
-      ((d0 && Array.isArray(d0.items)) ? d0.items : []).forEach(it => { const k = String(it.taskId); if (!held.has(k)) held.set(k, { item: it, in: [] }); held.get(k).in.push(labels[ri]); });
-    });
-    if (!multi) return { date, groups: [{ key: one || "*", name: one ? nameOf(one) : tr("Whole site"), items: Array.from(held.values()).map(h => h.item) }] };
-    const groups = labels.map(l => ({ key: l, name: nameOf(l), items: [] })).concat([{ key: "*", name: tr("Any shift"), items: [] }]);
-    held.forEach(h => { const k = h.in.length >= labels.length ? "*" : h.in[0]; groups.find(g => g.key === k).items.push(h.item); });
-    return { date, groups: groups.filter(g => g.key !== "*" || g.items.length > 0) };
+    const d0 = rec.days.find(x => x && x.date === date);
+    const items = d0 && Array.isArray(d0.items) ? d0.items : [];
+    if (!multi) return { date, groups: [{ key: one || "*", name: one ? nameOf(one) : tr("Whole site"), items }] };
+    const keys = labels.concat(keptOnce(items.map(i => i.shift).filter(l => l && labels.indexOf(l) < 0)));
+    const groups = keys.map(l => ({ key: l, name: nameOf(l), items: items.filter(i => i.shift === l) })).concat([{ key: "*", name: tr("Any shift"), items: items.filter(i => !i.shift) }]);
+    return { date, groups: groups.filter(g => labels.indexOf(g.key) >= 0 || g.items.length > 0) };
   });
   const mine = board && Array.isArray(board.sites) ? board.sites.find(s => s && String(s.siteId) === String(siteId)) : null;
   // Today's read answers every session still open, whatever its day (Live Ops' board keeps a night shift
   // on it); one that started on another day is not this day's work.
   const people = (mine && Array.isArray(mine.people) ? mine.people : []).filter(p => !p.sessionDate || p.sessionDate === from);
-  return { notTracked: false, site: recs[0].site || null, shifts, days, multi, people, periodic };
+  return { notTracked: false, site: rec.site || null, shifts, days, multi, people, periodic };
 }
-// Every site's record for the period, four reads at a time; one day is read with the six days before it,
-// so its card can draw a week's trend. { span, bySite: { id: { rec } or { error, status } } }.
-async function crReadAll(af, list, from, to) {
+// Every site's count for the period in one read, GET /api/reports/checklist-summary (the API's part 363);
+// one day is read with the six days before it, so its card can draw a week's trend. { span, bySite: { id:
+// { notTracked, days: [{ date, due, done, checks }] } } }, or the API's refusal, thrown in its own words.
+async function crReadAll(af, from, to) {
   const span = from === to ? { from: crAddDays(to, -6), to } : { from, to };
+  const r = await af("/api/reports/checklist-summary?from=" + span.from + "&to=" + span.to);
+  if (!r || !Array.isArray(r.sites)) throw new Error(tr("This did not load."));
   const bySite = {};
-  let next = 0;
-  const lane = async () => {
-    while (next < list.length) {
-      const s = list[next];
-      next += 1;
-      try {
-        const r = await af("/api/sites/" + encodeURIComponent(s.id) + "/checklist-record?from=" + span.from + "&to=" + span.to);
-        bySite[String(s.id)] = r && (r.notTracked === true || Array.isArray(r.days)) ? { rec: r } : { error: tr("This did not load.") };
-      } catch (e) { bySite[String(s.id)] = { error: e.message || tr("This did not load."), status: e.status || 0 }; }
-    }
-  };
-  await Promise.all([0, 1, 2, 3].map(lane));
+  r.sites.forEach(x => { if (x && x.siteId != null) bySite[String(x.siteId)] = { notTracked: x.notTracked === true, days: Array.isArray(x.days) ? x.days : [] }; });
   return { span, bySite };
 }
 // The task list's rows for a view, as shown: each day's groups, zone by zone, through the filters.
@@ -5193,6 +5301,14 @@ function printChecklistReport(model) {
 const crPill = (t, on) => ({ minHeight: 44, padding: "6px 14px", borderRadius: R.pill, border: "1px solid " + (on ? t.goldBorder : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
 const crHead = (t) => ({ padding: "10px 12px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, textAlign: "left", verticalAlign: "bottom" });
 function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }) {
+  // The checklist day's start is read first, once a session, so today is the company's own (part 368).
+  const [dayStartRead, setDayStartRead] = useState(crDayStart.read);
+  useEffect(() => {
+    if (dayStartRead) return undefined;
+    let alive = true;
+    crReadDayStart(af).then(() => { if (alive) setDayStartRead(true); });
+    return () => { alive = false; };
+  }, [af, dayStartRead]);
   const today = crToday();
   const siteId = route[0] && String(route[0]) !== "all" ? decodeURIComponent(String(route[0])) : "";
   const period = crPeriod(route[1] ? decodeURIComponent(String(route[1])) : "today", today);
@@ -5206,8 +5322,6 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   const viewKey = [siteId || "all", period.from, period.to, allKey].join("|");
   const keyNow = useRef(viewKey);
   keyNow.current = viewKey;
-  const activeRef = useRef(active);
-  activeRef.current = active;
   const [read, setRead] = useState({ key: "", data: null, error: null, at: 0 });
   const [dates, setDates] = useState(null);
   const [zone, setZone] = useState("");
@@ -5217,7 +5331,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   const readNow = useCallback((quiet) => {
     const key = keyNow.current;
     const [sid, from, to] = key.split("|");
-    const job = sid !== "all" ? crReadSite(af, sid, from, to, crToday()) : crReadAll(af, activeRef.current, from, to);
+    const job = sid !== "all" ? crReadSite(af, sid, from, to, crToday()) : crReadAll(af, from, to);
     job.then(data => { if (keyNow.current === key) setRead({ key, data, error: null, at: Date.now() }); })
       .catch(e => { if (keyNow.current === key) setRead(prev => (quiet && prev.key === key && prev.data ? prev : { key, data: null, error: e, at: Date.now() })); });
   }, [af]);
@@ -5226,7 +5340,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   const here = window.location.hash.replace(/^#/, "").split("/")[0] === "checklist";
   // A new view is read at once, and today again every 30 seconds while the page is on screen.
   useEffect(() => {
-    if (!here) return undefined;
+    if (!here || !dayStartRead) return undefined;
     setZone("");
     readNow(false);
     if (!live) return undefined;
@@ -5234,7 +5348,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     const back = () => { if (!document.hidden) readNow(true); };
     document.addEventListener("visibilitychange", back);
     return () => { clearInterval(iv); document.removeEventListener("visibilitychange", back); };
-  }, [viewKey, live, readNow, here]);
+  }, [viewKey, live, readNow, here, dayStartRead]);
   // A zone picked on one shift may not be on another.
   useEffect(() => { setZone(""); }, [shiftPick]);
   const ready = read.key === viewKey;
@@ -5280,22 +5394,22 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   // ---- All sites ----
   if (!siteId) {
     const span = data.span;
+    // Each card's numbers are the summary's: every step the record lists as due, done of due, and every
+    // check. A site the summary does not name did not load.
     const cards = active.map(s => {
-      const got = data.bySite[String(s.id)] || {};
-      const rec = got.rec || null;
+      const rec = data.bySite[String(s.id)] || null;
+      const got = rec ? {} : { error: tr("This did not load.") };
       const notTracked = siteIsReference(s) || !!(rec && rec.notTracked === true);
-      const recDays = rec && Array.isArray(rec.days) ? rec.days : [];
+      const recDays = rec ? rec.days : [];
       const inPeriod = recDays.filter(d => d && d.date >= period.from && d.date <= period.to);
-      const st = crStats([].concat(...inPeriod.map(d => d.items || [])));
-      const trend = recDays.map(d => ({ date: d.date, pct: crStats(d.items || []).pct }));
+      const sum = (k) => inPeriod.reduce((n, d) => n + (Number(d[k]) || 0), 0);
+      const st = { due: sum("due"), done: sum("done"), checks: sum("checks") };
+      st.pct = crPct(st.done, st.due);
+      const trend = recDays.map(d => ({ date: d.date, pct: crPct(Number(d.done) || 0, Number(d.due) || 0) }));
       return { s, got, rec, notTracked, st, trend };
     });
-    const refusals = cards.filter(c => c.got.error);
-    if (cards.length > 0 && refusals.length === cards.length && refusals.every(c => c.got.status === 400)) {
-      return (<div data-checklist-results="" data-cr-view="refused">{pickers}{status}<Crd t={t}><div data-cr-refusal="" role="alert" style={{ fontSize: 13, color: RD, lineHeight: 1.5 }}>{refusals[0].got.error}</div></Crd></div>);
-    }
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")} {tr("A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included.")}</div>
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -5305,7 +5419,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
               : c.got.error ? <div style={{ fontSize: 12, color: RD, padding: "18px 0" }}>{c.got.error}</div>
                 : <>
                   <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
-                  <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks.length)}</div>
+                  <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks)}</div>
                   {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div><LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /></div> : null}
                 </>}
             <div style={{ marginTop: "auto" }}><Btn t={t} v="ghost" data-cr-open-site={String(c.s.id)} onClick={e => { e.stopPropagation(); go(String(c.s.id), period.token, ""); }} style={{ width: "100%" }}>{tr("Open this site")}</Btn></div>
@@ -5381,7 +5495,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   })();
   const dayOf = (at) => (at ? keptDay(crWall(Date.parse(at)).day) : "");
   const rCols = [
-    { header: tr("Task"), tdStyle: { minWidth: 170 }, render: r => (<span data-cr-repeating={String(r.item.taskId)}><span style={{ color: t.text }}>{shownLabel(r.item)}</span><div style={{ fontSize: 11, color: t.textMut }}>{shownZone(r.item)}</div></span>) },
+    { header: tr("Task"), tdStyle: { minWidth: 170 }, render: r => (<span data-cr-repeating={String(r.item.taskId)} data-cr-last-done={r.pw && r.pw.lastDoneAt ? r.pw.lastDoneAt : undefined} data-cr-due-by={r.pw && r.pw.dueBy ? r.pw.dueBy : undefined}><span style={{ color: t.text }}>{shownLabel(r.item)}</span><div style={{ fontSize: 11, color: t.textMut }}>{shownZone(r.item)}</div></span>) },
     { header: tr("Period"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => periodicFrequencyWord(r.item.frequency) },
     { header: tr("On this day"), tdStyle: { color: t.textSec, minWidth: 150 }, render: r => { if (!r.rec) return tr("Not due on this day"); const c = crChecksOf(r.rec); return c.length ? tr("Done at {0} by {1}", crTime(c[0].at), c[0].who || "--") : r.rec.due ? <span style={{ color: OR, fontWeight: 600 }}>{tr("Due, not done")}</span> : tr("Not due on this day"); } },
     { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.pw && r.pw.lastDoneAt ? dayOf(r.pw.lastDoneAt) + (periodicByOf(r.pw) ? ", " + periodicByOf(r.pw) : "") : "--") },
@@ -5436,7 +5550,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     </ChartCard>}
     {repeating.length > 0 && <div style={{ marginTop: 14 }}>
       <SecT t={t}>{tr("Repeating work")}</SecT>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Weekly, monthly, quarterly and seasonal tasks. Last done and Due by are as of today.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Weekly, monthly, quarterly and seasonal tasks.")}</div>
       <DataTable t={t} columns={rCols} rows={repeating} rowKey={r => String(r.item.taskId)} />
     </div>}
     <div style={{ marginTop: 14 }}>
@@ -5861,7 +5975,7 @@ const issueOfView = (v) => ({
   due_at: v.dueAt, due_state: v.dueState, first_response_at: v.firstResponseAt, resolved_at: v.resolvedAt, resolved_by_name: nameOf(v.resolvedBy) || null,
   verified_at: v.verifiedAt, verified_by_name: nameOf(v.verifiedBy) || null, minutes_to_first_response: v.minutesToFirstResponse, minutes_to_fixed: v.minutesToFixed, fixed_by_due: v.fixedByDue,
 });
-function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute }) {
+function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute, maintenance = null, canManageSites = false }) {
   const [onceAssign, assignBusy] = useBusyGuard();
   // Since the API's Step 250 the page has two tabs, Staff issues and Client requests, the second with
   // a count of those waiting for approval, drawn once GET /api/issues/requests answers.
@@ -5893,15 +6007,47 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const [issuesFailed, setIssuesFailed] = useState(false);
   // The Source filter, All, Staff or Client requests, sends ?source= once the API's Step 250 answers.
   const [source, setSource] = useState("");
-  const load = () => af("/api/issues" + (source ? "?source=" + encodeURIComponent(source) : "")).then(d => { setIssues(Array.isArray(d) ? d : []); setIssuesFailed(false); }).catch(e => { setIssues([]); setIssuesFailed(true); showToast(e.message, "error"); });
-  useEffect(() => { load(); }, [source]);
+  // A page at a time (part 368), the source and the status picked sent with each page; read again after
+  // a change, as many as are shown.
+  const [issNext, setIssNext] = useState("");
+  const [issMore, setIssMore] = useState(false);
+  const issueFilters = () => ({ source, status: filter === "all" ? "" : filter });
+  const load = (keep) => af(pagedPath("/api/issues", issueFilters(), "", keep === true ? issues.length : 0)).then(d => { setIssues(d && Array.isArray(d.issues) ? d.issues : []); setIssNext(d && d.nextCursor ? String(d.nextCursor) : ""); setIssuesFailed(false); }).catch(e => { setIssues([]); setIssNext(""); setIssuesFailed(true); showToast(e.message, "error"); });
+  const moreIssues = async () => {
+    if (!issNext || issMore) return;
+    setIssMore(true);
+    try { const d = await af(pagedPath("/api/issues", issueFilters(), issNext)); setIssues(have => pagedAppend(have, d && d.issues, i => i.id)); setIssNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setIssMore(false);
+  };
+  useEffect(() => { load(); }, [source, filter]);
   // The status picker's own refusal, issues.badStatus or issues.cannotClose, drawn under it in the
   // API's words; any other refusal is toasted as before.
   const [statusDraft, setStatusDraft] = useState("");
   const [statusRefusal, setStatusRefusal] = useState("");
+  // Part 368: Send to building maintenance. maintSend is the new request's start, GET
+  // /api/maintenance-requests/from-issue/:issueId's prefill with the issue's photos and the site's contacts,
+  // while its window is open. The issue's read carries maintenanceRequests, the requests it was sent as.
+  const [maintSend, setMaintSend] = useState(null);
+  const [maintSaid, setMaintSaid] = useState("");
+  // The requests the issue was sent as, once this window has sent or found one; until then the read's.
+  const [maintLinks, setMaintLinks] = useState(null);
+  const linksNow = () => (maintLinks != null ? maintLinks : (view && Array.isArray(view.maintenanceRequests) ? view.maintenanceRequests : []));
+  const addLink = (m) => setMaintLinks([m].concat(linksNow().filter(x => String(x.id) !== String(m.id))));
+  const [onceMaint, maintBusy] = useBusyGuard();
+  const startMaint = onceMaint(async (iss) => {
+    setMaintSaid("");
+    try {
+      const d = await af("/api/maintenance-requests/from-issue/" + encodeURIComponent(iss.id));
+      if (d && d.existing && d.existing.id) { addLink({ id: d.existing.id, reference: d.existing.reference, status: d.existing.status, statusName: d.existing.statusName }); setMaintSaid(tr("This issue was already sent to the building as {0}.", d.existing.reference)); return; }
+      const p = (d && d.prefill) || {};
+      setMaintSend(Object.assign({}, p, { issuePhotos: Array.isArray(d && d.issuePhotos) ? d.issuePhotos : [], contacts: Array.isArray(d && d.contacts) ? d.contacts : [] }));
+    } catch (e) { setMaintSaid((e && e.message) || tr("Request failed")); }
+  });
   const openIssue = async (iss) => {
     setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); setStatusDraft(iss.status || ""); setStatusRefusal("");
-    if (findingsOn) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); } } catch (e) { console.warn("Issue:", e.message); } }
+    setMaintSend(null); setMaintSaid(""); setMaintLinks(null);
+    if (findingsOn || maintenance) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); } } catch (e) { console.warn("Issue:", e.message); } }
     try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(Array.isArray(a) ? a : []); } catch (e) { setActivity([]); }
     try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(Array.isArray(p) ? p : []); } catch (e) { setAllPhotos([]); }
   };
@@ -5933,7 +6079,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
     try {
       const d = await af("/api/issues/" + encodeURIComponent(sel.id) + "/verify", { method: "POST", body: note ? { note } : {} });
       if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); }
-      setVerify({ note: "", refusal: "", busy: false }); showToast(tr("Verified")); load();
+      setVerify({ note: "", refusal: "", busy: false }); showToast(tr("Verified")); load(true);
     } catch (e) {
       const code = String((e && e.code) || "");
       setVerify(v => ({ ...v, busy: false, refusal: code === "issues.cannotVerifyOwn" ? tr("Someone other than the person who fixed it checks it.") : (e && e.message) || tr("Request failed") }));
@@ -5951,7 +6097,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const sevOf = (s) => sevWord[s] || s;
   const upd = async (id, s) => {
     setStatusRefusal("");
-    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); closeSel(); }
+    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(true); closeSel(); }
     catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose" || e.code === "issues.request.decideFirst")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
   };
   // The reporter line: a staff issue names who reported it; a client request names none, so it reads
@@ -5963,7 +6109,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   // A photo whose address the guard took away (finding API-68) is not drawn at all.
   const photos = (view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos).filter(p => p && p.photo_url);
   const timed = (iss) => isFinding(iss) || iss.minutes_to_first_response != null || iss.minutes_to_fixed != null;
-  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { setAssignTask(a => (a ? { ...a, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : a)); } });
+  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(true); } catch (e) { setAssignTask(a => (a ? { ...a, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : a)); } });
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
     {onRequests && <ClientRequestsTab af={af} t={t} sites={sites} canViewReports={canViewReports} route={route} onRoute={onRoute} onWaiting={setWaiting} />}
@@ -5971,8 +6117,9 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}
       {requestsOn && <div style={{ marginLeft: "auto", minWidth: 180 }}><Sel t={t} aria-label={tr("Source")} data-issue-source="" value={source} onChange={e => setSource(e.target.value)} options={sourceOptions} style={{ minHeight: 36, padding: "6px 10px", fontSize: 12 }} /></div>}</div>
     {issuesFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
-    {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
-    {issues.length > 0 && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
+    {/* Since part 368 the state picked goes with the read, so an empty list under a state is that state's. */}
+    {!issuesFailed && issues.length === 0 && filter === "all" && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
+    {!issuesFailed && filter !== "all" && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
       <div data-issue-row={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8, flexWrap: "wrap" }}><div style={{ flex: "1 1 200px", minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{isClientIssue(iss) && <Bdg l={tr("Client request")} c={BL} />}{isFinding(iss) && <Bdg l={tr("Inspection|source")} c={GO} />}<Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontSize: 10, color: t.textMut, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><span>{reporterLine(iss)}</span>{iss.reference && <span style={{ fontFamily: "monospace", fontSize: 10 }}>{iss.reference}</span>}{(isClientIssue(iss) || iss.due_state) && <span>{tr("Due")}: <ClockCell t={t} cell={requestClock(iss.due_state, iss.due_at, tr("Done|request"))} name="due" /></span>}{issueHas(iss, "minutes_to_first_response") && timed(iss) && <span data-finding-first-response="">{tr("First response")}: {minutesWords(iss.minutes_to_first_response)}</span>}{issueHas(iss, "minutes_to_fixed") && timed(iss) && <span data-finding-fixed="">{tr("Time to fixed")}: {minutesWords(iss.minutes_to_fixed)}</span>}</div>
@@ -5980,6 +6127,7 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>{tr("Photo attached")}</div>}
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
+    <ShowMore t={t} next={issNext} busy={issMore} onMore={moreIssues} at="issues" />
     {shown && <Mdl t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => closeSel()} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{shown.title}</div>
@@ -6021,6 +6169,15 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       {shown.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{shown.assignment_note}</div>}
       {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
       {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={shown.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {maintenance && <div data-issue-maintenance="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Building maintenance")}</div>
+        {linksNow().map(m => <div key={m.id} data-issue-maintenance-request={m.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+          <span style={{ fontSize: 13, color: t.text }}>{tr("Sent as {0}", m.reference)}</span><Bdg l={maintStatusWord(m.status, m.statusName)} c={maintStatusColor(m.status, t)} />
+          <Btn t={t} v="ghost" onClick={() => { closeSel(); window.location.hash = "maintenance/" + encodeURIComponent(m.id); }} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Open the request")}</Btn>
+        </div>)}
+        {!linksNow().some(m => m.status !== "cancelled") && <Btn t={t} v="ghost" data-issue-send-maintenance="" onClick={() => startMaint(shown)} disabled={maintBusy} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{maintBusy ? tr("Loading...") : tr("Send to building maintenance")}</Btn>}
+        {maintSaid && <div data-issue-maintenance-said="" role="status" style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{maintSaid}</div>}
+      </div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
         {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? tr("Reported") : a.action === "assigned" ? tr("Assigned|issue") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "status_changed" ? tr("Status Changed") : a.action === "resolution_photo" ? tr("Resolution Photo") : a.action === "photo_added" ? tr("Photo Added") : requestActivityWord(a); const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span>{a.user_name ? <span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span> : null}</div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && a.action !== "client_mailed" && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -6048,7 +6205,1201 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask} disabled={assignBusy}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
+    {maintSend && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={maintSend} maxPhotos={maintenance ? maintenance.maxPhotos : 6} canManageSites={canManageSites} onClose={() => setMaintSend(null)}
+      onFiled={(req, warning) => {
+        setMaintSend(null);
+        if (req) addLink({ id: req.id, reference: req.reference, status: req.status, statusName: req.statusName, filedAt: req.filedAt });
+        if (warning) showToast(warning, "error"); else showToast(tr("Sent to building maintenance as {0}", req ? req.reference : ""));
+      }} />}
     </>}
+  </div>);
+}
+
+// ===== MAINTENANCE REQUESTS (part 368, against the API's part 365) =====
+// A building problem (a leak, a light, a door, plumbing) goes by email to the building's own maintenance
+// team, and the office keeps the record of how the building answered: the building never signs in.
+// Holders of file_maintenance_requests (admins and supervisors by default) file and follow requests at the
+// sites they may read; a site's maintenance contacts are changed by holders of manage_sites. The page and
+// the site's tab open once GET /api/maintenance-requests/options answers this person. Every code below is
+// what the API sends and is sent back; the words are the screen's, and a code the screen has no word for
+// is drawn as the API names it.
+const MAINT_STATUS_WORDS = { sent: "Sent|maintenance", acknowledged: "Acknowledged|maintenance", scheduled: "Scheduled|maintenance", fixed: "Fixed|maintenance", closed: "Closed|maintenance", cancelled: "Cancelled|maintenance" };
+const MAINT_STATUSES = Object.keys(MAINT_STATUS_WORDS);
+const maintStatusWord = (s, name) => (MAINT_STATUS_WORDS[s] ? tr(MAINT_STATUS_WORDS[s]) : (name || String(s || "")));
+// Sent waits on the building, acknowledged and scheduled are on their way, fixed is done, and closed and
+// cancelled are over.
+const maintStatusColor = (s, t) => ({ sent: BL, acknowledged: PU, scheduled: OR, fixed: GR, closed: t.textMut, cancelled: RD }[s] || t.textMut);
+const MAINT_CATEGORY_WORDS = { plumbing: "Plumbing", electrical: "Electrical", lighting: "Lighting", hvac: "HVAC", doors_locks: "Doors and locks", leak_water: "Leak or water", pests: "Pests", elevator: "Elevator", safety: "Safety|maintenance", other: "Other|maintenance" };
+const maintCategoryWord = (c, name) => (MAINT_CATEGORY_WORDS[c] ? tr(MAINT_CATEGORY_WORDS[c]) : (name || String(c || "")));
+const MAINT_URGENCY_WORDS = { routine: "Routine|maintenance", soon: "Soon|maintenance", urgent_safety: "Urgent, safety" };
+const maintUrgencyWord = (u, name) => (MAINT_URGENCY_WORDS[u] ? tr(MAINT_URGENCY_WORDS[u]) : (name || String(u || "")));
+const maintUrgencyColor = (u, t) => ({ routine: t.textMut, soon: OR, urgent_safety: RD }[u] || t.textMut);
+const MAINT_CHANNEL_WORDS = { phone: "By phone", email: "By email", in_person: "In person|maintenance" };
+const maintChannelWord = (c, name) => (MAINT_CHANNEL_WORDS[c] ? tr(MAINT_CHANNEL_WORDS[c]) : (name || String(c || "")));
+const MAINT_LOG_WORDS = { response: "Response received", note: "Note|maintenance", status: "Status change", scheduled: "Scheduled date", photo: "Photos|maintenance", email: "Email|maintenance" };
+const maintLogWord = (k, name) => (MAINT_LOG_WORDS[k] ? tr(MAINT_LOG_WORDS[k]) : (name || String(k || "")));
+// The age filter, as the list reads it: minAgeDays and maxAgeDays are calendar days since the filing on
+// the company's clock.
+const MAINT_AGES = [{ v: "", l: "Any age" }, { v: "week", l: "Filed in the last 7 days", max: 7 }, { v: "month", l: "8 to 30 days old", min: 8, max: 30 }, { v: "older", l: "Over 30 days old", min: 31 }];
+// The contacts a request about this building goes to, as the API picks them (helpers/maintenanceRequests.js
+// recipientsOf): the site's active contacts naming the building and those covering the whole site, or every
+// active contact when none names it; one per address.
+const sameBuildingText = (a, b) => { const n = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase(); return n(a) !== "" && n(a) === n(b); };
+function maintRecipients(contacts, building) {
+  const active = (contacts || []).filter(c => c && c.isActive);
+  let picked = active;
+  if (String(building || "").trim() && active.some(c => sameBuildingText(c.building, building))) picked = active.filter(c => sameBuildingText(c.building, building) || !String(c.building || "").trim());
+  const seen = new Set();
+  return picked.filter(c => { const k = String(c.email || "").trim().toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+}
+// A request's place: its building, floor and area, the parts it names.
+const maintPlace = (r) => [r && r.building, r && r.floor && String(r.floor).trim() ? (/^\d+$/.test(String(r.floor).trim()) ? tr("Floor {0}", String(r.floor).trim()) : r.floor) : "", r && r.area].filter(x => x && String(x).trim()).join(", ");
+// One stored photo, read behind the token from GET /api/maintenance-requests/:id/photos/:photoId.
+function MaintPhoto({ t, token, requestId, photo, n }) {
+  const [url, setUrl] = useState("");
+  const [failed, setFailed] = useState(false);
+  const src = "/api/maintenance-requests/" + encodeURIComponent(requestId) + "/photos/" + encodeURIComponent(photo.id);
+  useEffect(() => {
+    let alive = true; let made = "";
+    apiDownload(src, token, photo.name || "photo.jpg")
+      .then(f => { made = URL.createObjectURL(f.blob); if (alive) setUrl(made); else URL.revokeObjectURL(made); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [src, token]);
+  const box = { width: 120, height: 90, borderRadius: 8, border: "1px solid " + t.borderSolid, objectFit: "cover", background: t.inputBg };
+  if (failed) return <div data-maint-photo={photo.id} style={{ ...box, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: t.textMut, padding: 6, textAlign: "center" }}>{tr("This photo did not load.")}</div>;
+  if (!url) return <div data-maint-photo={photo.id} style={box} />;
+  return <a href={url} target="_blank" rel="noopener noreferrer" data-maint-photo={photo.id}><img src={url} alt={tr("Photo {0}", n)} style={box} /></a>;
+}
+// The photos a person picks, up to the number left, each 10 MB at most as sent: JPEG, PNG, WebP or a phone's
+// HEIC, which the API turns into a JPEG.
+const MAINT_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,.heic,.heif";
+function MaintPhotoPick({ t, files, onChange, left, name }) {
+  const ref = useRef(null);
+  const pick = (e) => {
+    const list = Array.from((e.target && e.target.files) || []);
+    if (ref.current) ref.current.value = "";
+    onChange(files.concat(list).slice(0, Math.max(0, left)));
+  };
+  return (<div data-maint-photos={name || ""}>
+    <input ref={ref} type="file" multiple accept={MAINT_PHOTO_ACCEPT} onChange={pick} aria-label={tr("Add photos")} style={{ display: "none" }} />
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      {files.map((f, i) => <span key={i} data-maint-photo-picked={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 4px 4px 10px", borderRadius: R.pill, background: t.cardAlt, fontSize: 12, color: t.text, maxWidth: "100%" }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{f.name}</span>
+        <button onClick={() => onChange(files.filter((_, j) => j !== i))} aria-label={tr("Remove {0}", f.name)} style={xBtn}><XI sz={14} c={t.textMut} /></button>
+      </span>)}
+      {files.length < left && <Btn t={t} v="ghost" onClick={() => ref.current && ref.current.click()} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Add photos")}</Btn>}
+    </div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{left > 0 ? tr("Up to {0} more photos, 10 MB each.", left - files.length) : tr("No more photos fit on this request.")}</div>
+  </div>);
+}
+// The refusal words for a maintenance request's own codes: the API's words, with the field its keys name.
+const maintRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || ""), requestId: e && e.body && e.body.requestId ? String(e.body.requestId) : "" });
+
+// New maintenance request. start is what the window opens with: a site, or GET
+// /api/maintenance-requests/from-issue/:issueId's prefill, issuePhotos and contacts for an issue.
+function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, maxPhotos = 6, canManageSites = false, onClose, onFiled }) {
+  const fromIssue = !!start.issueId;
+  const [form, setForm] = useState(() => ({ siteId: start.siteId ? String(start.siteId) : "", building: start.building || "", floor: start.floor || "", area: start.area || "", category: start.category || "", urgency: start.urgency || "", description: start.description || "" }));
+  const [files, setFiles] = useState([]);
+  const [issuePicked, setIssuePicked] = useState(() => (Array.isArray(start.issuePhotos) ? start.issuePhotos.map(p => String(p.id)) : []));
+  const [contacts, setContacts] = useState(() => (fromIssue && Array.isArray(start.contacts) ? start.contacts : null));
+  const [contactsFailed, setContactsFailed] = useState(false);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const readContacts = useCallback(async (siteId) => {
+    if (!siteId) { setContacts(null); return; }
+    setContactsFailed(false);
+    try { const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts"); setContacts(Array.isArray(d && d.contacts) ? d.contacts : []); }
+    catch (e) { setContacts(null); setContactsFailed(true); }
+  }, [af]);
+  useEffect(() => { if (!fromIssue) readContacts(form.siteId); }, [form.siteId, fromIssue, readContacts]);
+  const to = contacts ? maintRecipients(contacts, form.building) : [];
+  const buildings = Array.from(new Set((contacts || []).filter(c => c.isActive && String(c.building || "").trim()).map(c => String(c.building).trim())));
+  const left = Math.max(0, maxPhotos - issuePicked.length);
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  const needs = !form.siteId ? "siteId" : !form.category ? "category" : !form.urgency ? "urgency" : !form.description.trim() ? "description" : "";
+  const submit = once(async () => {
+    if (needs) { setSaid({ text: tr("Fill in the site, the category, the urgency and what is wrong."), keys: [needs], code: "" }); return; }
+    setSaid(null);
+    const body = { siteId: form.siteId, category: form.category, urgency: form.urgency, description: form.description.trim() };
+    ["building", "floor", "area"].forEach(k => { if (form[k].trim()) body[k] = form[k].trim(); });
+    if (fromIssue) { body.issueId = String(start.issueId); if (issuePicked.length) body.issuePhotoIds = issuePicked; }
+    try {
+      let d;
+      if (files.length) {
+        const fdata = new FormData();
+        Object.keys(body).forEach(k => fdata.append(k, Array.isArray(body[k]) ? body[k].join(",") : body[k]));
+        files.forEach(f => fdata.append("photos", f));
+        d = await apiMultipart("/api/maintenance-requests", token, fdata);
+      } else d = await af("/api/maintenance-requests", { method: "POST", body });
+      onFiled(d && d.request ? d.request : null, d && d.warning ? (d.warning.message || tr("The request is saved, and its email did not go. Send it again from the request.")) : "");
+    } catch (e) { setSaid(maintRefusal(e)); if (e && e.code === "maintenance.noContact") readContacts(form.siteId); }
+  });
+  const siteName = (sites.find(s => String(s.id) === String(form.siteId)) || {}).name || start.siteName || "";
+  const noContact = !!(contacts && to.length === 0) || (said && said.code === "maintenance.noContact");
+  const already = said && said.code === "maintenance.issueAlreadySent" && said.text;
+  return (<Mdl t={t} tall onClose={onClose}><div data-maint-new="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{fromIssue ? tr("Send to building maintenance") : tr("New maintenance request")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("This emails the building's own maintenance team, with the office copied. Their answers are recorded on the request.")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl>
+      {fromIssue ? <div data-maint-field="siteId" style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{siteName}</div>
+        : <Sel t={t} data-maint-field="siteId" aria-label={tr("Site")} value={form.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose a site...") }, ...sites.filter(s => s.status !== "inactive").map(s => ({ v: String(s.id), l: s.name }))]} style={bad("siteId") ? { borderColor: RD } : undefined} />}
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("Building")}</Lbl><Inp t={t} data-maint-field="building" aria-label={tr("Building")} list="maint-buildings" maxLength={200} value={form.building} onChange={e => set("building", e.target.value)} style={bad("building") ? { borderColor: RD } : undefined} />
+        <datalist id="maint-buildings">{buildings.map(b => <option key={b} value={b} />)}</datalist></div>
+      <div><Lbl>{tr("Floor")}</Lbl><Inp t={t} data-maint-field="floor" aria-label={tr("Floor")} maxLength={100} value={form.floor} onChange={e => set("floor", e.target.value)} style={bad("floor") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Area or room")}</Lbl><Inp t={t} data-maint-field="area" aria-label={tr("Area or room")} maxLength={200} value={form.area} onChange={e => set("area", e.target.value)} style={bad("area") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("Category *")}</Lbl><Sel t={t} data-maint-field="category" aria-label={tr("Category")} value={form.category} onChange={e => set("category", e.target.value)} options={[{ v: "", l: tr("Choose...") }, ...Object.keys(MAINT_CATEGORY_WORDS).map(c => ({ v: c, l: maintCategoryWord(c) }))]} style={bad("category") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Urgency *")}</Lbl><Sel t={t} data-maint-field="urgency" aria-label={tr("Urgency")} value={form.urgency} onChange={e => set("urgency", e.target.value)} options={[{ v: "", l: tr("Choose...") }, ...Object.keys(MAINT_URGENCY_WORDS).map(u => ({ v: u, l: maintUrgencyWord(u) }))]} style={bad("urgency") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("What is wrong *")}</Lbl><TArea t={t} data-maint-field="description" aria-label={tr("What is wrong")} rows={4} maxLength={4000} value={form.description} onChange={e => set("description", e.target.value)} placeholder={tr("Where it is, what you see, and since when.")} style={bad("description") ? { borderColor: RD } : undefined} /></div>
+    {fromIssue && Array.isArray(start.issuePhotos) && start.issuePhotos.length > 0 && <div data-maint-issue-photos="" style={{ marginBottom: 12 }}><Lbl>{tr("The issue's photos to send")}</Lbl>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{start.issuePhotos.map((p, i) => { const on = issuePicked.indexOf(String(p.id)) >= 0; return <label key={p.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer" }}>
+        {p.url ? <img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 6, border: "2px solid " + (on ? GO : t.border) }} /> : null}
+        <span style={chkWrap}><input type="checkbox" data-maint-issue-photo={p.id} checked={on} onChange={() => { const nextPicked = on ? issuePicked.filter(x => x !== String(p.id)) : issuePicked.concat([String(p.id)]); if (nextPicked.length > maxPhotos) return; setIssuePicked(nextPicked); setFiles(f => f.slice(0, Math.max(0, maxPhotos - nextPicked.length))); setSaid(null); }} aria-label={tr("Send photo {0}", i + 1)} /></span>
+      </label>; })}</div></div>}
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Photos")}</Lbl><MaintPhotoPick t={t} files={files} onChange={(f) => { setFiles(f); setSaid(null); }} left={left} name="new" /></div>
+    <div data-maint-recipients="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (noContact ? t.redBorder : t.border) }}>
+      <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("It goes to")}</div>
+      {!form.siteId && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Choose a site to see who it goes to.")}</div>}
+      {form.siteId && contactsFailed && <LoadFailed t={t} onRetry={() => readContacts(form.siteId)} text={tr("The site's maintenance contacts did not load.")} style={{ padding: 4, textAlign: "left" }} />}
+      {form.siteId && !contactsFailed && contacts == null && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+      {form.siteId && to.map(c => <div key={c.id} data-maint-recipient={c.id} style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{c.name}{c.company ? ", " + c.company : ""} <span style={{ color: t.textSec }}>{c.email}</span>{c.isPrimary ? <span style={{ marginLeft: 6 }}><Bdg l={tr("Primary")} c={GO} /></span> : null}</div>)}
+      {form.siteId && to.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("The office is copied, and replies come to the office.")}</div>}
+      {form.siteId && noContact && <div data-maint-no-contact="" role="alert" style={{ fontSize: 12, color: RD, lineHeight: 1.5 }}>{tr("This site has no active maintenance contact. Add one on the site's page before sending.")}
+        {canManageSites ? <button data-maint-add-contact-link="" onClick={() => { onClose(); window.location.hash = "sites/" + encodeURIComponent(form.siteId) + "/maintenance"; }} style={{ minHeight: 44, marginLeft: 6, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Add a contact")}</button>
+          : <span style={{ color: t.textSec }}> {tr("Ask an admin to add one.")}</span>}</div>}
+    </div>
+    {said && !(said.code === "maintenance.noContact") && <div data-maint-new-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{said.text}
+      {already && said.requestId ? <button data-maint-open-existing="" onClick={() => { onClose(); window.location.hash = "maintenance/" + encodeURIComponent(said.requestId); }} style={{ minHeight: 44, marginLeft: 6, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open it")}</button> : null}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-maint-send="" onClick={submit} disabled={busy || noContact || !form.siteId}>{busy ? tr("Sending...") : tr("Send to building maintenance")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// One request's window: what was filed, the photos, who it went to and when, the internal log newest first,
+// Record a response, and Send a follow-up.
+function MaintenanceRequestWindow({ af, t, token, id, onClose, onChanged, showToast }) {
+  const [req, setReq] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const blank = { open: false, channel: "phone", note: "", status: "", scheduledFor: "" };
+  const [form, setForm] = useState(blank);
+  const [files, setFiles] = useState([]);
+  const [said, setSaid] = useState("");
+  const [once, busy] = useBusyGuard();
+  const base = "/api/maintenance-requests/" + encodeURIComponent(id);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af(base); setReq(d && d.request ? d.request : null); if (!d || !d.request) setFailed(true); }
+    catch (e) { setFailed(true); }
+  }, [af, base]);
+  useEffect(() => { load(); }, [load]);
+  const took = (d) => { if (d && d.request) setReq(d.request); if (onChanged) onChanged(); };
+  const record = once(async () => {
+    const r = req; if (!r) return;
+    const moves = form.status && form.status !== r.status;
+    const note = form.note.trim();
+    if (!form.channel && !note && !moves && !form.scheduledFor && files.length === 0) { setSaid(tr("Say how the building answered, or add a note, a status, a date or a photo.")); return; }
+    if (form.status === "scheduled" && !form.scheduledFor && !r.scheduledFor) { setSaid(tr("Choose the day the work is scheduled for.")); return; }
+    setSaid("");
+    let saved = 0;
+    try {
+      if (form.channel) { took(await af(base + "/log", { method: "POST", body: Object.assign({ kind: "response", channel: form.channel }, note ? { body: note } : {}) })); saved += 1; }
+      else if (note) { took(await af(base + "/log", { method: "POST", body: { kind: "note", body: note } })); saved += 1; }
+      if (moves) { took(await af(base + "/log", { method: "POST", body: Object.assign({ kind: "status", status: form.status }, form.status === "scheduled" && form.scheduledFor ? { scheduledFor: form.scheduledFor } : {}) })); saved += 1; }
+      else if (form.scheduledFor) { took(await af(base + "/log", { method: "POST", body: { kind: "scheduled", scheduledFor: form.scheduledFor } })); saved += 1; }
+      if (files.length) { const fdata = new FormData(); fdata.append("kind", "photo"); files.forEach(f => fdata.append("photos", f)); took(await apiMultipart(base + "/log", token, fdata)); saved += 1; }
+      setForm(blank); setFiles([]);
+      showToast(tr("Saved on the request"));
+    } catch (e) {
+      setSaid(saved ? tr("Part of this was saved, and the rest was not: {0}", (e && e.message) || tr("Request failed")) : ((e && e.message) || tr("Request failed")));
+      if (saved) { setForm(f => ({ ...f, channel: "", note: "" })); load(); }
+    }
+  });
+  const followUp = once(async () => {
+    const r = req; if (!r) return;
+    if (!window.confirm(tr("Email the building's maintenance contacts again about {0}?", r.reference))) return;
+    try {
+      const d = await af(base + "/follow-up", { method: "POST" });
+      took(d);
+      if (d && d.warning) showToast(d.warning.message || tr("The follow-up did not go."), "error"); else showToast(tr("Follow-up sent"));
+    } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  });
+  const resend = once(async () => {
+    try {
+      const d = await af(base + "/resend", { method: "POST" });
+      took(d);
+      if (d && d.warning) showToast(d.warning.message || tr("The email did not go."), "error"); else showToast(tr("Email sent"));
+    } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  });
+  const r = req;
+  const done = r && (r.status === "closed" || r.status === "cancelled");
+  const allowed = r && Array.isArray(r.allowedStatuses) ? r.allowedStatuses : [];
+  const log = r && Array.isArray(r.log) ? r.log.slice().reverse() : [];
+  const filedPhotos = r && Array.isArray(r.photos) ? r.photos.filter(p => p.inEmail) : [];
+  const cell = (label, value, key) => <div data-maint-detail={key} style={{ fontSize: 11, color: t.textMut }}>{label}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{value}</div></div>;
+  const emailLine = (e) => {
+    if (!e) return "";
+    if (e.status === "sent") return tr("Emailed {0}.", irWhen(e.at));
+    if (e.status === "notSent") return tr("Not emailed yet.");
+    return tr("The email did not go.");
+  };
+  const entryText = (en) => {
+    if (en.kind === "email" && en.email) {
+      const which = en.email.which === "followUp" ? tr("Follow-up emailed") : tr("Request emailed");
+      return en.email.status === "sent" ? which : tr("{0}: it did not go", which);
+    }
+    if (en.kind === "response") return tr("Response received {0}", maintChannelWord(en.channel, en.channelName).toLowerCase());
+    if (en.kind === "status") return tr("Status: {0}", maintStatusWord(en.toStatus, en.toStatusName));
+    if (en.kind === "scheduled") return tr("Scheduled for {0}", en.scheduledFor ? fdLong(en.scheduledFor) : "--");
+    return maintLogWord(en.kind, en.kindName);
+  };
+  return (<Mdl t={t} tall onClose={onClose}><div data-maint-window={id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Maintenance request")}</div>
+        {r && <div data-maint-reference="" style={{ fontFamily: "monospace", fontSize: 13, color: t.textSec, marginTop: 2 }}>{r.reference}</div>}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {failed && !r && <LoadFailed t={t} onRetry={load} />}
+    {!failed && !r && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {r && <>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}><span data-maint-status={r.status}><Bdg l={maintStatusWord(r.status, r.statusName)} c={maintStatusColor(r.status, t)} /></span><Bdg l={maintUrgencyWord(r.urgency, r.urgencyName)} c={maintUrgencyColor(r.urgency, t)} /><Bdg l={maintCategoryWord(r.category, r.categoryName)} c={BL} /></div>
+      {r.noResponse && <div data-maint-no-response="" style={{ fontSize: 12, color: RD, fontWeight: 600, marginBottom: 10 }}>{tr("No response from the building yet. It was due by {0}.", r.responseDueOn ? fdLong(r.responseDueOn) : "--")}</div>}
+      {!r.noResponse && r.responseDueOn && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("The building has until {0} to answer before the filer is reminded.", fdLong(r.responseDueOn))}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 14 }}>
+        {cell(tr("Site"), r.siteName || "--", "site")}
+        {cell(tr("Building, floor and area"), maintPlace(r) || tr("Not given"), "place")}
+        {cell(tr("Filed"), irWhen(r.filedAt) + (r.filedBy && r.filedBy.name ? ", " + tr("by {0}", r.filedBy.name) : ""), "filed")}
+        {cell(tr("First response"), r.firstResponseAt ? irWhen(r.firstResponseAt) : tr("None yet"), "first-response")}
+        {r.scheduledFor && cell(tr("Scheduled for"), fdLong(r.scheduledFor), "scheduled")}
+        {r.fixedAt && cell(tr("Fixed"), irWhen(r.fixedAt), "fixed")}
+      </div>
+      <Lbl>{tr("What is wrong")}</Lbl>
+      <div data-maint-description="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap", marginBottom: 14 }}>{r.description}</div>
+      {r.issueId && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" data-maint-open-issue="" onClick={() => { onClose(); window.location.hash = "issues/" + encodeURIComponent(r.issueId); }} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Open the issue it came from")}</Btn></div>}
+      {filedPhotos.length > 0 && <div style={{ marginBottom: 14 }}><Lbl>{tr("Photos ({0})", filedPhotos.length)}</Lbl><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{filedPhotos.map((p, i) => <MaintPhoto key={p.id} t={t} token={token} requestId={r.id} photo={p} n={i + 1} />)}</div></div>}
+      <div data-maint-sent-to="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (r.email && r.email.status !== "sent" ? t.redBorder : t.border) }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Who it went to")}</div>
+        <div data-maint-email={r.email ? r.email.status : ""} style={{ fontSize: 12, color: r.email && r.email.status !== "sent" ? RD : t.textSec, marginBottom: 6 }}>{emailLine(r.email)}</div>
+        {(r.recipients || []).map((c, i) => <div key={c.contactId || i} data-maint-went-to={c.contactId || ""} style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{c.name}{c.company ? ", " + c.company : ""} <span style={{ color: t.textSec }}>{c.email}</span></div>)}
+        {r.email && r.email.cc && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("The office was copied.")}</div>}
+        {r.followUpCount > 0 && <div data-maint-follow-ups="" style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{trn("{0} follow-ups sent, the last {1}.|count", r.followUpCount, irWhen(r.lastFollowUpAt))}</div>}
+        {r.canResend && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-maint-resend="" onClick={resend} disabled={busy} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Send the email again")}</Btn></div>}
+      </div>
+      {!done && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {!form.open && <Btn t={t} data-maint-record="" onClick={() => { setForm({ ...blank, open: true }); setSaid(""); }} style={{ minHeight: 44 }}>{tr("Record a response")}</Btn>}
+        {r.canFollowUp && <Btn t={t} v="ghost" data-maint-follow-up="" onClick={followUp} disabled={busy} style={{ minHeight: 44 }}>{tr("Send a follow-up")}</Btn>}
+      </div>}
+      {done && <div data-maint-done="" style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>{r.status === "closed" ? tr("This request is closed.") : tr("This request is cancelled.")}</div>}
+      {form.open && !done && <div data-maint-response-form="" style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Record a response")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
+          <div><Lbl>{tr("How it came")}</Lbl><Sel t={t} data-maint-response="channel" aria-label={tr("How it came")} value={form.channel} onChange={e => { setForm(f => ({ ...f, channel: e.target.value })); setSaid(""); }} options={Object.keys(MAINT_CHANNEL_WORDS).map(c => ({ v: c, l: maintChannelWord(c) })).concat([{ v: "", l: tr("No response, an update only") }])} /></div>
+          <div><Lbl>{tr("New status")}</Lbl><Sel t={t} data-maint-response="status" aria-label={tr("New status")} value={form.status} onChange={e => { setForm(f => ({ ...f, status: e.target.value })); setSaid(""); }} options={[{ v: "", l: tr("Keep it {0}", maintStatusWord(r.status, r.statusName).toLowerCase()) }].concat(allowed.map(s => ({ v: s, l: maintStatusWord(s) })))} /></div>
+          <div><Lbl>{tr("Scheduled date")}</Lbl><Inp t={t} type="date" data-maint-response="scheduledFor" aria-label={tr("Scheduled date")} value={form.scheduledFor} onChange={e => { setForm(f => ({ ...f, scheduledFor: e.target.value })); setSaid(""); }} /></div>
+        </div>
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} data-maint-response="note" aria-label={tr("Note")} rows={3} maxLength={4000} value={form.note} onChange={e => { setForm(f => ({ ...f, note: e.target.value })); setSaid(""); }} placeholder={tr("What the building said.")} /></div>
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Photos")}</Lbl><MaintPhotoPick t={t} files={files} onChange={(f) => { setFiles(f); setSaid(""); }} left={6} name="response" /></div>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("This stays in the office's record. The building does not see it.")}</div>
+        {said && <div data-maint-response-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setForm(blank); setFiles([]); setSaid(""); }}>{tr("Cancel")}</Btn><Btn t={t} data-maint-response-save="" onClick={record} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+      </div>}
+      <Lbl>{tr("Record, newest first")}</Lbl>
+      {log.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing recorded yet.")}</div>}
+      <div data-maint-log="">{log.map((en, i) => <TimelineRow key={en.id} t={t} last={i === log.length - 1} node={<div style={{ width: 12, height: 12, borderRadius: "50%", marginTop: 4, background: en.kind === "status" ? maintStatusColor(en.toStatus, t) : en.kind === "email" ? (en.email && en.email.status === "sent" ? BL : RD) : GO }} />}>
+        <div data-maint-entry={en.kind} style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{entryText(en)}</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{irWhen(en.occurredAt || en.createdAt)}{en.createdBy && en.createdBy.name ? ", " + en.createdBy.name : ""}</span>
+        </div>
+        {en.body && <div style={{ fontSize: 12, color: t.textSec, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{en.body}</div>}
+        {en.kind === "email" && en.email && en.email.to && en.email.to.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("To {0}", en.email.to.join(", "))}</div>}
+        {Array.isArray(en.photos) && en.photos.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{en.photos.map((p, j) => <MaintPhoto key={p.id} t={t} token={token} requestId={r.id} photo={p} n={j + 1} />)}</div>}
+      </TimelineRow>)}</div>
+    </>}
+  </div></Mdl>);
+}
+
+// The list of requests: the company's on the page, or one site's on its tab (siteId). Counts by status sit
+// on top and filter it; urgency, category, site and age filter it too, and every filter holds across
+// pages. Newest first, 50 at a time, with Show more while the API hands a nextCursor.
+function MaintenanceList({ af, t, sites = [], siteId = "", onOpen, reloadKey = 0 }) {
+  const [status, setStatus] = useState("");
+  const [urgency, setUrgency] = useState("");
+  const [category, setCategory] = useState("");
+  const [siteF, setSiteF] = useState("");
+  const [age, setAge] = useState("");
+  const [rows, setRows] = useState([]);
+  const [next, setNext] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const site = siteId || siteF;
+  const filters = useMemo(() => {
+    const p = new URLSearchParams();
+    if (site) p.set("siteId", site);
+    if (urgency) p.set("urgency", urgency);
+    if (category) p.set("category", category);
+    const a = MAINT_AGES.find(x => x.v === age);
+    if (a && a.min != null) p.set("minAgeDays", String(a.min));
+    if (a && a.max != null) p.set("maxAgeDays", String(a.max));
+    return p;
+  }, [site, urgency, category, age]);
+  const listQuery = (cursor) => { const p = new URLSearchParams(filters); if (status) p.set("status", status); p.set("cursor", cursor || ""); return "?" + p.toString(); };
+  const asked = useRef(0);
+  const load = useCallback(async () => {
+    const n = ++asked.current;
+    setLoading(true); setFailed(false);
+    const sq = filters.toString();
+    af("/api/maintenance-requests/summary" + (sq ? "?" + sq : "")).then(d => { if (n === asked.current) setSummary(d && d.counts ? d : null); }).catch(() => { if (n === asked.current) setSummary(null); });
+    try {
+      const d = await af("/api/maintenance-requests" + listQuery(""));
+      if (n !== asked.current) return;
+      setRows(Array.isArray(d && d.requests) ? d.requests : []); setNext(d && d.nextCursor ? d.nextCursor : null);
+    } catch (e) { if (n === asked.current) { setRows([]); setNext(null); setFailed(true); } }
+    if (n === asked.current) setLoading(false);
+  }, [af, filters, status]);
+  useEffect(() => { load(); }, [load, reloadKey]);
+  const more = async () => {
+    if (!next || moreBusy) return;
+    const n = asked.current;
+    setMoreBusy(true);
+    try {
+      const d = await af("/api/maintenance-requests" + listQuery(next));
+      if (n === asked.current) { setRows(cur => cur.concat(Array.isArray(d && d.requests) ? d.requests : [])); setNext(d && d.nextCursor ? d.nextCursor : null); }
+    } catch (e) { setFailed(true); }
+    setMoreBusy(false);
+  };
+  const counts = summary && summary.counts ? summary.counts : null;
+  const tabs = [{ id: "", label: tr("All|maintenance"), count: counts ? summary.total : undefined }].concat(MAINT_STATUSES.map(s => ({ id: s, label: maintStatusWord(s), count: counts ? (counts[s] || 0) : undefined, color: maintStatusColor(s, t) })));
+  const pick = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
+  const columns = [
+    { header: tr("Reference"), render: r => <div><div style={{ fontFamily: "monospace", fontSize: 12, color: t.text, fontWeight: 600, whiteSpace: "nowrap" }}>{r.reference}</div>{r.noResponse && <div data-maint-row-no-response="" style={{ fontSize: 11, color: RD, fontWeight: 600, marginTop: 2 }}>{tr("No response yet|maintenance")}</div>}</div> },
+    ...(siteId ? [] : [{ header: tr("Site"), render: r => <div style={{ fontSize: 12, color: t.text }}>{r.siteName}</div> }]),
+    { header: tr("Where and what"), render: r => <div style={{ minWidth: 160 }}><div style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>{maintCategoryWord(r.category, r.categoryName)}{maintPlace(r) ? ", " + maintPlace(r) : ""}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{r.description}</div></div> },
+    { header: tr("Urgency"), render: r => <Bdg l={maintUrgencyWord(r.urgency, r.urgencyName)} c={maintUrgencyColor(r.urgency, t)} /> },
+    { header: tr("Status"), render: r => <span data-maint-row-status={r.status}><Bdg l={maintStatusWord(r.status, r.statusName)} c={maintStatusColor(r.status, t)} /></span> },
+    { header: tr("Filed"), render: r => <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "nowrap" }}>{fdLong(r.filedAt)}<div style={{ fontSize: 11, color: t.textMut }}>{Number(r.ageDays) > 0 ? trn("{0} days ago|count", Number(r.ageDays)) : tr("Today")}</div></div> },
+  ];
+  return (<div data-maint-list={siteId || "all"}>
+    <div data-maint-counts=""><FilterTabs t={t} value={status} onChange={setStatus} tabs={tabs} /></div>
+    {summary && summary.fixed && summary.fixed.medianDays != null && <div data-maint-median="" style={{ fontSize: 12, color: t.textSec, marginTop: -6, marginBottom: 10 }}>{tr("Half of the requests fixed took {0} days or fewer.", String(summary.fixed.medianDays))}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 12 }}>
+      <Sel t={t} data-maint-filter="urgency" aria-label={tr("Urgency")} value={urgency} onChange={e => setUrgency(e.target.value)} options={[{ v: "", l: tr("Any urgency") }, ...Object.keys(MAINT_URGENCY_WORDS).map(u => ({ v: u, l: maintUrgencyWord(u) }))]} style={pick} />
+      <Sel t={t} data-maint-filter="category" aria-label={tr("Category")} value={category} onChange={e => setCategory(e.target.value)} options={[{ v: "", l: tr("Any category") }, ...Object.keys(MAINT_CATEGORY_WORDS).map(c => ({ v: c, l: maintCategoryWord(c) }))]} style={pick} />
+      {!siteId && <Sel t={t} data-maint-filter="site" aria-label={tr("Site")} value={siteF} onChange={e => setSiteF(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: String(s.id), l: s.name }))]} style={pick} />}
+      <Sel t={t} data-maint-filter="age" aria-label={tr("Age")} value={age} onChange={e => setAge(e.target.value)} options={MAINT_AGES.map(a => ({ v: a.v, l: tr(a.l) }))} style={pick} />
+    </div>
+    {failed && rows.length === 0 ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r)} empty={loading ? tr("Loading...") : tr("No maintenance requests match.")} />}
+    {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" data-maint-more="" onClick={more} disabled={moreBusy}>{moreBusy ? tr("Loading...") : tr("Show more")}</Btn></div>}
+  </div>);
+}
+
+// The Maintenance requests page (Quality, under Issue Tracker): the company's list, New maintenance request,
+// and #maintenance/<id>, where a notice about a request opens its window.
+function MaintenancePage({ af, t, token, sites = [], showToast, route = [], onRoute, maintenance = {}, canManageSites = false }) {
+  const [creating, setCreating] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const openId = route[0] ? String(route[0]) : "";
+  const open = (id) => { if (onRoute) onRoute([String(id)]); };
+  const close = () => { if (onRoute) onRoute([]); };
+  return (<div data-maint-page="">
+    <SecT t={t} action={tr("New maintenance request")} onAction={() => setCreating({})}>{tr("Maintenance requests")}</SecT>
+    <div style={{ fontSize: 13, color: t.textSec, marginTop: -6, marginBottom: 14, lineHeight: 1.5 }}>{tr("Building problems sent to each building's own maintenance team, and how they answered.")}</div>
+    <MaintenanceList af={af} t={t} sites={sites} onOpen={r => open(r.id)} reloadKey={reloadKey} />
+    {creating && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={creating} maxPhotos={maintenance.maxPhotos || 6} canManageSites={canManageSites} onClose={() => setCreating(null)}
+      onFiled={(req, warning) => { setCreating(null); setReloadKey(k => k + 1); if (warning) showToast(warning, "error"); else showToast(tr("Sent to building maintenance as {0}", req ? req.reference : "")); if (req) open(req.id); }} />}
+    {openId && <MaintenanceRequestWindow af={af} t={t} token={token} id={openId} onClose={close} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
+  </div>);
+}
+
+// A site's maintenance contacts: the people its requests are emailed to. Add, edit and turn off are
+// manage_sites'; a contact is never deleted.
+function MaintenanceContactWindow({ af, t, siteId, contact = null, onClose, onSaved }) {
+  const was = useMemo(() => ({ name: contact ? contact.name || "" : "", company: contact ? contact.company || "" : "", email: contact ? contact.email || "" : "", phone: contact ? contact.phone || "" : "", building: contact ? contact.building || "" : "", isPrimary: contact ? !!contact.isPrimary : false }), [contact]);
+  const [form, setForm] = useState(was);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const save = once(async () => {
+    if (!form.name.trim() || !form.email.trim()) { setSaid({ text: tr("Fill in the name and the email."), keys: [!form.name.trim() ? "name" : "email"], code: "" }); return; }
+    const now = { name: form.name.trim(), company: form.company.trim() || null, email: form.email.trim(), phone: form.phone.trim() || null, building: form.building.trim() || null, isPrimary: !!form.isPrimary };
+    const body = contact ? changedFields(now, { ...was, company: was.company || null, phone: was.phone || null, building: was.building || null }) : now;
+    if (contact && Object.keys(body).length === 0) { onClose(); return; }
+    try {
+      const path = "/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts" + (contact ? "/" + encodeURIComponent(contact.id) : "");
+      const d = await af(path, { method: contact ? "PATCH" : "POST", body });
+      onSaved(d && d.contact ? d.contact : null);
+    } catch (e) { setSaid(maintRefusal(e)); }
+  });
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  const field = (k, label, extra) => <div style={{ marginBottom: 12 }}><Lbl>{tr(label)}</Lbl><Inp t={t} data-maint-contact-field={k} aria-label={tr(label.replace(/ \*$/, ""))} value={form[k]} onChange={e => set(k, e.target.value)} style={bad(k) ? { borderColor: RD } : undefined} {...(extra || {})} /></div>;
+  return (<Mdl t={t} onClose={onClose}><div data-maint-contact-window={contact ? contact.id : "new"} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{contact ? tr("Edit maintenance contact") : tr("Add a maintenance contact")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {field("name", "Name *", { maxLength: 200 })}
+    {field("company", "Company", { maxLength: 200 })}
+    {field("email", "Email *", { type: "email", maxLength: 320 })}
+    {field("phone", "Phone", { type: "tel", maxLength: 40 })}
+    {field("building", "Building or area it covers", { maxLength: 200 })}
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: -8, marginBottom: 12 }}>{tr("Leave it blank when this contact covers the whole site.")}</div>
+    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: t.text, marginBottom: 12, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-maint-contact-field="isPrimary" checked={form.isPrimary} onChange={e => set("isPrimary", e.target.checked)} /></span>{tr("Primary contact")}</label>
+    {said && <div data-maint-contact-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-maint-contact-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div></Mdl>);
+}
+// A site's Maintenance tab: its contacts, and its own requests with New maintenance request.
+function SiteMaintenancePanel({ af, t, token, site, sites = [], canManageSites = false, canFile = false, maxPhotos = 6, showToast }) {
+  const [contacts, setContacts] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [openId, setOpenId] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [once, busy] = useBusyGuard();
+  const siteId = String(site.id);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts?includeInactive=true"); setContacts(Array.isArray(d && d.contacts) ? d.contacts : []); }
+    catch (e) { setContacts(null); setFailed(true); }
+  }, [af, siteId]);
+  useEffect(() => { load(); }, [load]);
+  const turn = once(async (c, on) => {
+    if (!on && !window.confirm(tr("Turn off {0}? Requests stop going to them.", c.name))) return;
+    try { await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts/" + encodeURIComponent(c.id), { method: "PATCH", body: { isActive: on } }); showToast(on ? tr("Contact turned on") : tr("Contact turned off")); load(); }
+    catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  });
+  const active = (contacts || []).filter(c => c.isActive);
+  const columns = [
+    { header: tr("Name"), render: c => <div data-maint-contact={c.id} style={{ opacity: c.isActive ? 1 : 0.6 }}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{c.name} {c.isPrimary && <Bdg l={tr("Primary")} c={GO} />}</div>{c.company && <div style={{ fontSize: 11, color: t.textSec }}>{c.company}</div>}</div> },
+    { header: tr("Email and phone"), render: c => <div style={{ fontSize: 12, color: t.textSec, opacity: c.isActive ? 1 : 0.6 }}>{c.email}{c.phone ? <div>{c.phone}</div> : null}</div> },
+    { header: tr("Covers"), render: c => <div style={{ fontSize: 12, color: t.text }}>{c.building || tr("The whole site")}</div> },
+    { header: tr("Status"), render: c => <Bdg l={c.isActive ? tr("Active") : tr("Turned off")} c={c.isActive ? GR : t.textMut} /> },
+    ...(canManageSites ? [{ header: "", align: "right", render: c => <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" data-maint-contact-edit={c.id} onClick={() => setEditing(c)} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Edit")}</Btn>
+      <Btn t={t} v="ghost" data-maint-contact-turn={c.id} onClick={() => turn(c, !c.isActive)} disabled={busy} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{c.isActive ? tr("Turn off|maintenance contact") : tr("Turn on|maintenance contact")}</Btn>
+    </div> }] : []),
+  ];
+  return (<div data-site-maintenance={siteId}>
+    <SecT t={t} action={canManageSites ? tr("Add a contact") : null} onAction={() => setEditing({})}>{tr("Maintenance contacts")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: -6, marginBottom: 10, lineHeight: 1.5 }}>{tr("A request about a building goes to the contacts for that building and those covering the whole site. The primary contact is listed first.")}</div>
+    {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={columns} rows={contacts || []} rowKey={c => c.id} empty={contacts == null ? tr("Loading...") : tr("No maintenance contacts yet. Requests cannot be sent until one is added.")} />}
+    {contacts && active.length === 0 && contacts.length > 0 && <div data-maint-none-active="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{tr("No contact is turned on, so requests cannot be sent.")}</div>}
+    <div style={{ height: 18 }} />
+    {canFile && <>
+      <SecT t={t} action={tr("New maintenance request")} onAction={() => setCreating(true)}>{tr("Maintenance requests at this site")}</SecT>
+      <MaintenanceList af={af} t={t} sites={sites} siteId={siteId} onOpen={r => setOpenId(String(r.id))} reloadKey={reloadKey} />
+    </>}
+    {editing && <MaintenanceContactWindow af={af} t={t} siteId={siteId} contact={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); showToast(tr("Contact saved")); load(); }} />}
+    {creating && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={{ siteId }} maxPhotos={maxPhotos} canManageSites={canManageSites} onClose={() => setCreating(false)}
+      onFiled={(req, warning) => { setCreating(false); setReloadKey(k => k + 1); if (warning) showToast(warning, "error"); else showToast(tr("Sent to building maintenance as {0}", req ? req.reference : "")); if (req) setOpenId(String(req.id)); }} />}
+    {openId && <MaintenanceRequestWindow af={af} t={t} token={token} id={openId} onClose={() => setOpenId("")} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
+  </div>);
+}
+
+// ===== LEAVE BALANCES (part 368, against the API's part 365) =====
+// A person follows one leave policy at a time: their own dated row, else their primary site's, else the
+// company default, the handbook's (OCSA-HR-002 Part 8.1). Every change to a balance is a row of the
+// person's ledger and a balance is their sum. Holders of read_hr_records or manage_leave_balances read
+// everyone's (admins by default); manage_leave_balances keeps the policies, sets who follows which, takes
+// the payroll system's hours files and adjusts. Hours and days only, never a dollar figure. The page opens
+// once GET /api/leave/policies answers this person; LeaveCtx carries that to the HR folder and the site.
+const LeaveCtx = createContext({ on: false, canManage: false });
+const leaveKindWord = (k, name) => (LEAVE_TYPE_WORDS[k] ? tr(LEAVE_TYPE_WORDS[k]) : (name || String(k || "")));
+const LEAVE_ENTRY_WORDS = { grant: "Grant|leave", accrual: "Hours worked|leave", usage: "Time off taken", reversal: "Time off given back", expiry: "Expired at the year's end", policy_change: "Policy changed", adjustment: "Adjustment by HR" };
+const leaveEntryWord = (k, name) => (LEAVE_ENTRY_WORDS[k] ? tr(LEAVE_ENTRY_WORDS[k]) : (name || String(k || "")));
+const LEAVE_SOURCE_WORDS = { person: "Their own policy", site: "Their site's policy", default: "The company default" };
+const leaveSourceWord = (s) => (LEAVE_SOURCE_WORDS[s] ? tr(LEAVE_SOURCE_WORDS[s]) : String(s || ""));
+const LEAVE_METHOD_WORDS = { january_1: "On January 1 each year", anniversary: "On each anniversary of the hire date", on_hire: "On the hire date", monthly: "On the first of each month", per_hours_worked: "For hours worked", manual: "Given by HR|leave method", untracked: "No balance kept" };
+const leaveMethodWord = (m) => (LEAVE_METHOD_WORDS[m] ? tr(LEAVE_METHOD_WORDS[m]) : String(m || ""));
+const LEAVE_OUTCOME_WORDS = { posted: "Posted|hours file", alreadyPosted: "Already posted", noHoursRule: "No hours rule in their policy", beforePolicyStart: "Before their policy starts", noHireDate: "No hire date on file" };
+const leaveOutcomeWord = (o) => (LEAVE_OUTCOME_WORDS[o] ? tr(LEAVE_OUTCOME_WORDS[o]) : String(o || ""));
+const LEAVE_STATUSES = [["active", "Active"], ["all", "Every status"], ["pending", "pending"], ["inactive", "Inactive"], ["terminated", "Terminated"]];
+const LEAVE_ROLES = ["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "contractor"];
+const leaveNum = (n) => Number(n || 0).toLocaleString(localeTag(), { maximumFractionDigits: 2 });
+const leaveHours = (n) => tr("{0} h", leaveNum(n));
+const leaveSigned = (n) => (Number(n) > 0 ? "+" : Number(n) < 0 ? "-" : "") + leaveHours(Math.abs(Number(n) || 0));
+// A balance as it reads: hours, and days beside them for a kind kept in days.
+const leaveBalanceText = (b) => (b && b.unit === "days" && b.balanceDays != null ? tr("{0} days ({1})", leaveNum(b.balanceDays), leaveHours(b.balanceHours)) : leaveHours(b ? b.balanceHours : 0));
+const leaveToday = () => crWall(Date.now()).day;
+const leaveYear = () => Number(leaveToday().slice(0, 4));
+const leavePolicyName = (p) => (p && p.name ? p.name : "--");
+// The words the API says each refusal and warning in come with the answer, in the reader's language.
+const leaveRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || "") });
+// Pages a list until nextCursor is empty, for the screens that need everyone at once.
+async function leaveEveryPage(af, path, key) {
+  const out = [];
+  let cursor = "";
+  for (let i = 0; i < 50; i += 1) {
+    const d = await af(path + (path.indexOf("?") >= 0 ? "&" : "?") + "limit=200&cursor=" + encodeURIComponent(cursor));
+    (Array.isArray(d && d[key]) ? d[key] : []).forEach(x => out.push(x));
+    if (!d || !d.nextCursor) break;
+    cursor = d.nextCursor;
+  }
+  return out;
+}
+
+// A balance's parts, in a table of its own.
+function LeaveBalancesTable({ t, balances }) {
+  const cols = [
+    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{(b.notes || []).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
+    { header: tr("Start of year"), align: "right", render: b => leaveHours(b.startHours) },
+    { header: tr("Granted"), align: "right", render: b => leaveHours(b.grantedHours) },
+    { header: tr("Used"), align: "right", render: b => leaveHours(b.usedHours) },
+    { header: tr("Given back"), align: "right", render: b => leaveHours(b.givenBackHours) },
+    { header: tr("Expired"), align: "right", render: b => leaveHours(b.expiredHours) },
+    { header: tr("Adjusted"), align: "right", render: b => leaveSigned(b.adjustedHours) },
+    { header: tr("Balance"), align: "right", render: b => <span data-leave-balance={b.kind} style={{ fontWeight: 700, color: Number(b.balanceHours) < 0 ? RD : t.text }}>{leaveBalanceText(b)}</span> },
+  ];
+  return <DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} />;
+}
+
+// Adjust: a kind, hours plus or minus and a required reason, dated today; it asks once, and its clientId,
+// made when the form opens, makes a retry post once.
+function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) {
+  const clientId = useRef("adj-" + Math.random().toString(36).slice(2, 12) + "-" + Date.now().toString(36));
+  const [form, setForm] = useState({ kind: (kinds.find(k => k.key === "paid_sick") || kinds[0] || {}).key || "", hours: "", reason: "" });
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const save = once(async () => {
+    const h = Number(String(form.hours).trim());
+    if (!form.kind) { setSaid({ text: tr("Choose the kind of leave."), keys: ["kind"] }); return; }
+    if (!Number.isFinite(h) || h === 0 || Math.abs(h) > 9999 || Math.abs(h * 100 - Math.round(h * 100)) > 1e-6) { setSaid({ text: tr("Type the hours to add, or a minus sign and the hours to take away, up to two decimals."), keys: ["hours"] }); return; }
+    if (!form.reason.trim()) { setSaid({ text: tr("Say why the balance changes."), keys: ["reason"] }); return; }
+    const kindName = leaveKindWord(form.kind, (kinds.find(k => k.key === form.kind) || {}).name);
+    if (!window.confirm(tr("Change {0}'s {1} balance by {2}?", name || "", kindName, leaveSigned(h)))) return;
+    try {
+      const d = await af("/api/leave/people/" + encodeURIComponent(userId) + "/adjustments", { method: "POST", body: { kind: form.kind, hours: h, reason: form.reason.trim(), clientId: clientId.current } });
+      onDone(d);
+    } catch (e) { setSaid(leaveRefusal(e)); }
+  });
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  return (<div data-leave-adjust-form="" style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Adjust a balance")}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
+      <div><Lbl>{tr("Kind")}</Lbl><Sel t={t} data-leave-adjust="kind" aria-label={tr("Kind")} value={form.kind} onChange={e => set("kind", e.target.value)} options={kinds.map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) }))} style={bad("kind") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Hours, plus or minus")}</Lbl><Inp t={t} data-leave-adjust="hours" aria-label={tr("Hours, plus or minus")} inputMode="decimal" value={form.hours} onChange={e => set("hours", e.target.value.replace(/[^0-9.\-]/g, "").slice(0, 9))} placeholder={tr("For example 8 or -4")} style={bad("hours") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ marginBottom: 6 }}><Lbl>{tr("Reason *")}</Lbl><TArea t={t} data-leave-adjust="reason" aria-label={tr("Reason")} rows={2} maxLength={500} value={form.reason} onChange={e => set("reason", e.target.value)} style={bad("reason") ? { borderColor: RD } : undefined} /></div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("It is dated today and names you as the one who made it.")}</div>
+    {said && <div data-leave-adjust-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onCancel}>{tr("Cancel")}</Btn><Btn t={t} data-leave-adjust-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div>);
+}
+
+// Who follows which: a dated row for a site (null puts it back on the company default) or a person (null
+// puts them back on their site's).
+function LeavePolicySetForm({ af, t, scope, id, policies = [], onDone, onCancel }) {
+  const [form, setForm] = useState({ policyId: "", effectiveFrom: leaveToday(), note: "" });
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const save = once(async () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.effectiveFrom)) { setSaid({ text: tr("Choose the day it starts."), keys: ["effectiveFrom"] }); return; }
+    try {
+      const path = "/api/leave/" + (scope === "site" ? "sites/" : "people/") + encodeURIComponent(id) + "/policy";
+      const d = await af(path, { method: "POST", body: { policyId: form.policyId || null, effectiveFrom: form.effectiveFrom, note: form.note.trim() || null } });
+      onDone(d);
+    } catch (e) { setSaid(leaveRefusal(e)); }
+  });
+  const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
+  const back = scope === "site" ? tr("The company default") : tr("Their site's policy");
+  return (<div data-leave-policy-set={scope} style={{ marginTop: 10, padding: "12px 14px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 10 }}>
+      <div><Lbl>{tr("Policy")}</Lbl><Sel t={t} data-leave-policy-field="policyId" aria-label={tr("Policy")} value={form.policyId} onChange={e => set("policyId", e.target.value)} options={[{ v: "", l: back }].concat(policies.map(p => ({ v: p.id, l: p.name })))} style={bad("policyId") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Starts on")}</Lbl><Inp t={t} type="date" data-leave-policy-field="effectiveFrom" aria-label={tr("Starts on")} value={form.effectiveFrom} onChange={e => set("effectiveFrom", e.target.value)} style={bad("effectiveFrom") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    <div style={{ marginBottom: 10 }}><Lbl>{tr("Note")}</Lbl><Inp t={t} data-leave-policy-field="note" aria-label={tr("Note")} maxLength={1000} value={form.note} onChange={e => set("note", e.target.value)} style={bad("note") ? { borderColor: RD } : undefined} /></div>
+    {said && <div data-leave-policy-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onCancel}>{tr("Cancel")}</Btn><Btn t={t} data-leave-policy-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div>);
+}
+
+// One person's leave: their policy and since when, the balances by kind, the policy's plain words, and the
+// ledger newest first, with Adjust and Set their own policy for holders of manage_leave_balances.
+function LeavePersonWindow({ af, t, userId, year, kinds = [], policies = [], canManage = false, canOpenStaff = false, onClose, onChanged, showToast }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [entries, setEntries] = useState([]);
+  const [next, setNext] = useState(null);
+  const [mode, setMode] = useState("");
+  const base = "/api/leave/people/" + encodeURIComponent(userId);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try {
+      const d = await af(base + "?year=" + year);
+      setData(d);
+      const e = await af(base + "/entries?year=" + year + "&cursor=");
+      setEntries(Array.isArray(e && e.entries) ? e.entries : []); setNext(e && e.nextCursor ? e.nextCursor : null);
+    } catch (e) { setFailed(true); }
+  }, [af, base, year]);
+  useEffect(() => { load(); }, [load]);
+  const more = async () => {
+    try { const e = await af(base + "/entries?year=" + year + "&cursor=" + encodeURIComponent(next)); setEntries(cur => cur.concat(Array.isArray(e && e.entries) ? e.entries : [])); setNext(e && e.nextCursor ? e.nextCursor : null); }
+    catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  };
+  const p = data && data.person;
+  const entryWhat = (en) => {
+    const parts = [leaveEntryWord(en.type, en.typeName)];
+    if (en.hoursFile) parts.push(tr("{0}, {1} worked from {2} to {3}", en.hoursFile.fileName, leaveHours(en.hoursWorked), fdLong(en.periodStart), fdLong(en.periodEnd)));
+    if (en.timeOffRequestId) parts.push(tr("Time off request"));
+    if (en.policy && en.type === "policy_change") parts.push(en.policy.name);
+    return parts.filter(Boolean).join(", ");
+  };
+  const cols = [
+    { header: tr("Date"), render: en => <span style={{ whiteSpace: "nowrap" }}>{fdLong(en.effectiveOn)}</span> },
+    { header: tr("Kind"), render: en => leaveKindWord(en.kind, en.kindName) },
+    { header: tr("What"), render: en => <div data-leave-entry={en.type} style={{ minWidth: 140 }}><div style={{ fontSize: 12, color: t.text }}>{entryWhat(en)}</div>{en.reason && <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{en.reason}</div>}</div> },
+    { header: tr("Hours"), align: "right", render: en => <span style={{ fontWeight: 600, color: Number(en.hours) < 0 ? RD : GR, whiteSpace: "nowrap" }}>{leaveSigned(en.hours)}</span> },
+    { header: tr("By"), render: en => <span style={{ fontSize: 12, color: t.textSec }}>{en.createdBy && en.createdBy.name ? en.createdBy.name : tr("The system")}</span> },
+  ];
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-person={userId} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave")}</div>
+        {p && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {failed && !data && <LoadFailed t={t} onRetry={load} />}
+    {!failed && !data && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {data && <>
+      <div data-leave-person-policy={data.policy ? data.policy.source : "none"} style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{tr("Policy: {0}", leavePolicyName(data.policy))}</div>
+        {data.policy && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{leaveSourceWord(data.policy.source)}{data.policy.since ? ", " + tr("since {0}", fdLong(data.policy.since)) : ""}</div>}
+        {data.summary && (data.summary.lines || []).map((l, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.4 }}><b style={{ color: t.text }}>{leaveKindWord(l.kind, l.kindName)}:</b> {l.text}{l.note ? " " + l.note : ""}</div>)}
+        {p && !p.hireDate && <div data-leave-no-hire-date="" style={{ fontSize: 12, color: OR, marginTop: 6 }}>{tr("No hire date is on file, so a grant that depends on it does not post.")} <button onClick={() => { onClose(); window.location.hash = (canOpenStaff ? "staff/" : "hr/") + encodeURIComponent(userId); }} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the profile")}</button></div>}
+      </div>
+      {canManage && mode === "" && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <Btn t={t} data-leave-adjust-open="" onClick={() => setMode("adjust")} style={{ minHeight: 44 }}>{tr("Adjust")}</Btn>
+        <Btn t={t} v="ghost" data-leave-person-policy-open="" onClick={() => setMode("policy")} style={{ minHeight: 44 }}>{tr("Set their own policy")}</Btn>
+      </div>}
+      {mode === "adjust" && <LeaveAdjustForm af={af} t={t} userId={userId} name={p ? p.name : ""} kinds={kinds} onCancel={() => setMode("")} onDone={(d) => { setMode(""); showToast(tr("Adjustment saved")); load(); if (onChanged) onChanged(); }} />}
+      {mode === "policy" && <LeavePolicySetForm af={af} t={t} scope="person" id={userId} policies={policies} onCancel={() => setMode("")} onDone={() => { setMode(""); showToast(tr("Policy saved")); load(); if (onChanged) onChanged(); }} />}
+      <Lbl>{tr("Balances")}</Lbl>
+      <div style={{ marginBottom: 14 }}><LeaveBalancesTable t={t} balances={data.balances} /></div>
+      <Lbl>{tr("Ledger, newest first")}</Lbl>
+      <div data-leave-ledger=""><DataTable t={t} columns={cols} rows={entries} rowKey={en => en.id} empty={tr("Nothing has posted this year.")} /></div>
+      {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}><Btn t={t} v="ghost" data-leave-entries-more="" onClick={more}>{tr("Show more")}</Btn></div>}
+      {Array.isArray(data.policyHistory) && data.policyHistory.length > 0 && <div style={{ marginTop: 14 }}><Lbl>{tr("Policy history")}</Lbl>
+        {data.policyHistory.map(h => <div key={h.id} data-leave-history={h.scope} style={{ fontSize: 12, color: t.textSec, marginBottom: 4 }}>{tr("{0} from {1}", h.policyName || (h.scope === "site" ? tr("The company default") : tr("Their site's policy")), fdLong(h.effectiveFrom))}{h.scope === "site" ? " (" + tr("their site") + ")" : ""}{h.setBy && h.setBy.name ? ", " + tr("set by {0}", h.setBy.name) : ""}{h.note ? ": " + h.note : ""}</div>)}
+      </div>}
+    </>}
+  </div></Mdl>);
+}
+
+// A person's leave on their HR folder: the policy they follow and the day it started, their balances, and
+// the way into the ledger.
+function PersonLeave({ af, t, userId, showToast, canOpenStaff = false }) {
+  const leave = useContext(LeaveCtx);
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [kinds, setKinds] = useState([]);
+  const [policies, setPolicies] = useState([]);
+  const year = leaveYear();
+  const load = useCallback(() => { af("/api/leave/people/" + encodeURIComponent(userId) + "?year=" + year).then(setData).catch(() => setData(null)); }, [af, userId, year]);
+  useEffect(() => { if (leave.on) load(); }, [leave.on, load]);
+  useEffect(() => {
+    if (!leave.on || !open) return;
+    af("/api/leave/kinds").then(d => setKinds(Array.isArray(d && d.kinds) ? d.kinds : [])).catch(() => {});
+    af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => {});
+  }, [af, leave.on, open]);
+  if (!leave.on || !data) return null;
+  return (<Crd t={t} style={{ marginBottom: 16 }}><div data-folder-leave="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Leave balances")}</div>
+        <div data-folder-leave-policy="" style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Policy: {0}", leavePolicyName(data.policy))}{data.policy ? " | " + leaveSourceWord(data.policy.source) + (data.policy.since ? ", " + tr("since {0}", fdLong(data.policy.since)) : "") : ""}</div>
+      </div>
+      <Btn t={t} v="ghost" data-folder-leave-open="" onClick={() => setOpen(true)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Open the ledger")}</Btn>
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>{(data.balances || []).map(b => <span key={b.kind} style={{ fontSize: 12, padding: "4px 10px", borderRadius: R.pill, background: t.cardAlt, color: t.text }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div>
+    {open && <LeavePersonWindow af={af} t={t} userId={userId} year={year} kinds={kinds} policies={policies} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => setOpen(false)} onChanged={load} showToast={showToast} />}
+  </div></Crd>);
+}
+
+// The policy editor: each kind's amount, how it is given, seniority tiers, the waiting period, the carryover
+// cap, the maximum balance, a note, and the paid holidays. A save sends only what changed, the rules as a set.
+const LEAVE_METHODS = Object.keys(LEAVE_METHOD_WORDS);
+const blankRule = () => ({ kind: "paid_sick", kindName: "", newKind: false, method: "january_1", unit: "hours", amount: "40", hoursPerDay: "8", alsoOnHire: false, perHoursWorked: "", tiers: [], waitingDays: "0", carryoverCap: "", maxBalance: "", note: "" });
+const ruleForm = (r) => ({ kind: r.kind, kindName: r.kindName || "", newKind: !LEAVE_TYPE_WORDS[r.kind], method: r.method, unit: r.unit || "hours", amount: r.amount == null ? "" : String(r.amount), hoursPerDay: r.hoursPerDay == null ? "8" : String(r.hoursPerDay), alsoOnHire: !!r.alsoOnHire, perHoursWorked: r.perHoursWorked == null ? "" : String(r.perHoursWorked), tiers: (r.tiers || []).map(x => ({ years: String(x.years), amount: String(x.amount) })), waitingDays: String(r.waitingDays || 0), carryoverCap: r.carryoverCap == null ? "" : String(r.carryoverCap), maxBalance: r.maxBalance == null ? "" : String(r.maxBalance), note: r.note || "" });
+const numOrNull = (v) => (String(v).trim() === "" ? null : Number(String(v).trim()));
+const ruleBody = (r) => {
+  const noAmount = r.method === "manual" || r.method === "untracked";
+  const out = { kind: r.kind.trim(), method: r.method, unit: r.unit, amount: noAmount && String(r.amount).trim() === "" ? 0 : numOrNull(r.amount), hoursPerDay: r.unit === "days" ? numOrNull(r.hoursPerDay) : 8, alsoOnHire: (r.method === "january_1" || r.method === "anniversary") && !!r.alsoOnHire, tiers: noAmount ? [] : r.tiers.map(x => ({ years: numOrNull(x.years), amount: numOrNull(x.amount) })), waitingDays: Number(String(r.waitingDays).trim() || 0), carryoverCap: numOrNull(r.carryoverCap), maxBalance: numOrNull(r.maxBalance), note: r.note.trim() || null };
+  if (r.newKind) out.kindName = r.kindName.trim();
+  if (r.method === "per_hours_worked") out.perHoursWorked = numOrNull(r.perHoursWorked);
+  return out;
+};
+function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved }) {
+  const was = useMemo(() => policy ? { name: policy.name || "", description: policy.description || "", note: policy.note || "", grantsFrom: policy.grantsFrom || "", source: (policy.holidays && policy.holidays.source) || "handbook", days: policy.holidays && policy.holidays.source === "own" ? (policy.holidays.days || []).map(d => ({ date: d.date, name: d.name })) : [], rules: (policy.rules || []).map(ruleForm) }
+    : { name: "", description: "", note: "", grantsFrom: leaveToday(), source: "handbook", days: [], rules: [blankRule()] }, [policy]);
+  const [form, setForm] = useState(was);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
+  const setRule = (i, k, v) => { setForm(f => ({ ...f, rules: f.rules.map((r, j) => (j === i ? { ...r, [k]: v } : r)) })); setSaid(null); };
+  const bad = (k) => !!(said && said.keys.some(x => x === k || x.indexOf(k + ".") === 0 || x.indexOf(k + "[") === 0));
+  const holidaysBody = (f) => (f.source === "own" ? { source: "own", days: f.days.map(d => ({ date: d.date, name: d.name.trim() })) } : { source: "handbook", days: [] });
+  const save = once(async () => {
+    if (!form.name.trim()) { setSaid({ text: tr("Give the policy a name."), keys: ["name"] }); return; }
+    const body = { name: form.name.trim(), description: form.description.trim() || null, note: form.note.trim() || null, grantsFrom: form.grantsFrom || undefined, holidays: holidaysBody(form), rules: form.rules.map(ruleBody) };
+    let send = body;
+    if (policy) {
+      const before = { name: was.name.trim(), description: was.description.trim() || null, note: was.note.trim() || null, grantsFrom: was.grantsFrom || undefined, holidays: holidaysBody(was), rules: was.rules.map(ruleBody) };
+      send = {};
+      Object.keys(body).forEach(k => { if (JSON.stringify(body[k]) !== JSON.stringify(before[k])) send[k] = body[k]; });
+      if (Object.keys(send).length === 0) { onClose(); return; }
+    }
+    try {
+      const d = await af("/api/leave/policies" + (policy ? "/" + encodeURIComponent(policy.id) : ""), { method: policy ? "PATCH" : "POST", body: send });
+      onSaved(d && d.policy ? d.policy : null);
+    } catch (e) { setSaid(leaveRefusal(e)); }
+  });
+  const small = { minHeight: 44, padding: "6px 12px", fontSize: 12 };
+  const num = (v) => v.replace(/[^0-9.]/g, "").slice(0, 8);
+  const kindOptions = kinds.filter(k => k.fromTimeOff).map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) })).concat([{ v: "__new", l: tr("Another kind...") }]);
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy-editor={policy ? policy.id : "new"} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{policy ? tr("Edit leave policy") : tr("New leave policy")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} data-leave-editor="name" aria-label={tr("Name")} maxLength={120} value={form.name} onChange={e => set("name", e.target.value)} style={bad("name") ? { borderColor: RD } : undefined} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} data-leave-editor="description" aria-label={tr("Description")} rows={2} maxLength={2000} value={form.description} onChange={e => set("description", e.target.value)} /></div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>{tr("Grants start on")}</Lbl><Inp t={t} type="date" data-leave-editor="grantsFrom" aria-label={tr("Grants start on")} value={form.grantsFrom} onChange={e => set("grantsFrom", e.target.value)} style={bad("grantsFrom") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Paid holidays")}</Lbl><Sel t={t} data-leave-editor="holidays" aria-label={tr("Paid holidays")} value={form.source} onChange={e => set("source", e.target.value)} options={[{ v: "handbook", l: tr("The company's holidays, as the handbook lists them") }, { v: "own", l: tr("Days this policy names") }]} style={bad("holidays") ? { borderColor: RD } : undefined} /></div>
+    </div>
+    {form.source === "own" && <div data-leave-editor-days="" style={{ marginBottom: 12 }}>
+      {form.days.map((d, i) => <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <Inp t={t} type="date" aria-label={tr("Holiday date")} value={d.date} onChange={e => set("days", form.days.map((x, j) => (j === i ? { ...x, date: e.target.value } : x)))} style={{ width: 170, ...(bad("holidays.days[" + i + "]") ? { borderColor: RD } : {}) }} />
+        <Inp t={t} aria-label={tr("Holiday name")} maxLength={120} value={d.name} onChange={e => set("days", form.days.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} style={{ flex: "1 1 160px", width: "auto" }} />
+        <button onClick={() => set("days", form.days.filter((_, j) => j !== i))} aria-label={tr("Remove {0}", d.name || d.date)} style={xBtn}><XI sz={14} c={t.textMut} /></button>
+      </div>)}
+      <Btn t={t} v="ghost" onClick={() => set("days", form.days.concat([{ date: "", name: "" }]))} style={small}>{tr("Add a holiday")}</Btn>
+    </div>}
+    <Lbl>{tr("Kinds of leave")}</Lbl>
+    {form.rules.map((r, i) => { const noAmount = r.method === "manual" || r.method === "untracked"; const at = (k) => "rules[" + i + "]." + k; const badAt = (k) => !!(said && said.keys.indexOf(at(k)) >= 0); return (<div key={i} data-leave-editor-rule={i} style={{ marginBottom: 10, padding: 12, borderRadius: 8, border: "1px solid " + (said && said.keys.some(x => x.indexOf("rules[" + i + "]") === 0) ? RD : t.border), background: t.hover }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 8 }}>
+        <div><Lbl>{tr("Kind")}</Lbl><Sel t={t} data-leave-rule="kind" aria-label={tr("Kind")} value={r.newKind ? "__new" : r.kind} onChange={e => { const v = e.target.value; setForm(f => ({ ...f, rules: f.rules.map((x, j) => (j === i ? { ...x, newKind: v === "__new", kind: v === "__new" ? "" : v } : x)) })); setSaid(null); }} options={kindOptions} style={badAt("kind") ? { borderColor: RD } : undefined} /></div>
+        {r.newKind && <div><Lbl>{tr("Its code")}</Lbl><Inp t={t} data-leave-rule="newKind" aria-label={tr("Its code")} placeholder="union_sick" value={r.kind} onChange={e => setRule(i, "kind", e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 40))} style={badAt("kind") ? { borderColor: RD } : undefined} /></div>}
+        {r.newKind && <div><Lbl>{tr("Its name")}</Lbl><Inp t={t} data-leave-rule="kindName" aria-label={tr("Its name")} maxLength={60} value={r.kindName} onChange={e => setRule(i, "kindName", e.target.value)} style={badAt("kindName") ? { borderColor: RD } : undefined} /></div>}
+        <div><Lbl>{tr("How it is given")}</Lbl><Sel t={t} data-leave-rule="method" aria-label={tr("How it is given")} value={r.method} onChange={e => setRule(i, "method", e.target.value)} options={LEAVE_METHODS.map(m => ({ v: m, l: leaveMethodWord(m) }))} style={badAt("method") ? { borderColor: RD } : undefined} /></div>
+        {!noAmount && <div><Lbl>{tr("Amount")}</Lbl><Inp t={t} data-leave-rule="amount" aria-label={tr("Amount")} inputMode="decimal" value={r.amount} onChange={e => setRule(i, "amount", num(e.target.value))} style={badAt("amount") ? { borderColor: RD } : undefined} /></div>}
+        <div><Lbl>{tr("Counted in")}</Lbl><Sel t={t} data-leave-rule="unit" aria-label={tr("Counted in")} value={r.unit} onChange={e => setRule(i, "unit", e.target.value)} options={[{ v: "hours", l: tr("Hours") }, { v: "days", l: tr("Days") }]} /></div>
+        {r.unit === "days" && <div><Lbl>{tr("Hours in a day")}</Lbl><Inp t={t} data-leave-rule="hoursPerDay" aria-label={tr("Hours in a day")} inputMode="decimal" value={r.hoursPerDay} onChange={e => setRule(i, "hoursPerDay", num(e.target.value))} style={badAt("hoursPerDay") ? { borderColor: RD } : undefined} /></div>}
+        {r.method === "per_hours_worked" && <div><Lbl>{tr("For every this many hours worked")}</Lbl><Inp t={t} data-leave-rule="perHoursWorked" aria-label={tr("For every this many hours worked")} inputMode="decimal" value={r.perHoursWorked} onChange={e => setRule(i, "perHoursWorked", num(e.target.value))} style={badAt("perHoursWorked") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Waiting period, in days")}</Lbl><Inp t={t} data-leave-rule="waitingDays" aria-label={tr("Waiting period, in days")} inputMode="numeric" value={r.waitingDays} onChange={e => setRule(i, "waitingDays", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} style={badAt("waitingDays") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Carryover cap")}</Lbl><Inp t={t} data-leave-rule="carryoverCap" aria-label={tr("Carryover cap")} inputMode="decimal" placeholder={tr("No cap")} value={r.carryoverCap} onChange={e => setRule(i, "carryoverCap", num(e.target.value))} style={badAt("carryoverCap") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Maximum balance")}</Lbl><Inp t={t} data-leave-rule="maxBalance" aria-label={tr("Maximum balance")} inputMode="decimal" placeholder={tr("No maximum")} value={r.maxBalance} onChange={e => setRule(i, "maxBalance", num(e.target.value))} style={badAt("maxBalance") ? { borderColor: RD } : undefined} /></div>}
+      </div>
+      {(r.method === "january_1" || r.method === "anniversary") && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.text, marginBottom: 6, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-leave-rule="alsoOnHire" checked={r.alsoOnHire} onChange={e => setRule(i, "alsoOnHire", e.target.checked)} /></span>{tr("A new hire also gets it on the hire date")}</label>}
+      {!noAmount && <div data-leave-rule-tiers="" style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Seniority tiers: from a number of years of service, a different amount.")}</div>
+        {r.tiers.map((x, j) => <div key={j} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: t.textSec }}>{tr("From")}</span>
+          <Inp t={t} aria-label={tr("Years of service")} inputMode="numeric" value={x.years} onChange={e => setRule(i, "tiers", r.tiers.map((y, k) => (k === j ? { ...y, years: e.target.value.replace(/[^0-9]/g, "").slice(0, 2) } : y)))} style={{ width: 70, ...(badAt("tiers[" + j + "]") ? { borderColor: RD } : {}) }} />
+          <span style={{ fontSize: 12, color: t.textSec }}>{tr("years:")}</span>
+          <Inp t={t} aria-label={tr("Amount from those years")} inputMode="decimal" value={x.amount} onChange={e => setRule(i, "tiers", r.tiers.map((y, k) => (k === j ? { ...y, amount: num(e.target.value) } : y)))} style={{ width: 90 }} />
+          <button onClick={() => setRule(i, "tiers", r.tiers.filter((_, k) => k !== j))} aria-label={tr("Remove this tier")} style={xBtn}><XI sz={14} c={t.textMut} /></button>
+        </div>)}
+        <Btn t={t} v="ghost" data-leave-rule-add-tier="" onClick={() => setRule(i, "tiers", r.tiers.concat([{ years: "", amount: "" }]))} style={small}>{tr("Add a tier")}</Btn>
+      </div>}
+      <div style={{ marginBottom: 6 }}><Lbl>{tr("Note")}</Lbl><Inp t={t} data-leave-rule="note" aria-label={tr("Note")} maxLength={1000} value={r.note} onChange={e => setRule(i, "note", e.target.value)} /></div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => set("rules", form.rules.filter((_, j) => j !== i))} style={small}>{tr("Remove this kind")}</Btn></div>
+    </div>); })}
+    <div style={{ marginBottom: 12 }}><Btn t={t} v="ghost" data-leave-editor-add-rule="" onClick={() => set("rules", form.rules.concat([Object.assign(blankRule(), { kind: "", newKind: true, amount: "" })]))} style={small}>{tr("Add a kind of leave")}</Btn></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} data-leave-editor="note" aria-label={tr("Note")} rows={2} maxLength={2000} value={form.note} onChange={e => set("note", e.target.value)} /></div>
+    {said && <div data-leave-editor-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12 }}>{said.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-editor-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
+  </div></Mdl>);
+}
+
+// One policy: its plain words, its kinds, its holidays, the sites that use it by default and the people
+// who follow it, with Edit for holders of manage_leave_balances. The handbook policy is read only.
+function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, onChanged, onOpenPerson, showToast }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [next, setNext] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const base = "/api/leave/policies/" + encodeURIComponent(id);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af(base + "?cursor="); setData(d); setPeople(Array.isArray(d && d.people) ? d.people : []); setNext(d && d.nextCursor ? d.nextCursor : null); }
+    catch (e) { setFailed(true); }
+  }, [af, base]);
+  useEffect(() => { load(); }, [load]);
+  const more = async () => { try { const d = await af(base + "?cursor=" + encodeURIComponent(next)); setPeople(cur => cur.concat(Array.isArray(d && d.people) ? d.people : [])); setNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); } };
+  const p = data && data.policy;
+  const readOnly = !!(p && p.builtIn);
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy={id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave policy")}</div>
+        {p && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{p.isDefault && <Bdg l={tr("Company default")} c={GO} />}{p.builtIn && <Bdg l={tr("Read only")} c={t.textMut} />}</div>}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {failed && !data && <LoadFailed t={t} onRetry={load} />}
+    {!failed && !data && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {p && <>
+      {p.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{p.description}</div>}
+      {readOnly && <div data-leave-policy-read-only="" style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr("This is the handbook's policy. It stays as the handbook sets it; make a new policy for anything else.")}</div>}
+      {canManage && !readOnly && <div style={{ marginBottom: 12 }}><Btn t={t} data-leave-policy-edit="" onClick={() => setEditing(true)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn></div>}
+      <div data-leave-policy-summary="" style={{ marginBottom: 12 }}>{(p.summary && p.summary.lines || []).map((l, i) => <div key={i} style={{ fontSize: 13, color: t.text, marginBottom: 6, lineHeight: 1.5 }}><b>{leaveKindWord(l.kind, l.kindName)}:</b> {l.text}{l.note ? <div style={{ fontSize: 12, color: t.textSec }}>{l.note}</div> : null}</div>)}
+        {p.summary && p.summary.holidays && <div style={{ fontSize: 12, color: t.textSec }}>{p.summary.holidays}</div>}
+        {p.grantsFrom && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Grants start on {0}.", fdLong(p.grantsFrom))}</div>}
+        {p.note && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{p.note}</div>}</div>
+      <Lbl>{tr("Sites that use it")}</Lbl>
+      <div data-leave-policy-sites="" style={{ marginBottom: 12 }}>{(data.sites || []).length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No site uses it.")}</div> : (data.sites || []).map(s => <div key={s.siteId} style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{s.siteName} <span style={{ fontSize: 12, color: t.textSec }}>{s.source === "site" ? (s.since ? tr("since {0}", fdLong(s.since)) : "") : tr("by the company default")}</span></div>)}</div>
+      <Lbl>{tr("Who follows it")}</Lbl>
+      <div data-leave-policy-people="">{people.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nobody follows it today.")}</div> : people.map(x => <button key={x.person.userId} onClick={() => onOpenPerson(x.person.userId)} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", minHeight: 44, padding: "6px 8px", background: "none", border: "none", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, textAlign: "left", cursor: "pointer", fontFamily: FONT_BODY }}><span>{x.person.name}</span><span style={{ fontSize: 12, color: t.textSec }}>{x.person.site ? x.person.site.name : ""}{x.policy ? " | " + leaveSourceWord(x.policy.source) : ""}</span></button>)}</div>
+      {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}><Btn t={t} v="ghost" onClick={more}>{tr("Show more")}</Btn></div>}
+    </>}
+    {editing && p && <LeavePolicyEditor af={af} t={t} policy={p} kinds={kinds} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); showToast(tr("Policy saved")); load(); if (onChanged) onChanged(); }} />}
+  </div></Mdl>);
+}
+
+// The hours file from the payroll system, read here the way the API reads it, line by line: the person by
+// badge number or employee ID, the period, and the hours. The API matches each person and posts; a line
+// it cannot match keeps the whole file from posting, and comes back with its words.
+const LEAVE_FILE_WORDS = {
+  badHeader: "The first line names the columns: person, period_start, period_end and hours (or person, period and hours).",
+  empty: "The file has no lines of hours.",
+  personRequired: "Name the person by badge number or employee ID.",
+  badPeriod: "The period needs a first and a last day, YYYY-MM-DD, the first on or before the last.",
+  periodAhead: "The period ends after today.",
+  periodTooLong: "A period is 62 days at most.",
+  badHours: "Hours are a number from 0 to 400.",
+};
+function leaveCsvRows(text) {
+  const s = String(text || "").replace(/^\ufeff/, "");
+  const rows = []; let row = []; let field = ""; let quoted = false; let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (quoted) { if (c === "\"") { if (s[i + 1] === "\"") { field += "\""; i += 2; continue; } quoted = false; i += 1; continue; } field += c; i += 1; continue; }
+    if (c === "\"" && field === "") { quoted = true; i += 1; continue; }
+    if (c === ",") { row.push(field); field = ""; i += 1; continue; }
+    if (c === "\r") { i += 1; continue; }
+    if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i += 1; continue; }
+    field += c; i += 1;
+  }
+  if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+function readLeaveHoursFile(text, today) {
+  const real = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) && new Date(v + "T12:00:00Z").toISOString().slice(0, 10) === v ? v : null;
+  const rows = leaveCsvRows(text).map((r, i) => ({ line: i + 1, cells: r })).filter(r => r.cells.some(c => String(c).trim() !== ""));
+  if (!rows.length) return { lines: [], problems: [{ line: 1, word: "empty" }] };
+  const head = rows[0].cells.map(c => String(c).trim().toLowerCase().replace(/\s+/g, "_"));
+  const col = (n) => head.indexOf(n);
+  const pc = col("person"), hc = col("hours"), per = col("period"), sc = col("period_start"), ec = col("period_end");
+  if (pc < 0 || hc < 0 || (per < 0 && (sc < 0 || ec < 0))) return { lines: [], problems: [{ line: rows[0].line, word: "badHeader" }] };
+  const lines = []; const problems = [];
+  rows.slice(1).forEach(r => {
+    const cell = (i) => (i >= 0 && i < r.cells.length ? String(r.cells[i]).trim() : "");
+    const person = cell(pc);
+    const base = { line: r.line, person };
+    if (!person || person.length > 64) { problems.push({ line: r.line, word: "personRequired" }); lines.push(base); return; }
+    let first = null; let last = null;
+    if (per >= 0 && !(sc >= 0 && ec >= 0)) { const parts = cell(per).split(/\s*\/\s*|\s+to\s+/i); if (parts.length === 2) { first = real(parts[0]); last = real(parts[1]); } }
+    else { first = real(cell(sc)); last = real(cell(ec)); }
+    if (!first || !last || first > last) { problems.push({ line: r.line, word: "badPeriod" }); lines.push(base); return; }
+    if (last > today) { problems.push({ line: r.line, word: "periodAhead" }); lines.push(base); return; }
+    if ((Date.parse(last + "T12:00:00Z") - Date.parse(first + "T12:00:00Z")) / 86400000 + 1 > 62) { problems.push({ line: r.line, word: "periodTooLong" }); lines.push(base); return; }
+    const h = Number(cell(hc));
+    if (cell(hc) === "" || !Number.isFinite(h) || h < 0 || h > 400) { problems.push({ line: r.line, word: "badHours" }); lines.push(base); return; }
+    lines.push(Object.assign(base, { periodStart: first, periodEnd: last, hours: h }));
+  });
+  if (rows.length === 1) problems.push({ line: rows[0].line, word: "empty" });
+  return { lines, problems };
+}
+function LeaveHoursWindow({ af, t, onClose, onPosted }) {
+  const [file, setFile] = useState(null);
+  const [read, setRead] = useState(null);
+  const [answer, setAnswer] = useState(null);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const ref = useRef(null);
+  const pick = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (ref.current) ref.current.value = "";
+    setAnswer(null); setSaid(null);
+    if (!f) return;
+    const text = await f.text();
+    setFile({ name: f.name, text });
+    setRead(readLeaveHoursFile(text, leaveToday()));
+  };
+  const post = once(async () => {
+    if (!file) return;
+    setSaid(null);
+    try { const d = await af("/api/leave/hours-files", { method: "POST", body: { fileName: file.name, csv: file.text } }); setAnswer(d); if (onPosted) onPosted(); }
+    catch (e) { setSaid({ text: (e && e.message) || tr("Request failed"), lines: e && e.body && Array.isArray(e.body.lines) ? e.body.lines : [] }); }
+  });
+  const problemOf = (line) => { const p = (read ? read.problems : []).find(x => x.line === line); return p ? tr(LEAVE_FILE_WORDS[p.word]) : ""; };
+  const refusedOf = (line) => { const p = (said ? said.lines : []).find(x => x.line === line); return p ? p.message : ""; };
+  const local = read ? read.problems.length : 0;
+  const cols = [
+    { header: tr("Line"), render: l => l.line },
+    { header: tr("Person"), render: l => <span style={{ fontFamily: "monospace" }}>{l.person || "--"}</span> },
+    { header: tr("Period"), render: l => (l.periodStart ? tr("{0} to {1}", fdLong(l.periodStart), fdLong(l.periodEnd)) : "--") },
+    { header: tr("Hours"), align: "right", render: l => (l.hours != null ? leaveNum(l.hours) : "--") },
+    { header: "", render: l => { const w = problemOf(l.line) || refusedOf(l.line); return w ? <span data-leave-file-problem={l.line} style={{ fontSize: 12, color: RD }}>{w}</span> : null; } },
+  ];
+  const outCols = [
+    { header: tr("Line"), render: l => l.line },
+    { header: tr("Person"), render: l => l.name || l.person },
+    { header: tr("Period"), render: l => tr("{0} to {1}", fdLong(l.periodStart), fdLong(l.periodEnd)) },
+    { header: tr("Hours worked"), align: "right", render: l => leaveNum(l.hoursWorked) },
+    { header: tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
+  ];
+  return (<Mdl t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload an hours file")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The payroll system's hours export, as a CSV: a column person (badge number or employee ID), period_start and period_end (or period), and hours. Hours worked post leave for policies given per hours worked.")}</div>
+    {!answer && <div style={{ marginBottom: 12 }}>
+      <input ref={ref} type="file" accept=".csv,text/csv" onChange={pick} aria-label={tr("Choose the CSV")} style={{ display: "none" }} />
+      <Btn t={t} v="ghost" data-leave-file-choose="" onClick={() => ref.current && ref.current.click()} style={{ minHeight: 44 }}>{file ? tr("Choose another file") : tr("Choose the CSV")}</Btn>
+      {file && <span style={{ marginLeft: 10, fontSize: 13, color: t.text }}>{file.name}</span>}
+    </div>}
+    {read && !answer && <>
+      <div data-leave-file-read={read.lines.length} style={{ fontSize: 12, color: local || (said && said.lines.length) ? RD : t.textSec, marginBottom: 8 }}>{local ? trn("{0} line cannot be read. Fix the file and choose it again.|count", local) : said && said.lines.length ? said.text : trn("{0} line read. Post the hours to match each person and post their leave.|count", read.lines.length)}</div>
+      <DataTable t={t} columns={cols} rows={read.lines} rowKey={l => l.line} empty={tr("The file has no lines of hours.")} />
+      {said && !said.lines.length && <div data-leave-file-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-post="" onClick={post} disabled={busy || local > 0 || read.lines.length === 0}>{busy ? tr("Posting...") : tr("Post the hours")}</Btn></div>
+    </>}
+    {answer && answer.duplicate && <div data-leave-file-duplicate="" style={{ fontSize: 13, color: t.text, marginBottom: 12 }}>{tr("This file was posted before, on {0}. Nothing new posted.", answer.file ? irWhen(answer.file.uploadedAt) : "--")}</div>}
+    {answer && !answer.duplicate && <>
+      <div data-leave-file-posted={answer.file ? answer.file.postedCount : 0} style={{ fontSize: 13, color: GR, fontWeight: 600, marginBottom: 8 }}>{tr("Posted. {0} lines posted leave, {1} posted none.", answer.file ? answer.file.postedCount : 0, answer.file ? answer.file.skippedCount : 0)}</div>
+      <DataTable t={t} columns={outCols} rows={answer.lines || []} rowKey={l => l.line} />
+    </>}
+    {answer && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={onClose}>{tr("Done")}</Btn></div>}
+  </div></Mdl>);
+}
+
+// Enter starting balances: everyone active, a box for the paid sick hours each has left today. Save posts one
+// adjustment per filled box, the difference from what the ledger holds, with the reason Starting balance and
+// a clientId made once per person, so a retry posts once.
+function LeaveStartingBalances({ af, t, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [boxes, setBoxes] = useState({});
+  const [results, setResults] = useState({});
+  const [once, busy] = useBusyGuard();
+  const ids = useRef({});
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { setRows(await leaveEveryPage(af, "/api/leave/balances?status=active", "people")); }
+    catch (e) { setFailed(true); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const sickOf = (r) => { const b = (r.balances || []).find(x => x.kind === "paid_sick"); return b ? Number(b.balanceHours) || 0 : 0; };
+  const save = once(async () => {
+    const filled = (rows || []).filter(r => String(boxes[r.person.userId] || "").trim() !== "");
+    if (!filled.length) { showToast(tr("Fill in at least one box."), "error"); return; }
+    const out = {};
+    let posted = 0, refused = 0, same = 0;
+    for (const r of filled) {
+      const uid = r.person.userId;
+      const want = Number(String(boxes[uid]).trim());
+      if (!Number.isFinite(want) || want < 0 || want > 9999 || Math.abs(want * 100 - Math.round(want * 100)) > 1e-6) { out[uid] = { bad: true, text: tr("Type the hours left, from 0, up to two decimals.") }; refused += 1; continue; }
+      const delta = Math.round((want - sickOf(r)) * 100) / 100;
+      if (delta === 0) { out[uid] = { same: true, text: tr("Already at {0}.", leaveHours(want)) }; same += 1; continue; }
+      if (!ids.current[uid]) ids.current[uid] = "start-" + Math.random().toString(36).slice(2, 10) + "-" + String(uid).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+      try {
+        const d = await af("/api/leave/people/" + encodeURIComponent(uid) + "/adjustments", { method: "POST", body: { kind: "paid_sick", hours: delta, reason: "Starting balance", clientId: ids.current[uid] } });
+        out[uid] = { posted: true, text: tr("Posted {0}. The balance is {1}.", leaveSigned(delta), leaveHours(d && d.balance ? d.balance.balanceHours : want)) };
+        posted += 1;
+      } catch (e) { out[uid] = { bad: true, text: (e && e.message) || tr("Request failed") }; refused += 1; }
+    }
+    setResults(out);
+    showToast(tr("{0} posted, {1} refused, {2} already at that balance.", posted, refused, same), refused ? "error" : "success");
+    try { setRows(await leaveEveryPage(af, "/api/leave/balances?status=active", "people")); } catch (e) { /* the results stay as they are */ }
+  });
+  const cols = [
+    { header: tr("Person"), render: r => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{r.person.site ? r.person.site.name : ""}</div></div> },
+    { header: tr("Paid sick now"), align: "right", render: r => leaveHours(sickOf(r)) },
+    { header: tr("Paid sick hours left today"), render: r => <Inp t={t} data-leave-start-box={r.person.userId} aria-label={tr("Paid sick hours left today for {0}", r.person.name)} inputMode="decimal" value={boxes[r.person.userId] || ""} onChange={e => { const v = e.target.value.replace(/[^0-9.]/g, "").slice(0, 7); setBoxes(b => ({ ...b, [r.person.userId]: v })); }} style={{ width: 110, minHeight: 40 }} /> },
+    { header: "", render: r => { const x = results[r.person.userId]; return x ? <span data-leave-start-result={x.posted ? "posted" : x.same ? "same" : "refused"} style={{ fontSize: 12, color: x.posted ? GR : x.same ? t.textSec : RD }}>{x.text}</span> : null; } },
+  ];
+  return (<div data-leave-starting="">
+    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Use this once, when leave balances start: type the paid sick hours each person has left today. Save posts one adjustment for each filled box, with the reason Starting balance. A box left empty posts nothing.")}</div>
+    {failed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {!failed && <DataTable t={t} columns={cols} rows={rows || []} rowKey={r => r.person.userId} empty={rows == null ? tr("Loading...") : tr("Nobody is active.")} />}
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} data-leave-start-save="" onClick={save} disabled={busy || !rows}>{busy ? tr("Saving...") : tr("Save the starting balances")}</Btn></div>
+  </div>);
+}
+
+// A site's leave policy, on its General Info tab, with Set the site's policy for holders of
+// manage_leave_balances.
+function SiteLeavePolicy({ af, t, siteId, showToast }) {
+  const leave = useContext(LeaveCtx);
+  const [site, setSite] = useState(null);
+  const [policies, setPolicies] = useState([]);
+  const [setting, setSetting] = useState(false);
+  const load = useCallback(() => { af("/api/leave/sites").then(d => setSite((Array.isArray(d && d.sites) ? d.sites : []).find(s => String(s.siteId) === String(siteId)) || null)).catch(() => setSite(null)); }, [af, siteId]);
+  useEffect(() => { if (leave.on) load(); }, [leave.on, load]);
+  useEffect(() => { if (leave.on && setting) af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => {}); }, [af, leave.on, setting]);
+  if (!leave.on || !site) return null;
+  return (<Crd t={t} style={{ marginBottom: 16 }}><div data-site-leave-policy={siteId}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+      <div><div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Leave policy")}</div>
+        <div data-site-leave-policy-name="" style={{ fontSize: 13, color: t.text }}>{leavePolicyName(site.policy)}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{site.source === "site" ? tr("This site's own default, since {0}.", site.since ? fdLong(site.since) : "--") : tr("The company default. People here follow it unless they have their own.")}</div></div>
+      {leave.canManage && !setting && <Btn t={t} v="ghost" data-site-leave-policy-set="" onClick={() => setSetting(true)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Set the site's policy")}</Btn>}
+    </div>
+    {setting && <LeavePolicySetForm af={af} t={t} scope="site" id={siteId} policies={policies} onCancel={() => setSetting(false)} onDone={() => { setSetting(false); showToast(tr("Policy saved")); load(); }} />}
+  </div></Crd>);
+}
+
+// The Leave balances page (Staff, under HR Records): Balances, Policies, Sites, Hours files, Missing hire
+// dates, and Enter starting balances. #leave/<tab>, and #leave/balances/<userId> opens a person's ledger.
+function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, canOpenStaff = false }) {
+  const leave = useContext(LeaveCtx);
+  const tabs = [["balances", "Balances"], ["policies", "Policies"], ["sites", "Sites"], ["hours", "Hours files"], ["missing", "Missing hire dates"]].concat(leave.canManage ? [["starting", "Enter starting balances"]] : []);
+  const tab = tabs.some(x => x[0] === route[0]) ? route[0] : "balances";
+  const go = (id, more) => { if (onRoute) onRoute([id].concat(more || [])); };
+  const [policies, setPolicies] = useState(null);
+  const [kinds, setKinds] = useState([]);
+  const [year, setYear] = useState(leaveYear());
+  const [f, setF] = useState({ siteId: "", policyId: "", role: "", status: "active", q: "" });
+  const [typed, setTyped] = useState("");
+  const [rows, setRows] = useState([]);
+  const [next, setNext] = useState(null);
+  const [files, setFiles] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [openPolicy, setOpenPolicy] = useState("");
+  const [newPolicy, setNewPolicy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [leaveSites, setLeaveSites] = useState(null);
+  const [siteSetting, setSiteSetting] = useState("");
+  const [fileList, setFileList] = useState(null);
+  const [fileNext, setFileNext] = useState(null);
+  const [missing, setMissing] = useState(null);
+  const [missingNext, setMissingNext] = useState(null);
+  const personId = tab === "balances" && route[1] ? String(route[1]) : "";
+  const loadPolicies = useCallback(() => { af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => setPolicies([])); }, [af]);
+  useEffect(() => { loadPolicies(); af("/api/leave/kinds").then(d => setKinds(Array.isArray(d && d.kinds) ? d.kinds : [])).catch(() => {}); }, [af, loadPolicies]);
+  const query = useMemo(() => { const p = new URLSearchParams(); p.set("year", String(year)); Object.keys(f).forEach(k => { if (f[k] && !(k === "status" && f[k] === "active")) p.set(k, f[k]); }); return p; }, [year, f]);
+  const asked = useRef(0);
+  const loadBalances = useCallback(async () => {
+    const n = ++asked.current;
+    setLoading(true); setFailed(false);
+    try {
+      const p = new URLSearchParams(query); p.set("cursor", "");
+      const d = await af("/api/leave/balances?" + p.toString());
+      if (n !== asked.current) return;
+      setRows(Array.isArray(d && d.people) ? d.people : []); setNext(d && d.nextCursor ? d.nextCursor : null); setFiles(d && d.hoursFiles ? d.hoursFiles : null);
+    } catch (e) { if (n === asked.current) { setRows([]); setNext(null); setFailed(true); } }
+    if (n === asked.current) setLoading(false);
+  }, [af, query]);
+  useEffect(() => { if (tab === "balances") loadBalances(); }, [tab, loadBalances, reloadKey]);
+  const more = async () => {
+    const n = asked.current;
+    try { const p = new URLSearchParams(query); p.set("cursor", next); const d = await af("/api/leave/balances?" + p.toString()); if (n === asked.current) { setRows(cur => cur.concat(Array.isArray(d && d.people) ? d.people : [])); setNext(d && d.nextCursor ? d.nextCursor : null); } }
+    catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); }
+  };
+  const download = async () => { try { const p = new URLSearchParams(query); p.set("format", "csv"); await saveDownload("/api/leave/balances?" + p.toString(), token, "leave-balances-" + year + ".csv"); } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); } };
+  const loadSites = useCallback(() => { af("/api/leave/sites").then(d => setLeaveSites(Array.isArray(d && d.sites) ? d.sites : [])).catch(() => setLeaveSites([])); }, [af]);
+  useEffect(() => { if (tab === "sites") loadSites(); }, [tab, loadSites]);
+  const loadFiles = useCallback(async (cursor) => { try { const d = await af("/api/leave/hours-files?cursor=" + encodeURIComponent(cursor || "")); setFileList(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.files) ? d.files : [])); setFileNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setFileList(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
+  useEffect(() => { if (tab === "hours") loadFiles(""); }, [tab, loadFiles]);
+  const loadMissing = useCallback(async (cursor) => { try { const d = await af("/api/leave/missing-hire-dates?cursor=" + encodeURIComponent(cursor || "")); setMissing(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.people) ? d.people : [])); setMissingNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setMissing(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
+  useEffect(() => { if (tab === "missing") loadMissing(""); }, [tab, loadMissing]);
+  const pickStyle = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
+  const balanceCols = [
+    { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
+    { header: tr("Policy"), render: r => <div style={{ fontSize: 12 }}><div style={{ color: t.text }}>{leavePolicyName(r.policy)}</div>{r.policy && <div style={{ color: t.textMut, fontSize: 11 }}>{leaveSourceWord(r.policy.source)}</div>}</div> },
+    { header: tr("Balances"), render: r => <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{(r.balances || []).length === 0 ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("None kept")}</span> : r.balances.map(b => <span key={b.kind} data-leave-chip={b.kind} style={{ fontSize: 12, padding: "3px 9px", borderRadius: R.pill, background: t.cardAlt, color: Number(b.balanceHours) < 0 ? RD : t.text, whiteSpace: "nowrap" }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div> },
+  ];
+  return (<div data-leave-page="">
+    <SecT t={t}>{tr("Leave balances")}</SecT>
+    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l) }))} />
+    {tab === "balances" && <div data-leave-tab="balances">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 10 }}>
+        <Sel t={t} data-leave-filter="year" aria-label={tr("Year")} value={String(year)} onChange={e => setYear(Number(e.target.value))} options={[leaveYear() + 1, leaveYear(), leaveYear() - 1, leaveYear() - 2].map(y => ({ v: String(y), l: String(y) }))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="site" aria-label={tr("Site")} value={f.siteId} onChange={e => setF(x => ({ ...x, siteId: e.target.value }))} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s => ({ v: String(s.id), l: s.name })))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="policy" aria-label={tr("Policy")} value={f.policyId} onChange={e => setF(x => ({ ...x, policyId: e.target.value }))} options={[{ v: "", l: tr("Every policy") }].concat((policies || []).map(p => ({ v: p.id, l: p.name })))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="role" aria-label={tr("Role")} value={f.role} onChange={e => setF(x => ({ ...x, role: e.target.value }))} options={[{ v: "", l: tr("Every role") }].concat(LEAVE_ROLES.map(r => ({ v: r, l: roleWord(r) })))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="status" aria-label={tr("Status")} value={f.status} onChange={e => setF(x => ({ ...x, status: e.target.value }))} options={LEAVE_STATUSES.map(([v, l]) => ({ v, l: v === "pending" ? personStateOf("pending") : tr(l) }))} style={pickStyle} />
+        <Inp t={t} data-leave-filter="q" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+        <div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div>
+        <Btn t={t} v="ghost" data-leave-download="" onClick={download} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}><DlI sz={14} c={t.text} /> {tr("Download CSV")}</Btn>
+      </div>
+      {failed && rows.length === 0 ? <Crd t={t}><LoadFailed t={t} onRetry={loadBalances} /></Crd>
+        : <DataTable t={t} columns={balanceCols} rows={rows} rowKey={r => r.person.userId} onRowClick={r => go("balances", [r.person.userId])} empty={loading ? tr("Loading...") : tr("Nobody matches.")} />}
+      {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" data-leave-more="" onClick={more}>{tr("Show more")}</Btn></div>}
+    </div>}
+    {tab === "policies" && <div data-leave-tab="policies">
+      {leave.canManage && <div style={{ marginBottom: 12 }}><Btn t={t} data-leave-policy-new="" onClick={() => setNewPolicy(true)} style={{ minHeight: 44 }}>{tr("New leave policy")}</Btn></div>}
+      {policies == null && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+      {(policies || []).map(p => <Crd key={p.id} t={t} style={{ marginBottom: 10 }} onClick={() => setOpenPolicy(p.id)}><div data-leave-policy-card={p.id}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{p.name} <span style={{ marginLeft: 6 }}>{p.isDefault && <Bdg l={tr("Company default")} c={GO} />} {p.builtIn && <Bdg l={tr("Read only")} c={t.textMut} />}</span></div>
+          <div style={{ fontSize: 12, color: t.textSec }}>{p.followers ? tr("{0} sites, {1} people", p.followers.sites, p.followers.people) : ""}</div>
+        </div>
+        {(p.summary && p.summary.lines || []).map((l, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.4 }}><b style={{ color: t.text }}>{leaveKindWord(l.kind, l.kindName)}:</b> {l.text}</div>)}
+      </div></Crd>)}
+    </div>}
+    {tab === "sites" && <div data-leave-tab="sites">
+      {leaveSites == null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : <DataTable t={t} rowKey={s => s.siteId} rows={leaveSites} empty={tr("No active site.")} columns={[
+        { header: tr("Site"), render: s => <span style={{ color: t.text, fontWeight: 600 }}>{s.siteName}</span> },
+        { header: tr("Policy"), render: s => <div data-leave-site-row={s.siteId}><div style={{ color: t.text }}>{leavePolicyName(s.policy)}</div><div style={{ fontSize: 11, color: t.textMut }}>{s.source === "site" ? tr("This site's own default, since {0}.", s.since ? fdLong(s.since) : "--") : tr("The company default")}</div>
+          {siteSetting === s.siteId && <LeavePolicySetForm af={af} t={t} scope="site" id={s.siteId} policies={policies || []} onCancel={() => setSiteSetting("")} onDone={() => { setSiteSetting(""); showToast(tr("Policy saved")); loadSites(); loadPolicies(); }} />}</div> },
+        ...(leave.canManage ? [{ header: "", align: "right", render: s => siteSetting === s.siteId ? null : <Btn t={t} v="ghost" data-leave-site-set={s.siteId} onClick={() => setSiteSetting(s.siteId)} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Set the site's policy")}</Btn> }] : []),
+      ]} />}
+    </div>}
+    {tab === "hours" && <div data-leave-tab="hours">
+      {leave.canManage && <div style={{ marginBottom: 12 }}><Btn t={t} data-leave-file-upload="" onClick={() => setUploading(true)} style={{ minHeight: 44 }}>{tr("Upload an hours file")}</Btn></div>}
+      <DataTable t={t} rowKey={x => x.id} rows={fileList || []} empty={fileList == null ? tr("Loading...") : tr("No hours file has been posted yet.")} columns={[
+        { header: tr("File"), render: x => <span data-leave-file-row={x.id} style={{ color: t.text }}>{x.fileName}</span> },
+        { header: tr("Periods"), render: x => (x.firstPeriodStart ? tr("{0} to {1}", fdLong(x.firstPeriodStart), fdLong(x.lastPeriodEnd)) : "--") },
+        { header: tr("Lines"), align: "right", render: x => x.lineCount },
+        { header: tr("Posted|hours file"), align: "right", render: x => x.postedCount },
+        { header: tr("Posted none"), align: "right", render: x => x.skippedCount },
+        { header: tr("By"), render: x => (x.uploadedBy ? x.uploadedBy.name : "--") },
+        { header: tr("When"), render: x => irWhen(x.uploadedAt) },
+      ]} />
+      {fileNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadFiles(fileNext)}>{tr("Show more")}</Btn></div>}
+    </div>}
+    {tab === "missing" && <div data-leave-tab="missing">
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Active people with no hire date. A grant on the hire date, a seniority tier or a waiting period cannot count for them until one is on their profile.")}</div>
+      <DataTable t={t} rowKey={x => x.person.userId} rows={missing || []} empty={missing == null ? tr("Loading...") : tr("Everyone active has a hire date.")} columns={[
+        { header: tr("Person"), render: x => <span data-leave-missing={x.person.userId} style={{ color: t.text, fontWeight: 600 }}>{x.person.name}</span> },
+        { header: tr("Site"), render: x => (x.person.site ? x.person.site.name : "--") },
+        { header: tr("Policy"), render: x => leavePolicyName(x.policy) },
+        { header: tr("What waits on it"), render: x => (x.kindsAffected || []).map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--" },
+        { header: "", align: "right", render: x => <Btn t={t} v="ghost" data-leave-missing-open={x.person.userId} onClick={() => { window.location.hash = (canOpenStaff ? "staff/" : "hr/") + encodeURIComponent(x.person.userId); }} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Open the profile")}</Btn> },
+      ]} />
+      {missingNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadMissing(missingNext)}>{tr("Show more")}</Btn></div>}
+    </div>}
+    {tab === "starting" && leave.canManage && <LeaveStartingBalances af={af} t={t} showToast={showToast} />}
+    {personId && <LeavePersonWindow af={af} t={t} userId={personId} year={year} kinds={kinds} policies={policies || []} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => go("balances")} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
+    {openPolicy && <LeavePolicyWindow af={af} t={t} id={openPolicy} kinds={kinds} canManage={leave.canManage} onClose={() => setOpenPolicy("")} onChanged={loadPolicies} onOpenPerson={(uid) => { setOpenPolicy(""); go("balances", [uid]); }} showToast={showToast} />}
+    {newPolicy && <LeavePolicyEditor af={af} t={t} kinds={kinds} onClose={() => setNewPolicy(false)} onSaved={() => { setNewPolicy(false); showToast(tr("Policy saved")); loadPolicies(); }} />}
+    {uploading && <LeaveHoursWindow af={af} t={t} onClose={() => setUploading(false)} onPosted={() => loadFiles("")} />}
   </div>);
 }
 
@@ -6166,7 +7517,7 @@ function SupplyOrderSigned({ t, af, token, r, mayDecide, onSent }) {
     if (busyRef.current || going || !to.trim()) return;
     busyRef.current = true; setBusy(true); setRefusal("");
     try { const d = await af("/api/supplies/requests/" + encodeURIComponent(r.id) + "/send", { method: "POST", body: { to: to.trim() } }); await onSent(d); }
-    catch (e) { if (sendStillGoing(e)) setGoing(true); setRefusal(sendStillGoing(e) ? tr(SEND_STILL_GOING) : e.message || tr("Request failed")); }
+    catch (e) { if (sendStillGoing(e)) setGoing(true); setRefusal(sendStillGoing(e) ? sendGoingWords(e) : e.message || tr("Request failed")); }
     busyRef.current = false; setBusy(false);
   };
   const vendorLines = o.vendor ? [o.vendor.contactName, o.vendor.contactPhone, o.vendor.contactEmail, o.vendor.address].filter(Boolean) : [];
@@ -6371,7 +7722,19 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
-  const loadRequests = () => af("/api/supplies/requests").then(setRequests).catch(e => showToast(e.message, "error"));
+  // Requests a page at a time (part 368), newest first; read again after a change, as many as are shown.
+  const [reqNext, setReqNext] = useState("");
+  const [reqMore, setReqMore] = useState(false);
+  const reqShown = useRef(0);
+  reqShown.current = Array.isArray(requests) ? requests.length : 0;
+  const loadRequests = (keep) => af(pagedPath("/api/supplies/requests", {}, "", keep === true ? reqShown.current : 0)).then(d => { setRequests(d && Array.isArray(d.requests) ? d.requests : []); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }).catch(e => showToast(e.message, "error"));
+  const moreRequests = async () => {
+    if (!reqNext || reqMore) return;
+    setReqMore(true);
+    try { const d = await af(pagedPath("/api/supplies/requests", {}, reqNext)); setRequests(have => pagedAppend(have, d && d.requests, r => r.id)); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setReqMore(false);
+  };
   useEffect(() => { loadSupplies(); loadRequests(); loadRemoved(); }, []);
   // Step 282: a request whose answer carries items opens in its window by id, so a list read anew
   // redraws it. A decision's answer is laid over the row when it is the request with its items, and
@@ -6381,7 +7744,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const requestDecided = async (d) => {
     const row = d && Array.isArray(d.items) && d.id != null ? d : d && d.request && Array.isArray(d.request.items) && d.request.id != null ? d.request : null;
     if (row) setRequests(rs => rs.map(x => (String(x.id) === String(row.id) ? { ...x, ...row } : x)));
-    await loadRequests();
+    await loadRequests(true);
   };
   // Download for ordering (Step 282): GET /api/supplies/requests/approved.csv?from=&to=&siteId=, the
   // approved lines of the requests not yet fulfilled, for the dates and the site chosen; the last 30
@@ -6423,7 +7786,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     supplySaving.current = false; setSupplyBusy(false);
   };
   const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); loadRemoved(); } catch (e) { showToast(e.message, "error"); } };
-  const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
+  const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(true); } catch (e) { showToast(e.message, "error"); } };
   // The pickers read each choice's shown label and send its code; a card draws a choice's shown label.
   const cats = getOpts("supply_categories", null, true);
   const units = getOpts("supply_units", null, true);
@@ -6465,6 +7828,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     </div></Crd>}
     {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}{r.poNumber ? <span data-request-po={r.poNumber} style={{ color: t.goldText, fontWeight: 600 }}>{" | " + r.poNumber}</span> : null}{r.orderedAt ? <span data-request-ordered="" style={{ color: GR, fontWeight: 600 }}>{" | " + tr("Ordered {0}", fd(r.orderedAt))}</span> : null}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && supplyCanDecide(r) && !supplyOrderOf(r).signed && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
+    {tab === "requests" && <ShowMore t={t} next={reqNext} busy={reqMore} onMore={moreRequests} at="supply-requests" />}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit} disabled={supplyBusy}>{tr("Save")}</Btn></div></div></Mdl>}
     {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} token={token} r={openReq} user={user} sites={sites} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
@@ -8022,19 +9386,23 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
     return () => { alive = false; clearTimeout(h); };
   }, [listState, aud, siteId, role, userIds.join(",")]);
   const audienceBody = () => (aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
-  // An announcement the browser gave up on may still be going out to every phone (findings API-93 and
-  // API-108): the list is read again to show it, and Send stays off until the words are changed.
-  const [going, setGoing] = useState(false);
-  useEffect(() => { setGoing(false); }, [title, body]);
+  // Each announcement carries a clientId made once, at its first press, and kept until it is sent or its
+  // words or people change (part 368, the API's part 365, finding API-108): a press again after the
+  // browser gave up is answered with the first announcement and sends nothing twice, so Send stays on,
+  // and the list is read again to show it.
+  const clientIdRef = useRef(null);
+  useEffect(() => { clientIdRef.current = null; }, [title, body, aud, siteId, role, userIds.join(",")]);
   const send = async () => {
-    if (sendingRef.current || going) return;
+    if (sendingRef.current) return;
     sendingRef.current = true; setSending(true); setErrors({});
+    if (!clientIdRef.current) clientIdRef.current = newDeviceId();
     try {
-      await af("/api/announcements", { method: "POST", body: { title: title.trim(), body: body.trim(), audience: audienceBody() } });
+      await af("/api/announcements", { method: "POST", body: { title: title.trim(), body: body.trim(), audience: audienceBody(), clientId: clientIdRef.current } });
       showToast(tr("Announcement sent."));
+      clientIdRef.current = null;
       setTitle(""); setBody(""); setUserIds([]); load();
     } catch (e) {
-      if (sendStillGoing(e)) { setGoing(true); setErrors({ form: tr(SEND_STILL_GOING) }); load(); }
+      if (sendStillGoing(e)) { setErrors({ form: tr("This is taking longer than usual and may still be going out. Press Send again to check: it will not go out twice.") }); load(); }
       else {
         const field = (e && e.code && announcementCodes[e.code]) || "form";
         setErrors({ [field]: (e && e.message) || tr("Request failed") });
@@ -8097,7 +9465,7 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
         </div>
         {preview && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Reaches {0} people, {1} with phone alerts on.", Number(preview.recipients) || 0, Number(preview.withPush) || 0)}</div>}
         {errLine("form")}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || going || !audienceReady} data-announcement-send="" style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || !audienceReady} data-announcement-send="" style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
       </Crd>
       <Crd t={t}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Sent")}</div>
@@ -9814,6 +11182,9 @@ function noticePlace(n) {
   // Round 2 (part 353): a held sign-in names the person (subjectId) and opens their profile, where
   // Unlock is (the API's tellHeld links #staff).
   if (st === "sign_in_held") return { page: "staff", hash: sid ? "staff/" + enc(sid) : "staff" };
+  // Part 368: a maintenance request's status and its no-response notice name the request and open its
+  // window on Maintenance requests (the API links #maintenance/<id>).
+  if ((st === "maintenance_status" || st === "maintenance_no_response") && sid) return { page: "maintenance", hash: "maintenance/" + enc(sid) };
   if (/^shift(_|$)/.test(st)) return { page: "schedule", hash: "" };
   return null;
 }
@@ -10913,7 +12284,7 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
       await af("/api/monthly-reports/" + encodeURIComponent(report.id) + "/send", { method: "POST", body: { to } });
       onSent();
     } catch (e) {
-      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), field: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
+      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: sendGoingWords(e), field: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
       const code = String((e && e.code) || "");
       setRefusal({ text: e.message || tr("Request failed"), field: code === "monthly.noRecipients" || code === "monthly.badEmail" ? "to" : "", keys: Array.isArray(e && e.body && e.body.keys) ? e.body.keys.map(String) : [] });
     }
@@ -11216,7 +12587,8 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     // An answer that arrives after another year was picked is left off that year's page.
     const mine = seq.current;
     try {
-      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { averageEmployees: summaryFigure(figures.averageEmployees), totalHours: summaryFigure(figures.totalHours) } });
+      // The summary as read goes back with its updatedAt (part 368, API-101); certifying moves it too.
+      const d = await saveSince(af, "/api/injury-summary/" + year, { method: "PUT", body: { averageEmployees: summaryFigure(figures.averageEmployees), totalHours: summaryFigure(figures.totalHours) }, read: data, labels: { averageEmployees: tr("Annual average number of employees"), totalHours: tr("Total hours worked by all employees last year") } });
       if (seq.current === mine) { if (d && d.totals) shown(d); else load(); setSavedLine(true); }
       if (onChanged) onChanged();
     } catch (e) {
@@ -11261,7 +12633,7 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     setPosting(true); setPostRefusal(""); setPostSaved(false);
     const mine = seq.current;
     try {
-      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { postedOn: postedOn || null } });
+      const d = await saveSince(af, "/api/injury-summary/" + year, { method: "PUT", body: { postedOn: postedOn || null }, read: data, labels: { postedOn: tr("Date") } });
       if (seq.current === mine && d && d.totals) {
         shown(d);
         if ((d.postedOn ? String(d.postedOn).slice(0, 10) : "") === (postedOn || "")) setPostSaved(true);
@@ -11448,7 +12820,8 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
     setSaving(true);
     const body = { name: name.trim(), description: description.trim(), category: category.trim() || "Custom", source, config: buildConfig(), is_template: true };
     try {
-      if (isEdit) await af("/api/report-engine/definitions/" + initial.id, { method: "PUT", body });
+      // The report as read goes back with its updated time (part 368, API-101).
+      if (isEdit) await saveSince(af, "/api/report-engine/definitions/" + initial.id, { method: "PUT", body, read: initial, labels: { name: tr("Name"), description: tr("Description"), category: tr("Category") } });
       else await af("/api/report-engine/definitions", { method: "POST", body });
       showToast(isEdit ? tr("Report updated") : tr("Report created"));
       onSaved();
@@ -11865,7 +13238,7 @@ function inspectionPageHtml(d, words, sigs) {
     return '<tr style="border-bottom:1px solid #eee">'
       + '<td style="padding:10px 8px;font-size:13px;font-weight:600">' + esc(shownItem(item).label) + "</td>"
       + '<td style="padding:10px 8px;font-size:12px;color:#666">' + esc(words.zoneWord(item)) + "</td>"
-      + '<td style="padding:10px 8px;text-align:center"><span style="background:' + catColor(item.cims_category) + "22;color:" + catColor(item.cims_category) + ';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">' + esc(words.catWord(item.cims_category)) + "</span></td>"
+      + '<td style="padding:10px 8px;text-align:center"><span style="background:' + catColor(catOf(item)) + "22;color:" + catColor(catOf(item)) + ';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">' + esc(words.catWord(catOf(item))) + "</span></td>"
       + '<td style="padding:10px 8px"><div style="display:flex;align-items:center;gap:8px"><div style="background:#eee;border-radius:4px;height:8px;width:200px;overflow:hidden"><div style="background:' + iColor + ";height:100%;width:" + barW + 'px;border-radius:4px"></div></div>'
       + '<span style="font-weight:700;color:' + iColor + ';font-size:13px">' + (sr ? esc(sr.score) : "--") + '<span style="color:#999;font-weight:400;font-size:11px">/' + esc(item.max_score) + "</span></span></div></td>"
       + '<td style="padding:10px 8px;font-size:12px;color:#555;max-width:160px">' + esc((sr && sr.notes) || "") + "</td>"
@@ -13247,7 +14620,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
   const openDetail = async (task) => { setSel(task); try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); } };
   const submitReassign = onceAssign(async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { setReassignForm(f => (f ? { ...f, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : f)); } });
-  const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } });
+  const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, serviceCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } });
   const buildings = [...new Set(tasks.map(tk => tk.building_name).filter(Boolean))];
   const floors = [...new Set(tasks.map(tk => tk.floor_number).filter(Boolean))];
   const zones = [...new Set(tasks.map(tk => tk.zone).filter(Boolean))];
@@ -13624,7 +14997,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
     dlCSV("OCSA_Service_Catalog_" + todayISO() + ".csv",
       ["Service Name", "Description"].concat(seesPay ? ["Rate Structure"] : [], ["Required Certifications", "Service Category", "Active Sites"]),
-      services.map(s => [s.name, s.description || ""].concat(seesPay ? [s.rate_structure || ""] : [], [s.required_certifications || "", serviceCategoryLabel(s.cims_category), s.linked_site_count || 0]))
+      services.map(s => [s.name, s.description || ""].concat(seesPay ? [s.rate_structure || ""] : [], [s.required_certifications || "", serviceCategoryLabel(catOf(s)), s.linked_site_count || 0]))
     );
     showToast(tr("Service catalog exported"));
   };
@@ -13648,7 +15021,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     {seesPay && <div style={{ marginBottom: 12 }}><Lbl>{tr("Rate Structure")}</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder={tr("How is this service priced?")} /></div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Required Certifications")}</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder={tr("Certifications staff must hold...")} /></div>
     <div style={{ marginBottom: 16 }}><Lbl>{tr("Service Category")}</Lbl>
-      <Sel t={t} value={form.cimsCategory || form.cims_category || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
+      <Sel t={t} value={form.serviceCategory || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, serviceCategory: e.target.value })}
         options={Object.keys(CIMS_LABELS).map(c => ({ v: c, l: serviceCategoryWord(c, catShown) }))} />
     </div>
   </>);
@@ -13658,7 +15031,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Service Catalog")}</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export")}</button>
-        {canManageVendors && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
+        {canManageVendors && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", serviceCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
       </div>
     </div>
 
@@ -13667,16 +15040,16 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
         <Crd key={s.id} t={t} style={{ padding: 16, cursor: "pointer" }} onClick={() => loadDetail(s.id)}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 8, background: (cimsColor[s.cims_category] || GO) + "18", border: "1px solid " + (cimsColor[s.cims_category] || GO) + "40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[s.cims_category] || t.goldText} />
+              <div style={{ width: 38, height: 38, borderRadius: 8, background: (cimsColor[catOf(s)] || GO) + "18", border: "1px solid " + (cimsColor[catOf(s)] || GO) + "40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[catOf(s)] || t.goldText} />
               </div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
             </div>
-            <Bdg l={serviceCategoryWord(s.cims_category, catShown)} c={cimsColor[s.cims_category] || GO} />
+            <Bdg l={serviceCategoryWord(catOf(s), catShown)} c={cimsColor[catOf(s)] || GO} />
           </div>
           {s.description && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.description}</div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid " + t.border }}>
-            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(s.cims_category, catShown)}</span>
+            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(catOf(s), catShown)}</span>
             {s.linked_site_count > 0 && <span style={{ fontSize: 10, color: GR }}>{trn("{0} site|count", s.linked_site_count)}</span>}
           </div>
         </Crd>
@@ -13690,7 +15063,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.service.name}</div>
-            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(detail.service.cims_category, catShown)} c={cimsColor[detail.service.cims_category] || GO} /></div>
+            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(catOf(detail.service), catShown)} c={cimsColor[catOf(detail.service)] || GO} /></div>
           </div>
           <button onClick={() => setDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
         </div>
@@ -13733,7 +15106,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
         </div>
 
         {canManageVendors && <div style={{ display: "flex", gap: 8 }}>
-          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", cimsCategory: detail.service.cims_category, cims_category: detail.service.cims_category })}>{tr("Edit")}</Btn>
+          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", serviceCategory: catOf(detail.service) })}>{tr("Edit")}</Btn>
           <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this service?"))) deactivate(detail.service.id); }}>{tr("Remove")}</Btn>
         </div>}
       </div>
@@ -13869,7 +15242,11 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
     if (Object.keys(body).length === 0) { setError(tr("Nothing changed yet.")); return; }
     body.effectiveFrom = effectiveFrom;
     setBusy(true); setError(""); setResult(null);
-    try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id), { method: "PATCH", body })); }
+    // The pattern as read goes back with its updatedAt (part 368, API-101): the fill moves it every six
+    // hours, so a change to fields the fill did not touch goes again without asking.
+    const labels = { days: tr("Days"), startTime: tr("Start Time"), endTime: tr("End Time"), buildingName: tr("Building"), floorNumber: tr("Floor"), serviceCategory: tr("Service category"), notes: tr("Notes"), effectiveFrom: tr("From") };
+    const show = (k, v) => (Array.isArray(v) ? v.join(", ") : v === undefined || v === null || v === "" ? "--" : String(v));
+    try { showResult(await saveSince(af, "/api/schedule/patterns/" + encodeURIComponent(id), { method: "PATCH", body, read: pattern, labels, show })); }
     catch (e) { setError(e.message || tr("Request failed")); }
     setBusy(false);
   };
@@ -14074,6 +15451,9 @@ const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
 // the capability alone (Round 2, part 353): an admin whose own permission takes it away is not offered it.
 function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDecide = false }) {
   const [req, setReq] = useState(seed);
+  // Part 368 (the API's part 365): the request's leave, its kind's balance before and after it and the
+  // API's warnings, on the read and on every answer that decides it; null when the API answers none.
+  const [leave, setLeave] = useState(null);
   // Step 334: the shifts the request affects, once the read answers them, and what to do with each.
   const [affected, setAffected] = useState(null);
   const [choices, setChoices] = useState({});
@@ -14095,7 +15475,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
 
   const readOnce = useRef(false);
   const reload = async () => {
-    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); readOnce.current = true; setReadState("read"); }
+    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); setAffected(affectedShiftsOf(d)); setLeave(d && d.leave && typeof d.leave === "object" ? d.leave : null); readOnce.current = true; setReadState("read"); }
     catch (e) { if (readOnce.current) setError(e.message || tr("Request failed")); else setReadState("failed"); }
   };
   const readAgain = () => { setError(""); setReadState("reading"); reload(); };
@@ -14155,6 +15535,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       const body = Object.assign(trimmed ? { note: trimmed } : {}, picked.out.length ? { shifts: picked.out } : {});
       const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body });
       if (d && d.request) setReq(d.request);
+      if (d && d.leave) setLeave(d.leave);
       setNote(""); setChoices({});
       if (affected) await reload();
       showToast(kind === "deny" ? tr("Time off denied. They get a notice in the app.") : tr("Time off approved. They get a notice in the app."));
@@ -14166,8 +15547,27 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
     sending.current = false; setBusy(false);
   };
 
+  // Take back approval (part 368, POST /api/time-off/:id/rescind): asks once, never on one's own request,
+  // and says the hours given back to the balance.
+  const rescind = async () => {
+    if (sending.current) return;
+    const back = leave && leave.taken && leave.requestHours != null ? Number(leave.requestHours) : null;
+    if (!window.confirm(back != null ? tr("Take back the approval of this time off? {0} go back to the {1} balance.", leaveHours(back), leaveKindWord(leave.kind, leave.kindName)) : tr("Take back the approval of this time off?"))) return;
+    sending.current = true; setBusy(true); setError("");
+    try {
+      const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/rescind", { method: "POST" });
+      if (d && d.request) setReq(d.request);
+      if (d && d.leave) setLeave(d.leave);
+      const given = d && d.leave && d.leave.givenBack && d.leave.requestHours != null ? Number(d.leave.requestHours) : null;
+      showToast(given != null ? tr("Approval taken back. {0} given back to the balance.", leaveHours(given)) : tr("Approval taken back. They get a notice in the app."));
+      if (onDecided) onDecided();
+    } catch (e) { setError(e.message || tr("Request failed")); if (e.status === 409) await reload(); }
+    sending.current = false; setBusy(false);
+  };
   const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 86, flexShrink: 0, color: t.textMut }}>{tr(label)}</span><span style={{ color: t.text, minWidth: 0 }}>{value}</span></div>;
   const shifts = Array.isArray(req.shifts) ? req.shifts : [];
+  const takenBack = req.status === "cancelled" && !!req.decidedAt;
+  const leaveWarnings = leave && Array.isArray(leave.warnings) ? leave.warnings.filter(w => w && w.message) : [];
   const decided = req.status === "approved" || req.status === "denied";
   const mine = !!myId && req.userId != null && String(req.userId) === myId;
 
@@ -14186,6 +15586,17 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
     </div>
+    {leave && <div data-time-off-leave={leave.tracked ? "tracked" : "untracked"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <Lbl>{tr("Balance")}</Lbl>
+      {!leave.tracked && leave.balanceHours == null ? <div style={{ fontSize: 12, color: t.textSec }}>{tr("No balance is kept for {0}.", leaveKindWord(leave.kind, leave.kindName))}</div> : <>
+        <div data-time-off-balance="" style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{req.status === "requested"
+          ? tr("{0}: {1} now, {2} after this request of {3}.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours), leaveHours(leave.wouldLeaveHours), leaveHours(leave.requestHours))
+          : leave.givenBack ? tr("{0}: {1} given back, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
+          : leave.taken ? tr("{0}: {1} taken, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
+          : tr("{0}: {1} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours))}</div>
+        {leave.policy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Policy: {0}", leave.policy.name)}{leave.usableFrom && leave.usableFrom > leaveToday() ? " | " + tr("Usable from {0}", fdLong(leave.usableFrom)) : ""}</div>}
+      </>}
+    </div>}
     {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Shifts on these days")}</Lbl>
       {shifts.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("No shifts on these days.")}</div>}
@@ -14204,9 +15615,18 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       {row("Decided", timeOffMoment(req.decidedAt))}
       {row("Note", req.decisionNote ? String(req.decisionNote) : tr("No note"))}
     </div>}
-    {req.status === "cancelled" && <div style={{ marginBottom: 14, fontSize: 12, color: t.text }}>
+    {req.status === "cancelled" && !takenBack && <div style={{ marginBottom: 14, fontSize: 12, color: t.text }}>
       <div style={{ marginBottom: 4 }}>{tr("Cancelled by the person who asked")}</div>
       <div style={{ color: t.textSec }}>{timeOffMoment(req.cancelledAt)}</div>
+    </div>}
+    {takenBack && <div data-time-off-taken-back="" style={{ marginBottom: 14 }}>
+      {row("Approved by", req.decidedByName || "")}
+      {row("Approved", timeOffMoment(req.decidedAt))}
+      {row("Taken back", timeOffMoment(req.cancelledAt))}
+    </div>}
+    {req.status === "approved" && !mine && canDecide && <div style={{ marginBottom: 14 }}>
+      <Btn t={t} v="ghost" data-time-off-rescind="" onClick={rescind} disabled={busy} style={{ minHeight: 44 }}>{tr("Take back approval")}</Btn>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("The request becomes cancelled and its hours go back to the balance. The shifts its approval changed stay as they are.")}</div>
     </div>}
     {req.status === "requested" && mine && <div style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{tr(TIME_OFF_OWN)}</div>}
     {req.status === "requested" && !mine && !canDecide && <div data-time-off-admins="" style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{tr("An admin approves or denies time off.")}</div>}
@@ -14215,6 +15635,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       <TArea t={t} rows={3} aria-label={tr("Note")} value={note} onChange={e => { setNote(e.target.value); if (noteError) setNoteError(""); }} placeholder={tr("Optional when approving. Required when denying.")} />
       {noteError && <div style={{ fontSize: 12, color: RD, marginTop: 6 }}>{noteError}</div>}
       <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 10 }}>{tr(TIME_OFF_NOTE_HINT)}</div>
+      {leaveWarnings.map((w, i) => <div key={w.code || i} data-time-off-warning={w.code || ""} role="alert" style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 8, lineHeight: 1.5, padding: "8px 10px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>{w.message}</div>)}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Btn t={t} onClick={() => decide("approve")} disabled={busy || readState !== "read"} data-time-off-approve={readState} style={{ minHeight: 44 }}>{tr("Approve")}</Btn>
         <Btn t={t} v="danger" onClick={() => decide("deny")} disabled={busy} style={{ minHeight: 44 }}>{tr("Deny")}</Btn>
@@ -15169,9 +16590,11 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     catch (e) { showToast(e.message, "error"); }
   };
 
-  const cancelShift = async (id) => {
+  // A change made since (part 368, API-101): what a pickup's save sends, in words.
+  const pickupLabels = { status: tr("Status"), notes: tr("Notes"), urgency: tr("Urgency"), origin: tr("Reason"), service_category: tr("Service"), start_time: tr("Start Time"), end_time: tr("End Time"), scheduled_date: tr("Date"), site_id: tr("Site"), building_name: tr("Building"), floor_number: tr("Floor") };
+  const cancelShift = async (id, row) => {
     if (!window.confirm(tr("Cancel this open shift? It will no longer be available for pickup."))) return;
-    try { await af("/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" } }); showToast(tr("Shift cancelled")); load(); }
+    try { await saveSince(af, "/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" }, read: row, labels: pickupLabels }); showToast(tr("Shift cancelled")); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
@@ -15266,7 +16689,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{serviceWord(s.service_category)}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={statusWord[s.status] || s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
             { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleOf(s.claimed_by_role)})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
-            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty={tr("No shifts found for this period and filter.")} footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
         })()}
@@ -15668,7 +17091,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: 6 }}>
             {shiftDetail.status === "requested" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Deny")}</Btn>}
-            {shiftDetail.status === "open" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { status: "cancelled" } }); showToast(tr("Shift cancelled")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Cancel")}</Btn>}
+            {shiftDetail.status === "open" && <Btn t={t} v="ghost" onClick={async () => { try { await saveSince(af, "/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { status: "cancelled" }, read: shiftDetail, labels: pickupLabels }); showToast(tr("Shift cancelled")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Cancel")}</Btn>}
             {(shiftDetail.status === "claimed" || shiftDetail.status === "approved") && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/release", { method: "POST" }); showToast(tr("Released|shift")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: OR, borderColor: OR }}>{tr("Release")}</Btn>}
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -15703,7 +17126,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             const body = changedFields(pickupForm(shiftDetail), shiftDetail.editWas);
             if (!Object.keys(body).length) { setShiftDetail({ ...shiftDetail, editing: false }); return; }
             try {
-              await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body });
+              await saveSince(af, "/api/pickups/" + shiftDetail.id, { method: "PATCH", body, read: shiftDetail, labels: pickupLabels });
               showToast(tr("Shift updated")); setShiftDetail(null); load();
             } catch (e) { showToast(e.message, "error"); }
           })}>{tr("Save Changes")}</Btn>
@@ -15909,7 +17332,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     } catch (e) { refuseTemplate(e); }
   };
   const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor" });
-  const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
+  const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
   // Step 314: Include the safety walk, on by default, goes as withSafety.
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true });
@@ -15945,11 +17368,31 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     try { const d = await af("/api/inspections/templates"); setTemplates(d); markInsp("templates", false); } catch (e) { markInsp("templates", true); showToast(e.message, "error"); }
   }, [af]);
 
-  const loadScheduled = useCallback(async () => {
+  // GET /api/inspections/scheduled a page at a time (part 368), newest first, split into the Scheduled and
+  // Completed tabs as before; Show more on either reads the next page. Read again after a change, it
+  // keeps as many as are shown.
+  const [inspNext, setInspNext] = useState("");
+  const [inspMore, setInspMore] = useState(false);
+  const inspRead = useRef([]);
+  const inspKey = (r) => r.id + "|" + (r.result_id || "");
+  const splitInspections = (all) => {
+    inspRead.current = all;
+    setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
+    setCompleted(all.filter(s => s.status === "completed"));
+  };
+  const moreInspections = async () => {
+    if (!inspNext || inspMore) return;
+    setInspMore(true);
+    try { const d = await af(pagedPath("/api/inspections/scheduled", {}, inspNext)); splitInspections(pagedAppend(inspRead.current, d && d.inspections, inspKey)); setInspNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setInspMore(false);
+  };
+  const loadScheduled = useCallback(async (keep) => {
     try {
-      const all = await af("/api/inspections/scheduled");
-      setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
-      setCompleted(all.filter(s => s.status === "completed"));
+      const d = await af(pagedPath("/api/inspections/scheduled", {}, "", keep === true ? inspRead.current.length : 0));
+      const all = d && Array.isArray(d.inspections) ? d.inspections : [];
+      setInspNext(d && d.nextCursor ? String(d.nextCursor) : "");
+      splitInspections(all);
       af("/api/inspections/scheduled?awaiting=review").then(aw => {
         const filtered = Array.isArray(aw) && aw.every(r => r && r.status === "completed") && Array.isArray(all) && all.some(r => r && r.status !== "completed");
         setAwaiting(filtered ? aw : null);
@@ -16002,7 +17445,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!addItemForm.label.trim() || !selectedTemplate) return;
     try {
       await af("/api/inspections/templates/" + selectedTemplate.id + "/items", { method: "POST", body: addItemForm });
-      showToast(tr("Item added")); setAddItemForm({ label: "", zone: "General", cims_category: "SD", max_score: 10 }); openTemplate(selectedTemplate.id);
+      showToast(tr("Item added")); setAddItemForm({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 }); openTemplate(selectedTemplate.id);
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -16012,11 +17455,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   };
 
   const [editItemId, setEditItemId] = useState(null);
-  const [editItemForm, setEditItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
+  const [editItemForm, setEditItemForm] = useState({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 });
 
   const startEditItem = (item) => {
     setEditItemId(item.id);
-    setEditItemForm({ label: item.label, zone: item.zone, cims_category: item.cims_category, max_score: item.max_score });
+    setEditItemForm({ label: item.label, zone: item.zone, serviceCategory: catOf(item), max_score: item.max_score });
   };
 
   const saveItem = async () => {
@@ -16060,7 +17503,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!editInspForm.template_id || !editInspForm.site_id || !editInspForm.scheduled_date) { showToast(tr("Template, site, and date are required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled/" + editInspModal.id, { method: "PATCH", body: { template_id: editInspForm.template_id, site_id: editInspForm.site_id, assigned_to: editInspForm.assigned_to || null, scheduled_date: editInspForm.scheduled_date } });
-      showToast(tr("Inspection updated")); setEditInspModal(null); loadScheduled();
+      showToast(tr("Inspection updated")); setEditInspModal(null); loadScheduled(true);
       if (detailView && detailView.id === editInspModal.id) { openDetail(editInspModal.id); }
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -16068,7 +17511,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!window.confirm(tr("Cancel this inspection?"))) return;
     try {
       await af("/api/inspections/scheduled/" + id, { method: "PATCH", body: { status: "cancelled" } });
-      showToast(tr("Inspection cancelled")); setEditInspModal(null); loadScheduled();
+      showToast(tr("Inspection cancelled")); setEditInspModal(null); loadScheduled(true);
       if (detailView && detailView.id === id) setDetailView(null);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -16085,7 +17528,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, serviceCategoryLabel(item.cims_category, cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
+      return [item.label, item.zone, serviceCategoryLabel(catOf(item), cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
@@ -16106,7 +17549,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     af("/api/inspections/analytics/export" + q).then(rows => {
       if (!rows.length) { showToast(tr("No data to export"), "error"); return; }
       const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(r.item_cims_category, cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(catOf(r), cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));
@@ -16115,8 +17558,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   // The analytics report, printed from a window of its own.
   const printAnalytics = () => {
     const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(sc.site_name)}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(sc.latest_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(sc.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(sc.inspection_count)}</td><td style="padding:8px;font-size:12px;color:#666">${escHtml(fmtDate(sc.latest_date))}</td></tr>`).join("");
-    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(catWord(c.cims_category))}</td><td style="padding:8px;text-align:center;font-weight:700">${escHtml(c.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(c.total_items)}</td><td style="padding:8px;text-align:center">${escHtml(c.total_score)}/${escHtml(c.total_max)}</td></tr>`).join("");
-    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(shownItem(l).label)}</td><td style="padding:8px">${escHtml(zoneWord(l))}</td><td style="padding:8px">${escHtml(catWord(l.cims_category))}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(l.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(l.occurrences)}</td></tr>`).join("");
+    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(catWord(catOf(c)))}</td><td style="padding:8px;text-align:center;font-weight:700">${escHtml(c.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(c.total_items)}</td><td style="padding:8px;text-align:center">${escHtml(c.total_score)}/${escHtml(c.total_max)}</td></tr>`).join("");
+    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${escHtml(shownItem(l).label)}</td><td style="padding:8px">${escHtml(zoneWord(l))}</td><td style="padding:8px">${escHtml(catWord(catOf(l)))}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${escHtml(l.avg_score_pct)}%</td><td style="padding:8px;text-align:center">${escHtml(l.occurrences)}</td></tr>`).join("");
     const html = `<!DOCTYPE html><html><head><title>${escHtml(tr("Inspection Analytics Report"))}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">${escHtml(tr("Inspection Analytics Report"))}</div><div style="font-size:14px;color:#555;margin-top:4px">${escHtml(tr("Last {0} to {1}", analyticsRange.start, analyticsRange.end))}${escHtml(analyticsSite ? "" : " " + tr("(All Sites)"))}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${escHtml(clientConfig.company.name)}</div><div style="font-size:12px;color:#666;margin-top:2px">${escHtml(new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" }))}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Site Performance"))}</h3><table><thead><tr><th>${escHtml(tr("Site"))}</th><th style="text-align:center">${escHtml(tr("Latest Score"))}</th><th style="text-align:center">${escHtml(tr("Average"))}</th><th style="text-align:center">${escHtml(tr("Inspections"))}</th><th>${escHtml(tr("Latest Date"))}</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Category Breakdown"))}</h3><table><thead><tr><th>${escHtml(tr("Category"))}</th><th style="text-align:center">${escHtml(tr("Avg Score"))}</th><th style="text-align:center">${escHtml(tr("Items Scored"))}</th><th style="text-align:center">${escHtml(tr("Points"))}</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${escHtml(tr("Areas Needing Improvement"))}</h3><table><thead><tr><th>${escHtml(tr("Item"))}</th><th>${escHtml(tr("Zone"))}</th><th>${escHtml(tr("Category"))}</th><th style="text-align:center">${escHtml(tr("Avg Score"))}</th><th style="text-align:center">${escHtml(tr("Occurrences"))}</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${escHtml(tr("Generated by {0} Operations Platform", clientConfig.company.shortName))}</div></body></html>`;
     const w = window.open("", "_blank");
     w.document.write(html); w.document.close();
@@ -16228,7 +17671,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             return (
               <Crd key={item.id} t={t} style={{ padding: 0, overflow: "hidden" }}>
                 <button onClick={() => toggleExpand(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                  <div style={{ padding: "4px 8px", borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
+                  <div style={{ padding: "4px 8px", borderRadius: 6, background: (CIMS_C[catOf(item)] || BL) + "1A", fontSize: 10, fontWeight: 600, color: CIMS_C[catOf(item)] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(catOf(item))}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{shownItem(item).label}</div>
                     <div style={{ fontSize: 11, color: t.textMut }}>{zoneWord(item)}</div>
@@ -16389,7 +17832,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                         <div style={{ marginBottom: 6 }}><Inp t={t} value={editItemForm.label} onChange={e => setEditItemForm({ ...editItemForm, label: e.target.value })} placeholder={tr("Item label")} style={{ fontSize: 12 }} /></div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
                           <Sel t={t} value={editItemForm.zone} onChange={e => setEditItemForm({ ...editItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: tr(z + "|zone") }))} />
-                          <Sel t={t} value={editItemForm.cims_category} onChange={e => setEditItemForm({ ...editItemForm, cims_category: e.target.value })} options={getOpts("cims_categories", null, true)} />
+                          <Sel t={t} value={editItemForm.serviceCategory} onChange={e => setEditItemForm({ ...editItemForm, serviceCategory: e.target.value })} options={getOpts("cims_categories", null, true)} />
                         </div>
                         <div style={{ marginBottom: 8 }}><Inp t={t} type="number" min="1" max="100" value={editItemForm.max_score} onChange={e => setEditItemForm({ ...editItemForm, max_score: parseInt(e.target.value) || 10 })} placeholder={tr("Max score")} style={{ fontSize: 12 }} /></div>
                         <div style={{ display: "flex", gap: 6 }}>
@@ -16399,7 +17842,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                       </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px" }}>
-                        <div style={{ padding: "3px 7px", borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
+                        <div style={{ padding: "3px 7px", borderRadius: 5, background: (CIMS_C[catOf(item)] || BL) + "1A", fontSize: 9, fontWeight: 600, color: CIMS_C[catOf(item)] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(catOf(item))}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
                           <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - {tr("max {0} pts", item.max_score)}</div>
@@ -16419,7 +17862,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                 <div style={{ marginBottom: 8 }}><Lbl>{tr("Item Label *")}</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder={tr("e.g. Toilets scrubbed and sanitized")} onKeyDown={e => e.key === "Enter" && addItem()} /></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <div><Lbl>{tr("Zone")}</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: tr(z + "|zone") }))} /></div>
-                  <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={addItemForm.cims_category} onChange={e => setAddItemForm({ ...addItemForm, cims_category: e.target.value })} options={getOpts("cims_categories", null, true)} /></div>
+                  <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={addItemForm.serviceCategory} onChange={e => setAddItemForm({ ...addItemForm, serviceCategory: e.target.value })} options={getOpts("cims_categories", null, true)} /></div>
                 </div>
                 <div style={{ marginBottom: 10 }}><Lbl>{tr("Max Score (points)")}</Lbl><Inp t={t} type="number" min="1" max="100" value={addItemForm.max_score} onChange={e => setAddItemForm({ ...addItemForm, max_score: parseInt(e.target.value) || 10 })} /></div>
                 <Btn t={t} onClick={addItem} style={{ width: "100%" }}>{tr("Add Item")}</Btn>
@@ -16460,6 +17903,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
           })()}
+          <ShowMore t={t} next={inspNext} busy={inspMore} onMore={moreInspections} at="inspections-scheduled" />
         </div>
       )}
 
@@ -16489,6 +17933,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
+          <ShowMore t={t} next={inspNext} busy={inspMore} onMore={moreInspections} at="inspections-completed" />
         </div>
       )}
 
@@ -16602,11 +18047,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {catBreakdown.map(cat => {
                       const pct = Number(cat.avg_score_pct);
-                      const catColor = CIMS_C[cat.cims_category] || BL;
+                      const catColor = CIMS_C[catOf(cat)] || BL;
                       return (
-                        <Crd key={cat.cims_category} t={t} style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <Crd key={catOf(cat)} t={t} style={{ flex: "1 1 160px", minWidth: 140 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{catWord(cat.cims_category)}</span>
+                            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{catWord(catOf(cat))}</span>
                             <span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: pct >= 80 ? GR : pct >= 60 ? OR : RD }}>{pct}%</span>
                           </div>
                           <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
@@ -16644,7 +18089,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                               <td style={{ padding: "10px 12px", fontWeight: 600, color: t.text }}>{shownItem(li).label}</td>
                               <td style={{ padding: "10px 8px", color: t.textSec }}>{zoneWord(li)}</td>
                               <td style={{ padding: "10px 8px" }}>
-                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[li.cims_category] || BL) + "18", color: CIMS_C[li.cims_category] || BL }}>{catWord(li.cims_category)}</span>
+                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[catOf(li)] || BL) + "18", color: CIMS_C[catOf(li)] || BL }}>{catWord(catOf(li))}</span>
                               </td>
                               <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 600, color: lColor }}>{lPct}%</td>
                               <td style={{ padding: "10px 8px", textAlign: "center", color: t.textMut }}>{li.occurrences}</td>
@@ -17516,14 +18961,107 @@ function fileWithheld(e, again) {
   announce("ocsa-file-withheld", { words: (e.body && e.body.error) || e.words || e.message || tr("Request failed"), again });
   return true;
 }
+// ===== SAVES THAT SEE A CHANGE MADE SINCE (part 368; the API's part 365, finding API-101) =====
+// An office edit sends the updatedAt it read with the record. When the record changed since, the API saves
+// nothing and answers 409 common.changedSince with current, the record as it is now. The fields this person
+// edited (what the body sends that differs from what was read) are then compared, current against what
+// the screen read. When none of them changed, as when a person's record moves at a sign-in or a pattern at
+// the fill, the save goes again with the new updatedAt without asking. When one did, a window shows what
+// each says now beside what was typed and asks before saving again; keeping what it says now saves nothing
+// and refuses in the API's words. A record read with no updated time sends none and saves as before.
+const stampOf = (rec) => (rec && (rec.updatedAt || rec.updated_at)) || null;
+const snakeOf = (k) => String(k).replace(/[A-Z]/g, c => "_" + c.toLowerCase());
+const camelOf = (k) => String(k).replace(/_([a-z])/g, (m, c) => c.toUpperCase());
+const fieldIn = (rec, k) => { if (!rec || typeof rec !== "object") return undefined; if (rec[k] !== undefined) return rec[k]; if (rec[snakeOf(k)] !== undefined) return rec[snakeOf(k)]; return rec[camelOf(k)]; };
+const sameSince = (a, b) => { const n = (v) => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).trim()); return n(a) === n(b); };
+// The window's question, answered true (save what was typed) or false (keep what it says now).
+const askChangedSince = (detail) => new Promise(resolve => { announce("ocsa-changed-since", { ...detail, resolve }); });
+async function saveSince(af, path, o) {
+  let read = o.read;
+  let stamp = stampOf(read);
+  if (!stamp) return af(path, { method: o.method, body: o.body });
+  const edited = Object.keys(o.body).filter(k => k !== "updatedAt" && !sameSince(o.body[k], fieldIn(o.read, k)));
+  for (let round = 0; ; round += 1) {
+    try { return await af(path, { method: o.method, body: { ...o.body, updatedAt: stamp } }); }
+    catch (e) {
+      const current = e && e.status === 409 && e.code === "common.changedSince" && e.body ? e.body.current : null;
+      if (!current || !stampOf(current) || round >= 3) throw e;
+      const moved = edited.filter(k => !sameSince(fieldIn(current, k), fieldIn(read, k)));
+      if (moved.length > 0) {
+        const show = (k, v) => (o.show ? o.show(k, v) : v === undefined || v === null || v === "" ? "--" : typeof v === "object" ? JSON.stringify(v) : String(v));
+        const yes = await askChangedSince({ fields: moved.map(k => ({ key: k, label: (o.labels && o.labels[k]) || metaKeyWords(k), now: show(k, fieldIn(current, k)), yours: show(k, o.body[k]) })) });
+        if (!yes) { if (o.onKept) o.onKept(current); throw e; }
+      }
+      read = current;
+      stamp = stampOf(current);
+    }
+  }
+}
+// The window itself, drawn over any screen by the shell while a save waits on it.
+function ChangedSinceWindow({ t, ask, onAnswer }) {
+  return (<Mdl t={t} onClose={() => onAnswer(false)}><div style={{ padding: 20 }} data-changed-since="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("This changed since you opened it")}</div>
+      <button onClick={() => onAnswer(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("Someone else changed what you edited since you opened it. Nothing is saved until you choose.")}</div>
+    <div style={{ overflowX: "auto", marginBottom: 16 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <thead><tr>{[tr("Field"), tr("What it says now"), tr("What you typed")].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: ".5px", borderBottom: "1px solid " + t.border }}>{h}</th>)}</tr></thead>
+      <tbody>{(ask.fields || []).map(f => <tr key={f.key} data-changed-field={f.key}><td style={{ padding: "8px", color: t.text, fontWeight: 600 }}>{f.label}</td><td data-changed-now="" style={{ padding: "8px", color: t.textSec, overflowWrap: "anywhere" }}>{f.now}</td><td data-changed-yours="" style={{ padding: "8px", color: t.text, overflowWrap: "anywhere" }}>{f.yours}</td></tr>)}</tbody>
+    </table></div>
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" data-changed-keep="" onClick={() => onAnswer(false)} style={{ minHeight: 44 }}>{tr("Keep what it says now")}</Btn>
+      <Btn t={t} data-changed-save="" onClick={() => onAnswer(true)} style={{ minHeight: 44 }}>{tr("Save what I typed")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// ===== THE LONG LISTS, PAGED (part 368; the API's part 365, findings API-100 and API-109) =====
+// Cases, Discipline, Training records, HR documents, Signatures, Issues, Scheduled inspections and Supply
+// requests read a page at a time: the first page with cursor empty, then Show more while the answer hands
+// a nextCursor, which goes back with the same filters. Every such read sends cursor, never limit alone, so
+// the API answers its paged shape, 50 rows a page. Reading the list again after a change asks for as many
+// rows as are shown, up to 200, so nothing already shown drops off. A read that needs every row (a review,
+// a duplicate check, a report) sends neither and is answered as before.
+const PAGE_ROWS = 50;
+const PAGE_ROWS_MAX = 200;
+function pagedPath(path, filters, cursor, keep) {
+  const q = [];
+  Object.keys(filters || {}).forEach(k => { const v = filters[k]; if (v !== undefined && v !== null && v !== "") q.push(encodeURIComponent(k) + "=" + encodeURIComponent(v)); });
+  q.push("cursor=" + encodeURIComponent(cursor || ""));
+  if (keep && keep > PAGE_ROWS) q.push("limit=" + Math.min(PAGE_ROWS_MAX, keep));
+  return path + "?" + q.join("&");
+}
+// Rows already shown, with a page's rows after them, each once by its id.
+const pagedAppend = (have, page, idOf) => { const seen = new Set((have || []).map(x => String(idOf(x)))); return (have || []).concat((page || []).filter(x => !seen.has(String(idOf(x))))); };
+// Every page of a list, for a download that holds the whole of it.
+async function everyPage(af, path, filters, key) {
+  let rows = [], cursor = "", n = 0;
+  do {
+    const d = await af(pagedPath(path, filters, cursor, PAGE_ROWS_MAX));
+    rows = rows.concat(d && Array.isArray(d[key]) ? d[key] : []);
+    cursor = d && d.nextCursor ? String(d.nextCursor) : "";
+    n += 1;
+  } while (cursor && n < 500);
+  return rows;
+}
+// Show more under a paged list, while it has a next page.
+function ShowMore({ t, next, busy, onMore, at }) {
+  if (!next) return null;
+  return (<div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" data-show-more={at} onClick={onMore} disabled={busy} style={{ minHeight: 44 }}>{busy ? tr("Loading...") : tr("Show more")}</Btn></div>);
+}
 // ===== SENDS THAT MAIL OR PUSH (part 364, findings API-93 and API-108) =====
 // The API mails or pushes before it answers, and nothing on its side makes a second press send once: a
 // purchase order, a quote, a monthly report, a warning's delivery, a corrective action's Tell the client
 // and an announcement. Each Send is held off from the press until the answer, with a ref so a second click
 // in the same moment sends nothing. A send the browser gave up on after its 30 seconds may still be going
 // out, so that window does not offer it again and says to check first.
-const sendStillGoing = (e) => !!e && e.code === "network.timeout";
+// Since the API's part 365 (finding API-93) each of the five office sends that mail claims itself first, and
+// a second press while the first runs is answered 409 <area>.sending, which is read the same way: still
+// going out, Send stays off, in the API's own words (part 368).
+const SENDING_CODES = /^(supplies|quotes|monthly|discipline|forms)\.sending$/;
+const sendStillGoing = (e) => !!e && (e.code === "network.timeout" || (e.status === 409 && SENDING_CODES.test(String(e.code || ""))));
 const SEND_STILL_GOING = "This is taking longer than usual and may still be going out. Check before you send it again.";
+const sendGoingWords = (e) => (e && e.status === 409 && e.message ? e.message : tr(SEND_STILL_GOING));
 // A raw file read's refusal as an error that carries what the API sent: its words, status and code.
 const fileRefusal = (status, body, words) => { const err = new Error(words); err.status = status; err.code = body && body.code; err.body = body || {}; return err; };
 // An HR Records document opened in a new tab through the API's own stream, the way the folder opens one:
@@ -17722,7 +19260,7 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
       setDone({ sent: Number(d && d.sent) || 0, failed: Number(d && d.failed) || 0, markedSent: !(d && d.markedSent === false) });
       if (d && d.quote) onSent(d.quote);
     } catch (e) {
-      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), code: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
+      if (sendStillGoing(e)) { setGoing(true); setRefusal({ text: sendGoingWords(e), code: "", keys: [] }); sendingRef.current = false; setSending(false); return; }
       setRefusal({ text: e.message || tr("Request failed"), code: String((e && e.code) || ""), keys: quoteKeysOf(e) });
       if (e && e.body && e.body.quote) onSent(e.body.quote);
     }
@@ -18119,9 +19657,11 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInput = useRef(null);
 
+  // What was read, with its updated time, which a save sends back (part 368, API-101).
+  const readRef = useRef(null);
   const load = async () => {
     setLoading(true);
-    try { const d = await af("/api/settings"); setForm(d); setFailed(false); }
+    try { const d = await af("/api/settings"); readRef.current = d; setForm(d); setFailed(false); }
     catch (e) { setFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
@@ -18151,12 +19691,21 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         pay_period_start_day: form.pay_period_start_day || "Saturday",
       };
       OSHA_COMPANY_FIELDS.forEach(f => { if (Object.prototype.hasOwnProperty.call(form, f.key)) body[f.key] = form[f.key] == null ? null : (String(form[f.key]).trim() || null); });
-      const updated = await af("/api/settings", { method: "PATCH", body });
+      // Part 368: the business days a building has to answer a maintenance request, 1 to 30, sent once
+      // GET /api/settings answers it.
+      if (Object.prototype.hasOwnProperty.call(form, "maintenance_response_days")) {
+        const n = Number(String(form.maintenance_response_days == null ? "" : form.maintenance_response_days).trim());
+        if (!Number.isInteger(n) || n < 1 || n > 30) { setOshaRefusal({ text: tr("Type a whole number of business days from 1 to 30."), keys: ["maintenance_response_days"] }); setSaving(false); return; }
+        body.maintenance_response_days = n;
+      }
+      const labels = { display_name: tr("Display name"), legal_name: tr("Legal name"), address: tr("Address"), phone: tr("Phone"), email: tr("Email"), website: tr("Website"), logo_url: tr("Logo") };
+      const updated = await saveSince(af, "/api/settings", { method: "PATCH", body, read: readRef.current, labels, onKept: (now) => { readRef.current = now; setForm(now); } });
+      readRef.current = updated;
       setForm(updated);
       showToast(tr("Company settings saved"));
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
-      if (keys.some(k => OSHA_COMPANY_FIELDS.some(f => f.key === k))) setOshaRefusal({ text: e.message || tr("Request failed"), keys });
+      if (keys.some(k => k === "maintenance_response_days" || OSHA_COMPANY_FIELDS.some(f => f.key === k))) setOshaRefusal({ text: e.message || tr("Request failed"), keys });
       showToast(e.message, "error");
     }
     setSaving(false);
@@ -18300,6 +19849,19 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         </div>
       </Crd>}
 
+      {Object.prototype.hasOwnProperty.call(form, "maintenance_response_days") && <Crd t={t} style={{ flex: "1 1 100%", minWidth: "min(320px, 100%)", padding: 18 }}>
+        <div data-settings-maintenance="">
+          <div style={sec}>{tr("Maintenance requests")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>{tr("When the building has not answered a maintenance request after this many business days, the person who sent it is reminded.")}</div>
+          <div style={{ maxWidth: 240 }}>
+            <label style={lbl}>{tr("Business days before a reminder")}</label>
+            <input aria-label={tr("Business days before a reminder")} data-settings-field="maintenance_response_days" inputMode="numeric" style={{ ...inp, ...(oshaRefusal.keys.indexOf("maintenance_response_days") >= 0 ? { borderColor: RD } : {}) }} value={form.maintenance_response_days == null ? "" : String(form.maintenance_response_days)} onChange={e => { set("maintenance_response_days", e.target.value.replace(/[^0-9]/g, "").slice(0, 2)); setOshaRefusal({ text: "", keys: [] }); }} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("1 to 30. Weekends and company holidays do not count.")}</div>
+            {oshaRefusal.keys.indexOf("maintenance_response_days") >= 0 && <div data-settings-refusal="maintenance_response_days" role="alert" style={{ fontSize: 12, color: RD, marginTop: 3 }}>{oshaRefusal.text}</div>}
+          </div>
+        </div>
+      </Crd>}
+
       <div style={{ width: "100%", display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tr("Reset")}</button>
         <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? tr("Saving...") : tr("Save Company Settings")}</button>
@@ -18328,6 +19890,8 @@ const CAPABILITY_LABELS = {
   manage_integrations: "Integrations and forms",
   manage_tasks: "Tasks and assignments",
   manage_inspections: "Inspection templates and scheduling",
+  file_maintenance_requests: "File and follow building maintenance requests",
+  manage_leave_balances: "Keep leave policies and balances",
   manage_time: "Manual time entry and shift edits",
   manage_schedule: "Create, edit and delete scheduled shifts",
   approve_time_off: "Approve and deny time off",
@@ -18754,7 +20318,9 @@ function HolidaysPanel({ af, t, showToast, initial }) {
       .catch(e => { if (seq.current === mine) { setList([]); setFailed(e.message || tr("This did not load.")); } });
   }, [af, year, retired]);
   useEffect(() => { if (firstRef.current) { firstRef.current = false; return; } setList(null); load(); }, [load]);
-  const open = (h) => { setRefusal({ text: "", field: "" }); setWin(h ? { mode: "edit", id: h.id, date: h.date, name: h.name || "", note: h.note || "" } : { mode: "add", id: null, date: "", name: "", note: "" }); };
+  // An edit keeps the holiday as read, whose updatedAt the save sends back (part 368, API-101).
+  const open = (h) => { setRefusal({ text: "", field: "" }); setWin(h ? { mode: "edit", id: h.id, date: h.date, name: h.name || "", note: h.note || "", read: h } : { mode: "add", id: null, date: "", name: "", note: "" }); };
+  const holidayLabels = { date: tr("Date"), name: tr("Name"), note: tr("Note"), active: tr("Active") };
   const set = (k, v) => setWin(w => ({ ...w, [k]: v }));
   const ready = !!(win && /^\d{4}-\d{2}-\d{2}$/.test(win.date) && win.name.trim());
   const send = async () => {
@@ -18763,7 +20329,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
     const body = { date: win.date, name: win.name.trim(), note: win.note.trim() || null };
     try {
       if (win.mode === "add") await af("/api/holidays", { method: "POST", body });
-      else await af("/api/holidays/" + encodeURIComponent(win.id), { method: "PATCH", body });
+      else await saveSince(af, "/api/holidays/" + encodeURIComponent(win.id), { method: "PATCH", body, read: win.read, labels: holidayLabels });
       showToast(win.mode === "add" ? tr("Holiday added.") : tr("Holiday saved."));
       // A day saved in the other year on the switch opens that year.
       const y = Number(win.date.slice(0, 4));
@@ -18778,7 +20344,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
   const retire = async (h) => {
     if (busy || !window.confirm(tr("Retire {0}? It stops counting as a holiday and stays on record.", h.name || holidayDay(h.date)))) return;
     setBusy(h.id); setRowError({});
-    try { await af("/api/holidays/" + encodeURIComponent(h.id), { method: "PATCH", body: { active: false } }); showToast(tr("Holiday retired.")); load(); }
+    try { await saveSince(af, "/api/holidays/" + encodeURIComponent(h.id), { method: "PATCH", body: { active: false }, read: h, labels: holidayLabels }); showToast(tr("Holiday retired.")); load(); }
     catch (e) { setRowError({ [h.id]: e.message || tr("Request failed") }); }
     setBusy("");
   };
@@ -18945,15 +20511,17 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Name required"), "error"); return; }
     try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast(tr("Category created")); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
+  // Each lookup save sends the updated time of the category or value as read (part 368, API-101).
+  const lookupLabels = { label: tr("Label"), description: tr("Description"), value: tr("Value"), color: tr("Color"), is_active: tr("Active"), show_other_input: tr("Other") };
   const submitEditCat = async () => {
-    try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description }, read: editCatForm.read, labels: lookupLabels }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteCat = async (id) => {
     if (!window.confirm(tr("Remove this list and its values from the lists shown?"))) return;
     try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleCatActive = async (cat) => {
-    try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active }, read: cat, labels: lookupLabels }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   // Value CRUD
@@ -18962,14 +20530,14 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast(tr("Value added")); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditVal = async () => {
-    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); const fixed = await saveValSpanish(); showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input }, read: editValForm.read, labels: lookupLabels }); const fixed = await saveValSpanish(); showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
     if (!window.confirm(tr("Remove this value from this list?"))) return;
     try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleValActive = async (val) => {
-    try { await af("/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active }, read: val, labels: lookupLabels }); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const moveVal = async (val, dir) => {
     const vals = activeCat.values.slice().sort((a, b) => a.sort_order - b.sort_order);
@@ -19073,7 +20641,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || tr("No description")}{activeCat.is_system ? " | " + tr("System category") : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "", read: activeCat })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? tr("Deactivate") : tr("Activate")}</button>
               {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
               <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add Value")}</button>
@@ -19095,7 +20663,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
-                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
+                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input, read: v })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
                   <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Remove from this list")}</button>
                 </div>
               </div>
@@ -19847,7 +21415,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       const field = code === "forms.noRecipients" || code === "forms.badEmail" ? "to" : keys.find(k => TELL_FIELDS.indexOf(k) >= 0) || "";
       // A send the browser gave up on may still be mailing (finding API-93): it is not offered again.
-      if (sendStillGoing(e)) setTelling(x => (x ? { ...x, busy: false, going: true, refusal: { text: tr(SEND_STILL_GOING), field: "", keys: [] } } : x));
+      if (sendStillGoing(e)) setTelling(x => (x ? { ...x, busy: false, going: true, refusal: { text: sendGoingWords(e), field: "", keys: [] } } : x));
       else setTelling(x => (x ? { ...x, busy: false, refusal: { text: (e && e.message) || tr("Request failed"), field, keys } } : x));
     }
     tellRef.current = false;
@@ -21756,8 +23324,11 @@ function SurveyScheduleEditor({ af, t, siteId, initial, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const savingRef = useRef(false);
+  // The schedule as read, whose updatedAt a save sends back (part 368, API-101); the daily send moves it.
+  const readRef = useRef(null);
   const take = useCallback((d) => {
     const s = d && d.schedule && typeof d.schedule === "object" ? d.schedule : null;
+    readRef.current = s;
     setContacts(s && Array.isArray(s.contacts) ? s.contacts.map(c => ({ name: String((c && c.name) || ""), email: String((c && c.email) || "") })) : []);
     setFrequency(s && SURVEY_FREQUENCIES.some(f => f.v === s.frequency) ? s.frequency : "monthly");
     setDay(s && Number(s.dayOfMonth) >= 1 && Number(s.dayOfMonth) <= 28 ? Number(s.dayOfMonth) : 1);
@@ -21780,7 +23351,8 @@ function SurveyScheduleEditor({ af, t, siteId, initial, onSaved }) {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true); setSaved(false); setRefusal({ field: "", text: "", keys: [] });
     try {
-      const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/survey-schedule", { method: "PUT", body: { contacts, frequency, dayOfMonth: day } });
+      const show = (k, v) => (k === "contacts" && Array.isArray(v) ? v.map(c => [c && c.name, c && c.email].filter(Boolean).join(" ")).join(", ") || "--" : v === undefined || v === null || v === "" ? "--" : String(v));
+      const d = await saveSince(af, "/api/sites/" + encodeURIComponent(siteId) + "/survey-schedule", { method: "PUT", body: { contacts, frequency, dayOfMonth: day }, read: readRef.current, labels: { contacts: tr("Contacts"), frequency: tr("Frequency"), dayOfMonth: tr("Day of the month") }, show });
       if (d && d.schedule) { take(d); if (onSaved) onSaved(d); }
       setSaved(true);
     } catch (e) {
@@ -24981,7 +26553,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     if (busyRef.current) return;
     busyRef.current = true; setBusy(what); setRefusal({ text: "", field: "" });
     try { await fn(); } catch (e) {
-      if (what === "send" && sendStillGoing(e)) { setSendGoing(true); setRefusal({ text: tr(SEND_STILL_GOING), field: "send" }); } else refuse(e, "");
+      if (what === "send" && sendStillGoing(e)) { setSendGoing(true); setRefusal({ text: sendGoingWords(e), field: "send" }); } else refuse(e, "");
     }
     busyRef.current = false; setBusy("");
   };
@@ -25512,6 +27084,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       />
 
       <PersonEmployment af={af} t={t} userId={userId} canOpenStaff={canOpenStaff} />
+      <PersonLeave af={af} t={t} userId={userId} showToast={showToast} canOpenStaff={canOpenStaff} />
       <PersonClearances af={af} token={token} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
@@ -25666,13 +27239,26 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
   // step GET /api/discipline/person/:userId suggests next, as the folder's Issue a warning does.
   const [issueFor, setIssueFor] = useState(null);
   const [issueWin, setIssueWin] = useState(null);
-  const load = useCallback(() => {
-    const q = ["userId", "siteId", "type", "status", "from", "to", "issuedBy"].filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k]));
+  // GET /api/discipline a page at a time (part 368), the filters sent with each page; the counts are the
+  // API's, over every warning the filters match. Read again after a change, it keeps as many as are shown.
+  const filters = useMemo(() => { const o = {}; ["userId", "siteId", "type", "status", "from", "to", "issuedBy"].forEach(k => { if (f[k]) o[k] = f[k]; }); return o; }, [f.userId, f.siteId, f.type, f.status, f.from, f.to, f.issuedBy]);
+  const shownRef = useRef(0);
+  const [next, setNext] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
+  const load = useCallback((keep) => {
     setFailed("");
-    af("/api/discipline" + (q.length ? "?" + q.join("&") : "")).then(d => setData(d && Array.isArray(d.warnings) ? d : { warnings: [], counts: { byType: {}, total: 0 } }))
-      .catch(e => { setData({ warnings: [], counts: { byType: {}, total: 0 } }); setFailed(e.message || tr("This did not load.")); });
-  }, [af, f.userId, f.siteId, f.type, f.status, f.from, f.to, f.issuedBy]);
+    af(pagedPath("/api/discipline", filters, "", keep === true ? shownRef.current : 0)).then(d => { setData(d && Array.isArray(d.warnings) ? d : { warnings: [], counts: { byType: {}, total: 0 } }); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); })
+      .catch(e => { setData({ warnings: [], counts: { byType: {}, total: 0 } }); setNext(""); setFailed(e.message || tr("This did not load.")); });
+  }, [af, filters]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { shownRef.current = data && Array.isArray(data.warnings) ? data.warnings.length : 0; }, [data]);
+  const more = async () => {
+    if (!next || moreBusy) return;
+    setMoreBusy(true);
+    try { const d = await af(pagedPath("/api/discipline", filters, next)); setData(have => ({ ...(d || {}), warnings: pagedAppend(have && have.warnings, d && d.warnings, w => w.id) })); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setMoreBusy(false);
+  };
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const rows = data ? data.warnings.filter(w => !f.category || w.category === f.category) : [];
@@ -25711,9 +27297,13 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     { header: tr("Delivered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => delivered(w) },
     { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (signatureOf(w) ? <SignatureChip t={t} sig={signatureOf(w)} /> : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
   ];
-  const exportCsv = () => {
+  // Export saves every warning the filters match, every page of them, the category narrowed as on screen.
+  const exportCsv = async () => {
+    let all;
+    try { all = (await everyPage(af, "/api/discipline", filters, "warnings")).filter(w => !f.category || w.category === f.category); }
+    catch (e) { showToast(e.message, "error"); return; }
     const hdr = [tr("Person"), tr("Step"), tr("Category"), tr("Date of the incident"), tr("Status"), tr("Issued by"), tr("Delivered"), tr("Signed")];
-    dlCSV("warnings-" + toISO(new Date()) + ".csv", hdr, rows.map(w => [personName(w), warningStepWord(w.type, steps.steps), warningCategoryWord(w.category, steps.categories), w.incidentDate ? fdLong(w.incidentDate) : "", warningStatusWord(w.status), (w.issuedBy && w.issuedBy.name) || "", delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : ""]));
+    dlCSV("warnings-" + toISO(new Date()) + ".csv", hdr, all.map(w => [personName(w), warningStepWord(w.type, steps.steps), warningCategoryWord(w.category, steps.categories), w.incidentDate ? fdLong(w.incidentDate) : "", warningStatusWord(w.status), (w.issuedBy && w.issuedBy.name) || "", delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : ""]));
   };
   return (<div data-discipline-page="">
     <SecT t={t} action={tr("Issue a warning")} onAction={() => setIssueFor({ userId: "", busy: false, said: "" })}>{tr("Discipline")}</SecT>
@@ -25734,9 +27324,8 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     </div>
     {data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
-      <>{data && Number(data.limit) > 0 && Array.isArray(data.warnings) && data.warnings.length >= Number(data.limit) && <div data-discipline-capped={String(data.limit)} style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("The newest {0} warnings are listed. Narrow the dates or the filters to find an older one.", Number(data.limit))}</div>}
-      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /></>}
-    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={load} />}
+      <>      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /><ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="discipline" /></>}
+    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={() => load(true)} />}
     {issueFor && <Mdl t={t} onClose={() => { if (!issueFor.busy) setIssueFor(null); }}><div data-discipline-issue-for="" style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue a warning")}</div>
@@ -26086,9 +27675,7 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
 }
 
 // Step 333: #cases/<id>, where an hr_case_* notice points, opens that case once the page is up.
-// GET /api/hr-cases answers the newest 200 cases at most (routes/hr-cases.js, LIMIT 200) and says nothing
-// when it stops, so a list that long says so (finding API-100; paging waits on the API).
-const CASES_LIST_MAX = 200;
+// GET /api/hr-cases is read a page at a time, the status picked sent with each page (part 368).
 function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, route = [], onRoute }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
@@ -26114,11 +27701,22 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
 
   // Step 332: a refused list is drawn in the API's words, in one line, in the table's place.
   const [refused, setRefused] = useState("");
-  const load = async (status) => {
+  const [next, setNext] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
+  const caseFilters = (status) => ({ status: status && status !== "needs_response" ? status : "" });
+  // The first page of a status, or, read again after a change, as many cases as are shown.
+  const load = async (status, keep) => {
     setLoading(true);
-    try { const d = await af("/api/hr-cases" + (status && status !== "needs_response" ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); setRefused(""); }
+    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(status), "", keep ? cases.length : 0)); setCases(d && Array.isArray(d.cases) ? d.cases : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); setRefused(""); }
     catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     setLoading(false);
+  };
+  const more = async () => {
+    if (!next || moreBusy) return;
+    setMoreBusy(true);
+    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(statusFilter), next)); setCases(have => pagedAppend(have, d && d.cases, c => c.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setMoreBusy(false);
   };
   useEffect(() => { load(statusFilter); }, [statusFilter]);
 
@@ -26155,6 +27753,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
   // The case's own subject is never offered: the route answers 400 for that choice. Since Step 332 the
   // list is every active admin and supervisor, and the escalation contacts the API lists after them.
   const escalateOptions = detail ? subjects.filter(p => !detail.subject || String(p.id) !== String(detail.subject.id)) : [];
+  // A change made since (part 368, API-101): the fields a case save sends, in words, with their values.
+  const caseFieldLabels = { status: tr("Status"), assigned_to: tr("Held by"), escalated_to: tr("Escalated|case"), resolution_notes: tr("Resolution notes"), closing_note: tr("Closing note") };
+  const caseFieldShow = (k, v) => (k === "status" ? statusLabel[v] || v || "--" : k === "assigned_to" ? ((v && typeof v === "object" ? v.name : (allStaff.find(p => String(p.id) === String(v)) || {}).name) || (v ? String(v) : tr("Nobody yet"))) : v && typeof v === "object" ? (v.name || JSON.stringify(v)) : v ? String(v) : "--");
   const save = async () => {
     if (!detail) return;
     const body = {};
@@ -26174,9 +27775,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
     if (Object.keys(body).length === 0) { showToast(tr("Nothing to update"), "error"); return; }
     setSaving(true); setClosingSaid("");
     try {
-      const d = withLog(await af("/api/hr-cases/" + detail.id, { method: "PATCH", body }));
+      const d = withLog(await saveSince(af, "/api/hr-cases/" + detail.id, { method: "PATCH", body, read: detail, labels: caseFieldLabels, show: caseFieldShow, onKept: (now) => setDetail(cur => (cur && cur.id === detail.id ? { ...cur, ...now } : cur)) }));
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "", closingNote: "" });
-      showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
+      showToast(tr("Case updated")); load(statusFilter, true); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       if (keys.indexOf("closing_note") >= 0 || keys.indexOf("closingNote") >= 0) setClosingSaid(e.message || tr("Request failed"));
@@ -26190,9 +27791,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
     if (!detail || holdBusy) return;
     setHoldBusy(true); setHoldError("");
     try {
-      const d = withLog(await af("/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo } }));
+      const d = withLog(await saveSince(af, "/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo }, read: detail, labels: caseFieldLabels, show: caseFieldShow, onKept: (now) => setDetail(cur => (cur && cur.id === detail.id ? { ...cur, ...now } : cur)) }));
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "", closingNote: "" }); setHandTo(""); setClosingSaid("");
-      showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
+      showToast(tr("Case updated")); load(statusFilter, true); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) { setHoldError(e.message || tr("Request failed")); }
     setHoldBusy(false);
   };
@@ -26241,12 +27842,12 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
 
   return (<div>
     <SecT t={t} action={officeCases ? tr("Open a case") : undefined} onAction={officeCases ? () => setOpening(true) : undefined}>{tr("Cases")}</SecT>
-    {opening && <OpenCaseWindow af={af} t={t} allStaff={allStaff} me={user} showToast={showToast} onClose={() => setOpening(false)} onOpened={() => { setOpening(false); load(statusFilter); if (onSaved) onSaved(); }} />}
+    {opening && <OpenCaseWindow af={af} t={t} allStaff={allStaff} me={user} showToast={showToast} onClose={() => setOpening(false)} onOpened={() => { setOpening(false); load(statusFilter, true); if (onSaved) onSaved(); }} />}
     {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => { if (detail && caseLogUpdates(detail)) refreshLog(detail.id); }} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
-    {!loading && cases.length >= CASES_LIST_MAX && <div data-cases-capped={String(CASES_LIST_MAX)} style={{ fontSize: 12, color: OR, marginBottom: 8, lineHeight: 1.5 }}>{tr("The newest {0} cases are listed. Pick a status to find an older one.", CASES_LIST_MAX)}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
+    {!loading && <ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="cases" />}
 
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -26276,7 +27877,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
       {detail.formResponseId ? <CaseReport key={String(detail.formResponseId)} af={af} t={t} id={detail.formResponseId} /> : null}
-      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter); if (onSaved) onSaved(); }} />}
+      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter, true); if (onSaved) onSaved(); }} />}
       {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
@@ -26430,8 +28031,20 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     hrSending.current = true;
     try { await work(); } finally { hrSending.current = false; }
   };
-  const loadDocs = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/documents" + q); setDocs(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
-  const loadTraining = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/training" + q); setTraining(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
+  // HR documents and training records a page at a time (part 368), the person picked sent with each page;
+  // read again after a change, as many as are shown. Search and the table's own pages work on what is read.
+  const [docsNext, setDocsNext] = useState("");
+  const [trNext, setTrNext] = useState("");
+  const [hrMoreBusy, setHrMoreBusy] = useState(false);
+  const docsShown = useRef(0);
+  const trShown = useRef(0);
+  docsShown.current = Array.isArray(docs) ? docs.length : 0;
+  trShown.current = Array.isArray(training) ? training.length : 0;
+  const nextOf = (d) => (d && d.nextCursor ? String(d.nextCursor) : "");
+  const loadDocs = useCallback(async (keep) => { try { const d = await af(pagedPath("/api/hr/documents", { user_id: selUser || "" }, "", keep === true ? docsShown.current : 0)); setDocs(d && Array.isArray(d.documents) ? d.documents : []); setDocsNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
+  const loadTraining = useCallback(async (keep) => { try { const d = await af(pagedPath("/api/hr/training", { user_id: selUser || "" }, "", keep === true ? trShown.current : 0)); setTraining(d && Array.isArray(d.records) ? d.records : []); setTrNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
+  const moreDocs = async () => { if (!docsNext || hrMoreBusy) return; setHrMoreBusy(true); try { const d = await af(pagedPath("/api/hr/documents", { user_id: selUser || "" }, docsNext)); setDocs(have => pagedAppend(have, d && d.documents, x => x.id)); setDocsNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } setHrMoreBusy(false); };
+  const moreTraining = async () => { if (!trNext || hrMoreBusy) return; setHrMoreBusy(true); try { const d = await af(pagedPath("/api/hr/training", { user_id: selUser || "" }, trNext)); setTraining(have => pagedAppend(have, d && d.records, x => x.id)); setTrNext(nextOf(d)); } catch (e) { showToast(e.message, "error"); } setHrMoreBusy(false); };
   const loadOnboarding = useCallback(async () => { if (!selUser) { setOnboarding([]); return; } try { const d = await af("/api/hr/onboarding/" + selUser); setOnboarding(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const [complianceFailed, setComplianceFailed] = useState(false);
   const loadCompliance = useCallback(async () => { try { const d = await af("/api/hr/compliance"); setCompliance(d); setComplianceFailed(false); } catch (e) { setComplianceFailed(true); showToast(e.message, "error"); } }, [af, showToast]);
@@ -26472,7 +28085,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         // Edit existing document: metadata only (category, notes, expiry_date)
         const patchBody = {
           category: form.category,
-          notes: form.notes || null,
+          // Emptied notes are cleared with null, which the API's part 365 reads as clear (API-105); a
+          // blank string would keep them.
+          notes: form.notes && String(form.notes).trim() ? form.notes : null,
           expiry_date: form.expiry_date || null,
         };
         docResult = await af("/api/jotform/employee-documents/" + form.id, { method: "PATCH", body: patchBody });
@@ -26513,7 +28128,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         } catch (linkErr) { console.warn("Jotform link failed:", linkErr.message); linkSaid = linkErr.message || tr("Request failed"); }
       }
 
-      loadDocs();
+      loadDocs(true);
       if (folderUserId) setFolderRefresh(v => v + 1);
       // Session 25 Phase 3: keep Compliance staff summary in sync with document changes
       if (compliance) loadCompliance();
@@ -26527,7 +28142,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     } catch (e) { showToast(e.message, "error"); }
   });
 
-  const deleteDoc = async (id) => { if (!window.confirm(tr("Remove this document from this list?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteDoc = async (id) => { if (!window.confirm(tr("Remove this document from this list?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadDocs(true); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   // A training record opens for editing with what it holds kept in _was, and Save sends only the fields
   // changed from that (DASH-36), so the list row it was opened from is never sent back whole.
@@ -26542,13 +28157,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         await af("/api/hr/training/" + form.id, { method: "PUT", body }); showToast(tr("Training record updated"));
       }
       else { await af("/api/hr/training", { method: "POST", body: form }); showToast(tr("Training record added")); }
-      setShowModal(null); setForm({}); loadTraining();
+      setShowModal(null); setForm({}); loadTraining(true);
       if (folderUserId) setFolderRefresh(v => v + 1);
       if (compliance) loadCompliance();
     } catch (e) { showToast(e.message, "error"); }
   });
 
-  const deleteTraining = async (id) => { if (!window.confirm(tr("Remove this training record from this list?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteTraining = async (id) => { if (!window.confirm(tr("Remove this training record from this list?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadTraining(true); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const initOnboarding = async () => {
     if (!selUser) { showToast(tr("Select an employee first"), "error"); return; }
@@ -26662,7 +28277,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {/* DOCUMENTS TAB */}
       {tab === "documents" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} document|count", docs.length)}</div>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} document|count", docs.length)}{docsNext ? " " + tr("so far") : ""}</div>
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Document")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -26685,6 +28300,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={docs.length === 0 ? tr("No documents found. Use Add Document to upload.") : tr("No documents match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setDocPage} />} />;
         })()}
+        <ShowMore t={t} next={docsNext} busy={hrMoreBusy} onMore={moreDocs} at="hr-documents" />
       </div>}
 
       {/* TRAINING TAB: its own tabs once a route of the API's Step 256 answers (Step 257) */}
@@ -26703,7 +28319,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} isAdmin={isAdmin} focusAttempt={trFocus && trFocus.attempt} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}{trNext ? " " + tr("so far") : ""}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Btn t={t} v="ghost" onClick={() => setRoomOpen(true)} style={{ minHeight: 44 }}>{tr("Log training for several people")}</Btn>
             <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
@@ -26731,6 +28347,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
+        <ShowMore t={t} next={trNext} busy={hrMoreBusy} onMore={moreTraining} at="hr-training" />
       </div>}
 
       {/* ONBOARDING TAB */}
@@ -26907,7 +28524,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ]; return (<>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} item|count", otherDocs.length)}</div>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} item|count", otherDocs.length)}{docsNext ? " " + tr("so far") : ""}</div>
           <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Other")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -26915,6 +28532,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? tr("No items filed under Other. Use Add Other to upload.") : tr("No items match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
+        <ShowMore t={t} next={docsNext} busy={hrMoreBusy} onMore={moreDocs} at="hr-other" />
         </>); })()}
       </div>}
 
@@ -26928,7 +28546,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c, form.category)).map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
           {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
             <input type="file" data-hr-doc-file="" accept={HR_DOC_ACCEPT} onChange={e => setFile(e.target.files[0])} style={{ fontSize: 13, color: t.text }} />
-            <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A PDF, JPEG, PNG or Word file, up to 25 MB. Save an iPhone photo as a JPEG first.")}</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A PDF, a JPEG, PNG or HEIC photo, or a Word file, up to 25 MB.")}</div>
             {hrDocFileWhy(file) && <div role="alert" data-hr-doc-file-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{hrDocFileWhy(file)}</div>}</div>)}
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date (optional)")}</div>
             <Inp t={t} type="date" value={form.expiry_date || ""} onChange={e => setForm({ ...form, expiry_date: e.target.value })} /></div>
@@ -26975,7 +28593,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </Mdl>}
 
       {/* LOG TRAINING FOR SEVERAL PEOPLE */}
-      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} topicsLive={topicsLive} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(); if (compliance) loadCompliance(); }} />}
+      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} topicsLive={topicsLive} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(true); if (compliance) loadCompliance(); }} />}
 
       {/* ONBOARDING STEP MODAL */}
       {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
@@ -28395,10 +30013,12 @@ function TrainingTime({ af, t, token, sites = [], showToast }) {
 // What POST /api/jotform/employees/:userId/documents takes (routes/jotform.js, finding API-103): a PDF,
 // JPEG, PNG or Word file up to 25 MB, by its type or its name, one at a time. HEIC is not among them yet,
 // so the box offers these alone and says so before anything is sent.
-const HR_DOC_ACCEPT = ".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const HR_DOC_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+// Since the API's part 365 (finding API-103) the upload reads a file's type off its bytes and turns an
+// iPhone's HEIC or HEIF photo into a JPEG, so the box takes those too (part 368).
+const HR_DOC_ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const HR_DOC_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 const HR_DOC_MAX_BYTES = 25 * 1024 * 1024;
-const hrDocFileWhy = (f) => (!f ? "" : HR_DOC_TYPES.indexOf(f.type) < 0 && !/\.(pdf|jpe?g|png|docx?)$/i.test(f.name || "") ? tr("{0} is not a PDF, JPEG, PNG or Word file.", f.name) : f.size > HR_DOC_MAX_BYTES ? tr("{0} is over 25 MB.", f.name) : "");
+const hrDocFileWhy = (f) => (!f ? "" : HR_DOC_TYPES.indexOf(f.type) < 0 && !/\.(pdf|jpe?g|png|heic|heif|docx?)$/i.test(f.name || "") ? tr("{0} is not a PDF, a JPEG, PNG or HEIC photo, or a Word file.", f.name) : f.size > HR_DOC_MAX_BYTES ? tr("{0} is over 25 MB.", f.name) : "");
 const recordHasCertificate = (r) => !!(r && (r.certificate_path || r.certificatePath || r.certificate === true));
 const CERTIFICATE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
@@ -30006,18 +31626,33 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
   const [site, setSite] = useState("");
   const [state, setState] = useState("open");
   const [again, setAgain] = useState(0);
+  // A page at a time (part 368), newest first from the API, the filters sent with each page; a change
+  // reads again as many as are shown. The order on screen is the page's own: Not right first, then the
+  // oldest of what is read; Show more brings the older ones.
+  const [next, setNext] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
+  const shown = useRef(0);
+  shown.current = Array.isArray(list) ? list.length : 0;
+  const filters = { kind, siteId: site, state };
+  const keepRef = useRef({ key: "", again: 0 });
   useEffect(() => {
     let alive = true;
     setFailed(false);
-    const q = [];
-    if (kind) q.push("kind=" + encodeURIComponent(kind));
-    if (site) q.push("siteId=" + encodeURIComponent(site));
-    q.push("state=" + encodeURIComponent(state));
-    af("/api/signatures" + (q.length ? "?" + q.join("&") : ""))
-      .then(d => { if (alive) setList(d && Array.isArray(d.requests) ? d.requests : []); })
-      .catch(e => { if (alive) { setList([]); setFailed(true); showToast(e.message, "error"); } });
+    const key = [kind, site, state].join("|");
+    const keep = keepRef.current.key === key && keepRef.current.again !== again ? shown.current : 0;
+    keepRef.current = { key, again };
+    af(pagedPath("/api/signatures", { kind, siteId: site, state }, "", keep))
+      .then(d => { if (alive) { setList(d && Array.isArray(d.requests) ? d.requests : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); } })
+      .catch(e => { if (alive) { setList([]); setNext(""); setFailed(true); showToast(e.message, "error"); } });
     return () => { alive = false; };
   }, [af, kind, site, state, again, showToast]);
+  const more = async () => {
+    if (!next || moreBusy) return;
+    setMoreBusy(true);
+    try { const d = await af(pagedPath("/api/signatures", filters, next)); setList(have => pagedAppend(have, d && d.requests, r => r.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setMoreBusy(false);
+  };
   const rank = (r) => (r.state === "disputed" ? 0 : r.state === "waiting" ? 1 : 2);
   const sentAt = (r) => Date.parse(r.requestedAt || "") || 0;
   const rows = (list || []).filter(r => state !== "open" || signatureOpen(r))
@@ -30048,7 +31683,7 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
     </Crd>
     {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} /></Crd>
-      : <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(String(r.id))} empty={state === "open" ? tr("Nothing is waiting for a signature.") : tr("No request matches.")} />}
+      : <><DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(String(r.id))} empty={state === "open" ? tr("Nothing is waiting for a signature.") : tr("No request matches.")} /><ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="signatures" /></>}
     {open && <SignatureRequestWindow af={af} t={t} requestId={open} onClose={closeOpen} onChanged={() => setAgain(n => n + 1)} showToast={showToast} />}
   </div>);
 }

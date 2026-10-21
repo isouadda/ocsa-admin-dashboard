@@ -150,6 +150,9 @@ const inputHolds = (d, value) => d.page.evaluate(([v, sel]) => Array.from((docum
 
 // The answer the stub gave the read Try again sent, or the first of them.
 const first = (served) => (served[0] && served[0].json) || null;
+// A list's rows in an answer: the bare list, or, since part 368 reads a paged list (the API's part 365),
+// the list under its key beside nextCursor.
+const rowsIn = (j) => (Array.isArray(j) ? j : j && typeof j === "object" ? (["issues", "inspections", "requests", "records", "documents", "cases", "warnings"].map((k) => j[k]).find(Array.isArray) || []) : []);
 const unique = (list) => list.filter((x, i) => x && list.indexOf(x) === i);
 
 // Every read the build lists, in the order a person meets them. Each is refused with the API's server
@@ -220,7 +223,7 @@ const READS = [
     place: "the Issue Tracker", from: "No problems reported yet.",
     open: async (d) => { await d.goto("issues"); return true; },
     drawn: async ({ d, served }) => {
-      const titles = (first(served) || []).map((i) => i.title);
+      const titles = rowsIn(first(served)).map((i) => i.title);
       const gone = await unseen(d, titles);
       return titles.length === 0 ? "the stub served no issue" : gone.length ? "the list draws no " + named(gone) : "";
     } },
@@ -348,7 +351,7 @@ const READS = [
         : !there.again ? "the Completed tab's line carries no " + q(w.again) : "";
     },
     drawn: async ({ d, served }) => {
-      const all = first(served) || [];
+      const all = rowsIn(first(served));
       const pending = unique(all.filter((s) => s.status !== "completed" && s.status !== "cancelled").map((s) => s.site_name));
       const done = unique(all.filter((s) => s.status === "completed").map((s) => s.site_name));
       const onScheduled = await rowsMiss(d, pending);

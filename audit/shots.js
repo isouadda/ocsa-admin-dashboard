@@ -1742,6 +1742,76 @@ const SHOTS = [
       await click(c, "[data-employment-take-back]");
       await until(c, '[data-employment-window="take-back"] [data-employment-take-back-send]');
     } },
+  // Part 368: maintenance requests (audit/part368-stub.js answers them in every run).
+  { name: "maintenance-new", entry: "Send a maintenance request to a building",
+    open: "maintenance", ready: "[data-maint-list] table tbody tr",
+    act: async (c) => {
+      await press(c, "New maintenance request"); await until(c, "[data-maint-new]");
+      await c.page.locator('[data-maint-field="siteId"]').selectOption("s-1");
+      await c.page.locator('[data-maint-field="building"]').fill("North Wing");
+      await c.page.locator('[data-maint-field="area"]').fill("Restroom 2B");
+      await c.page.locator('[data-maint-field="category"]').selectOption("leak_water");
+      await c.page.locator('[data-maint-field="urgency"]').selectOption("urgent_safety");
+      await c.page.locator('[data-maint-field="description"]').fill(c.lang === "es" ? "Sale agua debajo del segundo lavabo." : "Water is leaking under the second sink.");
+      await until(c, "[data-maint-recipient]");
+    } },
+  { name: "maintenance-page", entry: "Follow a maintenance request and record the building's answer",
+    open: "maintenance", ready: "[data-maint-list] table tbody tr" },
+  { name: "maintenance-request-window", entry: "Follow a maintenance request and record the building's answer",
+    open: "maintenance/mr-2", ready: '[data-maint-window="mr-2"] [data-maint-reference]',
+    act: async (c) => { await click(c, "[data-maint-record]"); await until(c, "[data-maint-response-form]"); } },
+  { name: "maintenance-contacts", entry: "Keep a site's maintenance contacts",
+    open: "sites/s-1/maintenance", ready: "[data-site-maintenance] table tbody tr" },
+  { name: "maintenance-contact-window", entry: "Keep a site's maintenance contacts",
+    open: "sites/s-1/maintenance", ready: "[data-site-maintenance] table tbody tr",
+    act: async (c) => { await click(c, '[data-maint-contact-edit="mc-1"]'); await until(c, '[data-maint-contact-window="mc-1"]'); } },
+  { name: "issue-send-maintenance", entry: "Send an issue to building maintenance",
+    open: "issues/i-5", ready: "[data-issue-send-maintenance]",
+    act: async (c) => { await click(c, "[data-issue-send-maintenance]"); await until(c, "[data-maint-new]"); } },
+  // Part 368: leave balances (audit/part368-leave.js answers them in every run).
+  { name: "leave-balances", entry: "See everyone's leave balances",
+    open: "leave", ready: "[data-leave-row]" },
+  { name: "leave-person", entry: "Read a person's leave ledger and adjust a balance",
+    open: "leave/balances/u-staff-7", ready: '[data-leave-person="u-staff-7"] [data-leave-ledger] tbody tr' },
+  { name: "leave-adjust", entry: "Read a person's leave ledger and adjust a balance",
+    open: "leave/balances/u-staff-6", ready: "[data-leave-adjust-open]",
+    act: async (c) => { await click(c, "[data-leave-adjust-open]"); await until(c, "[data-leave-adjust-form]"); await c.page.locator('[data-leave-adjust="hours"]').fill("-2"); await c.page.locator('[data-leave-adjust="reason"]').fill(c.lang === "es" ? "Dos horas usadas antes de que la app llevara los permisos" : "Two hours used before the app kept leave"); } },
+  { name: "leave-policies", entry: "Make or change a leave policy",
+    open: "leave/policies", ready: "[data-leave-policy-card]" },
+  { name: "leave-policy-editor", entry: "Make or change a leave policy",
+    open: "leave/policies", ready: '[data-leave-policy-card="lp-2"]',
+    act: async (c) => { await click(c, '[data-leave-policy-card="lp-2"]'); await until(c, "[data-leave-policy-edit]"); await click(c, "[data-leave-policy-edit]"); await until(c, '[data-leave-policy-editor="lp-2"]'); } },
+  { name: "leave-site-policy", entry: "Set which leave policy a site or a person follows",
+    open: "leave/sites", ready: "[data-leave-site-row]",
+    act: async (c) => { await click(c, '[data-leave-site-set="s-3"]'); await until(c, '[data-leave-policy-set="site"]'); } },
+  { name: "leave-hours-window", entry: "Post the payroll system's hours file",
+    open: "leave/hours", ready: "[data-leave-file-row]",
+    act: async (c) => {
+      await click(c, "[data-leave-file-upload]"); await until(c, "[data-leave-hours-window]");
+      await c.page.locator('[data-leave-hours-window] input[type="file"]').setInputFiles({ name: "hours-march.csv", mimeType: "text/csv", buffer: Buffer.from("person,period_start,period_end,hours\n4118,2026-03-01,2026-03-14,90\n4124,2026-03-01,2026-03-14,72\n", "utf8") });
+      await until(c, "[data-leave-file-read]");
+    } },
+  { name: "leave-missing", entry: "Find the people with no hire date",
+    open: "leave/missing", ready: "[data-leave-missing]" },
+  { name: "leave-starting", entry: "Enter starting balances",
+    open: "leave/starting", ready: "[data-leave-start-box]",
+    act: async (c) => { await c.page.locator('[data-leave-start-box="u-staff-6"]').fill("10"); } },
+  { name: "changed-since-window", entry: "Save over a change someone else made", arm: (stubs, on) => { if (!on) stubs.setScene368({ since: null }); },
+    open: "settings", ready: '[data-settings-tab="company"]',
+    act: async (c) => {
+      await click(c, '[data-settings-tab="company"]');
+      await c.page.waitForTimeout(500);
+      const read = c.stubs.handle({ method: "GET", url: "http://stub.invalid/api/settings?locale=" + c.lang, headers: { authorization: "Bearer x", "accept-language": c.lang }, lang: c.lang }).json;
+      c.stubs.setScene368({ since: { "/api/settings": Object.assign({}, read, { display_name: "Orchard Cove Group", updated_at: "2026-03-17T13:00:00.000Z" }) } });
+      await c.page.locator("label", { hasText: c.lang === "es" ? "Nombre para mostrar" : "Display name" }).first().locator("xpath=following-sibling::input[1]").fill("Orchard Cove Services");
+      await c.page.getByRole("button", { name: c.lang === "es" ? "Guardar" : "Save" }).last().click();
+      await until(c, "[data-changed-since]");
+    } },
+  { name: "time-off-take-back", entry: "Take back an approved time off request",
+    open: "schedule/timeoff/to-369", ready: '[data-time-off-window="to-369"] [data-time-off-rescind]' },
+  { name: "settings-maintenance-days", entry: "Set the days before a maintenance request reminds its sender",
+    open: "settings", ready: "[data-settings-maintenance]",
+    act: async (c) => { await show(c, "[data-settings-maintenance]"); } },
 ];
 
 

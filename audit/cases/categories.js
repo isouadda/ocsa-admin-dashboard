@@ -345,8 +345,9 @@ async function run({ d, results, seed, stubs, lang }) {
     const got = p.edit.options.map((o) => o.v + "=" + o.l).sort();
     if (JSON.stringify(got) !== JSON.stringify(want)) return ["the Service Category list offers " + say(got) + " where it should offer " + say(want)];
     if (!p.edit.picked) return [say(p.edit.word) + " could not be chosen"];
-    const sent = p.edit.sent && p.edit.sent.body ? p.edit.sent.body.cimsCategory : undefined;
-    return sent === GAP ? [] : [!p.edit.sent ? "Save Changes sent nothing" : "choosing " + say(p.edit.word) + " sent cimsCategory " + say(sent) + " where the code is " + GAP];
+    // Since part 368 a save sends the category as serviceCategory (the API's part 365, finding API-99).
+    const sent = p.edit.sent && p.edit.sent.body ? p.edit.sent.body.serviceCategory : undefined;
+    return sent === GAP ? [] : [!p.edit.sent ? "Save Changes sent nothing" : "choosing " + say(p.edit.word) + " sent serviceCategory " + say(sent) + " where the code is " + GAP];
   });
   results.check("window", "window/services/edit-category-list" + tail, editOff.length === 0, editOff.slice(0, 2).join("; "));
 

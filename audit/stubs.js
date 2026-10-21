@@ -6161,6 +6161,10 @@ function createStubs() {
   // that the dashboard's half of a finding meets, with setFindings364 as well.
   let step364 = false;
   const round3 = require("./round3-stub")({ seed, state, ok, clone, person, effectiveMap, plusDays, PDF_BYTES });
+  // What the API's Rounds 5 and 6 answer (part 368), in audit/part368-stub.js: the API as built at
+  // ocsa-api main ca4aafa, over every other layer. Maintenance requests answer in every run, since the
+  // API's main answers them.
+  const part368 = require("./part368-stub")({ seed, state, ok, clone, person, effectiveMap, PNG_BYTES, userProfile });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7340,7 +7344,8 @@ function createStubs() {
     const under361 = () => (step353 ? round2.route(method, path, u.searchParams, body, record.language, inner) : inner());
     const beneath = () => (step361 ? welcomeAll.route(method, path, u.searchParams, body, record.language, under361) : under361());
     const under364 = () => (step358 ? checklist358.route(method, path, u.searchParams, body, record.language, beneath) : beneath());
-    const answer = step364 ? round3.route(method, path, u.searchParams, body, record.language, under364) : under364();
+    const under368 = () => (step364 ? round3.route(method, path, u.searchParams, body, record.language, under364) : under364());
+    const answer = part368.route(method, path, u.searchParams, body, record.language, under368);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7435,6 +7440,9 @@ function createStubs() {
     // makes it, and the model the cases read their expectations from (audit/checklist-stub.js).
     setChecklist358: (v) => { step358 = v !== false; },
     addCheck358: (siteId, taskId, day, hm, by) => checklist358.addCheck(siteId, taskId, day, hm, by),
+    // The time the checklist day starts, HH:MM, as GET /api/settings answers it (part 368).
+    setDayStarts358: (hm) => checklist358.setDayStartsAt(hm),
+    setChecklistScene358: (o) => checklist358.setScene(o),
     checklist358: () => checklist358.model,
     // The welcome email to everyone who has not signed in (part 361): the people and the invite route of
     // audit/welcome-all-stub.js, on or off; every invite to those people since, with when it arrived.
@@ -7447,6 +7455,12 @@ function createStubs() {
     setUnreadable364: (ids) => { round3.setUnreadable(ids); },
     setCapabilityOff364: (userId, key) => { round3.setCapabilityOff(userId, key); },
     sent364: () => round3.sent(),
+    // Part 368: the API's Rounds 5 and 6 (audit/part368-stub.js), what a run sent it, and its scenes.
+    setScene368: (o) => { part368.setScene(o || {}); },
+    sent368: () => part368.sent(),
+    model368: () => part368.model(),
+    sinceRefused368: (p) => part368.sinceRefused(p),
+    leave368: () => part368.leaveModel(),
     ISSUE_PHOTOS_364: round3.ISSUE_PHOTOS,
     invites361: () => welcomeAll.invites(),
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
@@ -7595,6 +7609,7 @@ function createStubs() {
       step358 = false; checklist358.reset();
       step361 = false; state.wa = null;
       step364 = false; state.r3 = null; round3.setFindings(false);
+      part368.reset();
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
