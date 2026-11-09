@@ -7,6 +7,11 @@
 //   POST and PATCH /api/leave/policies, POST /api/leave/sites/:siteId/policy,
 //   POST /api/leave/people/:userId/policy, POST /api/leave/people/:userId/adjustments (a clientId again
 //   answers 200 with the first), POST /api/leave/hours-files (the whole file checked first)
+//   Since the API's part 371 (Round 8, for the dashboard's part 372): an adjustment takes effectiveOn, a
+//   real day from 2000-01-01 to today, today by default, else 400 leave.badDetails keys effectiveOn, and the
+//   row is dated that day; an hours file takes dryRun: true, which runs the real run and keeps nothing,
+//   answering 200 { dryRun: true, duplicate, file (id and uploadedAt null), lines (each entry's id null) },
+//   and a dryRun that is not a boolean is 400 leave.badDetails keys dryRun.
 //   GET /api/time-off/:id, approve and deny     leave on the answer, the usage posted on an approval
 //   POST /api/time-off/:id/rescind             approved to cancelled, the usage given back
 //
@@ -294,7 +299,9 @@ module.exports = (ctx) => {
       const keys = [];
       if (typeof b.fileName !== "string" || !b.fileName.trim()) keys.push("fileName");
       if (typeof b.csv !== "string" || !b.csv.trim()) keys.push("csv");
+      if (b.dryRun !== undefined && b.dryRun !== null && typeof b.dryRun !== "boolean") keys.push("dryRun");
       if (keys.length) return refuse(lang, 400, "leave.badDetails", null, { keys });
+      if (b.dryRun === true) return dryFile(b, lang);
       return takeFile(b, lang);
     }
     const pp = /^\/api\/leave\/people\/([^/]+)(\/entries|\/policy|\/adjustments)?$/.exec(path);
@@ -346,6 +353,8 @@ module.exports = (ctx) => {
         const reason = typeof b.reason === "string" ? b.reason.trim() : "";
         const clientId = b.clientId === undefined || b.clientId === null ? null : String(b.clientId);
         if (clientId !== null && !/^[A-Za-z0-9_-]{8,64}$/.test(clientId)) keys.push("clientId");
+        const on = b.effectiveOn === undefined || b.effectiveOn === null ? TODAY : (typeof b.effectiveOn === "string" && realDay(b.effectiveOn.trim()) && b.effectiveOn.trim() >= "2000-01-01" && b.effectiveOn.trim() <= TODAY ? b.effectiveOn.trim() : null);
+        if (!on) keys.push("effectiveOn");
         if (keys.length) return refuse(lang, 400, "leave.badDetails", null, { keys: reason ? keys : keys.concat(["reason"]) });
         if (!reason) return refuse(lang, 400, "leave.reasonRequired", null, { keys: ["reason"] });
         const key = clientId ? "adjustment:" + p.id + ":" + clientId : null;
@@ -353,7 +362,7 @@ module.exports = (ctx) => {
         const replay = !!entry;
         if (!entry) {
           L().seq += 1;
-          entry = { id: "ll-" + L().seq, userId: p.id, kind: b.kind, type: "adjustment", hours: r2(hours), effectiveOn: TODAY, policyId: (policyOn(p, TODAY).policy || {}).id || null, timeOffRequestId: null, hoursFileId: null, periodStart: null, periodEnd: null, hoursWorked: null, reason, detail: {}, createdBy: me().id, createdAt: new Date(Date.parse(seed.NOW_ISO) + L().seq * 1000).toISOString(), postKey: key };
+          entry = { id: "ll-" + L().seq, userId: p.id, kind: b.kind, type: "adjustment", hours: r2(hours), effectiveOn: on, policyId: (policyOn(p, on).policy || {}).id || null, timeOffRequestId: null, hoursFileId: null, periodStart: null, periodEnd: null, hoursWorked: null, reason, detail: {}, createdBy: me().id, createdAt: new Date(Date.parse(seed.NOW_ISO) + L().seq * 1000).toISOString(), postKey: key };
           L().ledger.push(entry);
         }
         L().sent.push({ adjustment: p.id, body: clone(b), replay });
@@ -411,6 +420,21 @@ module.exports = (ctx) => {
       }
     }
     return keys.length ? { keys } : { value };
+  }
+  // The dry run (the API's part 371): the real run on the model, then everything it kept given back.
+  function dryFile(b, lang) {
+    const M = L();
+    const snap = { ledger: M.ledger.length, files: M.files.length, seq: M.seq, fileSeq: M.fileSeq, sent: M.sent.length };
+    const a = takeFile(b, lang);
+    M.ledger.length = snap.ledger; M.files.length = snap.files; M.seq = snap.seq; M.fileSeq = snap.fileSeq; M.sent.length = snap.sent;
+    M.sent.push({ hoursFile: b.fileName, dryRun: true, status: a.status });
+    if (!a || (a.status !== 200 && a.status !== 201)) return a;
+    const j = Object.assign({ dryRun: true }, a.json);
+    if (!j.duplicate) {
+      j.file = Object.assign({}, j.file, { id: null, uploadedAt: null });
+      j.lines = (j.lines || []).map((l) => Object.assign({}, l, { entries: (l.entries || []).map((e) => Object.assign({}, e, { id: null })) }));
+    }
+    return ok(j);
   }
   function takeFile(b, lang) {
     const rows = String(b.csv).replace(/^\ufeff/, "").split(/\r?\n/).map((l, i) => ({ line: i + 1, cells: l.split(",").map((c) => c.trim()) })).filter((r) => r.cells.some((c) => c));

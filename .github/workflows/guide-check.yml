@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # A pull request is checked out as its merge into the base branch, so the merge's first parent
       # is the base and HEAD^1..HEAD is what the pull request changes.

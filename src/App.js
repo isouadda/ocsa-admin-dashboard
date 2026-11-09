@@ -731,11 +731,12 @@ const chkWrap = { display: "inline-flex", alignItems: "center", justifyContent: 
 // A window. A press on its backdrop closes it, and once anything has been typed or chosen in it since it
 // opened (DASH-24) it asks first, so a stray tap beside a phone's window keeps what was typed. Its own
 // Close and Cancel close it as they always have.
-function Mdl({ children, onClose: oc, t, tall }) {
+// A window that asks its own question before closing (asksItself, part 372) is handed the press as it is.
+function Mdl({ children, onClose: oc, t, tall, asksItself = false }) {
   const typed = useRef(false);
   const outside = (e) => {
     if (!oc) return;
-    if (typed.current && !window.confirm(tr("Close this window? What you entered here will be lost."))) return;
+    if (!asksItself && typed.current && !window.confirm(tr("Close this window? What you entered here will be lost."))) return;
     oc(e);
   };
   return <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={outside}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()} onChangeCapture={() => { typed.current = true; }}>{children}</div></div>;
@@ -1796,7 +1797,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} token={token} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
@@ -1804,7 +1805,7 @@ export default function AdminDashboard() {
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {/* Everyone reads every document (Step 306), so the page is the API's to answer, whoever opens it. */}
         {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
-        {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
+        {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} user={user} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canReadHrRecords={hasCap("read_hr_records")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -2055,6 +2056,48 @@ function useBusyGuard() {
     try { return await fn(...args); } finally { out.current = false; setBusy(false); }
   }, []);
   return [guard, busy];
+}
+// ===== PICTURES THAT COME BACK BY THEMSELVES (part 372; the API's Round 7, finding API-119) =====
+// Since the API's Round 7 a photo is a signed link that works for 60 minutes from the read that handed it
+// out, so a screen read more than an hour ago holds links that no longer open. A picture drawn from such
+// a link that fails to load asks its screen to read its record again, once, and draws the fresh link that
+// read hands back; a list read again carries fresh links of its own. Every picture of one record or one
+// list names the same readKey, so pictures that fail together share one read, and a record read again
+// for its pictures in the last minute is not read again for them. A picture whose fresh link fails too,
+// or whose record hands back no other link, gives way to fallback, the initials or nothing.
+const PICTURE_READS = new Map();
+function pictureReadAgain(key, read) {
+  const k = String(key || "");
+  const r = PICTURE_READS.get(k) || { out: null, at: -Infinity };
+  PICTURE_READS.set(k, r);
+  if (r.out) return r.out;
+  if (performance.now() - r.at < 60000) return Promise.resolve(false);
+  r.out = Promise.resolve().then(() => read()).then(() => true, () => true).finally(() => { r.out = null; r.at = performance.now(); });
+  return r.out;
+}
+function FreshImg({ src, readKey, onStale, fallback = null, as = "img", ...rest }) {
+  const [st, setSt] = useState({ tried: false, failed: "" });
+  const latest = useRef(src);
+  latest.current = src;
+  if (!src || (st.failed && st.failed === src)) return fallback;
+  const onError = async () => {
+    const was = src;
+    if (st.tried || !onStale) { setSt(x => ({ ...x, failed: was })); return; }
+    setSt(x => ({ ...x, tried: true }));
+    const went = await pictureReadAgain(readKey || was, onStale);
+    // No read, or a read that handed back the same link: nothing new to draw.
+    if (!went) { setSt(x => ({ ...x, failed: was })); return; }
+    setTimeout(() => { if (latest.current === was || !latest.current) setSt(x => ({ ...x, failed: was })); }, 300);
+  };
+  const Tag = as;
+  return <Tag src={src} onError={onError} data-fresh-img={st.tried ? "read-again" : "first"} {...rest} />;
+}
+// A person's face: their photo, or their initials when there is none or it does not load.
+function PersonFace({ user, sz = 36, readKey, onStale, color }) {
+  const name = (user.firstName || user.first_name || "") + " " + (user.lastName || user.last_name || "");
+  const url = user.profilePhotoUrl || user.profile_photo_url;
+  const ini = <Ini name={name} sz={sz} color={color || (user.status === "pending" ? OR : GO)} />;
+  return <FreshImg src={url} readKey={readKey} onStale={onStale} fallback={ini} alt={name} style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />;
 }
 // The same search for a list a screen draws itself (Step 291): a person matches what is typed by name,
 // or by badge number or employee ID, read from the person or else from the shell's people by id.
@@ -2690,8 +2733,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Timeline, and Open HR file opens the person's folder there, which holds what the HR Files and
   // Certifications tabs held, with every action.
   // Timeline state (Session 18)
-  const [timeline, setTimeline] = useState([]); const [tlTotal, setTlTotal] = useState(0);
-  const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false);
+  const [timeline, setTimeline] = useState([]); const [tlNext, setTlNext] = useState("");
+  const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false); const [tlMore, setTlMore] = useState(false);
   const [tlStartDate, setTlStartDate] = useState(""); const [tlEndDate, setTlEndDate] = useState("");
   const [tlDetail, setTlDetail] = useState(null); const [tlDetailLoading, setTlDetailLoading] = useState(false);
 
@@ -2747,7 +2790,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     setEmployment(null); setEmpWin(null);
     try {
       const d = await af("/api/users/profile/" + id);
-      setProfile(d); setProfileTab(tab || "info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
+      setProfile(d); setProfileTab(tab || "info"); setProfileEdit(null); setTimeline([]); setTlNext(""); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
       loadEmployment(id);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -2763,17 +2806,17 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     loadEmployment(id); load(); if (loadStaff) loadStaff();
   };
 
-  // Timeline loader (Session 18)
+  // Timeline loader (Session 18). Since the API's part 371 the timeline reads a page at a time, newest
+  // first: the first page with cursor empty and Show more with the nextCursor it hands, the category and
+  // the dates sent with every page (part 372). A paged answer counts nothing, so the tab says how many
+  // are shown, and so far while there are more.
+  const tlFilters = (cat, sd, ed) => ({ category: cat && cat !== "all" ? cat : "", startDate: sd || "", endDate: ed || "" });
   const loadTimeline = async (userId, cat, sd, ed) => {
     setTlLoading(true);
     try {
-      let url = "/api/users/timeline/" + userId + "?limit=200";
-      if (cat && cat !== "all") url += "&category=" + cat;
-      if (sd) url += "&startDate=" + sd;
-      if (ed) url += "&endDate=" + ed;
-      const d = await af(url);
-      setTimeline(withOneCategory(d.entries || [])); setTlTotal(d.total || 0);
-    } catch (e) { showToast(e.message, "error"); setTimeline([]); }
+      const d = await af(pagedPath("/api/users/timeline/" + userId, tlFilters(cat, sd, ed), ""));
+      setTimeline(withOneCategory(d.entries || [])); setTlNext(d && d.nextCursor ? String(d.nextCursor) : "");
+    } catch (e) { showToast(e.message, "error"); setTimeline([]); setTlNext(""); }
     setTlLoading(false);
   };
   useEffect(() => { if (profile && profileTab === "timeline") loadTimeline(profile.user.id, tlCategory, tlStartDate, tlEndDate); }, [profileTab, profile?.user?.id, tlCategory, tlStartDate, tlEndDate]);
@@ -2796,9 +2839,23 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   };
 
   // The next page of the timeline, with the same filters.
-  const loadMoreTimeline = async (userId) => { try { let url = "/api/users/timeline/" + userId + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...withOneCategory(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } };
+  const loadMoreTimeline = async (userId) => {
+    if (!tlNext || tlMore) return;
+    setTlMore(true);
+    try { const d = await af(pagedPath("/api/users/timeline/" + userId, tlFilters(tlCategory, tlStartDate, tlEndDate), tlNext)); setTimeline(have => pagedAppend(have, withOneCategory(d.entries || []), e => e.id)); setTlNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setTlMore(false);
+  };
+  const tlCountText = (n, more) => trn("{0} entry|count", n) + (more ? " " + tr("so far") : "");
 
   // Fetch timeline entry detail (Session 18)
+  // The record behind a timeline entry, read again for its pictures' fresh links (part 372).
+  const tlDetailAgain = async () => {
+    const e = tlDetail && tlDetail.entry;
+    if (!e) return;
+    const d = await af("/api/users/timeline-detail/" + e.entityType + "/" + e.entityId);
+    setTlDetail(cur => (cur && cur.entry === e ? { ...cur, record: oneCategoryKey(d.record), photos: d.photos } : cur));
+  };
   const openTimelineDetail = async (entry) => {
     setTlDetailLoading(true);
     try {
@@ -2878,7 +2935,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + (tlStartDate ? " | " + tr("From: {0}", tlStartDate) : "") + (tlEndDate ? " | " + tr("To: {0}", tlEndDate) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
+    html += printHeader(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName), tlCountText(timeline.length, !!tlNext) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + (tlStartDate ? " | " + tr("From: {0}", tlStartDate) : "") + (tlEndDate ? " | " + tr("To: {0}", tlEndDate) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
     html += '<div class="content"><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Time")) + '</th><th>' + escHtml(tr("Category")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
     timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag())) + '</td><td>' + escHtml(dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(entityOf(e.entityType)) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
     html += '</table><div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record")) + '</div></div></body></html>';
@@ -2929,7 +2986,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     }
     // Timeline (if loaded)
     if (timeline.length > 0) {
-      html += '<div class="section"><div class="section-title">' + escHtml(trn("Activity Timeline ({1} of {0} entry{2})|count", tlTotal, timeline.length, tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "")) + '</div><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Activity Timeline") + " (" + tlCountText(timeline.length, !!tlNext) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + ")") + '</div><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
       timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
       html += '</table></div>';
     }
@@ -3004,30 +3061,28 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // was. Since part 341 a save sends only the fields whose value changed from that, so a field the list
   // never carries, the hourly rate among them, is never sent as blank, and every field left untouched
   // stays as it is. A save with nothing changed closes the window and sends nothing.
-  // The person's record as GET /api/users/:id answers it, read when an edit opens, since only that read
-  // carries its updated time, which the save sends back (part 368, API-101). A person's record moves at
-  // each sign-in, so a save of fields that did not change since goes again without asking.
-  const userReadRef = useRef({});
-  const readUserStamp = (id) => { const k = String(id); userReadRef.current[k] = null; af("/api/users/" + encodeURIComponent(k)).then(d => { if (d && d.user) userReadRef.current[k] = d.user; }).catch(() => {}); };
+  // The save sends back the person's updated time (part 368, API-101). Since the API's part 371 the staff
+  // list's rows and the profile's user carry updatedAt, so an edit holds the record it opened on, with no
+  // read of its own (part 372): the pencil the row and the fields as the window opened, the profile's
+  // editor the profile as read. A change since to a field this save does not carry is no conflict.
   const userFieldLabels = { firstName: tr("First Name"), lastName: tr("Last Name"), phone: tr("Phone"), email: tr("Email"), role: tr("Role"), employeeId: tr("Employee ID"), hourlyRate: tr("Hourly Rate"), birthday: tr("Birthday"), addressLine1: tr("Address Line 1"), addressLine2: tr("Address Line 2"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), emergencyContactName: tr("Emergency Contact"), emergencyContactPhone: tr("Emergency Phone"), preferredLanguage: tr("Preferred Language"), personalNotes: tr("Notes"), employmentType: tr("Employment Type"), hireDate: tr("Hire Date") };
   const openEdit = (s) => {
-    readUserStamp(s.id);
     const opened = { firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null };
     setHireSaid(null);
-    setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened }, opened));
+    setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened, read: Object.assign({}, s, opened, { updatedAt: s.updatedAt || s.updated_at || null }) }, opened));
   };
   const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
   const submitEdit = async () => {
     setHireSaid(null);
     const was = editForm.was || {};
     const body = withHireDate(Object.assign({}, editForm));
-    delete body.id; delete body.was;
+    delete body.id; delete body.was; delete body.read;
     if (!canEmploy) { delete body.role; delete body.employmentType; delete body.hourlyRate; }
     Object.keys(body).forEach(k => { if (sameValue(body[k], was[k])) delete body[k]; });
     // A rate emptied clears it: since the API's part 346 a PATCH takes null for that and refuses "" (users.badRate).
     if (body.hourlyRate === "") body.hourlyRate = null;
     if (!Object.keys(body).length) { setEditForm(null); return; }
-    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: userReadRef.current[String(editForm.id)], labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: editForm.read, labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
   };
 
   // Photo upload
@@ -3072,7 +3127,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       Object.keys(body).forEach(k => { if (k !== "preferredLanguage" && sameValue(body[k], was[k])) delete body[k]; });
       if (body.hourlyRate === "") body.hourlyRate = null;
       if (!Object.keys(body).length) { setProfileEdit(null); return; }
-      await saveSince(af, "/api/users/" + profile.user.id, { method: "PATCH", body, read: userReadRef.current[String(profile.user.id)], labels: userFieldLabels });
+      await saveSince(af, "/api/users/" + profile.user.id, { method: "PATCH", body, read: profile.user, labels: userFieldLabels });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
@@ -3083,13 +3138,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     }
   };
 
-  // Avatar component with photo support
-  const Avatar = ({ user, sz = 36 }) => {
-    const name = (user.firstName || user.first_name || "") + " " + (user.lastName || user.last_name || "");
-    const url = user.profilePhotoUrl || user.profile_photo_url;
-    if (url) return <img src={url} alt={name} style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />;
-    return <Ini name={name} sz={sz} color={user.status === "pending" ? OR : GO} />;
-  };
+  // Avatar component with photo support. A photo that does not load reads the profile, or the list, again
+  // once for a fresh link (part 372).
+  const Avatar = PersonFace;
+  const profilePhotoAgain = async (id) => { const d = await af("/api/users/profile/" + id); setProfile(cur => (cur && cur.user && String(cur.user.id) === String(id) ? { ...cur, user: { ...cur.user, profilePhotoUrl: d && d.user ? d.user.profilePhotoUrl : null } } : cur)); };
+  const listPhotosAgain = () => af("/api/users").then(d => { if (Array.isArray(d)) setStaff(d); });
 
   const ptabs = [{ id: "info", l: tr("Profile") }, { id: "assign", l: tr("Assignments") }, { id: "timeline", l: tr("Timeline") }];
   // Shared branded print header builder (Session 18)
@@ -3135,7 +3188,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {/* Profile Header */}
       <ProfileBanner t={t}
         avatar={<div style={{ position: "relative" }}>
-            <Avatar user={u} sz={84} />
+            <Avatar user={u} sz={84} readKey={"profile:" + u.id} onStale={() => profilePhotoAgain(u.id)} />
             <label aria-label={tr("Change photo")} title={tr("Change photo")} style={{ position: "absolute", bottom: -10, right: -10, width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <span style={{ width: 28, height: 28, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}><Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" sz={14} c={NAVY} /></span>
               <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f, u.id); }} />
@@ -3185,7 +3238,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); readUserStamp(u.id); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -3267,7 +3320,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {profileTab === "timeline" && <div>
         <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Activity Timeline ({0} total)", tlTotal)}</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Activity Timeline")} <span data-timeline-count={timeline.length} style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500, color: t.textMut }}>{tlCountText(timeline.length, !!tlNext)}</span></div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Export CSV")}</button>
               <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
@@ -3305,7 +3358,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
                 </TimelineRow>
               </div>;
             })}
-            {timeline.length < tlTotal && <div style={{ textAlign: "center", padding: 12 }}><button onClick={() => loadMoreTimeline(u.id)} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>{trn("Load More ({0} remaining)|count", tlTotal - timeline.length)}</button></div>}
+            <ShowMore t={t} next={tlNext} busy={tlMore} onMore={() => loadMoreTimeline(u.id)} at="person-timeline" />
           </div>}
         </Crd>
       </div>}
@@ -3352,7 +3405,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Photos ({0})", tlDetail.photos.length)}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <a key={i} href={linkUrl(p.photo_url || p.file_url || "")} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
+              {tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <a key={i} href={linkUrl(p.photo_url || p.file_url || "")} target="_blank" rel="noopener noreferrer"><FreshImg src={p.photo_url || p.file_url || ""} readKey={"timeline-detail:" + (tlDetail.entry ? tlDetail.entry.entityType + "/" + tlDetail.entry.entityId : "")} onStale={tlDetailAgain} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
             </div>
           </div>}
           {/* Related items */}
@@ -3415,7 +3468,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{s.email}</div>}</div></div> },
+        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} readKey="staff-list" onStale={listPhotosAgain} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{s.email}</div>}</div></div> },
         // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
@@ -3875,11 +3928,10 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   };
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [timeline, setTimeline] = useState([]);
-  const [tlTotal, setTlTotal] = useState(0);
+  const [tlNext, setTlNext] = useState("");
   const [tlCat, setTlCat] = useState("all");
   const [tlDateRange, setTlDateRange] = useState({ start: "", end: "" });
   const [tlLoading, setTlLoading] = useState(false);
-  const [tlOffset, setTlOffset] = useState(0);
   const [floorPlanLabel, setFloorPlanLabel] = useState("Floor Plan");
   const [tlDetail, setTlDetail] = useState(null);
   const [tlDetailLoading, setTlDetailLoading] = useState(false);
@@ -3951,7 +4003,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     setSelectedSite(siteId);
     setSiteTab(tab || "general");
     setTimeline([]);
-    setTlOffset(0);
+    setTlNext("");
     setTlCat("all");
     try {
       const p = await af("/api/sites/profile/" + siteId);
@@ -3967,27 +4019,29 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const routeTab = route[1] ? String(route[1]) : "";
   useEffect(() => { if (routeSite) openProfile(routeSite, routeTab || undefined); }, [routeSite, routeTab]);
 
-  const loadTimeline = async (cat, offset, append) => {
+  // The site's timeline a page at a time since the API's part 371, as a person's is (part 372): cursor empty
+  // first, then Show more with the nextCursor, the category and the dates sent with every page.
+  const loadTimeline = async (cat, cursor, append) => {
     if (!selectedSite) return;
     setTlLoading(true);
     try {
-      let url = "/api/sites/timeline/" + selectedSite + "?limit=100&offset=" + offset;
-      if (cat && cat !== "all") url += "&category=" + cat;
-      if (tlDateRange.start) url += "&startDate=" + tlDateRange.start;
-      if (tlDateRange.end) url += "&endDate=" + tlDateRange.end;
-      const d = await af(url);
-      setTimeline(append ? prev => [...prev, ...withOneCategory(d.entries)] : withOneCategory(d.entries));
-      setTlTotal(d.total);
+      const d = await af(pagedPath("/api/sites/timeline/" + selectedSite, { category: cat && cat !== "all" ? cat : "", startDate: tlDateRange.start || "", endDate: tlDateRange.end || "" }, cursor || ""));
+      const rows = withOneCategory(d.entries || []);
+      setTimeline(append ? prev => pagedAppend(prev, rows, e => e.id) : rows);
+      setTlNext(d && d.nextCursor ? String(d.nextCursor) : "");
       setTlFailed(false);
-    } catch (e) { console.warn("Timeline load error:", e); if (!append) setTimeline([]); setTlFailed(true); }
+    } catch (e) { console.warn("Timeline load error:", e); if (!append) { setTimeline([]); setTlNext(""); } setTlFailed(true); }
     setTlLoading(false);
   };
 
-  useEffect(() => { if (siteTab === "timeline" && selectedSite) { setTlOffset(0); loadTimeline(tlCat, 0, false); } }, [siteTab, tlCat, tlDateRange, selectedSite]);
+  useEffect(() => { if (siteTab === "timeline" && selectedSite) loadTimeline(tlCat, "", false); }, [siteTab, tlCat, tlDateRange, selectedSite]);
 
-  const loadMoreTl = () => { const next = tlOffset + 100; setTlOffset(next); loadTimeline(tlCat, next, true); };
+  const loadMoreTl = () => { if (tlNext && !tlLoading) loadTimeline(tlCat, tlNext, true); };
+  const tlCountText = (n, more) => trn("{0} entry|count", n) + (more ? " " + tr("so far") : "");
 
   const refreshProfile = async () => { if (selectedSite) { try { const p = await af("/api/sites/profile/" + selectedSite); gotProfile(p); } catch (e) { console.warn(e); } } };
+  // The site's chat read again for its faces' fresh links, quietly (part 372).
+  const chatPhotosAgain = async () => { if (!selectedSite) return; const d = await af("/api/sites/chat/" + selectedSite + "?limit=200"); if (d && Array.isArray(d.messages)) setSiteChat(d.messages); };
   // Step 338: whether staff check off tasks at this site, once a site read answers checklistMode (the
   // site's own read, else the list's), set by a holder of manage_sites through PATCH /api/sites/:id.
   const checklistModeOf = (id) => {
@@ -4119,6 +4173,15 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     } catch (e) { showToast(e.message, "error"); }
   });
 
+  // The task's stored picture read again for a fresh link, while the window still shows it (part 372); a
+  // picture uploaded in the window and not saved yet has no stored link to read.
+  const taskMediaAgain = async () => {
+    if (!editTask || editTask.mediaOwn || !selectedSite) return;
+    const id = editTask.id;
+    const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM);
+    const tk = (Array.isArray(tasks) ? tasks : []).find(x => String(x.id) === String(id));
+    if (tk) setEditTask(cur => (cur && cur.id === id && !cur.mediaOwn ? { ...cur, mediaUrl: tk.media_url || "" } : cur));
+  };
   const submitEditTask = async () => {
     try {
       await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, serviceCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
@@ -4188,6 +4251,13 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   };
 
   // Open timeline detail record
+  // The record behind a timeline entry, read again for its pictures' fresh links (part 372).
+  const tlDetailAgain = async () => {
+    const e = tlDetail && tlDetail.entry;
+    if (!e) return;
+    const d = await af("/api/users/timeline-detail/" + e.entityType + "/" + e.entityId);
+    setTlDetail(cur => (cur && cur.entry === e ? { ...cur, record: oneCategoryKey(d.record), photos: d.photos } : cur));
+  };
   const openTimelineDetail = async (entry) => {
     setTlDetailLoading(true);
     try {
@@ -4228,7 +4298,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     const tlCatLabel = (tlCats.find(c => c.k === tlCat) || {}).l || tlCat;
-    html += sitePrintHeader(tr("{0} - Site Timeline", siteName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCat !== "all" ? " | " + tr("Filter: {0}", tlCatLabel) : "") + (tlDateRange.start ? " | " + tr("From: {0}", tlDateRange.start) : "") + (tlDateRange.end ? " | " + tr("To: {0}", tlDateRange.end) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
+    html += sitePrintHeader(tr("{0} - Site Timeline", siteName), tlCountText(timeline.length, !!tlNext) + (tlCat !== "all" ? " | " + tr("Filter: {0}", tlCatLabel) : "") + (tlDateRange.start ? " | " + tr("From: {0}", tlDateRange.start) : "") + (tlDateRange.end ? " | " + tr("To: {0}", tlDateRange.end) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
     html += '<div class="content"><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Time")) + '</th><th>' + escHtml(tr("Category")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
     timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag())) + '</td><td>' + escHtml(dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(entityOf(e.entityType)) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
     html += '</table><div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Site Record")) + '</div></div></body></html>';
@@ -4397,7 +4467,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Assigned Staff ({0})", sp.staff.length)}</div>
           {sp.staff.map((st2, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {st2.profile_photo_url ? <img src={st2.profile_photo_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} /> : <Ini name={st2.first_name + " " + st2.last_name} sz={32} />}
+              <FreshImg src={st2.profile_photo_url} readKey={"site-profile:" + selectedSite} onStale={refreshProfile} fallback={<Ini name={st2.first_name + " " + st2.last_name} sz={32} />} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
               <div><div style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{st2.first_name} {st2.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{roleOf(st2)}</div></div>
             </div>
             {st2.shift_name && <div style={{ fontSize: 10, color: t.textSec }}>{shiftNameShown[st2.shift_name] || st2.shift_name}{st2.shift_start ? " " + st2.shift_start + " - " + st2.shift_end : ""}</div>}
@@ -4552,7 +4622,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         {[...siteChat].reverse().map(m => {
           const dt = new Date(m.sentAt);
           return <div key={m.id} style={{ display: "flex", gap: 10, marginBottom: 8, padding: "10px 12px", background: t.hover, borderRadius: 8 }}>
-            {m.profilePhotoUrl ? <img src={m.profilePhotoUrl} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} /> : <Ini name={m.senderName || "?"} sz={32} />}
+            <FreshImg src={m.profilePhotoUrl} readKey={"site-chat:" + selectedSite} onStale={chatPhotosAgain} fallback={<Ini name={m.senderName || "?"} sz={32} />} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{m.senderName || tr("Unknown")}</div>
@@ -4592,7 +4662,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       {/* TIMELINE TAB */}
       {siteTab === "timeline" && <div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-          {tlCats.map(c => <button key={c.k} onClick={() => { setTlCat(c.k); setTlOffset(0); }} style={{ padding: "4px 10px", borderRadius: 20, border: tlCat === c.k ? "1px solid " + GO : "1px solid " + t.border, background: tlCat === c.k ? t.goldBg : "transparent", color: tlCat === c.k ? t.goldText : t.textMut, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>)}
+          {tlCats.map(c => <button key={c.k} onClick={() => { setTlCat(c.k); }} style={{ padding: "4px 10px", borderRadius: 20, border: tlCat === c.k ? "1px solid " + GO : "1px solid " + t.border, background: tlCat === c.k ? t.goldBg : "transparent", color: tlCat === c.k ? t.goldText : t.textMut, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>)}
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <Inp t={t} type="date" value={tlDateRange.start} onChange={e => setTlDateRange(prev => ({ ...prev, start: e.target.value }))} style={{ width: 140, fontSize: 11 }} />
@@ -4600,7 +4670,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           {(tlDateRange.start || tlDateRange.end) && <button onClick={() => setTlDateRange({ start: "", end: "" })} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 10, cursor: "pointer" }}>{tr("Clear")}</button>}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 11, color: t.textMut }}>{trn("{0} entry|count", tlTotal)}</div>
+          <div data-timeline-count={timeline.length} style={{ fontSize: 11, color: t.textMut }}>{tlCountText(timeline.length, !!tlNext)}</div>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Export CSV")}</button>
             <button onClick={printSiteTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
@@ -4629,8 +4699,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
             })}
           </div>);
         })()}
-        {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? tr("Loading...") : tr("Load More")}</button>}
-        {!tlLoading && tlFailed && <LoadFailed t={t} onRetry={() => { setTlOffset(0); loadTimeline(tlCat, 0, false); }} />}
+        <ShowMore t={t} next={tlFailed ? "" : tlNext} busy={tlLoading} onMore={loadMoreTl} at="site-timeline" />
+        {!tlLoading && tlFailed && <LoadFailed t={t} onRetry={() => loadTimeline(tlCat, "", false)} />}
         {!tlLoading && !tlFailed && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No activity recorded for this site")}</div>}
       </div>}
 
@@ -4653,7 +4723,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
-              if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><img src={v} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
+              if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><FreshImg src={v} readKey={"timeline-detail:" + (tlDetail.entry ? tlDetail.entry.entityType + "/" + tlDetail.entry.entityId : "")} onStale={tlDetailAgain} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
               let val = typeof v === "object" ? detailObjectText(v, fieldOf) : String(valueOf(k, v));
               if (val.length > 200) val = val.substring(0, 200) + "...";
               return <div key={k}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><div style={{ fontSize: 12, color: t.text, marginTop: 2 }}>{val}</div></div>;
@@ -4662,7 +4732,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         </div>}
         {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos ({0})", tlDetail.photos.length)}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <img key={i} src={p.photo_url || p.file_url || ""} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <FreshImg key={i} src={p.photo_url || p.file_url || ""} readKey={"timeline-detail:" + (tlDetail.entry ? tlDetail.entry.entityType + "/" + tlDetail.entry.entityId : "")} onStale={tlDetailAgain} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
         </div>}
         {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Related Items ({0})", tlDetail.relatedItems.length)}</div>
@@ -4733,9 +4803,9 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder={tr("Step-by-step instructions, tips, or notes...")} rows={4} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video")}</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
-          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(err && err.message ? tr("Upload failed: {0}", err.message) : tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
+          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type, mediaOwn: true })); showToast(tr("Uploaded")); } catch (err) { showToast(err && err.message ? tr("Upload failed: {0}", err.message) : tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
-        {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>{tr("YouTube link attached")}</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt={tr("Task reference")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
+        {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><FreshImg as="video" src={editTask.mediaUrl} readKey={"site-task:" + editTask.id} onStale={taskMediaAgain} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>{tr("YouTube link attached")}</div></div> : <div style={{ marginBottom: 12 }}><FreshImg src={editTask.mediaUrl} readKey={"site-task:" + editTask.id} onStale={taskMediaAgain} alt={tr("Task reference")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
         {taskEs && taskEs.id === editTask.id && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: R.sm, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
           <Lbl>{tr("Shown in Spanish as")}</Lbl>
           {!taskEs.was ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : <>
@@ -4875,8 +4945,8 @@ function OpsPage({ af, t, allStaff }) {
 // its work, and the repeating work's last check is Periodic work's on the day shown (GET
 // /api/periodic-work?siteId=&on=). Counting on a site's page is the checklist's own: per visit, daily
 // and every other day work due that day, done of due; weekly to seasonal work in its own section; as
-// needed never counted. All sites is one read, GET /api/reports/checklist-summary?from=&to=, which
-// counts every item the record lists as due, weekly to seasonal work included. Times are on the
+// needed never counted. All sites is one read, GET /api/reports/checklist-summary?from=&to=, whose
+// days carry counted, counted by that same rule since the API's part 371 (part 372). Times are on the
 // company's clock, and today is the company's checklist day, from checklistDayStartsAt on GET
 // /api/settings (4:00 AM until it is read). Today is read again every 30 seconds while the page is on
 // screen; a past day is read once. The view lives in the address, #checklist/<site or all>/<period>
@@ -5054,7 +5124,9 @@ async function crReadSite(af, siteId, from, to, today) {
 }
 // Every site's count for the period in one read, GET /api/reports/checklist-summary (the API's part 363);
 // one day is read with the six days before it, so its card can draw a week's trend. { span, bySite: { id:
-// { notTracked, days: [{ date, due, done, checks }] } } }, or the API's refusal, thrown in its own words.
+// { notTracked, days: [{ date, due, done, checks, counted: { due, done } }] } } }, or the API's refusal,
+// thrown in its own words. Since the API's part 371 counted is the checklist's own count of the day, the
+// rule a site's rings follow (part 372).
 async function crReadAll(af, from, to) {
   const span = from === to ? { from: crAddDays(to, -6), to } : { from, to };
   const r = await af("/api/reports/checklist-summary?from=" + span.from + "&to=" + span.to);
@@ -5394,22 +5466,24 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   // ---- All sites ----
   if (!siteId) {
     const span = data.span;
-    // Each card's numbers are the summary's: every step the record lists as due, done of due, and every
-    // check. A site the summary does not name did not load.
+    // Each card counts the way the site's own rings count, from each day's counted (the API's part 371):
+    // per visit, daily and every other day work due that day, done of due, and every check. A day without
+    // counted is read as due and done. A site the summary does not name did not load.
     const cards = active.map(s => {
       const rec = data.bySite[String(s.id)] || null;
       const got = rec ? {} : { error: tr("This did not load.") };
       const notTracked = siteIsReference(s) || !!(rec && rec.notTracked === true);
       const recDays = rec ? rec.days : [];
       const inPeriod = recDays.filter(d => d && d.date >= period.from && d.date <= period.to);
-      const sum = (k) => inPeriod.reduce((n, d) => n + (Number(d[k]) || 0), 0);
-      const st = { due: sum("due"), done: sum("done"), checks: sum("checks") };
+      const ringOf = (d) => (d && d.counted && typeof d.counted === "object" ? d.counted : d || {});
+      const sum = (k) => inPeriod.reduce((n, d) => n + (Number(ringOf(d)[k]) || 0), 0);
+      const st = { due: sum("due"), done: sum("done"), checks: inPeriod.reduce((n, d) => n + (Number(d.checks) || 0), 0) };
       st.pct = crPct(st.done, st.due);
-      const trend = recDays.map(d => ({ date: d.date, pct: crPct(Number(d.done) || 0, Number(d.due) || 0) }));
+      const trend = recDays.map(d => ({ date: d.date, pct: crPct(Number(ringOf(d).done) || 0, Number(ringOf(d).due) || 0) }));
       return { s, got, rec, notTracked, st, trend };
     });
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")} {tr("A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -5669,6 +5743,8 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
   const [said, setSaid] = useState("");
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // The request read again for its photos' fresh links, quietly (part 372).
+  const photosAgain = () => af("/api/issues/requests/" + encodeURIComponent(id)).then(d => { if (mounted.current && d && d.request) setData(d); });
   const load = useCallback(() => {
     setFailed("");
     af("/api/issues/requests/" + encodeURIComponent(id))
@@ -5733,7 +5809,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
         {Number(r.reportsCount) > 1 && <Bdg l={trn("Asked {0} times|count", Number(r.reportsCount))} c={OR} />}
       </div>
       {r.note && <div data-request-note="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.note}</div>}
-      {Array.isArray(r.photos) && r.photos.some(p => p && p.url) && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.filter(p => p && p.url).map((p, i) => <a key={p.id || i} href={linkUrl(p.url)} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
+      {Array.isArray(r.photos) && r.photos.some(p => p && p.url) && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.filter(p => p && p.url).map((p, i) => <a key={p.id || i} href={linkUrl(p.url)} target="_blank" rel="noopener noreferrer"><FreshImg src={p.url} readKey={"client-request:" + id} onStale={photosAgain} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <div style={cellSt}>{tr("Site")}<div style={valSt}>{r.siteName || "--"}</div></div>
         <div style={cellSt}>{tr("Area")}<div style={valSt}>{r.area || tr("Whole site|request QR")}</div></div>
@@ -6044,6 +6120,13 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       setMaintSend(Object.assign({}, p, { issuePhotos: Array.isArray(d && d.issuePhotos) ? d.issuePhotos : [], contacts: Array.isArray(d && d.contacts) ? d.contacts : [] }));
     } catch (e) { setMaintSaid((e && e.message) || tr("Request failed")); }
   });
+  // The issue's photos for the request read again for fresh links, the window's typing kept (part 372).
+  const maintPhotosAgain = async () => {
+    const id = maintSend && maintSend.issueId != null ? maintSend.issueId : sel && sel.id;
+    if (id == null) return;
+    const d = await af("/api/maintenance-requests/from-issue/" + encodeURIComponent(id));
+    if (d && Array.isArray(d.issuePhotos)) setMaintSend(cur => (cur ? { ...cur, issuePhotos: d.issuePhotos } : cur));
+  };
   const openIssue = async (iss) => {
     setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); setStatusDraft(iss.status || ""); setStatusRefusal("");
     setMaintSend(null); setMaintSaid(""); setMaintLinks(null);
@@ -6052,6 +6135,19 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
     try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(Array.isArray(p) ? p : []); } catch (e) { setAllPhotos([]); }
   };
   const closeSel = () => { setSel(null); setView(null); if (routeId && onRoute) onRoute([]); };
+  // The issue read again for its photos' fresh links, quietly (part 372): its own read, its photos, and the
+  // list row's photo when it has none of its own.
+  const issuePhotosAgain = async () => {
+    const id = sel && sel.id;
+    if (id == null) return;
+    const same = (x) => x && String(x.id) === String(id);
+    if (findingsOn || maintenance) { try { const d = await af("/api/issues/" + encodeURIComponent(id)); if (d && d.issue && same(selRef.current)) setView(d.issue); } catch (e) { /* the window keeps what it has */ } }
+    let mine = [];
+    try { const p = await af("/api/issues/" + id + "/photos"); mine = Array.isArray(p) ? p : []; if (same(selRef.current)) setAllPhotos(mine); } catch (e) { /* the window keeps what it has */ }
+    if (mine.length) return;
+    try { const rows = await af("/api/issues"); const row = (Array.isArray(rows) ? rows : rows && Array.isArray(rows.issues) ? rows.issues : []).find(same); if (row && same(selRef.current)) setSel(cur => (same(cur) ? { ...cur, photo_url: row.photo_url } : cur)); }
+    catch (e) { /* the window keeps what it has */ }
+  };
   // #issues/<id>, the office's link in a finding's notice: the row once the list holds it, else the
   // id alone, which the single read fills in.
   useEffect(() => {
@@ -6167,8 +6263,8 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><Btn t={t} onClick={doVerify} disabled={verify.busy} data-verify-save="" style={{ minHeight: 44 }}>{verify.busy ? tr("Saving...") : tr("Verify")}</Btn></div>
       </div>}
       {shown.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{shown.assignment_note}</div>}
-      {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
-      {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={shown.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><FreshImg src={p.photo_url} readKey={"issue:" + shown.id} onStale={issuePhotosAgain} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
+      {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><FreshImg src={shown.photo_url} readKey={"issue:" + shown.id} onStale={issuePhotosAgain} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
       {maintenance && <div data-issue-maintenance="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Building maintenance")}</div>
         {linksNow().map(m => <div key={m.id} data-issue-maintenance-request={m.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -6205,7 +6301,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask} disabled={assignBusy}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
-    {maintSend && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={maintSend} maxPhotos={maintenance ? maintenance.maxPhotos : 6} canManageSites={canManageSites} onClose={() => setMaintSend(null)}
+    {maintSend && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={maintSend} photosAgain={maintPhotosAgain} maxPhotos={maintenance ? maintenance.maxPhotos : 6} canManageSites={canManageSites} onClose={() => setMaintSend(null)}
       onFiled={(req, warning) => {
         setMaintSend(null);
         if (req) addLink({ id: req.id, reference: req.reference, status: req.status, statusName: req.statusName, filedAt: req.filedAt });
@@ -6298,7 +6394,7 @@ const maintRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), k
 
 // New maintenance request. start is what the window opens with: a site, or GET
 // /api/maintenance-requests/from-issue/:issueId's prefill, issuePhotos and contacts for an issue.
-function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, maxPhotos = 6, canManageSites = false, onClose, onFiled }) {
+function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgain, maxPhotos = 6, canManageSites = false, onClose, onFiled }) {
   const fromIssue = !!start.issueId;
   const [form, setForm] = useState(() => ({ siteId: start.siteId ? String(start.siteId) : "", building: start.building || "", floor: start.floor || "", area: start.area || "", category: start.category || "", urgency: start.urgency || "", description: start.description || "" }));
   const [files, setFiles] = useState([]);
@@ -6363,7 +6459,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, maxPhotos 
     <div style={{ marginBottom: 12 }}><Lbl>{tr("What is wrong *")}</Lbl><TArea t={t} data-maint-field="description" aria-label={tr("What is wrong")} rows={4} maxLength={4000} value={form.description} onChange={e => set("description", e.target.value)} placeholder={tr("Where it is, what you see, and since when.")} style={bad("description") ? { borderColor: RD } : undefined} /></div>
     {fromIssue && Array.isArray(start.issuePhotos) && start.issuePhotos.length > 0 && <div data-maint-issue-photos="" style={{ marginBottom: 12 }}><Lbl>{tr("The issue's photos to send")}</Lbl>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{start.issuePhotos.map((p, i) => { const on = issuePicked.indexOf(String(p.id)) >= 0; return <label key={p.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer" }}>
-        {p.url ? <img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 6, border: "2px solid " + (on ? GO : t.border) }} /> : null}
+        {p.url ? <FreshImg src={p.url} readKey={"maintenance-from-issue:" + (start.issueId != null ? start.issueId : "")} onStale={photosAgain} alt={tr("Photo {0}", i + 1)} style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 6, border: "2px solid " + (on ? GO : t.border) }} /> : null}
         <span style={chkWrap}><input type="checkbox" data-maint-issue-photo={p.id} checked={on} onChange={() => { const nextPicked = on ? issuePicked.filter(x => x !== String(p.id)) : issuePicked.concat([String(p.id)]); if (nextPicked.length > maxPhotos) return; setIssuePicked(nextPicked); setFiles(f => f.slice(0, Math.max(0, maxPhotos - nextPicked.length))); setSaid(null); }} aria-label={tr("Send photo {0}", i + 1)} /></span>
       </label>; })}</div></div>}
     <div style={{ marginBottom: 14 }}><Lbl>{tr("Photos")}</Lbl><MaintPhotoPick t={t} files={files} onChange={(f) => { setFiles(f); setSaid(null); }} left={left} name="new" /></div>
@@ -6770,11 +6866,12 @@ function LeaveBalancesTable({ t, balances }) {
   return <DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} />;
 }
 
-// Adjust: a kind, hours plus or minus and a required reason, dated today; it asks once, and its clientId,
-// made when the form opens, makes a retry post once.
+// Adjust: a kind, hours plus or minus, a required reason, and since the API's part 371 the day it counts on,
+// effectiveOn, today to start and never after today on the company's clock (part 372); it asks once, and its
+// clientId, made when the form opens, makes a retry post once.
 function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) {
   const clientId = useRef("adj-" + Math.random().toString(36).slice(2, 12) + "-" + Date.now().toString(36));
-  const [form, setForm] = useState({ kind: (kinds.find(k => k.key === "paid_sick") || kinds[0] || {}).key || "", hours: "", reason: "" });
+  const [form, setForm] = useState({ kind: (kinds.find(k => k.key === "paid_sick") || kinds[0] || {}).key || "", hours: "", reason: "", effectiveOn: leaveToday() });
   const [said, setSaid] = useState(null);
   const [once, busy] = useBusyGuard();
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
@@ -6783,10 +6880,12 @@ function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) 
     if (!form.kind) { setSaid({ text: tr("Choose the kind of leave."), keys: ["kind"] }); return; }
     if (!Number.isFinite(h) || h === 0 || Math.abs(h) > 9999 || Math.abs(h * 100 - Math.round(h * 100)) > 1e-6) { setSaid({ text: tr("Type the hours to add, or a minus sign and the hours to take away, up to two decimals."), keys: ["hours"] }); return; }
     if (!form.reason.trim()) { setSaid({ text: tr("Say why the balance changes."), keys: ["reason"] }); return; }
+    const today = leaveToday();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.effectiveOn || "") || form.effectiveOn > today) { setSaid({ text: tr("Choose a day no later than today."), keys: ["effectiveOn"] }); return; }
     const kindName = leaveKindWord(form.kind, (kinds.find(k => k.key === form.kind) || {}).name);
     if (!window.confirm(tr("Change {0}'s {1} balance by {2}?", name || "", kindName, leaveSigned(h)))) return;
     try {
-      const d = await af("/api/leave/people/" + encodeURIComponent(userId) + "/adjustments", { method: "POST", body: { kind: form.kind, hours: h, reason: form.reason.trim(), clientId: clientId.current } });
+      const d = await af("/api/leave/people/" + encodeURIComponent(userId) + "/adjustments", { method: "POST", body: { kind: form.kind, hours: h, reason: form.reason.trim(), clientId: clientId.current, effectiveOn: form.effectiveOn } });
       onDone(d);
     } catch (e) { setSaid(leaveRefusal(e)); }
   });
@@ -6796,9 +6895,10 @@ function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
       <div><Lbl>{tr("Kind")}</Lbl><Sel t={t} data-leave-adjust="kind" aria-label={tr("Kind")} value={form.kind} onChange={e => set("kind", e.target.value)} options={kinds.map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) }))} style={bad("kind") ? { borderColor: RD } : undefined} /></div>
       <div><Lbl>{tr("Hours, plus or minus")}</Lbl><Inp t={t} data-leave-adjust="hours" aria-label={tr("Hours, plus or minus")} inputMode="decimal" value={form.hours} onChange={e => set("hours", e.target.value.replace(/[^0-9.\-]/g, "").slice(0, 9))} placeholder={tr("For example 8 or -4")} style={bad("hours") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" data-leave-adjust="effectiveOn" aria-label={tr("Date")} max={leaveToday()} value={form.effectiveOn} onChange={e => set("effectiveOn", e.target.value)} style={bad("effectiveOn") ? { borderColor: RD } : undefined} /></div>
     </div>
     <div style={{ marginBottom: 6 }}><Lbl>{tr("Reason *")}</Lbl><TArea t={t} data-leave-adjust="reason" aria-label={tr("Reason")} rows={2} maxLength={500} value={form.reason} onChange={e => set("reason", e.target.value)} style={bad("reason") ? { borderColor: RD } : undefined} /></div>
-    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("It is dated today and names you as the one who made it.")}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("It is dated the day you choose, today or earlier, and names you as the one who made it.")}</div>
     {said && <div data-leave-adjust-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said.text}</div>}
     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onCancel}>{tr("Cancel")}</Btn><Btn t={t} data-leave-adjust-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
   </div>);
@@ -7078,7 +7178,9 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
 
 // The hours file from the payroll system, read here the way the API reads it, line by line: the person by
 // badge number or employee ID, the period, and the hours. The API matches each person and posts; a line
-// it cannot match keeps the whole file from posting, and comes back with its words.
+// it cannot match keeps the whole file from posting, and comes back with its words. Since the API's part 371
+// the file is checked first with dryRun: true, which runs the real run's one path and writes nothing, so
+// each line's outcome is shown before anything posts; Post the hours then posts it (part 372).
 const LEAVE_FILE_WORDS = {
   badHeader: "The first line names the columns: person, period_start, period_end and hours (or person, period and hours).",
   empty: "The file has no lines of hours.",
@@ -7133,6 +7235,7 @@ function readLeaveHoursFile(text, today) {
 function LeaveHoursWindow({ af, t, onClose, onPosted }) {
   const [file, setFile] = useState(null);
   const [read, setRead] = useState(null);
+  const [check, setCheck] = useState(null);
   const [answer, setAnswer] = useState(null);
   const [said, setSaid] = useState(null);
   const [once, busy] = useBusyGuard();
@@ -7140,18 +7243,24 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
   const pick = async (e) => {
     const f = e.target.files && e.target.files[0];
     if (ref.current) ref.current.value = "";
-    setAnswer(null); setSaid(null);
+    setAnswer(null); setCheck(null); setSaid(null);
     if (!f) return;
     const text = await f.text();
     setFile({ name: f.name, text });
     setRead(readLeaveHoursFile(text, leaveToday()));
   };
-  const post = once(async () => {
+  const send = async (dryRun) => {
     if (!file) return;
     setSaid(null);
-    try { const d = await af("/api/leave/hours-files", { method: "POST", body: { fileName: file.name, csv: file.text } }); setAnswer(d); if (onPosted) onPosted(); }
-    catch (e) { setSaid({ text: (e && e.message) || tr("Request failed"), lines: e && e.body && Array.isArray(e.body.lines) ? e.body.lines : [] }); }
-  });
+    try {
+      const d = await af("/api/leave/hours-files", { method: "POST", body: Object.assign({ fileName: file.name, csv: file.text }, dryRun ? { dryRun: true } : {}) });
+      if (dryRun) setCheck(d); else { setAnswer(d); if (onPosted) onPosted(); }
+    } catch (e) { setCheck(null); setSaid({ text: (e && e.message) || tr("Request failed"), lines: e && e.body && Array.isArray(e.body.lines) ? e.body.lines : [] }); }
+  };
+  const runCheck = once(() => send(true));
+  const post = once(() => send(false));
+  const wouldPost = check && !check.duplicate ? (check.file && check.file.postedCount != null ? Number(check.file.postedCount) : (check.lines || []).filter(l => l.outcome === "posted").length) : 0;
+  const wouldSkip = check && !check.duplicate ? (check.file && check.file.skippedCount != null ? Number(check.file.skippedCount) : (check.lines || []).length - wouldPost) : 0;
   const problemOf = (line) => { const p = (read ? read.problems : []).find(x => x.line === line); return p ? tr(LEAVE_FILE_WORDS[p.word]) : ""; };
   const refusedOf = (line) => { const p = (said ? said.lines : []).find(x => x.line === line); return p ? p.message : ""; };
   const local = read ? read.problems.length : 0;
@@ -7162,12 +7271,12 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
     { header: tr("Hours"), align: "right", render: l => (l.hours != null ? leaveNum(l.hours) : "--") },
     { header: "", render: l => { const w = problemOf(l.line) || refusedOf(l.line); return w ? <span data-leave-file-problem={l.line} style={{ fontSize: 12, color: RD }}>{w}</span> : null; } },
   ];
-  const outCols = [
+  const outColsOf = (dry) => [
     { header: tr("Line"), render: l => l.line },
     { header: tr("Person"), render: l => l.name || l.person },
     { header: tr("Period"), render: l => tr("{0} to {1}", fdLong(l.periodStart), fdLong(l.periodEnd)) },
     { header: tr("Hours worked"), align: "right", render: l => leaveNum(l.hoursWorked) },
-    { header: tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
+    { header: dry ? tr("What would post") : tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{dry && l.outcome === "posted" ? tr("Will post|hours file") : leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
   ];
   return (<Mdl t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
@@ -7180,16 +7289,26 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
       <Btn t={t} v="ghost" data-leave-file-choose="" onClick={() => ref.current && ref.current.click()} style={{ minHeight: 44 }}>{file ? tr("Choose another file") : tr("Choose the CSV")}</Btn>
       {file && <span style={{ marginLeft: 10, fontSize: 13, color: t.text }}>{file.name}</span>}
     </div>}
-    {read && !answer && <>
-      <div data-leave-file-read={read.lines.length} style={{ fontSize: 12, color: local || (said && said.lines.length) ? RD : t.textSec, marginBottom: 8 }}>{local ? trn("{0} line cannot be read. Fix the file and choose it again.|count", local) : said && said.lines.length ? said.text : trn("{0} line read. Post the hours to match each person and post their leave.|count", read.lines.length)}</div>
+    {read && !answer && !check && <>
+      <div data-leave-file-read={read.lines.length} style={{ fontSize: 12, color: local || (said && said.lines.length) ? RD : t.textSec, marginBottom: 8 }}>{local ? trn("{0} line cannot be read. Fix the file and choose it again.|count", local) : said && said.lines.length ? said.text : trn("{0} line read. Check the hours to see what each line would post. Nothing posts yet.|count", read.lines.length)}</div>
       <DataTable t={t} columns={cols} rows={read.lines} rowKey={l => l.line} empty={tr("The file has no lines of hours.")} />
       {said && !said.lines.length && <div data-leave-file-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said.text}</div>}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-post="" onClick={post} disabled={busy || local > 0 || read.lines.length === 0}>{busy ? tr("Posting...") : tr("Post the hours")}</Btn></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-check="" onClick={runCheck} disabled={busy || local > 0 || read.lines.length === 0}>{busy ? tr("Checking...") : tr("Check the hours")}</Btn></div>
+    </>}
+    {check && !answer && check.duplicate && <>
+      <div data-leave-file-duplicate="" data-leave-file-dry="" style={{ fontSize: 13, color: t.text, marginBottom: 12 }}>{tr("This file was posted before, on {0}. Posting it again would post nothing.", check.file ? irWhen(check.file.uploadedAt) : "--")}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={onClose}>{tr("Done")}</Btn></div>
+    </>}
+    {check && !answer && !check.duplicate && <>
+      <div data-leave-file-would-post={wouldPost} style={{ fontSize: 13, color: t.text, fontWeight: 600, marginBottom: 8 }}>{tr("Nothing has posted yet. {0} lines would post leave, {1} would post none.", wouldPost, wouldSkip)}</div>
+      <DataTable t={t} columns={outColsOf(true)} rows={check.lines || []} rowKey={l => l.line} />
+      {said && <div data-leave-file-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-post="" onClick={post} disabled={busy}>{busy ? tr("Posting...") : tr("Post the hours")}</Btn></div>
     </>}
     {answer && answer.duplicate && <div data-leave-file-duplicate="" style={{ fontSize: 13, color: t.text, marginBottom: 12 }}>{tr("This file was posted before, on {0}. Nothing new posted.", answer.file ? irWhen(answer.file.uploadedAt) : "--")}</div>}
     {answer && !answer.duplicate && <>
       <div data-leave-file-posted={answer.file ? answer.file.postedCount : 0} style={{ fontSize: 13, color: GR, fontWeight: 600, marginBottom: 8 }}>{tr("Posted. {0} lines posted leave, {1} posted none.", answer.file ? answer.file.postedCount : 0, answer.file ? answer.file.skippedCount : 0)}</div>
-      <DataTable t={t} columns={outCols} rows={answer.lines || []} rowKey={l => l.line} />
+      <DataTable t={t} columns={outColsOf(false)} rows={answer.lines || []} rowKey={l => l.line} />
     </>}
     {answer && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={onClose}>{tr("Done")}</Btn></div>}
   </div></Mdl>);
@@ -7723,15 +7842,19 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
   // Requests a page at a time (part 368), newest first; read again after a change, as many as are shown.
+  // Since the API's part 371 every page carries counts.pending, the pending requests in the whole of this
+  // person's scope, which the tab says whole (part 372); a page without it counts the requests read.
   const [reqNext, setReqNext] = useState("");
   const [reqMore, setReqMore] = useState(false);
+  const [reqPending, setReqPending] = useState(null);
+  const pendingOf = (d) => (d && d.counts && Number.isFinite(Number(d.counts.pending)) ? Number(d.counts.pending) : null);
   const reqShown = useRef(0);
   reqShown.current = Array.isArray(requests) ? requests.length : 0;
-  const loadRequests = (keep) => af(pagedPath("/api/supplies/requests", {}, "", keep === true ? reqShown.current : 0)).then(d => { setRequests(d && Array.isArray(d.requests) ? d.requests : []); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }).catch(e => showToast(e.message, "error"));
+  const loadRequests = (keep) => af(pagedPath("/api/supplies/requests", {}, "", keep === true ? reqShown.current : 0)).then(d => { setRequests(d && Array.isArray(d.requests) ? d.requests : []); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); setReqPending(pendingOf(d)); }).catch(e => showToast(e.message, "error"));
   const moreRequests = async () => {
     if (!reqNext || reqMore) return;
     setReqMore(true);
-    try { const d = await af(pagedPath("/api/supplies/requests", {}, reqNext)); setRequests(have => pagedAppend(have, d && d.requests, r => r.id)); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    try { const d = await af(pagedPath("/api/supplies/requests", {}, reqNext)); setRequests(have => pagedAppend(have, d && d.requests, r => r.id)); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); if (pendingOf(d) !== null) setReqPending(pendingOf(d)); }
     catch (e) { showToast(e.message, "error"); }
     setReqMore(false);
   };
@@ -7797,12 +7920,12 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const reqStateWord = { pending: tr("pending"), approved: tr("approved|request"), denied: tr("denied|request"), fulfilled: tr("fulfilled|request") };
   const urgencyWord = { low: tr("low"), normal: tr("normal"), high: tr("high"), urgent: tr("urgent") };
   const reqTypeWord = { refill: tr("Refill Request"), damage_report: tr("Damage Report"), new_gear: tr("New Gear Request") };
-  const pendingCount = requests.filter(r => r.status === "pending").length;
+  const pendingCount = reqPending !== null ? reqPending : requests.filter(r => r.status === "pending").length;
   return (<div>
     <SecT t={t} action={canManageSupplies ? tr("Add Supply") : undefined} onAction={canManageSupplies ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
       <button onClick={() => setTab("inventory")} data-supplies-tab="inventory" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
-      <button onClick={() => setTab("requests")} data-supplies-tab="requests" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
+      <button onClick={() => setTab("requests")} data-supplies-tab="requests" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? <span data-requests-pending={pendingCount}>{trn("({0} pending)|count", pendingCount)}</span> : ""}</button>
     </div>
     {tab === "inventory" && labelsOn && canManageSupplies && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}><div data-supply-site-labels="" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 220px", minWidth: 0, maxWidth: 360 }}><Lbl>{tr("Print labels for a site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={siteForLabels} onChange={e => setLabelSite(e.target.value)} options={sites.map(x => ({ v: String(x.id), l: x.name }))} /></div>
@@ -7901,7 +8024,9 @@ function newSendId() {
 }
 
 // A person's photo in the chat list, or their initials while there is none.
-const chatFace = (name, url, sz, color) => (url ? <img src={url} alt="" style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} /> : <Ini name={name} sz={sz} color={color} />);
+// A face in the chat: the person's photo, read again once through again (readKey, read) when its link has
+// run out (part 372), or their initials.
+const chatFace = (name, url, sz, color, again) => <FreshImg src={url} readKey={again ? again.key : undefined} onStale={again ? again.read : undefined} fallback={<Ini name={name} sz={sz} color={color} />} alt="" style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />;
 
 // New message (Step 213): everyone active the office can write to, from GET /api/chat/people, the
 // office first and then staff, with a search by name or badge that the API reads. Picking a person
@@ -7921,6 +8046,8 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
     }, want ? 250 : 0);
     return () => { alive = false; clearTimeout(h); };
   }, [af, q, again]);
+  // The list read again for its faces' fresh links (part 372).
+  const facesAgain = { key: "chat-people:" + q.trim(), read: () => af("/api/chat/people" + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")).then(d => { if (d && Array.isArray(d.people)) setList(d.people); }) };
   const groups = [
     { key: "office", label: tr("Office|people"), rows: (list || []).filter(p => p && p.kind === "office") },
     { key: "staff", label: tr("Staff"), rows: officeOnly ? [] : (list || []).filter(p => p && p.kind !== "office") },
@@ -7940,7 +8067,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
       {!failed && groups.map(g => (g.rows.length === 0 ? null : <div key={g.key} data-new-message-group={g.key}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{g.label}</div>
         {g.rows.map(p => (<button key={p.userId} onClick={() => onPick(p)} disabled={!!starting} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: starting ? "default" : "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-          {chatFace(p.name, p.photoUrl, 34, t.textSec)}
+          {chatFace(p.name, p.photoUrl, 34, t.textSec, facesAgain)}
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ display: "block", fontSize: 13, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
             {p.role && <span style={{ display: "block", fontSize: 11, color: t.textMut }}>{roleWord(p.role)}</span>}
@@ -9134,6 +9261,8 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
     af("/api/chat/people").then(d => { if (alive) setEveryone(d && Array.isArray(d.people) ? d.people : null); }).catch(e => { if (alive) setEveryone(null); console.warn("Chat people:", e.message); });
     return () => { alive = false; };
   }, [af]);
+  // The people and the direct messages read again for their faces' fresh links (part 372).
+  const chatFacesAgain = { key: "chat-page", read: () => Promise.all([loadDirect(), af("/api/chat/people").then(d => { if (d && Array.isArray(d.people)) setEveryone(d.people); }).catch(() => {})]) };
   const markRead = async (id) => {
     try { await af("/api/chat/channels/" + encodeURIComponent(id) + "/read", { method: "POST" }); } catch (e) { return; }
     setDms(p => p.map(d => d.channelId === id ? { ...d, unreadCount: 0 } : d));
@@ -9260,7 +9389,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
           {!directFailed && direct && direct.length === 0 && !needle && <div style={{ padding: "4px 10px 10px", color: t.textMut, fontSize: 12 }}>{tr("No direct messages yet. New message starts one.")}</div>}
           {!directFailed && directShown.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} data-direct-chat="" onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
-              {chatFace(dm.otherName, dm.otherPhotoUrl, 38, active ? GO : t.textSec)}
+              {chatFace(dm.otherName, dm.otherPhotoUrl, 38, active ? GO : t.textSec, chatFacesAgain)}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.otherName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{unreadPill(Number(dm.unreadCount) || 0)}</div>
@@ -9291,7 +9420,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
           {toStart.length > 0 && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("People")}</div>}
           {toStart.map(p => (
             <button key={"start-" + p.userId} data-chat-start={p.kind === "office" ? "office" : "staff"} onClick={() => startWith(p)} disabled={!!starting} style={rowStyle(false)} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-              {chatFace(p.name, p.photoUrl, 38, t.textSec)}
+              {chatFace(p.name, p.photoUrl, 38, t.textSec, chatFacesAgain)}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Message {0}", p.name)}</div>
                 <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{String(starting) === String(p.userId) ? tr("Opening...") : (p.role ? roleWord(p.role) : "")}</div>
@@ -9317,7 +9446,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
         ) : (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
             {phone && <button onClick={() => { setSel(null); setTagOpen(false); }} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
-            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : activeDirect ? activeDirect.otherName : (namedHere ? namedHere.name : ""), activeDirect ? activeDirect.otherPhotoUrl : (!activeDm && namedHere ? namedHere.photoUrl : null), 34)}
+            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : activeDirect ? activeDirect.otherName : (namedHere ? namedHere.name : ""), activeDirect ? activeDirect.otherPhotoUrl : (!activeDm && namedHere ? namedHere.photoUrl : null), 34, undefined, chatFacesAgain)}
             <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || activeDirect?.otherName || (namedHere ? namedHere.name : "") || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : isDirect ? tr("Direct message") : tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
@@ -9908,7 +10037,29 @@ const dashboardDevice = () => { try { return String(navigator.userAgent || "").s
 // One ticket, opened from a row: every detail, the screenshot when the API sends its address, and the
 // status with its note, saved with PATCH /api/support/tickets/:id { status, statusNote }. A refusal is
 // drawn over Save in the API's words, and nothing closes.
-function TicketWindow({ af, t, ticket, showToast, onClose, onSaved }) {
+// A ticket's screenshot. The API answers it behind the token, at /api/support/tickets/:id/screenshot, so it is
+// fetched with the token and drawn from the bytes, as a maintenance request's photo is; an address of any
+// other kind is drawn as it is. Before part 372 the path went straight into the picture, which the browser
+// read from the dashboard's own address with no token, so it never loaded.
+function TicketShot({ t, token, url }) {
+  const own = /^\/api\//.test(String(url || ""));
+  const [blob, setBlob] = useState("");
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!own) return undefined;
+    let alive = true; let made = "";
+    apiDownload(url, token, "screenshot.png")
+      .then(f => { made = URL.createObjectURL(f.blob); if (alive) setBlob(made); else URL.revokeObjectURL(made); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [url, token, own]);
+  const src = own ? blob : url;
+  const box = { display: "block", maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border };
+  if (own && failed) return <div data-ticket-screenshot="failed" style={{ fontSize: 12, color: t.textMut, marginBottom: 12 }}>{tr("This photo did not load.")}</div>;
+  if (!src) return <div data-ticket-screenshot="loading" style={{ height: 60, marginBottom: 12 }} />;
+  return <a href={own ? src : linkUrl(src)} target="_blank" rel="noopener noreferrer" data-ticket-screenshot={own ? "behind-token" : "link"} style={{ display: "block", marginBottom: 12 }}><img src={src} alt={tr("Screenshot")} style={box} /></a>;
+}
+function TicketWindow({ af, t, token = "", ticket, showToast, onClose, onSaved }) {
   const [status, setStatus] = useState(ticket.status);
   const [note, setNote] = useState(ticket.statusNote || "");
   const [busy, setBusy] = useState(false);
@@ -9934,7 +10085,7 @@ function TicketWindow({ af, t, ticket, showToast, onClose, onSaved }) {
     <div style={{ marginBottom: 12 }}>{ticketDetails(ticket).filter(([l]) => l !== "Kind of ticket" && l !== "Status" && l !== "Note|ticket").map(([l, v]) => row(l, v))}</div>
     <Lbl>{tr("Description")}</Lbl>
     <div data-ticket-description="" style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, overflowWrap: "anywhere" }}>{ticket.description || "--"}</div>
-    {ticket.screenshotUrl ? <a href={linkUrl(ticket.screenshotUrl)} target="_blank" rel="noopener noreferrer" data-ticket-screenshot="" style={{ display: "block", marginBottom: 12 }}><img src={ticket.screenshotUrl} alt={tr("Screenshot")} style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border }} /></a>
+    {ticket.screenshotUrl ? <TicketShot t={t} token={token} url={ticket.screenshotUrl} />
       : ticket.screenshot ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("A screenshot is attached.")}</div> : null}
     <Lbl>{tr("Status")}</Lbl>
     <div role="group" aria-label={tr("Status")} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -9975,7 +10126,7 @@ function TicketsExportWindow({ t, text, showToast, onClose }) {
 
 // The Tickets inbox: GET /api/support/tickets?kind= read once per kind and app, the status tabs counted
 // from what it answers, a row opening the ticket, and Export making the rows shown into text.
-function TicketsPage({ af, t, showToast }) {
+function TicketsPage({ af, t, token = "", showToast }) {
   const [rows, setRows] = useState(null);
   const [failed, setFailed] = useState("");
   const [state, setState] = useState("new");
@@ -10012,7 +10163,7 @@ function TicketsPage({ af, t, showToast }) {
     {rows === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
       : <DataTable t={t} columns={cols} rows={shown} rowKey={x => x.id} onRowClick={x => setOpen(x)} empty={all.length ? tr("Nothing matches this filter.") : tr("No tickets yet.")} />}
-    {open && <TicketWindow af={af} t={t} ticket={open} showToast={showToast} onClose={() => setOpen(null)} onSaved={(x) => { setOpen(null); setRows(prev => (prev || []).map(y => (y.id === x.id ? Object.assign({}, y, x) : y))); load(); }} />}
+    {open && <TicketWindow af={af} t={t} token={token} ticket={open} showToast={showToast} onClose={() => setOpen(null)} onSaved={(x) => { setOpen(null); setRows(prev => (prev || []).map(y => (y.id === x.id ? Object.assign({}, y, x) : y))); load(); }} />}
     {exporting !== null && <TicketsExportWindow t={t} text={exporting} showToast={showToast} onClose={() => setExporting(null)} />}
   </div>);
 }
@@ -13731,6 +13882,8 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
   const [failed, setFailed] = useState("");
   const [act, setAct] = useState(null);
   const [editing, setEditing] = useState(false);
+  // The item read again for its photos' fresh links, quietly (part 372).
+  const photosAgain = () => af("/api/equipment/" + encodeURIComponent(id)).then(r => { if (r && r.equipment) setD(r); });
   const load = useCallback(() => {
     setFailed("");
     af("/api/equipment/" + encodeURIComponent(id)).then(r => { if (!r || !r.equipment) throw new Error(tr("This did not load.")); setD(r); }).catch(e => { setD(null); setFailed(e.message || tr("This did not load.")); });
@@ -13782,7 +13935,7 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
           </div>
           {ev.kind === "moved" && (ev.fromSiteId || ev.toSiteId) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("From {0} to {1}", ev.fromSiteName || siteName(ev.fromSiteId) || "--", ev.toSiteName || siteName(ev.toSiteId) || "--")}</div> : null}
           {ev.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
-          {ev.photoUrl ? <a href={linkUrl(ev.photoUrl)} target="_blank" rel="noreferrer"><img src={ev.photoUrl} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
+          {ev.photoUrl ? <a href={linkUrl(ev.photoUrl)} target="_blank" rel="noreferrer"><FreshImg src={ev.photoUrl} readKey={"equipment:" + id} onStale={photosAgain} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
         </div>))}
     </Crd>
     {act && <EquipmentEventWindow af={af} t={t} item={x} action={act} sites={sites} onClose={() => setAct(null)} onSaved={() => { setAct(null); if (showToast) showToast(tr("Recorded.")); load(); }} />}
@@ -14186,7 +14339,7 @@ function ManagementReviewView({ af, t, sites = [] }) {
   </div></Crd>);
 }
 
-function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff = [] }) {
+function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkMap, allStaff = [] }) {
   const [defs, setDefs] = useState(null);
   const [view, setView] = useState("library");
   const [active, setActive] = useState(null);
@@ -14264,6 +14417,10 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   const newReport = () => { setEditing(null); setView("edit"); };
   const editReport = (d) => { setEditing(d); setView("edit"); };
   const duplicateReport = (d) => { setEditing({ name: tr("{0} (copy)", d.name || tr("Report")), description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
+  // A report is never deleted: Deactivate takes it off the list and keeps it, with its past runs. The API
+  // lets an admin, or the person who made the report, deactivate a saved one, and never a template, so
+  // Deactivate shows only there (part 372).
+  const canDeactivate = (d) => !d.is_system && (isAdmin || (d.created_by != null && user && user.id != null && String(d.created_by) === String(user.id)));
   const deleteReport = async (d) => {
     if (!window.confirm(tr("Deactivate \"{0}\"?", d.name))) return;
     try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deactivated")); loadDefs(); }
@@ -14424,7 +14581,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
                     <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Run")}</Btn>
                     <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Duplicate")}</Btn>
                     {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Edit")}</Btn> : null}
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Deactivate")}</Btn> : null}
+                    {canDeactivate(d) ? <Btn v="ghost" t={t} data-report-deactivate={d.id} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Deactivate")}</Btn> : null}
                   </div>
                 </Crd>
               ))}
@@ -14615,6 +14772,19 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   const [reassignForm, setReassignForm] = useState(null); const [createForm, setCreateForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const load = async (f) => { setLoading(true); try { const params = new URLSearchParams(); const ff = f || filters; if (ff.site_id) params.set("site_id", ff.site_id); if (ff.building_name) params.set("building_name", ff.building_name); if (ff.floor_number) params.set("floor_number", ff.floor_number); if (ff.zone) params.set("zone", ff.zone); if (ff.user_id) params.set("user_id", ff.user_id); if (ff.status) params.set("status", ff.status); const d = await af("/api/clock/tasks/assigned-all?" + params.toString()); setTasks(d); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
+  // The task window is drawn from the list's row, so a picture there whose link ran out reads the list again,
+  // quietly, and the window takes the row's fresh links (part 372).
+  const taskPhotosAgain = async () => {
+    const id = sel && sel.id;
+    if (id == null) return;
+    const params = new URLSearchParams(); const ff = filters;
+    ["site_id", "building_name", "floor_number", "zone", "user_id", "status"].forEach(k => { if (ff[k]) params.set(k, ff[k]); });
+    const d = await af("/api/clock/tasks/assigned-all?" + params.toString());
+    if (!Array.isArray(d)) return;
+    setTasks(d);
+    const row = d.find(x => String(x.id) === String(id));
+    if (row) setSel(cur => (cur && String(cur.id) === String(id) ? { ...cur, media_url: row.media_url, resolution_photo_url: row.resolution_photo_url } : cur));
+  };
   useEffect(() => { load(); }, []);
   const updateFilter = (key, val) => { const nf = { ...filters, [key]: val }; setFilters(nf); load(nf); };
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
@@ -14672,8 +14842,8 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
       {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 12 }}>{tr("Resolution: {0}", sel.resolution_note)}</div>}
-      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{sel.media_type === "video" ? tr("Attached Video") : tr("Attached Photo")}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt={tr("Task")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
-      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Resolution Photo")}</div><img src={sel.resolution_photo_url} alt={tr("Resolution")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
+      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{sel.media_type === "video" ? tr("Attached Video") : tr("Attached Photo")}</div>{sel.media_type === "video" ? <FreshImg as="video" src={sel.media_url} readKey={"assigned-task:" + sel.id} onStale={taskPhotosAgain} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <FreshImg src={sel.media_url} readKey={"assigned-task:" + sel.id} onStale={taskPhotosAgain} alt={tr("Task")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
+      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Resolution Photo")}</div><FreshImg src={sel.resolution_photo_url} readKey={"assigned-task:" + sel.id} onStale={taskPhotosAgain} alt={tr("Resolution")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
         {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? tr("Assigned|task") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "resolution_photo" ? tr("Photo Attached") : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -16006,11 +16176,25 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   // fields changed from that (DASH-33), so a row that lacks a service category never blanks it, a status
   // read before someone else changed it is not written back, and a pattern's shift is marked moved only
   // when it is. A second press while the first is out sends nothing.
+  // Since the API's part 371 each shift of the calendar carries updated_at, which the save sends back as
+  // updatedAt through saveSince (part 372): a shift changed since by someone else is saved again without
+  // asking when none of the fields edited here changed, and asked about when one did. The row as the
+  // calendar read it is kept in read, since the window edits a copy of it.
   const shiftForm = (x) => ({ user_id: x.user_id, site_id: x.site_id, start_time: x.startTime, end_time: x.endTime, notes: x.notes || "", status: x.status, building_name: x.buildingName, floor_number: x.floorNumber, service_category: x.serviceCategory });
+  const shiftLabels = { user_id: tr("Staff"), site_id: tr("Site"), start_time: tr("Start Time"), end_time: tr("End Time"), notes: tr("Notes"), status: tr("Status"), building_name: tr("Building"), floor_number: tr("Floor"), service_category: tr("Service Category") };
+  const shiftStatusWord = { scheduled: tr("Scheduled|shift"), completed: tr("Completed|shift"), cancelled: tr("Cancelled|shift"), no_show: tr("No Show") };
+  const shiftShow = (k, v) => {
+    if (v === undefined || v === null || v === "") return "--";
+    if (k === "start_time" || k === "end_time") return String(v).slice(0, 5);
+    if (k === "user_id") { const p = staffList.find(x => String(x.id) === String(v)); return p ? (p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim()) : String(v); }
+    if (k === "site_id") { const x = sites.find(y => String(y.id) === String(v)); return x ? x.name : String(v); }
+    if (k === "status") return shiftStatusWord[v] || String(v);
+    return String(v);
+  };
   const openEdit = (shift) => {
     if (shift.site_id) loadSiteLocations(shift.site_id);
     const opened = { ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" };
-    setEditModal({ ...opened, was: shiftForm(opened) });
+    setEditModal({ ...opened, was: shiftForm(opened), read: shift });
   };
   const editSaving = useRef(false);
   const submitEdit = async () => {
@@ -16019,7 +16203,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     if (!Object.keys(body).length) { setEditModal(null); return; }
     editSaving.current = true;
     try {
-      await af("/api/schedule/" + editModal.id, { method: "PATCH", body });
+      await saveSince(af, "/api/schedule/" + editModal.id, { method: "PATCH", body, read: editModal.read, labels: shiftLabels, show: shiftShow });
       showToast(tr("Schedule updated")); setEditModal(null); loadCalendar();
     } catch (e) { if (e && e.code === "schedule.onLeave") setOnLeaveSaid(e.message); else showToast(e.message, "error"); }
     editSaving.current = false;
@@ -16276,7 +16460,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
-    {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
+    {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div data-schedule-edit={editModal.id} style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
@@ -16370,20 +16554,26 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><PersonPick t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-          <Btn t={t} onClick={async () => {
+          <div style={{ flex: 1 }}><PersonPick t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value, assignSaid: "" })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+          <Btn t={t} data-pickup-assign="" disabled={!!pickupDetail.assigning} onClick={async () => {
             if (!pickupDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
+            const id = pickupDetail.id;
+            setPickupDetail(cur => (cur && cur.id === id ? { ...cur, assigning: true, assignSaid: "" } : cur));
             try {
-              if (pickupDetail.status === "requested") {
-                await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" });
-              }
-              await af("/api/pickups/" + pickupDetail.id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
-              showToast(tr("Shift reassigned"));
+              // A drop request is approved and given in one step (the API's part 371, DASH-35, part 372).
+              if (pickupDetail.status === "requested") await af("/api/pickups/" + id + "/approve-drop-and-assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
+              else await af("/api/pickups/" + id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
+              showToast(pickupDetail.status === "requested" ? tr("Drop approved. Shift assigned.") : tr("Shift reassigned"));
               setPickupDetail(null);
               loadCalendar();
-            } catch (e) { showToast(e.message, "error"); }
+            } catch (e) {
+              const under = e && e.body && Array.isArray(e.body.keys) && e.body.keys.indexOf("user_id") >= 0;
+              setPickupDetail(cur => (cur && cur.id === id ? { ...cur, assigning: false, assignSaid: under ? (e.message || tr("Request failed")) : "" } : cur));
+              if (!under) showToast(e.message, "error");
+            }
           }} style={{ padding: "8px 16px", fontSize: 11 }}>{tr("Assign")}</Btn>
         </div>
+        {pickupDetail.assignSaid ? <div data-assign-refusal="user_id" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{pickupDetail.assignSaid}</div> : null}
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         {pickupDetail.status === "requested" ? (
@@ -16689,7 +16879,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{serviceWord(s.service_category)}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={statusWord[s.status] || s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
             { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleOf(s.claimed_by_role)})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
-            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} data-pickup-view={s.id} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty={tr("No shifts found for this period and filter.")} footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
         })()}
@@ -17076,16 +17266,25 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><PersonPick t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }].concat(reassignOptions)} /></div>
-            <Btn t={t} onClick={async () => {
+            <div style={{ flex: 1 }}><PersonPick t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value, assignSaid: "" })} options={[{ v: "", l: tr("Select staff member...") }].concat(reassignOptions)} /></div>
+            <Btn t={t} data-pickup-assign="" disabled={!!shiftDetail.assigning} onClick={async () => {
               if (!shiftDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
+              const id = shiftDetail.id;
+              setShiftDetail(cur => (cur && cur.id === id ? { ...cur, assigning: true, assignSaid: "" } : cur));
               try {
-                if (shiftDetail.status === "requested") await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" });
-                await af("/api/pickups/" + shiftDetail.id + "/assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
-                showToast(tr("Shift assigned")); setShiftDetail(null); load();
-              } catch (e) { showToast(e.message, "error"); }
+                // A drop request is approved and given in one step since the API's part 371 (DASH-35,
+                // part 372): nothing is written unless both go through.
+                if (shiftDetail.status === "requested") await af("/api/pickups/" + id + "/approve-drop-and-assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
+                else await af("/api/pickups/" + id + "/assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
+                showToast(shiftDetail.status === "requested" ? tr("Drop approved. Shift assigned.") : tr("Shift assigned")); setShiftDetail(null); load();
+              } catch (e) {
+                const under = e && e.body && Array.isArray(e.body.keys) && e.body.keys.indexOf("user_id") >= 0;
+                setShiftDetail(cur => (cur && cur.id === id ? { ...cur, assigning: false, assignSaid: under ? (e.message || tr("Request failed")) : "" } : cur));
+                if (!under) showToast(e.message, "error");
+              }
             }} style={{ padding: "8px 16px", fontSize: 11 }}>{tr("Assign")}</Btn>
           </div>
+          {shiftDetail.assignSaid ? <div data-assign-refusal="user_id" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{shiftDetail.assignSaid}</div> : null}
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
@@ -17150,8 +17349,8 @@ const inspectionPhotosOf = (sr) => {
 // The photos of the inspection as a whole, from the result.
 const inspectionOverallPhotosOf = (d) => (d && d.result && Array.isArray(d.result.photo_urls) ? d.result.photo_urls.filter(u => typeof u === "string" && u) : []);
 // Photos as thumbnails, each opening full size in a new tab.
-const InspectionThumbs = ({ t, urls, mark }) => (<div data-inspection-photos={mark} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-  {urls.map((u, i) => <a key={i} href={linkUrl(u)} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
+const InspectionThumbs = ({ t, urls, mark, readKey, onStale }) => (<div data-inspection-photos={mark} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+  {urls.map((u, i) => <a key={i} href={linkUrl(u)} target="_blank" rel="noreferrer"><FreshImg src={u} readKey={readKey} onStale={onStale} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
 </div>);
 
 // A filed inspection's review line (Step 232, STEP217_CONTRACT_A v2 section 6): signed, with the
@@ -17489,6 +17688,13 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const openDetail = async (id) => {
     try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
   };
+  // The inspection read again for its photos' fresh links, what is expanded kept (part 372).
+  const detailPhotosAgain = async () => {
+    const id = detailView && detailView.inspection ? detailView.inspection.id : detailView && detailView.id;
+    if (id == null) return;
+    const d = await af("/api/inspections/scheduled/" + id);
+    setDetailView(cur => (cur && (cur.inspection ? cur.inspection.id : cur.id) === id ? d : cur));
+  };
   // Step 314: #inspections/<id> opens that inspection, which is where a safety inspection record's
   // Open the inspection lands; Back goes to #inspections.
   const routeId = route[0] ? decodeURIComponent(route[0]) : "";
@@ -17714,7 +17920,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                         {d.capture ? (inspectionPhotosOf(sr).length > 0 ? (
                           <div>
                             <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos ({0})", inspectionPhotosOf(sr).length)}</div>
-                            <InspectionThumbs t={t} urls={inspectionPhotosOf(sr)} mark={item.id} />
+                            <InspectionThumbs t={t} urls={inspectionPhotosOf(sr)} mark={item.id} readKey="inspection-detail" onStale={detailPhotosAgain} />
                             <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
                           </div>
                         ) : (
@@ -17723,7 +17929,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                           <div>
                             <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Attached Photo")}</div>
                             <a href={linkUrl(sr.photo_url)} target="_blank" rel="noreferrer">
-                              <img src={sr.photo_url} alt={tr("Inspection photo")} style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
+                              <FreshImg src={sr.photo_url} readKey="inspection-detail" onStale={detailPhotosAgain} alt={tr("Inspection photo")} style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
                             </a>
                             <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
                           </div>
@@ -17744,7 +17950,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         {/* Step 218: the photos of the whole inspection and the signature, once the answer carries capture. */}
         {isComplete && d.capture && inspectionOverallPhotosOf(d).length > 0 && <Crd t={t} style={{ marginTop: 16 }}>
           <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos of the whole inspection")}</div>
-          <InspectionThumbs t={t} urls={inspectionOverallPhotosOf(d)} mark="overall" />
+          <InspectionThumbs t={t} urls={inspectionOverallPhotosOf(d)} mark="overall" readKey="inspection-detail" onStale={detailPhotosAgain} />
         </Crd>}
         {isComplete && d.capture && <Crd t={t} style={{ marginTop: 16 }}>
           <div data-inspection-signature="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Signature")}</div>
@@ -26271,6 +26477,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
     } catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     finally { setLoading(false); }
   }, [af, showToast, statusFilter, showTest]);
+  // The same read, quietly, for the faces' fresh links (part 372).
+  const facesAgain = () => af("/api/hr/employees-summary?status=" + encodeURIComponent(statusFilter) + (showTest ? "&include_test=true" : "")).then(d => { if (d && Array.isArray(d.employees)) setEmployees(d.employees); });
 
   useEffect(() => { load(); }, [load]);
 
@@ -26403,10 +26611,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
               <div style={{ height: 4, background: "linear-gradient(90deg, " + GO + ", " + GL + ")" }} />
               <div style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  {e.profile_photo_url
-                    ? <img src={e.profile_photo_url} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />
-                    : <Ini name={name} sz={52} color={e.status === "active" ? GO : "#94A3B8"} />
-                  }
+                  <FreshImg src={e.profile_photo_url} readKey="hr-employees" onStale={facesAgain} fallback={<Ini name={name} sz={52} color={e.status === "active" ? GO : "#94A3B8"} />} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
                     <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStatusWord(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
@@ -26470,6 +26675,12 @@ const loadDisciplineSteps = (af) => {
 const warningStepWord = (code, steps) => { const s = (steps || []).find(x => x.code === code); return s && s.label ? s.label : (WARNING_STEP_WORDS[code] ? tr(WARNING_STEP_WORDS[code]) : String(code || "")); };
 const warningCategoryWord = (code, cats) => { const c = (cats || []).find(x => x.code === code); return c && c.label ? c.label : String(code || ""); };
 const warningStatusWord = (s) => (WARNING_STATUS_WORDS[s] ? tr(WARNING_STATUS_WORDS[s]) : String(s || ""));
+// A list says a draft is not issued yet (part 372); every other status in its own word.
+const warningListStatus = (s) => (s === "draft" ? tr("Draft, not issued") : warningStatusWord(s));
+// A person's open draft, the newest, from their record's history, and the day it is shown by: the day it was
+// saved when the record carries it, else the incident's day.
+const openDraftOf = (history) => (Array.isArray(history) ? history : []).find(x => x && x.id != null && x.status === "draft" && !warningRescinded(x)) || null;
+const draftDayOf = (w) => { const v = w && (w.updatedAt || w.updated_at || w.createdAt || w.created_at || w.incidentDate || w.incident_date || w.actionDate || w.action_date); return !v ? "" : String(v).length > 10 ? irDay(v) : fdLong(String(v).slice(0, 10)); };
 const warningOf = (d) => (d && d.warning && typeof d.warning === "object" ? d.warning : d);
 // A warning's fields as the API may name them, read the same way wherever a row comes from.
 const warningIssued = (w) => !!(w && (w.issuedAt || w.issued_at || (w.status && w.status !== "draft")));
@@ -26502,17 +26713,28 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   // DASH-04: the draft is the warning as the API keeps it. A list row may lack fields, so a window
   // opened on one reads GET /api/discipline/:id and takes its answer, unless something was typed
   // first; an answer with no warning leaves the row as it was. touched marks a typed change.
+  // Part 372: a draft opened from a list waits for that read before it shows the form, so a form drawn
+  // from a row short of fields can never be saved over the draft. API main answers no GET
+  // /api/discipline/:id, so when that read fails the draft is taken from the person's record, GET
+  // /api/discipline/person/:userId, whose history carries each warning whole. When neither holds it, the
+  // window says so and Save as draft stays off.
   const touched = useRef(false);
+  const draftFromList = !!(row && row.id != null && !warningIssued(row) && !warningRescinded(row));
+  const [reading, setReading] = useState(draftFromList ? "loading" : "");
   useEffect(() => {
     const rid = row && row.id != null ? String(row.id) : "";
     if (!rid) return undefined;
     let alive = true;
-    af("/api/discipline/" + encodeURIComponent(rid)).then(d => {
-      const got = warningOf(d);
-      if (!alive || !got || got.id == null || String(got.id) !== rid) return;
+    const take = (got) => {
       setW(got);
       if (!touched.current && !warningIssued(got)) { const nf = draftOf(got); setF(nf); setSavedBody(JSON.stringify(bodyOf(nf))); }
-    }).catch(() => {});
+      setReading("");
+    };
+    const mine = (d) => { const got = warningOf(d); return got && got.id != null && String(got.id) === rid ? got : null; };
+    const fromRecord = () => (userId ? af("/api/discipline/person/" + encodeURIComponent(String(userId))).then(d => (d && Array.isArray(d.history) ? d.history.find(x => x && x.id != null && String(x.id) === rid) || null : null)) : Promise.resolve(null));
+    af("/api/discipline/" + encodeURIComponent(rid)).then(d => mine(d) || fromRecord(), () => fromRecord())
+      .then(got => { if (!alive) return; if (got) take(got); else if (draftFromList) setReading("failed"); })
+      .catch(() => { if (alive && draftFromList) setReading("failed"); });
     return () => { alive = false; };
   }, []);
   const [issue, setIssue] = useState({ issuerSignature: "", employeeSignature: "", declined: false, witnessName: "", employeeAccount: "" });
@@ -26583,6 +26805,17 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   });
   const draftReady = !!(f.type && f.category && f.incidentDate && f.description.trim() && (f.follows === "no" || (f.follows === "yes" && f.controllerDiscussedOn)));
   const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || phone || !!issue.employeeSignature || issue.declined)));
+  // Why a greyed-out button is grey (part 372): what Save as draft still needs, and what Issue waits for.
+  const stillNeeded = [
+    !f.category ? tr("Category") : "", !f.incidentDate ? tr("Date of the incident") : "", !String(f.description || "").trim() ? tr("What happened") : "",
+    !f.follows ? tr("Does this follow a complaint or other protected activity by this person?") : "",
+    f.follows === "yes" && !f.controllerDiscussedOn ? tr("Discussed with the Controller on") : "",
+  ].filter(Boolean);
+  const issueWhy = !id || verbal || issueReady ? "" : !issue.issuerSignature ? tr("Sign as the issuer first.") : tr("Have {0} sign, or tick Declined to sign.", personName || tr("The person"));
+  // Closing with typing not saved asks first, in the window: Keep editing or Close (part 372).
+  const [askClose, setAskClose] = useState(false);
+  const unsaved = () => isDraft && reading === "" && ((touched.current && JSON.stringify(body()) !== savedBody) || !!String(issue.employeeAccount || "").trim());
+  const tryClose = () => { if (busy) return; if (unsaved()) { setAskClose(true); return; } onClose(); };
   // Issue sends the draft first when the screen holds edits not yet saved (DASH-04), so the warning
   // issued is the one on screen: a Step changed to written after the last save is issued as written.
   const doIssue = () => run("issue", async () => {
@@ -26625,16 +26858,31 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const small = { minHeight: 44 };
   const signed = (k) => (issue[k] ? <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setIssue(p => ({ ...p, [k]: "" }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div> : null);
   const emailOnFile = person && person.email ? String(person.email) : "";
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
+  return (<Mdl t={t} tall asksItself onClose={tryClose}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{personName || ""}{w && w.status ? ", " + warningStatusWord(w.status) : ""}</div>
       </div>
-      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
+      <button onClick={tryClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
     </div>
+    {askClose && <div data-warning-close-ask="" role="alertdialog" aria-label={tr("Close without saving?")} style={{ position: "sticky", top: 0, zIndex: 2, marginBottom: 12, padding: "12px 14px", borderRadius: 8, background: t.card, border: "1px solid " + OR, boxShadow: "0 4px 14px rgba(0,0,0,0.12)" }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Close without saving?")}</div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" data-warning-keep-editing="" onClick={() => setAskClose(false)} style={{ minHeight: 44 }}>{tr("Keep editing")}</Btn>
+        <Btn t={t} v="danger" data-warning-close-anyway="" onClick={() => { setAskClose(false); onClose(); }} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
+      </div>
+    </div>}
     {refusal.text && !refusal.field && <div data-warning-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
-    {isDraft && <div>
+    {isDraft && reading === "loading" && <div data-warning-reading="" style={{ fontSize: 13, color: t.textMut, padding: "20px 0" }}>{tr("Loading...")}</div>}
+    {isDraft && reading === "failed" && <div>
+      <div data-warning-read-failed="" role="alert" style={{ fontSize: 13, color: RD, padding: "12px 0", lineHeight: 1.5 }}>{tr("This draft did not load. Close it and open it again.")}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={onClose} style={small}>{tr("Close")}</Btn>
+        <Btn t={t} v="ghost" data-warning-save-draft="" disabled style={small}>{tr("Save as draft")}</Btn>
+      </div>
+    </div>}
+    {isDraft && reading === "" && <div>
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("{0} may begin at any step.", clientConfig.company.shortName)}</div>
       <div style={grid}>
         <div><Lbl>{tr("Step")}</Lbl><select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={{ width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: R.sm, border: "1px solid " + (refusal.field === "type" ? RD : t.inputBorder), background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }}>{stepOpts.map(o => <option key={o.v} value={o.v} disabled={o.disabled}>{o.l}</option>)}</select>{under("type")}</div>
@@ -26661,9 +26909,10 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
       <div style={{ marginBottom: 12, maxWidth: 260 }}><Lbl>{tr("Language of the warning")}</Lbl><Sel t={t} aria-label={tr("Language of the warning")} value={f.language} onChange={e => set("language", e.target.value)} options={LANGUAGES.map(x => ({ v: x.id, l: x.label }))} style={box("language")} />{under("language")}</div>
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("If this person is covered by a union agreement, follow that agreement's procedure.")}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        <Btn t={t} v="ghost" onClick={onClose} disabled={!!busy} style={small}>{tr("Cancel")}</Btn>
-        <Btn t={t} v="ghost" onClick={saveDraft} disabled={!!busy || !draftReady} style={small}>{busy === "draft" ? tr("Saving...") : tr("Save as draft")}</Btn>
+        <Btn t={t} v="ghost" onClick={tryClose} disabled={!!busy} style={small}>{tr("Cancel")}</Btn>
+        <Btn t={t} v="ghost" data-warning-save-draft="" onClick={saveDraft} disabled={!!busy || !draftReady} style={small}>{busy === "draft" ? tr("Saving...") : tr("Save as draft")}</Btn>
       </div>
+      {!draftReady && stillNeeded.length > 0 && <div data-warning-still-needed="" style={{ fontSize: 12, color: t.textSec, marginTop: 6, textAlign: "right", lineHeight: 1.5 }}>{tr("Still needed: {0}", stillNeeded.join(", "))}</div>}
       {id && <div data-warning-issue="">
         <div style={sec}>{tr("Issue|warning")}</div>
         {verbal ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("A verbal warning is a note of the conversation, placed on the record. It takes no signatures.")}</div> : <div>
@@ -26681,6 +26930,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
         </div>}
         <div style={{ marginTop: 12 }}><Lbl>{tr("Their account")}</Lbl><TArea t={t} rows={3} aria-label={tr("Their account")} value={issue.employeeAccount} onChange={e => setIssue(p => ({ ...p, employeeAccount: e.target.value }))} placeholder={tr("Optional. What the person says, recorded on the warning.")} style={box("employeeAccount")} />{under("employeeAccount")}</div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} data-warning-issue-send="" onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : phone ? tr("Issue and send to sign") : tr("Issue|warning")}</Btn></div>
+        {issueWhy && <div data-warning-issue-why="" style={{ fontSize: 12, color: t.textSec, marginTop: 6, textAlign: "right" }}>{issueWhy}</div>}
       </div>}
     </div>}
     {!isDraft && <div>
@@ -26798,13 +27048,17 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
   const history = data.history.slice();
   const suggested = data.suggestedNext && WARNING_STEPS.indexOf(data.suggestedNext) >= 0 ? data.suggestedNext : "verbal_warning";
   const start = isAdmin || WARNING_ADMIN_STEPS.indexOf(suggested) < 0 ? suggested : "written_warning";
+  const draft = openDraftOf(data.history);
   const line = (w) => [warningCategoryWord(w.category, steps.categories), (w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) ? fdLong(w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) : ""].filter(Boolean).join(", ");
   const delivered = (w) => { const d = w.delivered || {}; const m = d.method || w.deliveryMethod || w.delivery_method; return m && WARNING_DELIVERY_WORDS[m] ? tr(WARNING_DELIVERY_WORDS[m]) + (d.at ? " " + irDay(d.at) : "") : ""; };
   return (<Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
     <div data-person-discipline="">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Disciplinary")}</div>
-        <Btn t={t} onClick={() => setWin({ row: null, initial: { type: start } })} style={{ minHeight: 44 }}>{tr("Issue a warning")}</Btn>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {draft && <Btn t={t} v="ghost" data-warning-continue={draft.id} onClick={() => setWin({ row: draft, initial: {} })} style={{ minHeight: 44 }}>{tr("Continue the draft from {0}", draftDayOf(draft))}</Btn>}
+          <Btn t={t} onClick={() => setWin({ row: null, initial: { type: start } })} style={{ minHeight: 44 }}>{tr("Issue a warning")}</Btn>
+        </div>
       </div>
       <div data-discipline-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
         {WARNING_STEPS.map(s => <div key={s} style={{ padding: "6px 10px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec }}><b style={{ color: t.text }}>{Number(by[s] || 0)}</b> {warningStepWord(s, steps.steps)}</div>)}
@@ -26817,7 +27071,7 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
         <button data-warning-row={w.id || i} onClick={() => setWin({ row: w, initial: {} })} style={{ display: "block", flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: gone ? t.textMut : t.text, textDecoration: gone ? "line-through" : "none" }}>{warningStepWord(w.type || w.action_type, steps.steps)}</span>
-            <Bdg l={warningStatusWord(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
+            <Bdg l={warningListStatus(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
           </div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, textDecoration: gone ? "line-through" : "none" }}>{line(w)}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[delivered(w), signatureOf(w) ? "" : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Signed") : ""].filter(Boolean).join(". ")}</div>
@@ -26935,6 +27189,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     } catch (e) { showToast(e.message, "error"); }
     finally { setLoading(false); }
   }, [af, userId, showToast]);
+  // The folder read again, quietly, for the face's fresh link (part 372).
+  const faceAgain = () => af("/api/hr/employee-folder/" + userId).then(d => { if (d) setData(d); });
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -27070,9 +27326,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         <Ic d="M15 18l-6-6 6-6" sz={14} c={t.goldText} /> {tr("Back to Employees")}
       </button>
       <ProfileBanner t={t}
-        avatar={e.profile_photo_url
-          ? <img src={e.profile_photo_url} alt="" style={{ width: 84, height: 84, borderRadius: "50%", objectFit: "cover" }} />
-          : <Ini name={fullName} sz={84} />}
+        avatar={<FreshImg src={e.profile_photo_url} readKey={"hr-folder:" + userId} onStale={faceAgain} fallback={<Ini name={fullName} sz={84} />} alt="" style={{ width: 84, height: 84, borderRadius: "50%", objectFit: "cover" }} />}
         name={fullName + (e.is_test_account ? " (" + tr("TEST") + ")" : "")}
         idCode={e.employee_id}
         subtitle={<span style={{ textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.hire_date ? " . " + tr("Hired {0}", fmtDate(e.hire_date)) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
@@ -27278,6 +27532,9 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
       const d = await af("/api/discipline/person/" + encodeURIComponent(String(p.id)));
       const next = d && d.suggestedNext;
       if (next && WARNING_STEPS.indexOf(next) >= 0) type = isAdmin || WARNING_ADMIN_STEPS.indexOf(next) < 0 ? next : "written_warning";
+      // A person with a draft not issued yet: the window offers to continue it beside starting a new one.
+      const open = openDraftOf(d && d.history);
+      if (open) { setIssueFor(s0 => ({ ...s0, busy: false, draft: open, type, person: p })); return; }
     } catch (e) {
       // A refusal (this person is not one to warn, or not found) is said in the window; a read that
       // failed starts at a verbal warning, which the window's step picker changes.
@@ -27292,7 +27549,7 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     { header: tr("Step"), tdStyle: { whiteSpace: "nowrap" }, render: w => <span style={{ color: warningRescinded(w) ? t.textMut : t.text, textDecoration: warningRescinded(w) ? "line-through" : "none" }}>{warningStepWord(w.type, steps.steps)}</span> },
     { header: tr("Category"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => warningCategoryWord(w.category, steps.categories) || "--" },
     { header: tr("Date of the incident"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.incidentDate ? fdLong(w.incidentDate) : "--") },
-    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: w => <Bdg l={warningStatusWord(w.status)} c={warningRescinded(w) ? RD : w.status === "draft" ? OR : GR} /> },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: w => <span data-warning-list-status={w.status}><Bdg l={warningListStatus(w.status)} c={warningRescinded(w) ? RD : w.status === "draft" ? OR : GR} /></span> },
     { header: tr("Issued by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.issuedBy && w.issuedBy.name) || "--" },
     { header: tr("Delivered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => delivered(w) },
     { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (signatureOf(w) ? <SignatureChip t={t} sig={signatureOf(w)} /> : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
@@ -27332,14 +27589,20 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
         <button onClick={() => { if (!issueFor.busy) setIssueFor(null); }} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
       </div>
       <Lbl>{tr("Who is this warning for?")}</Lbl>
-      <PersonPick t={t} aria-label={tr("Who is this warning for?")} data-discipline-issue-person="" value={issueFor.userId} onChange={e => setIssueFor(s0 => ({ ...s0, userId: e.target.value, said: "" }))} options={[{ v: "", l: tr("Choose a person") }].concat(warnable.map(p => ({ v: String(p.id), l: nameOf(p), hint: roleWord(p.role) })))} />
+      <PersonPick t={t} aria-label={tr("Who is this warning for?")} data-discipline-issue-person="" value={issueFor.userId} onChange={e => setIssueFor(s0 => ({ ...s0, userId: e.target.value, said: "", draft: null }))} options={[{ v: "", l: tr("Choose a person") }].concat(warnable.map(p => ({ v: String(p.id), l: nameOf(p), hint: roleWord(p.role) })))} />
       {issueFor.said && <div role="alert" data-discipline-issue-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{issueFor.said}</div>}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+      {issueFor.draft ? <div data-discipline-issue-draft={issueFor.draft.id} style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 13, color: t.text, marginBottom: 10, lineHeight: 1.5 }}>{tr("{0} has a draft not issued yet.", nameOf(issueFor.person || {}))}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <Btn t={t} v="ghost" data-discipline-issue-new="" onClick={() => { const s0 = issueFor; setIssueFor(null); setIssueWin({ userId: String(s0.person.id), name: nameOf(s0.person), person: s0.person, type: s0.type }); }} style={{ minHeight: 44 }}>{tr("Start a new warning")}</Btn>
+          <Btn t={t} data-warning-continue={issueFor.draft.id} onClick={() => { const s0 = issueFor; setIssueFor(null); setIssueWin({ userId: String(s0.person.id), name: nameOf(s0.person), person: s0.person, row: s0.draft }); }} style={{ minHeight: 44 }}>{tr("Continue the draft from {0}", draftDayOf(issueFor.draft))}</Btn>
+        </div>
+      </div> : <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
         <Btn t={t} v="ghost" onClick={() => setIssueFor(null)} disabled={issueFor.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
         <Btn t={t} onClick={startIssue} disabled={issueFor.busy || !issueFor.userId} data-discipline-issue-next="" style={{ minHeight: 44 }}>{issueFor.busy ? tr("Loading...") : tr("Next")}</Btn>
-      </div>
+      </div>}
     </div></Mdl>}
-    {issueWin && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={issueWin.userId} personName={issueWin.name} person={issueWin.person} initial={{ type: issueWin.type }} showToast={showToast} onClose={() => setIssueWin(null)} onChanged={load} />}
+    {issueWin && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={issueWin.userId} personName={issueWin.name} person={issueWin.person} row={issueWin.row || null} initial={issueWin.row ? {} : { type: issueWin.type }} showToast={showToast} onClose={() => setIssueWin(null)} onChanged={load} />}
   </div>);
 }
 
@@ -27603,7 +27866,9 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
       const d = await af("/api/hr-cases/" + encodeURIComponent(caseId) + "/updates", { method: "POST", body: payload });
       reset();
       showToast(tr("Added to the case log."));
-      if (onAdded) onAdded(d && d.update ? d.update : null);
+      // Since the API's part 371 the answer carries the case's updatedAt as the entry left it, which the
+      // case's next save sends back, so that save does not meet 409 for an entry made here (part 372).
+      if (onAdded) onAdded(d && d.update ? d.update : null, d && d.updatedAt ? d.updatedAt : null);
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       setSaid({ text: e.message || tr("Request failed"), keys });
@@ -27877,7 +28142,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
       {detail.formResponseId ? <CaseReport key={String(detail.formResponseId)} af={af} t={t} id={detail.formResponseId} /> : null}
-      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter, true); if (onSaved) onSaved(); }} />}
+      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u, at) => { if (at) setDetail(cur => (cur && cur.id === detail.id ? { ...cur, updatedAt: at, ...(cur.updated_at !== undefined ? { updated_at: at } : {}) } : cur)); if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter, true); if (onSaved) onSaved(); }} />}
       {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
@@ -30318,6 +30583,15 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
   const edit = (next) => { setF(next); setDirty(true); };
   const setC = (fn) => edit({ ...f, content: fn(f.content) });
   const setBlock = (i, b) => setC(x => ({ ...x, blocks: x.blocks.map((y, j) => (j === i ? b : y)) }));
+  // A picture's link lasts 12 hours. One that has run out reads the draft again and takes the fresh link of
+  // each stored picture by its path, keeping everything typed (part 372).
+  const imagesAgain = async () => {
+    if (!draft || draft.id == null) return;
+    const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id));
+    const fresh = {};
+    ((d && d.draft && d.draft.content && Array.isArray(d.draft.content.blocks)) ? d.draft.content.blocks : []).forEach(b => { if (b && b.path && b.src) fresh[b.path] = b.src; });
+    setC(x => ({ ...x, blocks: x.blocks.map(b => (b && b.kind === "image" && b.path && fresh[b.path] ? { ...b, src: fresh[b.path] } : b)) }));
+  };
   const setQ = (i, q) => setC(x => ({ ...x, questions: x.questions.map((y, j) => (j === i ? q : y)) }));
   const setStep = (i, st) => setC(x => ({ ...x, steps: x.steps.map((y, j) => (j === i ? st : y)) }));
   const move = (list, i, by) => { const a = list.slice(); const j = i + by; if (j < 0 || j >= a.length) return a; const tmp = a[i]; a[i] = a[j]; a[j] = tmp; return a; };
@@ -30410,7 +30684,7 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
       </div>
     </div>
     {b.src ? <div style={{ marginBottom: 8 }}>
-      <img data-lesson-image-preview={i} src={b.src} alt={b.alt.en || ""} style={{ display: "block", maxWidth: "100%", maxHeight: 260, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />
+      <FreshImg data-lesson-image-preview={i} src={b.src} readKey={"lesson-draft:" + (draft ? draft.id : "")} onStale={b.path ? imagesAgain : undefined} alt={b.alt.en || ""} style={{ display: "block", maxWidth: "100%", maxHeight: 260, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
         <span style={{ fontSize: 11, color: t.textMut }}>{b.path ? tr("Picture uploaded") : tr("Drawing pasted")}</span>
         <button style={{ ...small, color: RD }} data-lesson-image-remove={i} onClick={() => setBlock(i, { ...b, svg: null, path: null, src: "" })}>{tr("Remove the picture")}</button>
@@ -31626,14 +31900,15 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
   const [site, setSite] = useState("");
   const [state, setState] = useState("open");
   const [again, setAgain] = useState(0);
-  // A page at a time (part 368), newest first from the API, the filters sent with each page; a change
-  // reads again as many as are shown. The order on screen is the page's own: Not right first, then the
-  // oldest of what is read; Show more brings the older ones.
+  // A page at a time (part 368), the filters sent with each page; a change reads again as many as are
+  // shown. Since the API's part 371 the pages come in the screen's order, order=attention: a Not right
+  // request still open first, then the oldest, then by id, so the first page holds what needs a hand
+  // first and Show more brings the rest in the same order (part 372). The list is drawn in that order.
   const [next, setNext] = useState("");
   const [moreBusy, setMoreBusy] = useState(false);
   const shown = useRef(0);
   shown.current = Array.isArray(list) ? list.length : 0;
-  const filters = { kind, siteId: site, state };
+  const filters = { kind, siteId: site, state, order: "attention" };
   const keepRef = useRef({ key: "", again: 0 });
   useEffect(() => {
     let alive = true;
@@ -31641,7 +31916,7 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
     const key = [kind, site, state].join("|");
     const keep = keepRef.current.key === key && keepRef.current.again !== again ? shown.current : 0;
     keepRef.current = { key, again };
-    af(pagedPath("/api/signatures", { kind, siteId: site, state }, "", keep))
+    af(pagedPath("/api/signatures", { kind, siteId: site, state, order: "attention" }, "", keep))
       .then(d => { if (alive) { setList(d && Array.isArray(d.requests) ? d.requests : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); } })
       .catch(e => { if (alive) { setList([]); setNext(""); setFailed(true); showToast(e.message, "error"); } });
     return () => { alive = false; };
@@ -31653,16 +31928,13 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
     catch (e) { showToast(e.message, "error"); }
     setMoreBusy(false);
   };
-  const rank = (r) => (r.state === "disputed" ? 0 : r.state === "waiting" ? 1 : 2);
-  const sentAt = (r) => Date.parse(r.requestedAt || "") || 0;
-  const rows = (list || []).filter(r => state !== "open" || signatureOpen(r))
-    .map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || sentAt(a.r) - sentAt(b.r) || a.i - b.i).map(x => x.r);
+  const rows = (list || []).filter(r => state !== "open" || signatureOpen(r));
   // The chip and the actions read the request as a record's signature.
   const sigOf = (r) => ({ state: r.state, requestId: r.id, requestedAt: r.requestedAt, signedAt: r.signedAt, signedWhere: r.signedWhere, disputeNote: r.disputeNote });
   const nameOf = (r) => (r.person && r.person.name) || "";
   const itemLine = (r) => { const it = r.item || {}; return [it.label, it.size].filter(Boolean).join(", ") + (Number(it.quantity) > 1 ? " x " + it.quantity : ""); };
   const cols = [
-    { header: tr("Person"), tdStyle: { minWidth: 140 }, render: r => <div style={{ color: t.text, fontWeight: 600 }}>{nameOf(r)}</div> },
+    { header: tr("Person"), tdStyle: { minWidth: 140 }, render: r => <div data-signature-row={r.id} style={{ color: t.text, fontWeight: 600 }}>{nameOf(r)}</div> },
     { header: tr("Kind"), tdStyle: { minWidth: 150 }, render: r => <div><div style={{ color: t.text }}>{signKindWord(r.kind)}</div><div style={{ fontSize: 11, color: t.textMut, overflowWrap: "anywhere" }}>{itemLine(r) || r.title || ""}</div></div> },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => (r.item && r.item.site && r.item.site.name) || "" },
     { header: tr("Requested"), render: r => <div><div style={{ color: t.textSec, whiteSpace: "nowrap" }}>{r.requestedAt ? keptDay(r.requestedAt) : ""}</div>

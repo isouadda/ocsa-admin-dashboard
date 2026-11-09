@@ -15,7 +15,9 @@
 //   GET /api/reports/checklist-summary?from=&to=            routes/reports.js and buildSummary (part
 //       363): every active site by name, each day of its whole record counted by countDay: due the
 //       items listed as due, done those of them done, checks every check listed; the range refused as
-//       the record refuses it; a reference site notTracked with no days.
+//       the record refuses it; a reference site notTracked with no days. Since the API's part 371 (Round
+//       8, the dashboard's part 372) each day also carries counted: { due, done }, the ring's own count:
+//       the per visit, daily and every other day items due that day (period today), done of due.
 //   GET /api/sites/:siteId/shift-blocks/schedule?date=      helpers/blockSchedule.js: every shift with
 //       its displayLabel, its startTime, endTime and crossesMidnight (shiftWindow, part 363) and the
 //       blocks that run that day, each with its window, in time order.
@@ -238,8 +240,13 @@ module.exports = (ctx) => {
   // One day of a record as the summary counts it (countDay).
   const countDay = (day) => {
     let due = 0, done = 0, checks = 0;
-    day.items.forEach((i) => { if (i.due) { due += 1; if (i.done) done += 1; } checks += i.checks.length; });
-    return { date: day.date, due, done, checks };
+    const counted = { due: 0, done: 0 };
+    day.items.forEach((i) => {
+      if (i.due) { due += 1; if (i.done) done += 1; }
+      if (i.due && i.period === "today") { counted.due += 1; if (i.done) counted.done += 1; }
+      checks += i.checks.length;
+    });
+    return { date: day.date, due, done, checks, counted };
   };
   function summaryRoute(query, lang) {
     const from = String(query.get("from") || "").trim(), to = String(query.get("to") || "").trim();

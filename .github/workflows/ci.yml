@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       # A key's own shape: a whole three-part token, a secret key with its body, a private key's

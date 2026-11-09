@@ -117,6 +117,10 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     return r.fulfill({ status: 404, contentType: "text/plain", body: "" });
   });
 
+  // The stub's storage host, where a signed photo link points (part 372): answered by the stub, which says
+  // whether the link has run out, so nothing leaves the machine.
+  await context.route("**://storage.example.invalid/**", (r) => r.fulfill(stubs.storagePicture(r.request().url())));
+
   await context.route("**/api/**", async (route) => {
     const req = route.request();
     let body = null;

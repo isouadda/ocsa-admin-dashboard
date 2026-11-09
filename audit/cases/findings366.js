@@ -316,7 +316,9 @@ async function scheduleCases(ctx, lang) {
     await windowButton(d, "Save").dblclick().catch(() => {});
     await d.settle(700);
     const sent = writes(d, mark, "PATCH", /^\/api\/schedule\/[^/]+$/);
-    const keys = sent[0] && sent[0].body ? Object.keys(sent[0].body).sort() : [];
+    // Since part 372 a shift's save sends back the calendar's updated_at as updatedAt (the API's part 371),
+    // which is set aside here: the change is what this case holds.
+    const keys = sent[0] && sent[0].body ? Object.keys(sent[0].body).filter((k) => k !== "updatedAt").sort() : [];
     results.check(KIND, id("sends-only-what-changed"), sent.length >= 1 && keys.join(",") === "notes" && sent[0].body.notes === "Bring the wet floor signs",
       !opened ? "no shift opened" : sent.length === 0 ? "Save sent nothing" : "Save sent " + say(sent[0].body));
     results.check(KIND, id("sends-once"), sent.length === 1, sent.length === 0 ? "Save sent nothing" : "a double press sent " + sent.length + " changes");

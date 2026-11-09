@@ -686,12 +686,15 @@ async function leaveCases(ctx, lang) {
     await d.page.locator("[data-leave-file-upload]").click();
     await until(d, "[data-leave-hours-window]");
     const choose = async (name, text) => { await d.page.locator('[data-leave-hours-window] input[type="file"]').setInputFiles({ name, mimeType: "text/csv", buffer: Buffer.from(text, "utf8") }); await d.settle(300); };
+    // Since part 372 a file is checked first (dryRun, the API's part 371) and then posted, so the first
+    // press is Check the hours.
+    const first = "[data-leave-file-check]";
     await choose("bad.csv", "person,period_start,period_end,hours\n4118,2026-03-14,2026-03-01,90\n");
     const localBad = await has(d, '[data-leave-file-problem="2"]');
-    const blocked = await d.page.locator("[data-leave-file-post]").isDisabled();
+    const blocked = await d.page.locator(first).isDisabled();
     await choose("unknown.csv", "person,period_start,period_end,hours\n4118,2026-03-01,2026-03-14,90\n7777,2026-03-01,2026-03-14,40\n");
     let mark = d.mark();
-    await d.page.locator("[data-leave-file-post]").click();
+    await d.page.locator(first).click();
     await d.settle(600);
     const refused = writes(d, mark, "POST", /^\/api\/leave\/hours-files$/).length;
     const words = await textOf(d, '[data-leave-file-problem="3"]');
@@ -699,6 +702,8 @@ async function leaveCases(ctx, lang) {
     results.check(KIND, id("a-file-that-cannot-be-read-or-matched-posts-nothing"), listed && localBad && blocked && refused === 1 && words === want,
       !localBad ? "a reversed period is not said" : !blocked ? "Post is offered for a file with a line that cannot be read" : "the API's refusal reads " + say(words));
     await choose("march.csv", "person,period_start,period_end,hours\n4118,2026-03-01,2026-03-14,90\n");
+    await d.page.locator(first).click();
+    await d.settle(600);
     mark = d.mark();
     await d.page.locator("[data-leave-file-post]").click();
     await d.settle(600);
@@ -842,7 +847,8 @@ async function checklistCases(ctx, lang) {
     const calls = d.callsSince(mark).filter((c) => /^\/api\//.test(c.path) && !/^\/api\/(notifications|chat)/.test(c.path));
     const sums = summaryReads(d, mark), recs = recordReads(d, mark);
     const cards = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-site-card]")).map((el) => [el.getAttribute("data-cr-site-card"), el.getAttribute("data-cr-done") + "/" + el.getAttribute("data-cr-due")]));
-    const want1 = M.summaryDay(S1, M.SEEDED), want2 = M.summaryDay(seed.SITES[1].id, M.SEEDED);
+    // Since part 372 a card counts each day's counted, the ring's rule (the API's part 371).
+    const want1 = M.summaryDay(S1, M.SEEDED).counted, want2 = M.summaryDay(seed.SITES[1].id, M.SEEDED).counted;
     const cardOk = cards.length === 3 && cards[0][1] === want1.done + "/" + want1.due && cards[1][1] === want2.done + "/" + want2.due;
     results.check(KIND, id("all-sites-in-one-call"), sums.length === 1 && recs.length === 0 && q(sums[0]).get("from") === seed.shift(-7) && q(sums[0]).get("to") === M.SEEDED && cardOk,
       "All sites made " + calls.length + " calls (" + calls.map((c) => c.method + " " + c.path + (c.query ? "?" + String(c.query).replace(/^\?/, "") : "")).join("; ") + ") and draws " + say(cards) + " where the summary counts " + want1.done + "/" + want1.due + " and " + want2.done + "/" + want2.due);
@@ -990,7 +996,8 @@ async function round6Cases(ctx, lang) {
       open: async () => { await goHash(d, "hr"); await d.page.locator("[data-hr-tab='documents']").first().click().catch(() => {}); } });
     await pagedCheck(d, results, id("paging/hr-training"), { path: /^\/api\/hr\/training$/, list: "training", at: "hr-training",
       open: async () => { await goHash(d, "hr"); await d.page.locator("[data-hr-tab='training']").first().click().catch(() => {}); await d.settle(300); if (await has(d, "[data-training-view='records']")) await d.page.locator("[data-training-view='records']").first().click().catch(() => {}); } });
-    await pagedCheck(d, results, id("paging/signatures"), { path: /^\/api\/signatures$/, list: "signatures", at: "signatures", filters: { state: "open" },
+    // Since part 372 Signatures pages in the attention order (the API's part 371), with its own cursors.
+    await pagedCheck(d, results, id("paging/signatures"), { path: /^\/api\/signatures$/, list: "signatures-attention", at: "signatures", filters: { state: "open", order: "attention" },
       open: async () => { await goHash(d, "hr/signatures"); } });
     await pagedCheck(d, results, id("paging/issues"), { path: /^\/api\/issues$/, list: "issues", at: "issues", filters: { status: "open" },
       open: async () => { await goHash(d, "issues"); await d.settle(400); await d.page.getByText(d.say("open|issues"), { exact: true }).first().click().catch(() => {}); } });

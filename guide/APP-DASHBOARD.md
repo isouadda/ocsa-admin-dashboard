@@ -298,23 +298,26 @@ Last checked: 2026-09-16
 ## Change or cancel a scheduled shift (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Schedule**, and in **Week** view click the shift.
-2. Change the times, site, status or notes and click **Save** (**Guardar**). Only what you changed is saved, so a change someone else made since the week was read stays. To give it to someone else, pick them under **Staff**; you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**).
+2. Change the times, site, status or notes and click **Save** (**Guardar**). Only what you changed is saved, so a change someone else made since the week was read stays. When someone else changed the same thing since, **This changed since you opened it** (**Esto cambió desde que lo abrió**) asks first; see Save over a change someone else made. To give it to someone else, pick them under **Staff**; you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**).
 3. To take it off the schedule, click **Cancel shift** (**Cancelar turno**) and confirm. The shift is kept as cancelled; nothing is deleted.
 4. To post it for someone else to take, click **Pickup**, give a reason, and click **Confirm Convert**.
 5. A shift marked **Repeats** comes from a weekly pattern. Changing it changes that date only, and its button reads **Cancel this date** (**Cancelar esta fecha**), which cancels that one date.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Picture: schedule-edit-shift
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Approve or deny a request to drop a shift (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Shift Pickup**.
 2. Click the **Requests** tab.
 3. Click **Approve** to open the shift for others to claim, or **Deny** to keep the original assignment.
-4. The person who asked gets a notice either way.
-Words people use for this: someone called out, cover a shift, drop request, deny a call out, who is covering.
+4. To give the shift straight to someone else, click **View shift** (**Ver el turno**), the eye on its row, pick them under **Reassign To** (**Reasignar a**) and click **Assign** (**Asignar**). The drop is approved and the shift given in one step, and the screen says **Drop approved. Shift assigned.** (**Baja aprobada. Turno asignado.**). When it cannot be given, nothing changes and the request is still waiting.
+5. The person who asked gets a notice either way, and the person you gave it to is told it is theirs.
+If it does not work: the person who asked to drop the shift cannot be picked to take it, and the reason shows in red under **Reassign To** (**Reasignar a**); click **Deny** to keep them on it.
+Words people use for this: someone called out, cover a shift, drop request, deny a call out, who is covering, give the shift to someone else, reassign a dropped shift.
 Picture: pickup-requests
-Last checked: 2026-09-17
+Picture: pickup-drop-assign
+Last checked: 2026-11-09
 
 ## Post an open shift for staff to claim (admin dashboard)
 Who can do this: admins and supervisors
@@ -337,7 +340,7 @@ Last checked: 2026-10-01
 ## Approve or deny a supply request (admin dashboard)
 Who can do this: the people who approve supply requests decide them; every other admin and supervisor reads them and downloads the list for ordering
 1. Click **Inventory** (**Inventario**) in the side panel.
-2. Click the **Requests** (**Solicitudes**) tab. Each request names its first item and how many items it holds, and once it is signed, its purchase order number and when it was ordered. The list shows 50 requests at a time, newest first; **Show more** (**Mostrar más**) shows the next ones.
+2. Click the **Requests** (**Solicitudes**) tab. The tab says how many requests are pending in all, the ones not shown yet included. Each request names its first item and how many items it holds, and once it is signed, its purchase order number and when it was ordered. The list shows 50 requests at a time, newest first; **Show more** (**Mostrar más**) shows the next ones.
 3. Click **Open** (**Abrir**) on the request. The window lists every item with its quantity and any note from the person who asked.
 4. To approve an item, lower **Quantity to approve** (**Cantidad a aprobar**) if you are sending fewer, down to 1, and click **Approve** (**Aprobar**). The item then reads **Approved {0} of {1}** (**Aprobado: {0} de {1}**).
 5. To deny an item, type a **Note (optional)** (**Nota (opcional)**) if the person should know why, and click **Deny** (**Denegar**).
@@ -350,7 +353,7 @@ If it does not work: a request reads **Only the people who approve supply reques
 Words people use for this: supply order, someone needs supplies, order request, approve supplies, many items, several items, quantity, approve part of a request, approve fewer, order list, purchase list, csv for ordering, who approves supplies, change a decision, change after signing.
 Picture: supplies-request-approve
 Picture: supplies-request-list
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Add a supply to the inventory (admin dashboard)
 Who can do this: admins
@@ -1404,10 +1407,11 @@ Who can do this: admins and supervisors
 7. Click **Save as draft** (**Guardar como borrador**).
 8. Under **Issue** (**Emitir**), click **Issue** (**Emitir**). **A verbal warning is a note of the conversation, placed on the record. It takes no signatures.** (**Una advertencia verbal es una nota de la conversación que queda en el registro. No lleva firmas.**)
 9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
+If it does not work: a grey **Save as draft** (**Guardar como borrador**) says under it what is still needed. For a person with a draft not issued yet, **Issue a warning** (**Emitir una advertencia**) offers to continue it; see Continue a warning saved as a draft.
 Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
 Picture: discipline-issue-for
 Picture: warning-verbal-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Issue a written or final written warning (admin dashboard)
 Who can do this: admins and supervisors for a written warning; admins for a final written warning
@@ -1421,10 +1425,10 @@ Who can do this: admins and supervisors for a written warning; admins for a fina
 8. Under **Issue** (**Emitir**), draw your signature in **The issuer signs** (**Firma quien la emite**) and click **Sign** (**Firmar**).
 9. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen: the person is told on their phone and signs there. To take the signature on this screen, choose **Sign here now** (**Firmar aquí ahora**) and hand the screen to the person. **Signing confirms they received this warning. It does not mean they agree.** (**Al firmar confirma que recibió esta advertencia. No significa que esté de acuerdo.**) They draw their signature and click **Sign** (**Firmar**).
 10. Add **Their account** (**Su versión**) if they want their words on the warning, and click **Issue and send to sign** (**Emitir y enviar a firmar**), or **Issue** (**Emitir**) when they signed here. A warning sent to their phone reads **Waiting for signature** (**A la espera de firma**) until they sign; see the entry on sending something to a person's phone to sign.
-If it does not work: **Who signs** (**Quién firma**) shows once the system answers the signature requests. Until then the person signs in the box, as before.
+If it does not work: **Who signs** (**Quién firma**) shows once the system answers the signature requests. Until then the person signs in the box, as before. A grey button says why under it: **Save as draft** (**Guardar como borrador**) what is still needed, and **Issue** (**Emitir**) **Sign as the issuer first.** (**Primero firme como quien emite la advertencia.**) Closing with typing not saved asks **Close without saving?** (**¿Cerrar sin guardar?**) first.
 Words people use for this: written warning, final warning, final written warning, write up, write-up, suspension, discipline, advertencia por escrito.
 Picture: warning-written-issue
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Issue a termination (admin dashboard)
 Who can do this: admins
@@ -1477,12 +1481,12 @@ Who can do this: admins see every warning; supervisors see the warnings they iss
 1. Click **Discipline** (**Disciplina**) in the menu on the left.
 2. The counts at the top add up each step for the warnings the filters show.
 3. Narrow the table with **Every step** (**Todos los pasos**), **Every category** (**Todas las categorías**), **All sites** (**Todos los sitios**), **Everyone** (**Todos**), **All statuses** (**Todos los estados**), **From** (**Desde**) and **To** (**Hasta**). Admins also have **Issued by anyone** (**Emitida por cualquiera**). In **Everyone** (**Todos**) and **Issued by anyone** (**Emitida por cualquiera**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to find a person.
-4. Click a row to open the warning. **Issue a warning** (**Emitir una advertencia**) at the top starts a new one: pick the person and click **Next** (**Siguiente**); see the entries on issuing a warning.
+4. Click a row to open the warning. A warning saved and not issued yet reads **Draft, not issued** (**Borrador, no emitida**). **Issue a warning** (**Emitir una advertencia**) at the top starts a new one: pick the person and click **Next** (**Siguiente**); see the entries on issuing a warning.
 5. **Export** (**Exportar**) saves the rows shown as a spreadsheet file.
 If it does not work: the page shows once the server keeps warnings. The list shows 50 warnings at a time, newest first, with the filters picked; **Show more** (**Mostrar más**) shows the next ones, and the counts by step cover every warning the filters find. **Export** (**Exportar**) saves every warning the filters find, every page of them.
 Words people use for this: discipline, warnings, write-ups, who has been written up, final warning, discipline report, disciplina.
 Picture: discipline-page
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Open a case (admin dashboard)
 Who can do this: admins, and supervisors given Cases
@@ -2235,14 +2239,14 @@ Last checked: 2026-10-20
 Who can do this: admins see every request; supervisors see their sites
 1. Click **HR Records** (**Expedientes de personal**), then the **Waiting for signatures** (**A la espera de firmas**) tab. A supervisor who cannot open HR Records clicks **Waiting for signatures** (**A la espera de firmas**) in the side panel.
 2. Every request still open is listed: the **Person** (**Persona**), the **Kind** (**Tipo**) with what was issued, the **Site** (**Sitio**), when it was **Requested** (**Solicitado**) with its age in days and how many reminders went, and its **State** (**Estado**). The ones that read **Not right** (**No es correcto**) come first, each with the person's note, then the oldest.
-3. Narrow the list by **Kind** (**Tipo**), **Site** (**Sitio**) and **State** (**Estado**). **Open** (**Abiertas**) is the waiting and not right ones together; pick a state to see the signed, declined or cancelled ones too. The list reads 50 requests at a time, the newest first, and draws the ones read with Not right first and then the oldest; **Show more** (**Mostrar más**) reads older ones, with the same kind, site and state.
+3. Narrow the list by **Kind** (**Tipo**), **Site** (**Sitio**) and **State** (**Estado**). **Open** (**Abiertas**) is the waiting and not right ones together; pick a state to see the signed, declined or cancelled ones too. The list shows 50 requests at a time in the same order, the open Not right ones first and then the oldest, so the first 50 are the ones that need you first; **Show more** (**Mostrar más**) shows the next ones, with the same kind, site and state.
 4. On a row, click **Remind** (**Recordar**), **Cancel** (**Cancelar**) or **Sign here now** (**Firmar aquí ahora**), as in the entry on sending something to a person's phone to sign. Click the row itself to open the request: what it is, who it went to and when, its state with the person's note, and the same buttons.
 5. A notice in the bell that a signature was sent back as not right, declined, or is overdue opens that request here when you click it, and so does its link.
 If it does not work: the tab shows once the system answers the signature requests. A request opened from a notice that is not yours to see says so.
 Words people use for this: waiting for signatures, who has not signed, unsigned, pending signatures, reminders, firmas pendientes.
 Picture: signatures-waiting
 Picture: signatures-request-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Read the owner's dashboard (admin dashboard)
 Who can do this: admins, and anyone else the system gives the owner's dashboard to. Supervisors do not see it.
@@ -2333,13 +2337,13 @@ Who can do this: admins, and the app support contact
 1. Click **Tickets** (**Tickets**) in the menu on the left.
 2. The tabs are **New** (**Nuevo**), **Working on it** (**En proceso**), **Done** (**Hecho**), **Won't do** (**No se hará**) and **All** (**Todos**), each with how many. Narrow the list with **All kinds** (**Todos los tipos**) and **Both apps** (**Las dos aplicaciones**).
 3. Each row is a ticket someone sent from App support in the staff portal or from Help: when it was sent, its **Kind of ticket** (**Tipo de ticket**), who sent it, where, what they wrote and its status.
-4. Click a row to open it. It shows every detail the app sent on its own: the **Screen** (**Pantalla**), the **App version** (**Versión de la aplicación**), the **Device** (**Dispositivo**), the language, and the screenshot when there is one.
+4. Click a row to open it. It shows every detail the app sent on its own: the **Screen** (**Pantalla**), the **App version** (**Versión de la aplicación**), the **Device** (**Dispositivo**), the language, and the screenshot when there is one. Click the screenshot to open it full size in a new tab.
 5. Click a status, type a **Note to the person who sent it** (**Nota para la persona que lo envió**) if you like, and click **Save** (**Guardar**). When the status changes, the person is told in the app, in their language, with your note.
-If it does not work: a refusal shows over **Save** (**Guardar**) in the system's words. A bug and a sign-in problem are emailed to the support contact the moment they are sent; the other kinds go in one summary each working morning at 7:00 AM.
+If it does not work: a refusal shows over **Save** (**Guardar**) in the system's words. A screenshot that cannot be read says **This photo did not load.** (**Esta foto no se cargó.**); open the ticket again later. A bug and a sign-in problem are emailed to the support contact the moment they are sent; the other kinds go in one summary each working morning at 7:00 AM.
 Words people use for this: tickets, app support, bug report, the app is broken, feature request, help could not answer, wrong information, cannot sign in, tickets de soporte.
 Picture: tickets-inbox
 Picture: tickets-ticket-window
-Last checked: 2026-10-07
+Last checked: 2026-11-09
 
 ## Copy app support tickets into a chat (admin dashboard)
 Who can do this: admins, and the app support contact
@@ -2566,27 +2570,32 @@ Picture: site-task-list-record
 Last checked: 2026-10-19
 
 ## Change a staff member's hire date (admin dashboard)
-Who can do this: admins. A supervisor sees no hire date to change.
+Who can do this: admins, and anyone given Add people, approve registrations, change employment and roles. Anyone else sees no hire date to change.
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
 3. Pick the date in **Hire Date** (**Fecha de contratación**). The field is empty for someone whose profile reads **Not set** (**Sin indicar**).
 4. Click **Save Changes** (**Guardar los cambios**). The profile shows the new date, and the change is recorded with the old date, the new date and who made it.
-5. A hire date once set cannot be emptied. To fix a wrong one, pick the right date, as the line under the field says: **To fix a wrong date, pick the right one.** (**Para corregir una fecha equivocada, elija la correcta.**)
-If it does not work: a date that is not a real day, or is more than a year ahead, is refused, and the reason shows in red under the field. Pick a real date and click **Save Changes** (**Guardar los cambios**) again. For someone who left and is coming back, use Rehire someone, which sets their new hire date.
-Words people use for this: hire date, start date, date of hire, update a hire date, change a hire date, fix a hire date, missing hire date, when they started, fecha de contratación.
+5. The same **Hire Date** (**Fecha de contratación**) is in **Edit Staff Info** (**Editar los datos de la persona**), the pencil on the person's row in the list.
+6. A hire date once set cannot be emptied. To fix a wrong one, pick the right date, as the line under the field says: **To fix a wrong date, pick the right one.** (**Para corregir una fecha equivocada, elija la correcta.**)
+7. To find everyone with no hire date, click **Leave balances** (**Saldos de permisos**), then **Missing hire dates** (**Sin fecha de contratación**); each name opens the profile.
+If it does not work: a date that is not a real day, or is more than a year ahead, is refused, and the reason shows in red under the field. Pick a real date and click **Save Changes** (**Guardar los cambios**) again. For someone who left and is coming back, use Rehire someone, which sets their new hire date. When someone changed the hire date since you opened the profile, the dashboard asks before saving over it.
+Words people use for this: hire date, start date, date of hire, update a hire date, change a hire date, fix a hire date, wrong hire date, wrong start date, missing hire date, when they started, fecha de contratación, fecha de ingreso.
 Picture: staff-hire-date
 Picture: staff-hire-date-refused
-Last checked: 2026-10-13
+Last checked: 2026-11-09
 
 ## Remove a report you no longer need (admin dashboard)
-Who can do this: admins and supervisors
-1. Click **Reports** (**Informes**).
-2. Find the report. One made on the dashboard reads **Custom** (**Personalizado**); a built-in one reads **Template** (**Plantilla**).
-3. On a custom report, click **Deactivate** (**Desactivar**) and confirm. The report leaves the list and the screen says **Report deactivated** (**Informe desactivado**). It is kept in the system and its past runs are not lost.
-4. A template has no **Deactivate** (**Desactivar**) and stays on the list. To change one, click **Duplicate** (**Duplicar**), change the copy, save it, and run the copy from then on.
-If it does not work: a deactivated report cannot be brought back from the page. Make it again with **New report** (**Nuevo informe**) or **Duplicate** (**Duplicar**).
-Words people use for this: delete a report, remove a report, get rid of a report, deactivate a report, hide a report, borrar un informe, eliminar un informe.
-Last checked: 2026-10-16
+Who can do this: admins remove any report made on the dashboard; anyone else removes the ones they made themselves
+1. A report cannot be deleted. Nothing in the system is deleted, so a report's past runs and anything that names it are never lost. Deactivate takes it off the list instead, and it is kept.
+2. Click **Reports** (**Informes**).
+3. Find the report. One made on the dashboard reads **Custom** (**Personalizado**); a built-in one reads **Template** (**Plantilla**).
+4. On a custom report, click **Deactivate** (**Desactivar**) and confirm. The report leaves the list and the screen says **Report deactivated** (**Informe desactivado**).
+5. **Deactivate** (**Desactivar**) shows only on the reports you may remove: every custom report for an admin, and the ones you made yourself for anyone else.
+6. A template has no **Deactivate** (**Desactivar**) and stays on the list, because everyone shares it. To change one, click **Duplicate** (**Duplicar**), change the copy, save it, and run the copy from then on.
+If it does not work: a deactivated report cannot be brought back from the page. Make it again with **New report** (**Nuevo informe**) or **Duplicate** (**Duplicar**). To remove a custom report someone else made, ask an admin.
+Words people use for this: delete a report, remove a report, get rid of a report, deactivate a report, hide a report, cannot delete a report, no delete button, borrar un informe, eliminar un informe.
+Picture: reports-deactivate
+Last checked: 2026-11-09
 
 ## See which version of the dashboard you run (admin dashboard)
 Who can do this: everyone who signs in to the dashboard
@@ -2645,7 +2654,7 @@ Last checked: 2026-10-18
 
 ## See what was done at a site on any day (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included, so its share can differ from the rings on the site's own page. Click a site's card, or pick the site in **Site** (**Sitio**).
+1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. A card counts the steps the way the rings on the site's own page count them: the daily, per visit and every other day steps due. Click a site's card, or pick the site in **Site** (**Sitio**).
 2. Pick the days: **Today** (**Hoy**), **Yesterday** (**Ayer**), **Last 7 days** (**Últimos 7 días**), **This month** (**Este mes**), or **Pick dates** (**Elegir fechas**) for any one day or any dates up to 31 days, then **Show** (**Mostrar**). At a site with two shifts or more, **Shift** (**Turno**) shows one shift, or **All shifts** (**Todos los turnos**).
 3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**).
 4. **When the checks happened** (**Cuándo se hicieron las marcas**) draws a bar for every 15 minutes of the shift, and the line under it says how many checks were made in the shift's last 30 minutes.
@@ -2659,7 +2668,7 @@ If it does not work: more than 31 days is refused, and the reason shows on the p
 Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors
@@ -2773,13 +2782,13 @@ Last checked: 2026-10-20
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances. Adjust is for admins and anyone given Keep leave policies and balances.
 1. Click **Leave balances** (**Saldos de permisos**) and click the person. From their HR file, click **Open the ledger** (**Abrir el registro**) under **Leave balances** (**Saldos de permisos**).
 2. The window shows the policy they follow and since when, what the policy gives in plain words, each balance with its parts, and the **Ledger, newest first** (**Registro, lo más reciente primero**): every grant, hours worked, time off taken or given back, expiry and adjustment, with who made it.
-3. To correct a balance, click **Adjust** (**Ajustar**). Choose the **Kind** (**Tipo**), type the **Hours, plus or minus** (**Horas, más o menos**), for example 8 or -4, and the **Reason *** (**Motivo ***). Click **Save** (**Guardar**) and confirm. The adjustment is dated today and names you.
+3. To correct a balance, click **Adjust** (**Ajustar**). Choose the **Kind** (**Tipo**), type the **Hours, plus or minus** (**Horas, más o menos**), for example 8 or -4, and the **Reason *** (**Motivo ***). **Date** (**Fecha**) starts on today; pick an earlier day when the change belongs to it, such as hours used before the app kept leave. Click **Save** (**Guardar**) and confirm. The adjustment is dated the day picked, follows the policy the person had that day, and names you.
 4. The balance and the ledger show the change at once.
-If it does not work: a reason is always needed, and the window says so in red without one. A balance with no hire date on file names the profile to fix it.
-Words people use for this: leave ledger, sick hours history, correct a balance, adjust pto, add sick hours, take away vacation days, leave adjustment.
+If it does not work: a reason is always needed, and the window says so in red without one. A day after today is refused with **Choose a day no later than today.** (**Elija un día que no sea posterior a hoy.**). A balance with no hire date on file names the profile to fix it.
+Words people use for this: leave ledger, sick hours history, correct a balance, adjust pto, add sick hours, take away vacation days, leave adjustment, backdate an adjustment, date of an adjustment.
 Picture: leave-person
 Picture: leave-adjust
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Make or change a leave policy (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances. Anyone who can see leave balances can read the policies.
@@ -2809,11 +2818,11 @@ Who can do this: admins, and anyone given Keep leave policies and balances. Anyo
 1. Click **Leave balances** (**Saldos de permisos**), then **Hours files** (**Archivos de horas**). The list shows every file posted, its periods, its lines and how many posted leave.
 2. Click **Upload an hours file** (**Cargar un archivo de horas**) and **Choose the CSV** (**Elegir el CSV**): the payroll system's hours export, with a column person (the badge number or employee ID), period_start and period_end, and hours.
 3. The window lists every line it read. A line it cannot read is marked in red; fix the file and choose it again.
-4. Click **Post the hours** (**Registrar las horas**). Each person is matched and their leave for hours worked posts. When a line names nobody, nothing posts and the line says why.
-5. The window then shows what posted for each line. The same file again posts nothing new.
-Words people use for this: hours file, payroll hours, hours worked, accrual, sick hours from hours worked, upload hours.
+4. Click **Check the hours** (**Revisar las horas**). Each person is matched and the window shows, line by line, **What would post** (**Qué se registraría**), with a line above the table saying how many lines would post leave. Nothing has posted yet. When a line names nobody, the line says why; fix the file and choose it again.
+5. When the lines read right, click **Post the hours** (**Registrar las horas**). Their leave for hours worked posts, and the window shows what posted for each line. The same file again posts nothing new, and checking it says so first.
+Words people use for this: hours file, payroll hours, hours worked, accrual, sick hours from hours worked, upload hours, check an hours file, preview hours.
 Picture: leave-hours-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Find the people with no hire date (admin dashboard)
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances
@@ -2847,11 +2856,36 @@ Last checked: 2026-10-20
 
 ## Save over a change someone else made (admin dashboard)
 Who can do this: anyone who edits a record in the dashboard
-1. Edit a record as usual: a person's details, a site, Company settings, a case, an open shift, a shift pattern, a holiday, a pick list, a saved report, a site's survey schedule or the injury summary, and click Save.
+1. Edit a record as usual: a person's details, a site, Company settings, a case, a shift on the schedule, an open shift, a shift pattern, a holiday, a pick list, a saved report, a site's survey schedule or the injury summary, and click Save.
 2. When someone else changed the same record after you opened it, the dashboard checks the fields you changed. When none of them changed, as when the person signed in or the schedule filled itself, it saves what you typed without asking.
 3. When one of them changed, the window **This changed since you opened it** (**Esto cambió desde que lo abrió**) lists each field under **Field** (**Campo**), with **What it says now** (**Lo que dice ahora**) beside **What you typed** (**Lo que usted escribió**).
 4. Click **Save what I typed** (**Guardar lo que escribí**) to save over it, or **Keep what it says now** (**Dejar lo que dice ahora**) to save nothing and keep the other person's change.
-If it does not work: keeping what it says now shows the server's words, that nothing was saved; open the record again to see it as it is now. A shift on the schedule saves as before, since the schedule's calendar does not say when a shift last changed.
+If it does not work: keeping what it says now shows the server's words, that nothing was saved; open the record again to see it as it is now. An entry you add to a case's log is not someone else's change: the case's next save goes through.
 Words people use for this: someone else changed it, changed since, conflict, overwrite, two people editing, save over, my change was not saved, guardar.
 Picture: changed-since-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
+
+## Read a person's or a site's timeline (admin dashboard)
+Who can do this: admins and supervisors
+1. For a person, click **Staff Management** (**Gestión de personal**), click the person's row, and click the **Timeline** (**Historial**) tab. For a site, click **Sites** (**Sitios**), open the site, and click its **Timeline** (**Historial**) tab.
+2. The timeline lists what happened, newest first: shifts started, problems reported, tasks done, supplies logged and the rest, each with when and by whom. Click an entry to open its record.
+3. Pick a category or dates above the list to narrow it. The count beside the title says how many entries are shown, with **so far** (**hasta ahora**) while there are more.
+4. The timeline shows 50 entries at a time. Click **Show more** (**Mostrar más**) under the list for the next ones, with the same category and dates, until it no longer shows.
+5. **Export CSV** (**Exportar CSV**) and **Print** (**Imprimir**) take the entries shown. Click **Show more** (**Mostrar más**) first to take older ones with them.
+Words people use for this: timeline, activity, history, what did they do, site history, older entries, load more, historial.
+Picture: staff-timeline
+Last checked: 2026-11-09
+
+## Continue a warning saved as a draft (admin dashboard)
+Who can do this: admins and supervisors, for the warnings they may issue
+1. A warning saved with **Save as draft** (**Guardar como borrador**) is not issued yet. On **Discipline** (**Disciplina**) it reads **Draft, not issued** (**Borrador, no emitida**).
+2. To carry it on, click **Issue a warning** (**Emitir una advertencia**) on **Discipline** (**Disciplina**), pick the person and click **Next** (**Siguiente**). For someone with a draft, the window says so and offers **Continue the draft from {0}** (**Continuar el borrador del {0}**), with the draft's day, beside **Start a new warning** (**Empezar una advertencia nueva**).
+3. On the person's **Disciplinary** (**Disciplinario**) card in **HR Records** (**Expedientes de personal**), **Continue the draft from {0}** (**Continuar el borrador del {0}**) sits beside **Issue a warning** (**Emitir una advertencia**). Clicking the draft's row on either list opens it too.
+4. The window reads **Loading...** (**Cargando...**) until the draft is read, then shows it as it was saved. When it cannot be read, it says **This draft did not load. Close it and open it again.** (**Este borrador no se cargó. Ciérrelo y ábralo de nuevo.**) and **Save as draft** (**Guardar como borrador**) stays off, so nothing can be saved over the draft.
+5. A grey **Save as draft** (**Guardar como borrador**) lists under it what is still needed after **Still needed: {0}** (**Todavía falta: {0}**). A grey **Issue** (**Emitir**) says **Sign as the issuer first.** (**Primero firme como quien emite la advertencia.**)
+6. Closing the window with typing not saved asks **Close without saving?** (**¿Cerrar sin guardar?**). **Keep editing** (**Seguir editando**) goes back to it; **Close** (**Cerrar**) closes it, and the draft stays as it was last saved.
+If it does not work: a draft that did not load opens again from its row once the connection is back. To keep what you typed, click **Save as draft** (**Guardar como borrador**) before closing.
+Words people use for this: continue a draft, finish a warning, saved warning, draft warning, warning not issued, unsaved warning, close without saving, borrador.
+Picture: warning-continue-draft
+Picture: warning-still-needed
+Last checked: 2026-11-09

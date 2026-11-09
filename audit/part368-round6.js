@@ -9,6 +9,11 @@
 //             limit is answered as before by the layers under this one. Every filter the route reads
 //             holds on each page; /api/issues reads status here, which the layers under it do not.
 //             The scene listsMany makes each list longer than one page with older copies of its rows.
+//             Since the API's part 371 (Round 8, for the dashboard's part 372): a paged /api/supplies/
+//             requests carries counts: { pending }, the pending requests of the whole list, the same on
+//             every page; /api/signatures?order=attention pages in the screen's order, a disputed request
+//             still open first, then the oldest, then id, and any other order is 400
+//             signatures.badDetails keys order.
 //
 //   since     an office write that sends updatedAt (helpers/changedSince.js, API-101): once a case sets a
 //             change made since on a path, a write there whose updatedAt is not the record's now answers
@@ -37,7 +42,8 @@ module.exports = (ctx) => {
     "/api/signatures": { name: "signatures", key: "requests", rows: (j) => j && j.requests, at: (r) => r.requestedAt },
     "/api/issues": { name: "issues", key: "issues", rows: (j) => j, at: (r) => r.reported_at || r.created_at, status: true },
     "/api/inspections/scheduled": { name: "inspections", key: "inspections", rows: (j) => j, at: (r) => r.scheduled_date },
-    "/api/supplies/requests": { name: "supply_requests", key: "requests", rows: (j) => j, at: (r) => r.created_at || r.requested_at },
+    "/api/supplies/requests": { name: "supply_requests", key: "requests", rows: (j) => j, at: (r) => r.created_at || r.requested_at,
+      counts: (all) => ({ pending: all.filter((r) => r.status === "pending").length }) },
   };
   const DEFAULT_LIMIT = 50;
   const MAX_LIMIT = 200;
@@ -108,18 +114,24 @@ module.exports = (ctx) => {
     }
     if (keys.length) return bad(400, "paging.badLimit", T(lang, "The page size (limit) must be a whole number greater than zero.", "El tama\u00f1o de p\u00e1gina (limit) debe ser un n\u00famero entero mayor que cero."), { keys });
     const c = String(query.get("cursor") || "");
-    const offset = c === "" ? 0 : decode(L.name, c);
+    const offset = c === "" ? 0 : decode(path === "/api/signatures" && query.get("order") === "attention" ? L.name + "-attention" : L.name, c);
     if (offset === null) return bad(400, "paging.badCursor", T(lang, "This page marker is not valid for this list. Load the list again from its first page.", "Este marcador de p\u00e1gina no es v\u00e1lido para esta lista. Cargue la lista de nuevo desde la primera p\u00e1gina."), { keys: ["cursor"] });
+    const order = query.get("order") || "";
+    if (path === "/api/signatures" && order && order !== "attention") return bad(400, "signatures.badDetails", T(lang, "Some details are missing or not valid.", "Faltan algunos datos o no son v\u00e1lidos."), { keys: ["order"] });
     const a = base();
     if (!a || a.status !== 200) return a;
     let rows = L.rows(a.json);
     if (!Array.isArray(rows)) return a;
     if (L.status && query.get("status")) rows = rows.filter((r) => r.status === query.get("status"));
     rows = padded(rows);
-    if (L.at) rows = rows.slice().sort((x, y) => String(L.at(y) || "").localeCompare(String(L.at(x) || "")) || String(y.id).localeCompare(String(x.id)));
+    const counts = L.counts ? L.counts(rows) : null;
+    if (path === "/api/signatures" && order === "attention") {
+      const rank = (r) => (r.state === "disputed" ? 0 : 1);
+      rows = rows.slice().sort((x, y) => rank(x) - rank(y) || String(x.requestedAt || "").localeCompare(String(y.requestedAt || "")) || String(x.id).localeCompare(String(y.id)));
+    } else if (L.at) rows = rows.slice().sort((x, y) => String(L.at(y) || "").localeCompare(String(L.at(x) || "")) || String(y.id).localeCompare(String(x.id)));
     const page = rows.slice(offset, offset + limit);
-    const next = offset + limit < rows.length ? encode(L.name, offset + limit) : null;
-    const out = Object.assign({}, L.keep ? L.keep(a.json) : {}, { [L.key]: page, nextCursor: next });
+    const next = offset + limit < rows.length ? encode(order === "attention" ? L.name + "-attention" : L.name, offset + limit) : null;
+    const out = Object.assign({}, L.keep ? L.keep(a.json) : {}, counts ? { counts } : {}, { [L.key]: page, nextCursor: next });
     if (path === "/api/discipline") out.limit = limit;
     return ok(out);
   }
