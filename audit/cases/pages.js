@@ -524,13 +524,14 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
     results.check("page", "page/focus-ring/sidebar-item" + suffix, nav.width >= 2 && nav.style !== "none",
       "a sidebar item reached by keyboard draws outline " + nav.width + "px " + nav.style + " on " + nav.tag);
 
-    // A mouse click draws nothing on a button, which is what :focus-visible is for.
+    // A mouse click draws nothing on a button, which is what :focus-visible is for. Chromium 153 reports the
+    // outline's width as set even when its style is none, which draws no ring, so either reads as none.
     await d.goto("overview");
     await d.clickText("Dashboard", { anywhere: true, exact: true });
     await d.settle(200);
     const clicked = await outlineNow(d);
     results.check("page", "page/focus-ring/no-ring-on-a-clicked-button" + suffix,
-      clicked.tag !== "BUTTON" || clicked.width === 0,
+      clicked.tag !== "BUTTON" || clicked.width === 0 || clicked.style === "none",
       "a button clicked with the mouse draws outline " + clicked.width + "px " + clicked.style);
   }
 

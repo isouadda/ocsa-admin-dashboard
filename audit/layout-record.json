@@ -11810,8 +11810,8 @@
       }
     },
     "supplies@wide": {
-      "n": 220,
-      "digest": "2313d973ec80fd83",
+      "n": 221,
+      "digest": "c2e487a505da7878",
       "named": {
         "body:Dashboard": [
           0,
@@ -12442,6 +12442,12 @@
           163,
           131,
           44
+        ],
+        "span:(2 pending)": [
+          405,
+          179,
+          56,
+          12
         ],
         "div:Neutral floor cleaner": [
           244,
@@ -19769,7 +19775,7 @@
           193,
           44
         ],
-        "div:Version local-2026-10-20T17:12:26Z": [
+        "div:Version local-2026-11-09T21:35:37Z": [
           244,
           1088,
           1012,
@@ -31580,8 +31586,8 @@
       }
     },
     "supplies@narrow": {
-      "n": 135,
-      "digest": "46c6dd4c8bf2659b",
+      "n": 136,
+      "digest": "05b39410afd2d6c6",
       "named": {
         "body:2": [
           0,
@@ -31720,6 +31726,12 @@
           163,
           131,
           44
+        ],
+        "span:(2 pending)": [
+          249,
+          179,
+          56,
+          12
         ],
         "div:Neutral floor cleaner": [
           88,
@@ -35621,7 +35633,7 @@
           193,
           44
         ],
-        "div:Version local-2026-10-20T17:12:26Z": [
+        "div:Version local-2026-11-09T21:35:37Z": [
           88,
           1088,
           912,

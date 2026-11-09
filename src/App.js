@@ -26612,7 +26612,6 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
               <div style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                   <FreshImg src={e.profile_photo_url} readKey="hr-employees" onStale={facesAgain} fallback={<Ini name={name} sz={52} color={e.status === "active" ? GO : "#94A3B8"} />} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />
-                  }
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
                     <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStatusWord(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>

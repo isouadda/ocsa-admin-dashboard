@@ -153,7 +153,7 @@ const WINDOWS = [
   { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [3368] },
   { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [3423] },
   { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [3432] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [27161] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [27160] },
   { id: "staff/add", page: "staff", title: "Add New Staff", lines: [3488] },
   // Step 181: the Temporary PIN window Add New Staff opens once the API has saved the person.
   { id: "staff/temporary-pin", page: "staff", title: "Temporary PIN", lines: [3162] },
@@ -236,12 +236,12 @@ const WINDOWS = [
   // page once GET /api/notifications/settings has answered.
   { id: "shell/my-alerts", page: "overview", title: "My alerts", lines: [9787] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [28118] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [28117] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [28806] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [28831] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [28865] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [29163] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [28805] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [28830] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [28864] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [29162] },
   // Round 1 (DASH-07, decision 4): a person's clearance dates, opened on the Clearances page for
   // someone HR Records is closed to, at #clearances/<id>. The shared stub has no clearances, so the
   // round1 suite drives it on the stub as the API is built (drivenBy), and the windows suite leaves it.
@@ -256,11 +256,11 @@ const WINDOWS = [
   { id: "staff/take-back-end", page: "staff", title: "Take back the end", lines: [2252], drivenBy: "round3" },
   // Part 366 (DASH-26): Discipline's Issue a warning picks the person before the warning window opens.
   // The findings366 suite opens it as the contract 1 supervisor and goes on to the warning window.
-  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [27587], drivenBy: "findings366" },
+  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [27586], drivenBy: "findings366" },
   // Part 361: Send welcome emails on Staff Management, which sends the welcome email to everyone who has
   // not signed in. The welcome-all suite drives it on the stub's people of audit/welcome-all-stub.js
   // (drivenBy), and the windows suite leaves it.
-  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [32341], drivenBy: "welcome-all" },
+  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [32340], drivenBy: "welcome-all" },
   // Part 368: maintenance requests. New maintenance request, a request's window with Record a response and
   // Send a follow-up, and a site's maintenance contact. The part368 suite drives each on the stub as the API
   // is built at ca4aafa (drivenBy), and the windows suite leaves them.
