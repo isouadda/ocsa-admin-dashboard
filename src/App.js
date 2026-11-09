@@ -2690,8 +2690,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Timeline, and Open HR file opens the person's folder there, which holds what the HR Files and
   // Certifications tabs held, with every action.
   // Timeline state (Session 18)
-  const [timeline, setTimeline] = useState([]); const [tlTotal, setTlTotal] = useState(0);
-  const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false);
+  const [timeline, setTimeline] = useState([]); const [tlNext, setTlNext] = useState("");
+  const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false); const [tlMore, setTlMore] = useState(false);
   const [tlStartDate, setTlStartDate] = useState(""); const [tlEndDate, setTlEndDate] = useState("");
   const [tlDetail, setTlDetail] = useState(null); const [tlDetailLoading, setTlDetailLoading] = useState(false);
 
@@ -2747,7 +2747,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     setEmployment(null); setEmpWin(null);
     try {
       const d = await af("/api/users/profile/" + id);
-      setProfile(d); setProfileTab(tab || "info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
+      setProfile(d); setProfileTab(tab || "info"); setProfileEdit(null); setTimeline([]); setTlNext(""); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
       loadEmployment(id);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -2763,17 +2763,17 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     loadEmployment(id); load(); if (loadStaff) loadStaff();
   };
 
-  // Timeline loader (Session 18)
+  // Timeline loader (Session 18). Since the API's part 371 the timeline reads a page at a time, newest
+  // first: the first page with cursor empty and Show more with the nextCursor it hands, the category and
+  // the dates sent with every page (part 372). A paged answer counts nothing, so the tab says how many
+  // are shown, and so far while there are more.
+  const tlFilters = (cat, sd, ed) => ({ category: cat && cat !== "all" ? cat : "", startDate: sd || "", endDate: ed || "" });
   const loadTimeline = async (userId, cat, sd, ed) => {
     setTlLoading(true);
     try {
-      let url = "/api/users/timeline/" + userId + "?limit=200";
-      if (cat && cat !== "all") url += "&category=" + cat;
-      if (sd) url += "&startDate=" + sd;
-      if (ed) url += "&endDate=" + ed;
-      const d = await af(url);
-      setTimeline(withOneCategory(d.entries || [])); setTlTotal(d.total || 0);
-    } catch (e) { showToast(e.message, "error"); setTimeline([]); }
+      const d = await af(pagedPath("/api/users/timeline/" + userId, tlFilters(cat, sd, ed), ""));
+      setTimeline(withOneCategory(d.entries || [])); setTlNext(d && d.nextCursor ? String(d.nextCursor) : "");
+    } catch (e) { showToast(e.message, "error"); setTimeline([]); setTlNext(""); }
     setTlLoading(false);
   };
   useEffect(() => { if (profile && profileTab === "timeline") loadTimeline(profile.user.id, tlCategory, tlStartDate, tlEndDate); }, [profileTab, profile?.user?.id, tlCategory, tlStartDate, tlEndDate]);
@@ -2796,7 +2796,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   };
 
   // The next page of the timeline, with the same filters.
-  const loadMoreTimeline = async (userId) => { try { let url = "/api/users/timeline/" + userId + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...withOneCategory(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } };
+  const loadMoreTimeline = async (userId) => {
+    if (!tlNext || tlMore) return;
+    setTlMore(true);
+    try { const d = await af(pagedPath("/api/users/timeline/" + userId, tlFilters(tlCategory, tlStartDate, tlEndDate), tlNext)); setTimeline(have => pagedAppend(have, withOneCategory(d.entries || []), e => e.id)); setTlNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setTlMore(false);
+  };
+  const tlCountText = (n, more) => trn("{0} entry|count", n) + (more ? " " + tr("so far") : "");
 
   // Fetch timeline entry detail (Session 18)
   const openTimelineDetail = async (entry) => {
@@ -2878,7 +2885,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + (tlStartDate ? " | " + tr("From: {0}", tlStartDate) : "") + (tlEndDate ? " | " + tr("To: {0}", tlEndDate) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
+    html += printHeader(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName), tlCountText(timeline.length, !!tlNext) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + (tlStartDate ? " | " + tr("From: {0}", tlStartDate) : "") + (tlEndDate ? " | " + tr("To: {0}", tlEndDate) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
     html += '<div class="content"><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Time")) + '</th><th>' + escHtml(tr("Category")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
     timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag())) + '</td><td>' + escHtml(dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(entityOf(e.entityType)) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
     html += '</table><div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record")) + '</div></div></body></html>';
@@ -2929,7 +2936,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     }
     // Timeline (if loaded)
     if (timeline.length > 0) {
-      html += '<div class="section"><div class="section-title">' + escHtml(trn("Activity Timeline ({1} of {0} entry{2})|count", tlTotal, timeline.length, tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "")) + '</div><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Activity Timeline") + " (" + tlCountText(timeline.length, !!tlNext) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + ")") + '</div><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
       timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
       html += '</table></div>';
     }
@@ -3004,30 +3011,28 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // was. Since part 341 a save sends only the fields whose value changed from that, so a field the list
   // never carries, the hourly rate among them, is never sent as blank, and every field left untouched
   // stays as it is. A save with nothing changed closes the window and sends nothing.
-  // The person's record as GET /api/users/:id answers it, read when an edit opens, since only that read
-  // carries its updated time, which the save sends back (part 368, API-101). A person's record moves at
-  // each sign-in, so a save of fields that did not change since goes again without asking.
-  const userReadRef = useRef({});
-  const readUserStamp = (id) => { const k = String(id); userReadRef.current[k] = null; af("/api/users/" + encodeURIComponent(k)).then(d => { if (d && d.user) userReadRef.current[k] = d.user; }).catch(() => {}); };
+  // The save sends back the person's updated time (part 368, API-101). Since the API's part 371 the staff
+  // list's rows and the profile's user carry updatedAt, so an edit holds the record it opened on, with no
+  // read of its own (part 372): the pencil the row and the fields as the window opened, the profile's
+  // editor the profile as read. A change since to a field this save does not carry is no conflict.
   const userFieldLabels = { firstName: tr("First Name"), lastName: tr("Last Name"), phone: tr("Phone"), email: tr("Email"), role: tr("Role"), employeeId: tr("Employee ID"), hourlyRate: tr("Hourly Rate"), birthday: tr("Birthday"), addressLine1: tr("Address Line 1"), addressLine2: tr("Address Line 2"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), emergencyContactName: tr("Emergency Contact"), emergencyContactPhone: tr("Emergency Phone"), preferredLanguage: tr("Preferred Language"), personalNotes: tr("Notes"), employmentType: tr("Employment Type"), hireDate: tr("Hire Date") };
   const openEdit = (s) => {
-    readUserStamp(s.id);
     const opened = { firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null };
     setHireSaid(null);
-    setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened }, opened));
+    setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened, read: Object.assign({}, s, opened, { updatedAt: s.updatedAt || s.updated_at || null }) }, opened));
   };
   const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
   const submitEdit = async () => {
     setHireSaid(null);
     const was = editForm.was || {};
     const body = withHireDate(Object.assign({}, editForm));
-    delete body.id; delete body.was;
+    delete body.id; delete body.was; delete body.read;
     if (!canEmploy) { delete body.role; delete body.employmentType; delete body.hourlyRate; }
     Object.keys(body).forEach(k => { if (sameValue(body[k], was[k])) delete body[k]; });
     // A rate emptied clears it: since the API's part 346 a PATCH takes null for that and refuses "" (users.badRate).
     if (body.hourlyRate === "") body.hourlyRate = null;
     if (!Object.keys(body).length) { setEditForm(null); return; }
-    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: userReadRef.current[String(editForm.id)], labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: editForm.read, labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
   };
 
   // Photo upload
@@ -3072,7 +3077,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       Object.keys(body).forEach(k => { if (k !== "preferredLanguage" && sameValue(body[k], was[k])) delete body[k]; });
       if (body.hourlyRate === "") body.hourlyRate = null;
       if (!Object.keys(body).length) { setProfileEdit(null); return; }
-      await saveSince(af, "/api/users/" + profile.user.id, { method: "PATCH", body, read: userReadRef.current[String(profile.user.id)], labels: userFieldLabels });
+      await saveSince(af, "/api/users/" + profile.user.id, { method: "PATCH", body, read: profile.user, labels: userFieldLabels });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
@@ -3185,7 +3190,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); readUserStamp(u.id); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setHireSaid(null); setProfileEdit(profileOpened(u)); }} data-profile-edit="" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -3267,7 +3272,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {profileTab === "timeline" && <div>
         <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Activity Timeline ({0} total)", tlTotal)}</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Activity Timeline")} <span data-timeline-count={timeline.length} style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500, color: t.textMut }}>{tlCountText(timeline.length, !!tlNext)}</span></div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Export CSV")}</button>
               <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
@@ -3305,7 +3310,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
                 </TimelineRow>
               </div>;
             })}
-            {timeline.length < tlTotal && <div style={{ textAlign: "center", padding: 12 }}><button onClick={() => loadMoreTimeline(u.id)} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>{trn("Load More ({0} remaining)|count", tlTotal - timeline.length)}</button></div>}
+            <ShowMore t={t} next={tlNext} busy={tlMore} onMore={() => loadMoreTimeline(u.id)} at="person-timeline" />
           </div>}
         </Crd>
       </div>}
@@ -3875,11 +3880,10 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   };
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [timeline, setTimeline] = useState([]);
-  const [tlTotal, setTlTotal] = useState(0);
+  const [tlNext, setTlNext] = useState("");
   const [tlCat, setTlCat] = useState("all");
   const [tlDateRange, setTlDateRange] = useState({ start: "", end: "" });
   const [tlLoading, setTlLoading] = useState(false);
-  const [tlOffset, setTlOffset] = useState(0);
   const [floorPlanLabel, setFloorPlanLabel] = useState("Floor Plan");
   const [tlDetail, setTlDetail] = useState(null);
   const [tlDetailLoading, setTlDetailLoading] = useState(false);
@@ -3951,7 +3955,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     setSelectedSite(siteId);
     setSiteTab(tab || "general");
     setTimeline([]);
-    setTlOffset(0);
+    setTlNext("");
     setTlCat("all");
     try {
       const p = await af("/api/sites/profile/" + siteId);
@@ -3967,25 +3971,25 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const routeTab = route[1] ? String(route[1]) : "";
   useEffect(() => { if (routeSite) openProfile(routeSite, routeTab || undefined); }, [routeSite, routeTab]);
 
-  const loadTimeline = async (cat, offset, append) => {
+  // The site's timeline a page at a time since the API's part 371, as a person's is (part 372): cursor empty
+  // first, then Show more with the nextCursor, the category and the dates sent with every page.
+  const loadTimeline = async (cat, cursor, append) => {
     if (!selectedSite) return;
     setTlLoading(true);
     try {
-      let url = "/api/sites/timeline/" + selectedSite + "?limit=100&offset=" + offset;
-      if (cat && cat !== "all") url += "&category=" + cat;
-      if (tlDateRange.start) url += "&startDate=" + tlDateRange.start;
-      if (tlDateRange.end) url += "&endDate=" + tlDateRange.end;
-      const d = await af(url);
-      setTimeline(append ? prev => [...prev, ...withOneCategory(d.entries)] : withOneCategory(d.entries));
-      setTlTotal(d.total);
+      const d = await af(pagedPath("/api/sites/timeline/" + selectedSite, { category: cat && cat !== "all" ? cat : "", startDate: tlDateRange.start || "", endDate: tlDateRange.end || "" }, cursor || ""));
+      const rows = withOneCategory(d.entries || []);
+      setTimeline(append ? prev => pagedAppend(prev, rows, e => e.id) : rows);
+      setTlNext(d && d.nextCursor ? String(d.nextCursor) : "");
       setTlFailed(false);
-    } catch (e) { console.warn("Timeline load error:", e); if (!append) setTimeline([]); setTlFailed(true); }
+    } catch (e) { console.warn("Timeline load error:", e); if (!append) { setTimeline([]); setTlNext(""); } setTlFailed(true); }
     setTlLoading(false);
   };
 
-  useEffect(() => { if (siteTab === "timeline" && selectedSite) { setTlOffset(0); loadTimeline(tlCat, 0, false); } }, [siteTab, tlCat, tlDateRange, selectedSite]);
+  useEffect(() => { if (siteTab === "timeline" && selectedSite) loadTimeline(tlCat, "", false); }, [siteTab, tlCat, tlDateRange, selectedSite]);
 
-  const loadMoreTl = () => { const next = tlOffset + 100; setTlOffset(next); loadTimeline(tlCat, next, true); };
+  const loadMoreTl = () => { if (tlNext && !tlLoading) loadTimeline(tlCat, tlNext, true); };
+  const tlCountText = (n, more) => trn("{0} entry|count", n) + (more ? " " + tr("so far") : "");
 
   const refreshProfile = async () => { if (selectedSite) { try { const p = await af("/api/sites/profile/" + selectedSite); gotProfile(p); } catch (e) { console.warn(e); } } };
   // Step 338: whether staff check off tasks at this site, once a site read answers checklistMode (the
@@ -4228,7 +4232,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     const tlCatLabel = (tlCats.find(c => c.k === tlCat) || {}).l || tlCat;
-    html += sitePrintHeader(tr("{0} - Site Timeline", siteName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCat !== "all" ? " | " + tr("Filter: {0}", tlCatLabel) : "") + (tlDateRange.start ? " | " + tr("From: {0}", tlDateRange.start) : "") + (tlDateRange.end ? " | " + tr("To: {0}", tlDateRange.end) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
+    html += sitePrintHeader(tr("{0} - Site Timeline", siteName), tlCountText(timeline.length, !!tlNext) + (tlCat !== "all" ? " | " + tr("Filter: {0}", tlCatLabel) : "") + (tlDateRange.start ? " | " + tr("From: {0}", tlDateRange.start) : "") + (tlDateRange.end ? " | " + tr("To: {0}", tlDateRange.end) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
     html += '<div class="content"><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Time")) + '</th><th>' + escHtml(tr("Category")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
     timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag())) + '</td><td>' + escHtml(dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(entityOf(e.entityType)) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
     html += '</table><div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Site Record")) + '</div></div></body></html>';
@@ -4592,7 +4596,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       {/* TIMELINE TAB */}
       {siteTab === "timeline" && <div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-          {tlCats.map(c => <button key={c.k} onClick={() => { setTlCat(c.k); setTlOffset(0); }} style={{ padding: "4px 10px", borderRadius: 20, border: tlCat === c.k ? "1px solid " + GO : "1px solid " + t.border, background: tlCat === c.k ? t.goldBg : "transparent", color: tlCat === c.k ? t.goldText : t.textMut, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>)}
+          {tlCats.map(c => <button key={c.k} onClick={() => { setTlCat(c.k); }} style={{ padding: "4px 10px", borderRadius: 20, border: tlCat === c.k ? "1px solid " + GO : "1px solid " + t.border, background: tlCat === c.k ? t.goldBg : "transparent", color: tlCat === c.k ? t.goldText : t.textMut, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>)}
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <Inp t={t} type="date" value={tlDateRange.start} onChange={e => setTlDateRange(prev => ({ ...prev, start: e.target.value }))} style={{ width: 140, fontSize: 11 }} />
@@ -4600,7 +4604,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           {(tlDateRange.start || tlDateRange.end) && <button onClick={() => setTlDateRange({ start: "", end: "" })} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 10, cursor: "pointer" }}>{tr("Clear")}</button>}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 11, color: t.textMut }}>{trn("{0} entry|count", tlTotal)}</div>
+          <div data-timeline-count={timeline.length} style={{ fontSize: 11, color: t.textMut }}>{tlCountText(timeline.length, !!tlNext)}</div>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Export CSV")}</button>
             <button onClick={printSiteTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
@@ -4629,8 +4633,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
             })}
           </div>);
         })()}
-        {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? tr("Loading...") : tr("Load More")}</button>}
-        {!tlLoading && tlFailed && <LoadFailed t={t} onRetry={() => { setTlOffset(0); loadTimeline(tlCat, 0, false); }} />}
+        <ShowMore t={t} next={tlFailed ? "" : tlNext} busy={tlLoading} onMore={loadMoreTl} at="site-timeline" />
+        {!tlLoading && tlFailed && <LoadFailed t={t} onRetry={() => loadTimeline(tlCat, "", false)} />}
         {!tlLoading && !tlFailed && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No activity recorded for this site")}</div>}
       </div>}
 
@@ -4875,8 +4879,8 @@ function OpsPage({ af, t, allStaff }) {
 // its work, and the repeating work's last check is Periodic work's on the day shown (GET
 // /api/periodic-work?siteId=&on=). Counting on a site's page is the checklist's own: per visit, daily
 // and every other day work due that day, done of due; weekly to seasonal work in its own section; as
-// needed never counted. All sites is one read, GET /api/reports/checklist-summary?from=&to=, which
-// counts every item the record lists as due, weekly to seasonal work included. Times are on the
+// needed never counted. All sites is one read, GET /api/reports/checklist-summary?from=&to=, whose
+// days carry counted, counted by that same rule since the API's part 371 (part 372). Times are on the
 // company's clock, and today is the company's checklist day, from checklistDayStartsAt on GET
 // /api/settings (4:00 AM until it is read). Today is read again every 30 seconds while the page is on
 // screen; a past day is read once. The view lives in the address, #checklist/<site or all>/<period>
@@ -5054,7 +5058,9 @@ async function crReadSite(af, siteId, from, to, today) {
 }
 // Every site's count for the period in one read, GET /api/reports/checklist-summary (the API's part 363);
 // one day is read with the six days before it, so its card can draw a week's trend. { span, bySite: { id:
-// { notTracked, days: [{ date, due, done, checks }] } } }, or the API's refusal, thrown in its own words.
+// { notTracked, days: [{ date, due, done, checks, counted: { due, done } }] } } }, or the API's refusal,
+// thrown in its own words. Since the API's part 371 counted is the checklist's own count of the day, the
+// rule a site's rings follow (part 372).
 async function crReadAll(af, from, to) {
   const span = from === to ? { from: crAddDays(to, -6), to } : { from, to };
   const r = await af("/api/reports/checklist-summary?from=" + span.from + "&to=" + span.to);
@@ -5394,22 +5400,24 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   // ---- All sites ----
   if (!siteId) {
     const span = data.span;
-    // Each card's numbers are the summary's: every step the record lists as due, done of due, and every
-    // check. A site the summary does not name did not load.
+    // Each card counts the way the site's own rings count, from each day's counted (the API's part 371):
+    // per visit, daily and every other day work due that day, done of due, and every check. A day without
+    // counted is read as due and done. A site the summary does not name did not load.
     const cards = active.map(s => {
       const rec = data.bySite[String(s.id)] || null;
       const got = rec ? {} : { error: tr("This did not load.") };
       const notTracked = siteIsReference(s) || !!(rec && rec.notTracked === true);
       const recDays = rec ? rec.days : [];
       const inPeriod = recDays.filter(d => d && d.date >= period.from && d.date <= period.to);
-      const sum = (k) => inPeriod.reduce((n, d) => n + (Number(d[k]) || 0), 0);
-      const st = { due: sum("due"), done: sum("done"), checks: sum("checks") };
+      const ringOf = (d) => (d && d.counted && typeof d.counted === "object" ? d.counted : d || {});
+      const sum = (k) => inPeriod.reduce((n, d) => n + (Number(ringOf(d)[k]) || 0), 0);
+      const st = { due: sum("due"), done: sum("done"), checks: inPeriod.reduce((n, d) => n + (Number(d.checks) || 0), 0) };
       st.pct = crPct(st.done, st.due);
-      const trend = recDays.map(d => ({ date: d.date, pct: crPct(Number(d.done) || 0, Number(d.due) || 0) }));
+      const trend = recDays.map(d => ({ date: d.date, pct: crPct(Number(ringOf(d).done) || 0, Number(ringOf(d).due) || 0) }));
       return { s, got, rec, notTracked, st, trend };
     });
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")} {tr("A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -6770,11 +6778,12 @@ function LeaveBalancesTable({ t, balances }) {
   return <DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} />;
 }
 
-// Adjust: a kind, hours plus or minus and a required reason, dated today; it asks once, and its clientId,
-// made when the form opens, makes a retry post once.
+// Adjust: a kind, hours plus or minus, a required reason, and since the API's part 371 the day it counts on,
+// effectiveOn, today to start and never after today on the company's clock (part 372); it asks once, and its
+// clientId, made when the form opens, makes a retry post once.
 function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) {
   const clientId = useRef("adj-" + Math.random().toString(36).slice(2, 12) + "-" + Date.now().toString(36));
-  const [form, setForm] = useState({ kind: (kinds.find(k => k.key === "paid_sick") || kinds[0] || {}).key || "", hours: "", reason: "" });
+  const [form, setForm] = useState({ kind: (kinds.find(k => k.key === "paid_sick") || kinds[0] || {}).key || "", hours: "", reason: "", effectiveOn: leaveToday() });
   const [said, setSaid] = useState(null);
   const [once, busy] = useBusyGuard();
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
@@ -6783,10 +6792,12 @@ function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) 
     if (!form.kind) { setSaid({ text: tr("Choose the kind of leave."), keys: ["kind"] }); return; }
     if (!Number.isFinite(h) || h === 0 || Math.abs(h) > 9999 || Math.abs(h * 100 - Math.round(h * 100)) > 1e-6) { setSaid({ text: tr("Type the hours to add, or a minus sign and the hours to take away, up to two decimals."), keys: ["hours"] }); return; }
     if (!form.reason.trim()) { setSaid({ text: tr("Say why the balance changes."), keys: ["reason"] }); return; }
+    const today = leaveToday();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.effectiveOn || "") || form.effectiveOn > today) { setSaid({ text: tr("Choose a day no later than today."), keys: ["effectiveOn"] }); return; }
     const kindName = leaveKindWord(form.kind, (kinds.find(k => k.key === form.kind) || {}).name);
     if (!window.confirm(tr("Change {0}'s {1} balance by {2}?", name || "", kindName, leaveSigned(h)))) return;
     try {
-      const d = await af("/api/leave/people/" + encodeURIComponent(userId) + "/adjustments", { method: "POST", body: { kind: form.kind, hours: h, reason: form.reason.trim(), clientId: clientId.current } });
+      const d = await af("/api/leave/people/" + encodeURIComponent(userId) + "/adjustments", { method: "POST", body: { kind: form.kind, hours: h, reason: form.reason.trim(), clientId: clientId.current, effectiveOn: form.effectiveOn } });
       onDone(d);
     } catch (e) { setSaid(leaveRefusal(e)); }
   });
@@ -6796,9 +6807,10 @@ function LeaveAdjustForm({ af, t, userId, name, kinds = [], onDone, onCancel }) 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
       <div><Lbl>{tr("Kind")}</Lbl><Sel t={t} data-leave-adjust="kind" aria-label={tr("Kind")} value={form.kind} onChange={e => set("kind", e.target.value)} options={kinds.map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) }))} style={bad("kind") ? { borderColor: RD } : undefined} /></div>
       <div><Lbl>{tr("Hours, plus or minus")}</Lbl><Inp t={t} data-leave-adjust="hours" aria-label={tr("Hours, plus or minus")} inputMode="decimal" value={form.hours} onChange={e => set("hours", e.target.value.replace(/[^0-9.\-]/g, "").slice(0, 9))} placeholder={tr("For example 8 or -4")} style={bad("hours") ? { borderColor: RD } : undefined} /></div>
+      <div><Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" data-leave-adjust="effectiveOn" aria-label={tr("Date")} max={leaveToday()} value={form.effectiveOn} onChange={e => set("effectiveOn", e.target.value)} style={bad("effectiveOn") ? { borderColor: RD } : undefined} /></div>
     </div>
     <div style={{ marginBottom: 6 }}><Lbl>{tr("Reason *")}</Lbl><TArea t={t} data-leave-adjust="reason" aria-label={tr("Reason")} rows={2} maxLength={500} value={form.reason} onChange={e => set("reason", e.target.value)} style={bad("reason") ? { borderColor: RD } : undefined} /></div>
-    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("It is dated today and names you as the one who made it.")}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("It is dated the day you choose, today or earlier, and names you as the one who made it.")}</div>
     {said && <div data-leave-adjust-refusal={said.keys.join(",")} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{said.text}</div>}
     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onCancel}>{tr("Cancel")}</Btn><Btn t={t} data-leave-adjust-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn></div>
   </div>);
@@ -7078,7 +7090,9 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
 
 // The hours file from the payroll system, read here the way the API reads it, line by line: the person by
 // badge number or employee ID, the period, and the hours. The API matches each person and posts; a line
-// it cannot match keeps the whole file from posting, and comes back with its words.
+// it cannot match keeps the whole file from posting, and comes back with its words. Since the API's part 371
+// the file is checked first with dryRun: true, which runs the real run's one path and writes nothing, so
+// each line's outcome is shown before anything posts; Post the hours then posts it (part 372).
 const LEAVE_FILE_WORDS = {
   badHeader: "The first line names the columns: person, period_start, period_end and hours (or person, period and hours).",
   empty: "The file has no lines of hours.",
@@ -7133,6 +7147,7 @@ function readLeaveHoursFile(text, today) {
 function LeaveHoursWindow({ af, t, onClose, onPosted }) {
   const [file, setFile] = useState(null);
   const [read, setRead] = useState(null);
+  const [check, setCheck] = useState(null);
   const [answer, setAnswer] = useState(null);
   const [said, setSaid] = useState(null);
   const [once, busy] = useBusyGuard();
@@ -7140,18 +7155,24 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
   const pick = async (e) => {
     const f = e.target.files && e.target.files[0];
     if (ref.current) ref.current.value = "";
-    setAnswer(null); setSaid(null);
+    setAnswer(null); setCheck(null); setSaid(null);
     if (!f) return;
     const text = await f.text();
     setFile({ name: f.name, text });
     setRead(readLeaveHoursFile(text, leaveToday()));
   };
-  const post = once(async () => {
+  const send = async (dryRun) => {
     if (!file) return;
     setSaid(null);
-    try { const d = await af("/api/leave/hours-files", { method: "POST", body: { fileName: file.name, csv: file.text } }); setAnswer(d); if (onPosted) onPosted(); }
-    catch (e) { setSaid({ text: (e && e.message) || tr("Request failed"), lines: e && e.body && Array.isArray(e.body.lines) ? e.body.lines : [] }); }
-  });
+    try {
+      const d = await af("/api/leave/hours-files", { method: "POST", body: Object.assign({ fileName: file.name, csv: file.text }, dryRun ? { dryRun: true } : {}) });
+      if (dryRun) setCheck(d); else { setAnswer(d); if (onPosted) onPosted(); }
+    } catch (e) { setCheck(null); setSaid({ text: (e && e.message) || tr("Request failed"), lines: e && e.body && Array.isArray(e.body.lines) ? e.body.lines : [] }); }
+  };
+  const runCheck = once(() => send(true));
+  const post = once(() => send(false));
+  const wouldPost = check && !check.duplicate ? (check.file && check.file.postedCount != null ? Number(check.file.postedCount) : (check.lines || []).filter(l => l.outcome === "posted").length) : 0;
+  const wouldSkip = check && !check.duplicate ? (check.file && check.file.skippedCount != null ? Number(check.file.skippedCount) : (check.lines || []).length - wouldPost) : 0;
   const problemOf = (line) => { const p = (read ? read.problems : []).find(x => x.line === line); return p ? tr(LEAVE_FILE_WORDS[p.word]) : ""; };
   const refusedOf = (line) => { const p = (said ? said.lines : []).find(x => x.line === line); return p ? p.message : ""; };
   const local = read ? read.problems.length : 0;
@@ -7162,12 +7183,12 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
     { header: tr("Hours"), align: "right", render: l => (l.hours != null ? leaveNum(l.hours) : "--") },
     { header: "", render: l => { const w = problemOf(l.line) || refusedOf(l.line); return w ? <span data-leave-file-problem={l.line} style={{ fontSize: 12, color: RD }}>{w}</span> : null; } },
   ];
-  const outCols = [
+  const outColsOf = (dry) => [
     { header: tr("Line"), render: l => l.line },
     { header: tr("Person"), render: l => l.name || l.person },
     { header: tr("Period"), render: l => tr("{0} to {1}", fdLong(l.periodStart), fdLong(l.periodEnd)) },
     { header: tr("Hours worked"), align: "right", render: l => leaveNum(l.hoursWorked) },
-    { header: tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
+    { header: dry ? tr("What would post") : tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{dry && l.outcome === "posted" ? tr("Will post|hours file") : leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
   ];
   return (<Mdl t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
@@ -7180,16 +7201,26 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
       <Btn t={t} v="ghost" data-leave-file-choose="" onClick={() => ref.current && ref.current.click()} style={{ minHeight: 44 }}>{file ? tr("Choose another file") : tr("Choose the CSV")}</Btn>
       {file && <span style={{ marginLeft: 10, fontSize: 13, color: t.text }}>{file.name}</span>}
     </div>}
-    {read && !answer && <>
-      <div data-leave-file-read={read.lines.length} style={{ fontSize: 12, color: local || (said && said.lines.length) ? RD : t.textSec, marginBottom: 8 }}>{local ? trn("{0} line cannot be read. Fix the file and choose it again.|count", local) : said && said.lines.length ? said.text : trn("{0} line read. Post the hours to match each person and post their leave.|count", read.lines.length)}</div>
+    {read && !answer && !check && <>
+      <div data-leave-file-read={read.lines.length} style={{ fontSize: 12, color: local || (said && said.lines.length) ? RD : t.textSec, marginBottom: 8 }}>{local ? trn("{0} line cannot be read. Fix the file and choose it again.|count", local) : said && said.lines.length ? said.text : trn("{0} line read. Check the hours to see what each line would post. Nothing posts yet.|count", read.lines.length)}</div>
       <DataTable t={t} columns={cols} rows={read.lines} rowKey={l => l.line} empty={tr("The file has no lines of hours.")} />
       {said && !said.lines.length && <div data-leave-file-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said.text}</div>}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-post="" onClick={post} disabled={busy || local > 0 || read.lines.length === 0}>{busy ? tr("Posting...") : tr("Post the hours")}</Btn></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-check="" onClick={runCheck} disabled={busy || local > 0 || read.lines.length === 0}>{busy ? tr("Checking...") : tr("Check the hours")}</Btn></div>
+    </>}
+    {check && !answer && check.duplicate && <>
+      <div data-leave-file-duplicate="" data-leave-file-dry="" style={{ fontSize: 13, color: t.text, marginBottom: 12 }}>{tr("This file was posted before, on {0}. Posting it again would post nothing.", check.file ? irWhen(check.file.uploadedAt) : "--")}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={onClose}>{tr("Done")}</Btn></div>
+    </>}
+    {check && !answer && !check.duplicate && <>
+      <div data-leave-file-would-post={wouldPost} style={{ fontSize: 13, color: t.text, fontWeight: 600, marginBottom: 8 }}>{tr("Nothing has posted yet. {0} lines would post leave, {1} would post none.", wouldPost, wouldSkip)}</div>
+      <DataTable t={t} columns={outColsOf(true)} rows={check.lines || []} rowKey={l => l.line} />
+      {said && <div data-leave-file-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{said.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn><Btn t={t} data-leave-file-post="" onClick={post} disabled={busy}>{busy ? tr("Posting...") : tr("Post the hours")}</Btn></div>
     </>}
     {answer && answer.duplicate && <div data-leave-file-duplicate="" style={{ fontSize: 13, color: t.text, marginBottom: 12 }}>{tr("This file was posted before, on {0}. Nothing new posted.", answer.file ? irWhen(answer.file.uploadedAt) : "--")}</div>}
     {answer && !answer.duplicate && <>
       <div data-leave-file-posted={answer.file ? answer.file.postedCount : 0} style={{ fontSize: 13, color: GR, fontWeight: 600, marginBottom: 8 }}>{tr("Posted. {0} lines posted leave, {1} posted none.", answer.file ? answer.file.postedCount : 0, answer.file ? answer.file.skippedCount : 0)}</div>
-      <DataTable t={t} columns={outCols} rows={answer.lines || []} rowKey={l => l.line} />
+      <DataTable t={t} columns={outColsOf(false)} rows={answer.lines || []} rowKey={l => l.line} />
     </>}
     {answer && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={onClose}>{tr("Done")}</Btn></div>}
   </div></Mdl>);
@@ -7723,15 +7754,19 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
   // Requests a page at a time (part 368), newest first; read again after a change, as many as are shown.
+  // Since the API's part 371 every page carries counts.pending, the pending requests in the whole of this
+  // person's scope, which the tab says whole (part 372); a page without it counts the requests read.
   const [reqNext, setReqNext] = useState("");
   const [reqMore, setReqMore] = useState(false);
+  const [reqPending, setReqPending] = useState(null);
+  const pendingOf = (d) => (d && d.counts && Number.isFinite(Number(d.counts.pending)) ? Number(d.counts.pending) : null);
   const reqShown = useRef(0);
   reqShown.current = Array.isArray(requests) ? requests.length : 0;
-  const loadRequests = (keep) => af(pagedPath("/api/supplies/requests", {}, "", keep === true ? reqShown.current : 0)).then(d => { setRequests(d && Array.isArray(d.requests) ? d.requests : []); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }).catch(e => showToast(e.message, "error"));
+  const loadRequests = (keep) => af(pagedPath("/api/supplies/requests", {}, "", keep === true ? reqShown.current : 0)).then(d => { setRequests(d && Array.isArray(d.requests) ? d.requests : []); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); setReqPending(pendingOf(d)); }).catch(e => showToast(e.message, "error"));
   const moreRequests = async () => {
     if (!reqNext || reqMore) return;
     setReqMore(true);
-    try { const d = await af(pagedPath("/api/supplies/requests", {}, reqNext)); setRequests(have => pagedAppend(have, d && d.requests, r => r.id)); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    try { const d = await af(pagedPath("/api/supplies/requests", {}, reqNext)); setRequests(have => pagedAppend(have, d && d.requests, r => r.id)); setReqNext(d && d.nextCursor ? String(d.nextCursor) : ""); if (pendingOf(d) !== null) setReqPending(pendingOf(d)); }
     catch (e) { showToast(e.message, "error"); }
     setReqMore(false);
   };
@@ -7797,12 +7832,12 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const reqStateWord = { pending: tr("pending"), approved: tr("approved|request"), denied: tr("denied|request"), fulfilled: tr("fulfilled|request") };
   const urgencyWord = { low: tr("low"), normal: tr("normal"), high: tr("high"), urgent: tr("urgent") };
   const reqTypeWord = { refill: tr("Refill Request"), damage_report: tr("Damage Report"), new_gear: tr("New Gear Request") };
-  const pendingCount = requests.filter(r => r.status === "pending").length;
+  const pendingCount = reqPending !== null ? reqPending : requests.filter(r => r.status === "pending").length;
   return (<div>
     <SecT t={t} action={canManageSupplies ? tr("Add Supply") : undefined} onAction={canManageSupplies ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
       <button onClick={() => setTab("inventory")} data-supplies-tab="inventory" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
-      <button onClick={() => setTab("requests")} data-supplies-tab="requests" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
+      <button onClick={() => setTab("requests")} data-supplies-tab="requests" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? <span data-requests-pending={pendingCount}>{trn("({0} pending)|count", pendingCount)}</span> : ""}</button>
     </div>
     {tab === "inventory" && labelsOn && canManageSupplies && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}><div data-supply-site-labels="" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 220px", minWidth: 0, maxWidth: 360 }}><Lbl>{tr("Print labels for a site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={siteForLabels} onChange={e => setLabelSite(e.target.value)} options={sites.map(x => ({ v: String(x.id), l: x.name }))} /></div>
@@ -16006,11 +16041,25 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   // fields changed from that (DASH-33), so a row that lacks a service category never blanks it, a status
   // read before someone else changed it is not written back, and a pattern's shift is marked moved only
   // when it is. A second press while the first is out sends nothing.
+  // Since the API's part 371 each shift of the calendar carries updated_at, which the save sends back as
+  // updatedAt through saveSince (part 372): a shift changed since by someone else is saved again without
+  // asking when none of the fields edited here changed, and asked about when one did. The row as the
+  // calendar read it is kept in read, since the window edits a copy of it.
   const shiftForm = (x) => ({ user_id: x.user_id, site_id: x.site_id, start_time: x.startTime, end_time: x.endTime, notes: x.notes || "", status: x.status, building_name: x.buildingName, floor_number: x.floorNumber, service_category: x.serviceCategory });
+  const shiftLabels = { user_id: tr("Staff"), site_id: tr("Site"), start_time: tr("Start Time"), end_time: tr("End Time"), notes: tr("Notes"), status: tr("Status"), building_name: tr("Building"), floor_number: tr("Floor"), service_category: tr("Service Category") };
+  const shiftStatusWord = { scheduled: tr("Scheduled|shift"), completed: tr("Completed|shift"), cancelled: tr("Cancelled|shift"), no_show: tr("No Show") };
+  const shiftShow = (k, v) => {
+    if (v === undefined || v === null || v === "") return "--";
+    if (k === "start_time" || k === "end_time") return String(v).slice(0, 5);
+    if (k === "user_id") { const p = staffList.find(x => String(x.id) === String(v)); return p ? (p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim()) : String(v); }
+    if (k === "site_id") { const x = sites.find(y => String(y.id) === String(v)); return x ? x.name : String(v); }
+    if (k === "status") return shiftStatusWord[v] || String(v);
+    return String(v);
+  };
   const openEdit = (shift) => {
     if (shift.site_id) loadSiteLocations(shift.site_id);
     const opened = { ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" };
-    setEditModal({ ...opened, was: shiftForm(opened) });
+    setEditModal({ ...opened, was: shiftForm(opened), read: shift });
   };
   const editSaving = useRef(false);
   const submitEdit = async () => {
@@ -16019,7 +16068,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     if (!Object.keys(body).length) { setEditModal(null); return; }
     editSaving.current = true;
     try {
-      await af("/api/schedule/" + editModal.id, { method: "PATCH", body });
+      await saveSince(af, "/api/schedule/" + editModal.id, { method: "PATCH", body, read: editModal.read, labels: shiftLabels, show: shiftShow });
       showToast(tr("Schedule updated")); setEditModal(null); loadCalendar();
     } catch (e) { if (e && e.code === "schedule.onLeave") setOnLeaveSaid(e.message); else showToast(e.message, "error"); }
     editSaving.current = false;
@@ -16276,7 +16325,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
-    {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
+    {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div data-schedule-edit={editModal.id} style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
@@ -16370,20 +16419,26 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><PersonPick t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-          <Btn t={t} onClick={async () => {
+          <div style={{ flex: 1 }}><PersonPick t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value, assignSaid: "" })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+          <Btn t={t} data-pickup-assign="" disabled={!!pickupDetail.assigning} onClick={async () => {
             if (!pickupDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
+            const id = pickupDetail.id;
+            setPickupDetail(cur => (cur && cur.id === id ? { ...cur, assigning: true, assignSaid: "" } : cur));
             try {
-              if (pickupDetail.status === "requested") {
-                await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" });
-              }
-              await af("/api/pickups/" + pickupDetail.id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
-              showToast(tr("Shift reassigned"));
+              // A drop request is approved and given in one step (the API's part 371, DASH-35, part 372).
+              if (pickupDetail.status === "requested") await af("/api/pickups/" + id + "/approve-drop-and-assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
+              else await af("/api/pickups/" + id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
+              showToast(pickupDetail.status === "requested" ? tr("Drop approved. Shift assigned.") : tr("Shift reassigned"));
               setPickupDetail(null);
               loadCalendar();
-            } catch (e) { showToast(e.message, "error"); }
+            } catch (e) {
+              const under = e && e.body && Array.isArray(e.body.keys) && e.body.keys.indexOf("user_id") >= 0;
+              setPickupDetail(cur => (cur && cur.id === id ? { ...cur, assigning: false, assignSaid: under ? (e.message || tr("Request failed")) : "" } : cur));
+              if (!under) showToast(e.message, "error");
+            }
           }} style={{ padding: "8px 16px", fontSize: 11 }}>{tr("Assign")}</Btn>
         </div>
+        {pickupDetail.assignSaid ? <div data-assign-refusal="user_id" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{pickupDetail.assignSaid}</div> : null}
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         {pickupDetail.status === "requested" ? (
@@ -16689,7 +16744,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{serviceWord(s.service_category)}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={statusWord[s.status] || s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
             { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleOf(s.claimed_by_role)})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
-            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} data-pickup-view={s.id} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty={tr("No shifts found for this period and filter.")} footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
         })()}
@@ -17076,16 +17131,25 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><PersonPick t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }].concat(reassignOptions)} /></div>
-            <Btn t={t} onClick={async () => {
+            <div style={{ flex: 1 }}><PersonPick t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value, assignSaid: "" })} options={[{ v: "", l: tr("Select staff member...") }].concat(reassignOptions)} /></div>
+            <Btn t={t} data-pickup-assign="" disabled={!!shiftDetail.assigning} onClick={async () => {
               if (!shiftDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
+              const id = shiftDetail.id;
+              setShiftDetail(cur => (cur && cur.id === id ? { ...cur, assigning: true, assignSaid: "" } : cur));
               try {
-                if (shiftDetail.status === "requested") await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" });
-                await af("/api/pickups/" + shiftDetail.id + "/assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
-                showToast(tr("Shift assigned")); setShiftDetail(null); load();
-              } catch (e) { showToast(e.message, "error"); }
+                // A drop request is approved and given in one step since the API's part 371 (DASH-35,
+                // part 372): nothing is written unless both go through.
+                if (shiftDetail.status === "requested") await af("/api/pickups/" + id + "/approve-drop-and-assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
+                else await af("/api/pickups/" + id + "/assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
+                showToast(shiftDetail.status === "requested" ? tr("Drop approved. Shift assigned.") : tr("Shift assigned")); setShiftDetail(null); load();
+              } catch (e) {
+                const under = e && e.body && Array.isArray(e.body.keys) && e.body.keys.indexOf("user_id") >= 0;
+                setShiftDetail(cur => (cur && cur.id === id ? { ...cur, assigning: false, assignSaid: under ? (e.message || tr("Request failed")) : "" } : cur));
+                if (!under) showToast(e.message, "error");
+              }
             }} style={{ padding: "8px 16px", fontSize: 11 }}>{tr("Assign")}</Btn>
           </div>
+          {shiftDetail.assignSaid ? <div data-assign-refusal="user_id" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{shiftDetail.assignSaid}</div> : null}
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
@@ -27603,7 +27667,9 @@ function CaseLog({ af, token, t, caseId, updates, allStaff = [], statusLabel, sh
       const d = await af("/api/hr-cases/" + encodeURIComponent(caseId) + "/updates", { method: "POST", body: payload });
       reset();
       showToast(tr("Added to the case log."));
-      if (onAdded) onAdded(d && d.update ? d.update : null);
+      // Since the API's part 371 the answer carries the case's updatedAt as the entry left it, which the
+      // case's next save sends back, so that save does not meet 409 for an entry made here (part 372).
+      if (onAdded) onAdded(d && d.update ? d.update : null, d && d.updatedAt ? d.updatedAt : null);
     } catch (e) {
       const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
       setSaid({ text: e.message || tr("Request failed"), keys });
@@ -27877,7 +27943,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
       {detail.formResponseId ? <CaseReport key={String(detail.formResponseId)} af={af} t={t} id={detail.formResponseId} /> : null}
-      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u) => { if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter, true); if (onSaved) onSaved(); }} />}
+      {caseLogUpdates(detail) && <CaseLog key={detail.id} af={af} token={token} t={t} caseId={detail.id} updates={caseLogUpdates(detail)} allStaff={allStaff} statusLabel={statusLabel} showToast={showToast} onAdded={(u, at) => { if (at) setDetail(cur => (cur && cur.id === detail.id ? { ...cur, updatedAt: at, ...(cur.updated_at !== undefined ? { updated_at: at } : {}) } : cur)); if (u) setDetail(cur => (cur && cur.id === detail.id && caseLogUpdates(cur) ? { ...cur, updates: caseLogUpdates(cur).concat([u]) } : cur)); refreshLog(detail.id); loadAccessLog(detail.id); load(statusFilter, true); if (onSaved) onSaved(); }} />}
       {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
@@ -31626,14 +31692,15 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
   const [site, setSite] = useState("");
   const [state, setState] = useState("open");
   const [again, setAgain] = useState(0);
-  // A page at a time (part 368), newest first from the API, the filters sent with each page; a change
-  // reads again as many as are shown. The order on screen is the page's own: Not right first, then the
-  // oldest of what is read; Show more brings the older ones.
+  // A page at a time (part 368), the filters sent with each page; a change reads again as many as are
+  // shown. Since the API's part 371 the pages come in the screen's order, order=attention: a Not right
+  // request still open first, then the oldest, then by id, so the first page holds what needs a hand
+  // first and Show more brings the rest in the same order (part 372). The list is drawn in that order.
   const [next, setNext] = useState("");
   const [moreBusy, setMoreBusy] = useState(false);
   const shown = useRef(0);
   shown.current = Array.isArray(list) ? list.length : 0;
-  const filters = { kind, siteId: site, state };
+  const filters = { kind, siteId: site, state, order: "attention" };
   const keepRef = useRef({ key: "", again: 0 });
   useEffect(() => {
     let alive = true;
@@ -31641,7 +31708,7 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
     const key = [kind, site, state].join("|");
     const keep = keepRef.current.key === key && keepRef.current.again !== again ? shown.current : 0;
     keepRef.current = { key, again };
-    af(pagedPath("/api/signatures", { kind, siteId: site, state }, "", keep))
+    af(pagedPath("/api/signatures", { kind, siteId: site, state, order: "attention" }, "", keep))
       .then(d => { if (alive) { setList(d && Array.isArray(d.requests) ? d.requests : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); } })
       .catch(e => { if (alive) { setList([]); setNext(""); setFailed(true); showToast(e.message, "error"); } });
     return () => { alive = false; };
@@ -31653,16 +31720,13 @@ function SignatureRequests({ af, t, sites = [], showToast, focusId = "", onFocus
     catch (e) { showToast(e.message, "error"); }
     setMoreBusy(false);
   };
-  const rank = (r) => (r.state === "disputed" ? 0 : r.state === "waiting" ? 1 : 2);
-  const sentAt = (r) => Date.parse(r.requestedAt || "") || 0;
-  const rows = (list || []).filter(r => state !== "open" || signatureOpen(r))
-    .map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || sentAt(a.r) - sentAt(b.r) || a.i - b.i).map(x => x.r);
+  const rows = (list || []).filter(r => state !== "open" || signatureOpen(r));
   // The chip and the actions read the request as a record's signature.
   const sigOf = (r) => ({ state: r.state, requestId: r.id, requestedAt: r.requestedAt, signedAt: r.signedAt, signedWhere: r.signedWhere, disputeNote: r.disputeNote });
   const nameOf = (r) => (r.person && r.person.name) || "";
   const itemLine = (r) => { const it = r.item || {}; return [it.label, it.size].filter(Boolean).join(", ") + (Number(it.quantity) > 1 ? " x " + it.quantity : ""); };
   const cols = [
-    { header: tr("Person"), tdStyle: { minWidth: 140 }, render: r => <div style={{ color: t.text, fontWeight: 600 }}>{nameOf(r)}</div> },
+    { header: tr("Person"), tdStyle: { minWidth: 140 }, render: r => <div data-signature-row={r.id} style={{ color: t.text, fontWeight: 600 }}>{nameOf(r)}</div> },
     { header: tr("Kind"), tdStyle: { minWidth: 150 }, render: r => <div><div style={{ color: t.text }}>{signKindWord(r.kind)}</div><div style={{ fontSize: 11, color: t.textMut, overflowWrap: "anywhere" }}>{itemLine(r) || r.title || ""}</div></div> },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => (r.item && r.item.site && r.item.site.name) || "" },
     { header: tr("Requested"), render: r => <div><div style={{ color: t.textSec, whiteSpace: "nowrap" }}>{r.requestedAt ? keptDay(r.requestedAt) : ""}</div>

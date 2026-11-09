@@ -298,23 +298,26 @@ Last checked: 2026-09-16
 ## Change or cancel a scheduled shift (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Schedule**, and in **Week** view click the shift.
-2. Change the times, site, status or notes and click **Save** (**Guardar**). Only what you changed is saved, so a change someone else made since the week was read stays. To give it to someone else, pick them under **Staff**; you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**).
+2. Change the times, site, status or notes and click **Save** (**Guardar**). Only what you changed is saved, so a change someone else made since the week was read stays. When someone else changed the same thing since, **This changed since you opened it** (**Esto cambió desde que lo abrió**) asks first; see Save over a change someone else made. To give it to someone else, pick them under **Staff**; you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**).
 3. To take it off the schedule, click **Cancel shift** (**Cancelar turno**) and confirm. The shift is kept as cancelled; nothing is deleted.
 4. To post it for someone else to take, click **Pickup**, give a reason, and click **Confirm Convert**.
 5. A shift marked **Repeats** comes from a weekly pattern. Changing it changes that date only, and its button reads **Cancel this date** (**Cancelar esta fecha**), which cancels that one date.
 If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Picture: schedule-edit-shift
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Approve or deny a request to drop a shift (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Shift Pickup**.
 2. Click the **Requests** tab.
 3. Click **Approve** to open the shift for others to claim, or **Deny** to keep the original assignment.
-4. The person who asked gets a notice either way.
-Words people use for this: someone called out, cover a shift, drop request, deny a call out, who is covering.
+4. To give the shift straight to someone else, click **View shift** (**Ver el turno**), the eye on its row, pick them under **Reassign To** (**Reasignar a**) and click **Assign** (**Asignar**). The drop is approved and the shift given in one step, and the screen says **Drop approved. Shift assigned.** (**Baja aprobada. Turno asignado.**). When it cannot be given, nothing changes and the request is still waiting.
+5. The person who asked gets a notice either way, and the person you gave it to is told it is theirs.
+If it does not work: the person who asked to drop the shift cannot be picked to take it, and the reason shows in red under **Reassign To** (**Reasignar a**); click **Deny** to keep them on it.
+Words people use for this: someone called out, cover a shift, drop request, deny a call out, who is covering, give the shift to someone else, reassign a dropped shift.
 Picture: pickup-requests
-Last checked: 2026-09-17
+Picture: pickup-drop-assign
+Last checked: 2026-11-09
 
 ## Post an open shift for staff to claim (admin dashboard)
 Who can do this: admins and supervisors
@@ -337,7 +340,7 @@ Last checked: 2026-10-01
 ## Approve or deny a supply request (admin dashboard)
 Who can do this: the people who approve supply requests decide them; every other admin and supervisor reads them and downloads the list for ordering
 1. Click **Inventory** (**Inventario**) in the side panel.
-2. Click the **Requests** (**Solicitudes**) tab. Each request names its first item and how many items it holds, and once it is signed, its purchase order number and when it was ordered. The list shows 50 requests at a time, newest first; **Show more** (**Mostrar más**) shows the next ones.
+2. Click the **Requests** (**Solicitudes**) tab. The tab says how many requests are pending in all, the ones not shown yet included. Each request names its first item and how many items it holds, and once it is signed, its purchase order number and when it was ordered. The list shows 50 requests at a time, newest first; **Show more** (**Mostrar más**) shows the next ones.
 3. Click **Open** (**Abrir**) on the request. The window lists every item with its quantity and any note from the person who asked.
 4. To approve an item, lower **Quantity to approve** (**Cantidad a aprobar**) if you are sending fewer, down to 1, and click **Approve** (**Aprobar**). The item then reads **Approved {0} of {1}** (**Aprobado: {0} de {1}**).
 5. To deny an item, type a **Note (optional)** (**Nota (opcional)**) if the person should know why, and click **Deny** (**Denegar**).
@@ -350,7 +353,7 @@ If it does not work: a request reads **Only the people who approve supply reques
 Words people use for this: supply order, someone needs supplies, order request, approve supplies, many items, several items, quantity, approve part of a request, approve fewer, order list, purchase list, csv for ordering, who approves supplies, change a decision, change after signing.
 Picture: supplies-request-approve
 Picture: supplies-request-list
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Add a supply to the inventory (admin dashboard)
 Who can do this: admins
@@ -2235,14 +2238,14 @@ Last checked: 2026-10-20
 Who can do this: admins see every request; supervisors see their sites
 1. Click **HR Records** (**Expedientes de personal**), then the **Waiting for signatures** (**A la espera de firmas**) tab. A supervisor who cannot open HR Records clicks **Waiting for signatures** (**A la espera de firmas**) in the side panel.
 2. Every request still open is listed: the **Person** (**Persona**), the **Kind** (**Tipo**) with what was issued, the **Site** (**Sitio**), when it was **Requested** (**Solicitado**) with its age in days and how many reminders went, and its **State** (**Estado**). The ones that read **Not right** (**No es correcto**) come first, each with the person's note, then the oldest.
-3. Narrow the list by **Kind** (**Tipo**), **Site** (**Sitio**) and **State** (**Estado**). **Open** (**Abiertas**) is the waiting and not right ones together; pick a state to see the signed, declined or cancelled ones too. The list reads 50 requests at a time, the newest first, and draws the ones read with Not right first and then the oldest; **Show more** (**Mostrar más**) reads older ones, with the same kind, site and state.
+3. Narrow the list by **Kind** (**Tipo**), **Site** (**Sitio**) and **State** (**Estado**). **Open** (**Abiertas**) is the waiting and not right ones together; pick a state to see the signed, declined or cancelled ones too. The list shows 50 requests at a time in the same order, the open Not right ones first and then the oldest, so the first 50 are the ones that need you first; **Show more** (**Mostrar más**) shows the next ones, with the same kind, site and state.
 4. On a row, click **Remind** (**Recordar**), **Cancel** (**Cancelar**) or **Sign here now** (**Firmar aquí ahora**), as in the entry on sending something to a person's phone to sign. Click the row itself to open the request: what it is, who it went to and when, its state with the person's note, and the same buttons.
 5. A notice in the bell that a signature was sent back as not right, declined, or is overdue opens that request here when you click it, and so does its link.
 If it does not work: the tab shows once the system answers the signature requests. A request opened from a notice that is not yours to see says so.
 Words people use for this: waiting for signatures, who has not signed, unsigned, pending signatures, reminders, firmas pendientes.
 Picture: signatures-waiting
 Picture: signatures-request-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Read the owner's dashboard (admin dashboard)
 Who can do this: admins, and anyone else the system gives the owner's dashboard to. Supervisors do not see it.
@@ -2645,7 +2648,7 @@ Last checked: 2026-10-18
 
 ## See what was done at a site on any day (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included, so its share can differ from the rings on the site's own page. Click a site's card, or pick the site in **Site** (**Sitio**).
+1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. A card counts the steps the way the rings on the site's own page count them: the daily, per visit and every other day steps due. Click a site's card, or pick the site in **Site** (**Sitio**).
 2. Pick the days: **Today** (**Hoy**), **Yesterday** (**Ayer**), **Last 7 days** (**Últimos 7 días**), **This month** (**Este mes**), or **Pick dates** (**Elegir fechas**) for any one day or any dates up to 31 days, then **Show** (**Mostrar**). At a site with two shifts or more, **Shift** (**Turno**) shows one shift, or **All shifts** (**Todos los turnos**).
 3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**).
 4. **When the checks happened** (**Cuándo se hicieron las marcas**) draws a bar for every 15 minutes of the shift, and the line under it says how many checks were made in the shift's last 30 minutes.
@@ -2659,7 +2662,7 @@ If it does not work: more than 31 days is refused, and the reason shows on the p
 Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors
@@ -2773,13 +2776,13 @@ Last checked: 2026-10-20
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances. Adjust is for admins and anyone given Keep leave policies and balances.
 1. Click **Leave balances** (**Saldos de permisos**) and click the person. From their HR file, click **Open the ledger** (**Abrir el registro**) under **Leave balances** (**Saldos de permisos**).
 2. The window shows the policy they follow and since when, what the policy gives in plain words, each balance with its parts, and the **Ledger, newest first** (**Registro, lo más reciente primero**): every grant, hours worked, time off taken or given back, expiry and adjustment, with who made it.
-3. To correct a balance, click **Adjust** (**Ajustar**). Choose the **Kind** (**Tipo**), type the **Hours, plus or minus** (**Horas, más o menos**), for example 8 or -4, and the **Reason *** (**Motivo ***). Click **Save** (**Guardar**) and confirm. The adjustment is dated today and names you.
+3. To correct a balance, click **Adjust** (**Ajustar**). Choose the **Kind** (**Tipo**), type the **Hours, plus or minus** (**Horas, más o menos**), for example 8 or -4, and the **Reason *** (**Motivo ***). **Date** (**Fecha**) starts on today; pick an earlier day when the change belongs to it, such as hours used before the app kept leave. Click **Save** (**Guardar**) and confirm. The adjustment is dated the day picked, follows the policy the person had that day, and names you.
 4. The balance and the ledger show the change at once.
-If it does not work: a reason is always needed, and the window says so in red without one. A balance with no hire date on file names the profile to fix it.
-Words people use for this: leave ledger, sick hours history, correct a balance, adjust pto, add sick hours, take away vacation days, leave adjustment.
+If it does not work: a reason is always needed, and the window says so in red without one. A day after today is refused with **Choose a day no later than today.** (**Elija un día que no sea posterior a hoy.**). A balance with no hire date on file names the profile to fix it.
+Words people use for this: leave ledger, sick hours history, correct a balance, adjust pto, add sick hours, take away vacation days, leave adjustment, backdate an adjustment, date of an adjustment.
 Picture: leave-person
 Picture: leave-adjust
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Make or change a leave policy (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances. Anyone who can see leave balances can read the policies.
@@ -2809,11 +2812,11 @@ Who can do this: admins, and anyone given Keep leave policies and balances. Anyo
 1. Click **Leave balances** (**Saldos de permisos**), then **Hours files** (**Archivos de horas**). The list shows every file posted, its periods, its lines and how many posted leave.
 2. Click **Upload an hours file** (**Cargar un archivo de horas**) and **Choose the CSV** (**Elegir el CSV**): the payroll system's hours export, with a column person (the badge number or employee ID), period_start and period_end, and hours.
 3. The window lists every line it read. A line it cannot read is marked in red; fix the file and choose it again.
-4. Click **Post the hours** (**Registrar las horas**). Each person is matched and their leave for hours worked posts. When a line names nobody, nothing posts and the line says why.
-5. The window then shows what posted for each line. The same file again posts nothing new.
-Words people use for this: hours file, payroll hours, hours worked, accrual, sick hours from hours worked, upload hours.
+4. Click **Check the hours** (**Revisar las horas**). Each person is matched and the window shows, line by line, **What would post** (**Qué se registraría**), with a line above the table saying how many lines would post leave. Nothing has posted yet. When a line names nobody, the line says why; fix the file and choose it again.
+5. When the lines read right, click **Post the hours** (**Registrar las horas**). Their leave for hours worked posts, and the window shows what posted for each line. The same file again posts nothing new, and checking it says so first.
+Words people use for this: hours file, payroll hours, hours worked, accrual, sick hours from hours worked, upload hours, check an hours file, preview hours.
 Picture: leave-hours-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Find the people with no hire date (admin dashboard)
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances
@@ -2847,11 +2850,22 @@ Last checked: 2026-10-20
 
 ## Save over a change someone else made (admin dashboard)
 Who can do this: anyone who edits a record in the dashboard
-1. Edit a record as usual: a person's details, a site, Company settings, a case, an open shift, a shift pattern, a holiday, a pick list, a saved report, a site's survey schedule or the injury summary, and click Save.
+1. Edit a record as usual: a person's details, a site, Company settings, a case, a shift on the schedule, an open shift, a shift pattern, a holiday, a pick list, a saved report, a site's survey schedule or the injury summary, and click Save.
 2. When someone else changed the same record after you opened it, the dashboard checks the fields you changed. When none of them changed, as when the person signed in or the schedule filled itself, it saves what you typed without asking.
 3. When one of them changed, the window **This changed since you opened it** (**Esto cambió desde que lo abrió**) lists each field under **Field** (**Campo**), with **What it says now** (**Lo que dice ahora**) beside **What you typed** (**Lo que usted escribió**).
 4. Click **Save what I typed** (**Guardar lo que escribí**) to save over it, or **Keep what it says now** (**Dejar lo que dice ahora**) to save nothing and keep the other person's change.
-If it does not work: keeping what it says now shows the server's words, that nothing was saved; open the record again to see it as it is now. A shift on the schedule saves as before, since the schedule's calendar does not say when a shift last changed.
+If it does not work: keeping what it says now shows the server's words, that nothing was saved; open the record again to see it as it is now. An entry you add to a case's log is not someone else's change: the case's next save goes through.
 Words people use for this: someone else changed it, changed since, conflict, overwrite, two people editing, save over, my change was not saved, guardar.
 Picture: changed-since-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
+
+## Read a person's or a site's timeline (admin dashboard)
+Who can do this: admins and supervisors
+1. For a person, click **Staff Management** (**Gestión de personal**), click the person's row, and click the **Timeline** (**Historial**) tab. For a site, click **Sites** (**Sitios**), open the site, and click its **Timeline** (**Historial**) tab.
+2. The timeline lists what happened, newest first: shifts started, problems reported, tasks done, supplies logged and the rest, each with when and by whom. Click an entry to open its record.
+3. Pick a category or dates above the list to narrow it. The count beside the title says how many entries are shown, with **so far** (**hasta ahora**) while there are more.
+4. The timeline shows 50 entries at a time. Click **Show more** (**Mostrar más**) under the list for the next ones, with the same category and dates, until it no longer shows.
+5. **Export CSV** (**Exportar CSV**) and **Print** (**Imprimir**) take the entries shown. Click **Show more** (**Mostrar más**) first to take older ones with them.
+Words people use for this: timeline, activity, history, what did they do, site history, older entries, load more, historial.
+Picture: staff-timeline
+Last checked: 2026-11-09

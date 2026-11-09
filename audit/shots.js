@@ -622,7 +622,20 @@ const SHOTS = [
     } },
   { name: "pickup-requests", entry: "Approve or deny a request to drop a shift",
     open: "marketplace", ready: SHELL,
-    act: async (c) => { await wait(600); await press(c, "Requests"); await until(c, "table tbody tr"); } },
+    // The tab by its own name and count: Maintenance requests in the side panel (part 368) also holds the word.
+    act: async (c) => { await wait(600); await c.page.getByRole("button", { name: new RegExp("^" + c.say("Requests") + "( \\d+)?$") }).first().click(); await until(c, '[data-pickup-view="pk-3"]'); } },
+  // Part 372: the drop request's window with someone picked under Reassign To, which Assign approves and
+  // gives in one step (the API's part 371, DASH-35).
+  { name: "pickup-drop-assign", entry: "Approve or deny a request to drop a shift",
+    open: "marketplace", ready: SHELL,
+    act: async (c) => {
+      await wait(600); await c.page.getByRole("button", { name: new RegExp("^" + c.say("Requests") + "( \\d+)?$") }).first().click(); await until(c, '[data-pickup-view="pk-3"]');
+      await click(c, '[data-pickup-view="pk-3"]'); await until(c, "[data-pickup-assign]");
+      await c.page.locator("[data-person-pick-field]").first().click(); await until(c, "[data-person-pick-box]");
+      await c.page.locator("[data-person-pick-box] [data-person-pick-search]").fill("Ngozi");
+      await c.page.locator("[data-person-pick-box] [data-person-pick-option]", { hasText: "Ngozi Okonkwo" }).first().click();
+      await blur(c);
+    } },
   { name: "pickup-post-open-shift", entry: "Post an open shift for staff to claim",
     open: "marketplace", ready: SHELL,
     act: async (c) => {
@@ -1775,7 +1788,7 @@ const SHOTS = [
     open: "leave/balances/u-staff-7", ready: '[data-leave-person="u-staff-7"] [data-leave-ledger] tbody tr' },
   { name: "leave-adjust", entry: "Read a person's leave ledger and adjust a balance",
     open: "leave/balances/u-staff-6", ready: "[data-leave-adjust-open]",
-    act: async (c) => { await click(c, "[data-leave-adjust-open]"); await until(c, "[data-leave-adjust-form]"); await c.page.locator('[data-leave-adjust="hours"]').fill("-2"); await c.page.locator('[data-leave-adjust="reason"]').fill(c.lang === "es" ? "Dos horas usadas antes de que la app llevara los permisos" : "Two hours used before the app kept leave"); } },
+    act: async (c) => { await click(c, "[data-leave-adjust-open]"); await until(c, "[data-leave-adjust-form]"); await c.page.locator('[data-leave-adjust="hours"]').fill("-2"); await c.page.locator('[data-leave-adjust="reason"]').fill(c.lang === "es" ? "Dos horas usadas antes de que la app llevara los permisos" : "Two hours used before the app kept leave"); await c.page.locator('[data-leave-adjust="effectiveOn"]').fill(seed.shift(-12)); await blur(c); } },
   { name: "leave-policies", entry: "Make or change a leave policy",
     open: "leave/policies", ready: "[data-leave-policy-card]" },
   { name: "leave-policy-editor", entry: "Make or change a leave policy",
@@ -1790,6 +1803,8 @@ const SHOTS = [
       await click(c, "[data-leave-file-upload]"); await until(c, "[data-leave-hours-window]");
       await c.page.locator('[data-leave-hours-window] input[type="file"]').setInputFiles({ name: "hours-march.csv", mimeType: "text/csv", buffer: Buffer.from("person,period_start,period_end,hours\n4118,2026-03-01,2026-03-14,90\n4124,2026-03-01,2026-03-14,72\n", "utf8") });
       await until(c, "[data-leave-file-read]");
+      // Part 372: Check the hours, the dry run, draws what each line would post before anything posts.
+      await click(c, "[data-leave-file-check]"); await until(c, "[data-leave-file-would-post]");
     } },
   { name: "leave-missing", entry: "Find the people with no hire date",
     open: "leave/missing", ready: "[data-leave-missing]" },
@@ -1812,6 +1827,10 @@ const SHOTS = [
   { name: "settings-maintenance-days", entry: "Set the days before a maintenance request reminds its sender",
     open: "settings", ready: "[data-settings-maintenance]",
     act: async (c) => { await show(c, "[data-settings-maintenance]"); } },
+  // Part 372: a person's timeline, read 50 entries at a time with Show more (the API's part 371).
+  { name: "staff-timeline", entry: "Read a person's or a site's timeline", arm: (stubs, on) => stubs.setScene372({ timelineMany: on }),
+    open: "staff/u-staff-5", ready: "[data-profile-edit]",
+    act: async (c) => { await press(c, "Timeline"); await until(c, '[data-show-more="person-timeline"]'); } },
 ];
 
 

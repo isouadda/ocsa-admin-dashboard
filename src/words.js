@@ -82,7 +82,6 @@ export const WORDS = {
   "Active only": { es: "Solo activas" },
   "Activity Description": { es: "Descripci\u00f3n de la actividad" },
   "Activity Timeline": { es: "Historial de actividad" },
-  "Activity Timeline ({0} total)": { es: "Historial de actividad ({0} en total)" },
   "Activity log": { es: "Registro de actividad" },
   "Add Alias": { es: "Agregar un alias" },
   "Add failed": { es: "No se pudo agregar" },
@@ -861,7 +860,6 @@ export const WORDS = {
   "Live Answers (fetched from Jotform)": { es: "Respuestas en vivo (obtenidas de Jotform)" },
   "Live Operations": { es: "Operaciones en vivo" },
   "Live Ops": { es: "Operaciones en vivo" },
-  "Load More": { es: "Ver m\u00e1s" },
   "Load more": { es: "Ver m\u00e1s" },
   "Loading HR files...": { es: "Cargando los archivos de personal..." },
   "Loading aliases...": { es: "Cargando los alias..." },
@@ -2402,10 +2400,6 @@ export const WORDS = {
     en: { one: "{0} item scored, {1}/{2} pts", other: "{0} items scored, {1}/{2} pts" },
     es: { one: "{0} elemento calificado, {1}/{2} pts", other: "{0} elementos calificados, {1}/{2} pts" },
   },
-  "{1} of {0} entry|count": {
-    en: { one: "{1} of {0} entry", other: "{1} of {0} entries" },
-    es: { one: "{1} de {0} registro", other: "{1} de {0} registros" },
-  },
   "{0} done|count": {
     en: { one: "{0} done", other: "{0} done" },
     es: { one: "{0} completada", other: "{0} completadas" },
@@ -2417,14 +2411,6 @@ export const WORDS = {
   "SLA breaches in range|count": {
     en: { one: "SLA breach in range", other: "SLA breaches in range" },
     es: { one: "incumplimiento del SLA en el rango", other: "incumplimientos del SLA en el rango" },
-  },
-  "Activity Timeline ({1} of {0} entry{2})|count": {
-    en: { one: "Activity Timeline ({1} of {0} entry{2})", other: "Activity Timeline ({1} of {0} entries{2})" },
-    es: { one: "Historial de actividad ({1} de {0} registro{2})", other: "Historial de actividad ({1} de {0} registros{2})" },
-  },
-  "Load More ({0} remaining)|count": {
-    en: { one: "Load More ({0} remaining)", other: "Load More ({0} remaining)" },
-    es: { one: "Cargar m\u00e1s ({0} restante)", other: "Cargar m\u00e1s ({0} restantes)" },
   },
   "{0}h left|count": {
     en: { one: "{0}h left", other: "{0}h left" },
@@ -5302,7 +5288,6 @@ export const WORDS = {
   "Hours, plus or minus": { es: "Horas, m\u00e1s o menos" },
   "For example 8 or -4": { es: "Por ejemplo 8 o -4" },
   "Reason *": { es: "Motivo *" },
-  "It is dated today and names you as the one who made it.": { es: "Queda con la fecha de hoy y lo registra a usted como quien lo hizo." },
   "Choose the day it starts.": { es: "Elija el d\u00eda en que empieza." },
   "The company default": { es: "La pol\u00edtica predeterminada de la empresa" },
   "Their site's policy": { es: "La pol\u00edtica de su sitio" },
@@ -5459,12 +5444,7 @@ export const WORDS = {
     en: { one: "{0} line cannot be read. Fix the file and choose it again.", other: "{0} lines cannot be read. Fix the file and choose it again." },
     es: { one: "{0} l\u00ednea no se puede leer. Corrija el archivo y el\u00edjalo de nuevo.", other: "{0} l\u00edneas no se pueden leer. Corrija el archivo y el\u00edjalo de nuevo." },
   },
-  "{0} line read. Post the hours to match each person and post their leave.|count": {
-    en: { one: "{0} line read. Post the hours to match each person and post their leave.", other: "{0} lines read. Post the hours to match each person and post their leave." },
-    es: { one: "{0} l\u00ednea le\u00edda. Registre las horas para encontrar a cada persona y registrar sus permisos.", other: "{0} l\u00edneas le\u00eddas. Registre las horas para encontrar a cada persona y registrar sus permisos." },
-  },
   "Weekly, monthly, quarterly and seasonal tasks.": { es: "Tareas semanales, mensuales, trimestrales y de temporada." },
-  "A card counts every step due at the site, weekly, monthly, quarterly and seasonal work included.": { es: "Una tarjeta cuenta cada paso que tocaba en el sitio, incluido el trabajo semanal, mensual, trimestral y de temporada." },
   "A PDF, a JPEG, PNG or HEIC photo, or a Word file, up to 25 MB.": { es: "Un PDF, una foto JPEG, PNG o HEIC, o un archivo de Word, de hasta 25 MB." },
   "{0} is not a PDF, a JPEG, PNG or HEIC photo, or a Word file.": { es: "{0} no es un PDF, una foto JPEG, PNG o HEIC, ni un archivo de Word." },
   "This is taking longer than usual and may still be going out. Press Send again to check: it will not go out twice.": { es: "Esto est\u00e1 tardando m\u00e1s de lo normal y puede que todav\u00eda se est\u00e9 enviando. Presione Enviar otra vez para comprobarlo: no saldr\u00e1 dos veces." },
@@ -5476,6 +5456,18 @@ export const WORDS = {
   "Keep what it says now": { es: "Dejar lo que dice ahora" },
   "Save what I typed": { es: "Guardar lo que escrib\u00ed" },
   "so far": { es: "hasta ahora" },
+  "Choose a day no later than today.": { es: "Elija un d\u00eda que no sea posterior a hoy." },
+  "It is dated the day you choose, today or earlier, and names you as the one who made it.": { es: "Queda con la fecha del d\u00eda que usted elija, hoy o antes, y lo registra a usted como quien lo hizo." },
+  "{0} line read. Check the hours to see what each line would post. Nothing posts yet.|count": {
+    en: { one: "{0} line read. Check the hours to see what each line would post. Nothing posts yet.", other: "{0} lines read. Check the hours to see what each line would post. Nothing posts yet." },
+    es: { one: "{0} l\u00ednea le\u00edda. Revise las horas para ver lo que registrar\u00eda cada l\u00ednea. Todav\u00eda no se registra nada.", other: "{0} l\u00edneas le\u00eddas. Revise las horas para ver lo que registrar\u00eda cada l\u00ednea. Todav\u00eda no se registra nada." },
+  },
+  "Check the hours": { es: "Revisar las horas" },
+  "What would post": { es: "Qu\u00e9 se registrar\u00eda" },
+  "Will post|hours file": { es: "Se registrar\u00e1n" },
+  "Nothing has posted yet. {0} lines would post leave, {1} would post none.": { es: "Todav\u00eda no se registr\u00f3 nada. {0} l\u00edneas registrar\u00edan permisos y {1} no registrar\u00edan ninguno." },
+  "This file was posted before, on {0}. Posting it again would post nothing.": { es: "Este archivo ya se registr\u00f3 el {0}. Registrarlo de nuevo no registrar\u00eda nada." },
+  "Drop approved. Shift assigned.": { es: "Baja aprobada. Turno asignado." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

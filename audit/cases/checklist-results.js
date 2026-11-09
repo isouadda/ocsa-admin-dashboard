@@ -274,9 +274,9 @@ async function rangeCases(ctx) {
     const cards = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-site-card]")).map((el) => ({ id: el.getAttribute("data-cr-site-card"),
       due: el.getAttribute("data-cr-due"), done: el.getAttribute("data-cr-done"), text: el.innerText, charts: el.querySelectorAll(".apexcharts-canvas").length })));
     const card = (id) => cards.find((c) => c.id === id) || null;
-    // Since part 368 a card is the summary's count (GET /api/reports/checklist-summary, countDay): every
-    // item the record lists as due, weekly to seasonal work included, done of due.
-    const total = (siteId) => M.summaryDay(siteId, M.SEEDED);
+    // A card is the summary's count (GET /api/reports/checklist-summary), and since part 372 each day's
+    // counted, the ring's rule (the API's part 371): per visit, daily and every other day work due, done of due.
+    const total = (siteId) => M.summaryDay(siteId, M.SEEDED).counted;
     const t1 = total(S1), t2 = total(S2);
     const ok = cards.length === 3 && card(S1) && card(S1).due === String(t1.due) && card(S1).done === String(t1.done) && card(S1).charts === 2
       && card(S2) && card(S2).due === String(t2.due) && card(S2).done === String(t2.done) && card(S3) && card(S3).due === null && card(S3).text.indexOf("Not tracked") >= 0;
