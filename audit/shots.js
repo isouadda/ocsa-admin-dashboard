@@ -1837,6 +1837,26 @@ const SHOTS = [
   { name: "reports-deactivate", entry: "Remove a report you no longer need",
     open: "reports", ready: '[data-report-deactivate="rd-4"]',
     act: async (c) => { await toTop(c, '[data-report-deactivate="rd-4"]', 360); } },
+  // Part 372, section 4: a person with a draft not issued yet, offered from Issue a warning, and a draft's
+  // window with what Save as draft still needs and what Issue waits for (audit/part372-stub.js, discipline).
+  { name: "warning-continue-draft", entry: "Continue a warning saved as a draft", arm: (stubs, on) => stubs.setScene372({ discipline: on ? { byId: true } : false }),
+    open: "discipline", ready: "[data-discipline-page] table tbody tr",
+    act: async (c) => {
+      await press(c, "Issue a warning"); await until(c, "[data-discipline-issue-for]");
+      await c.page.locator("[data-discipline-issue-for] [data-person-pick-field]").first().click(); await until(c, "[data-person-pick-box]");
+      await c.page.locator("[data-person-pick-box] [data-person-pick-search]").fill("Ngozi");
+      await c.page.locator("[data-person-pick-box] [data-person-pick-option]", { hasText: "Ngozi Okonkwo" }).first().click();
+      await click(c, "[data-discipline-issue-next]"); await until(c, '[data-discipline-issue-for] [data-warning-continue="dd-1"]');
+      await blur(c);
+    } },
+  { name: "warning-still-needed", entry: "Continue a warning saved as a draft", arm: (stubs, on) => stubs.setScene372({ discipline: on ? { byId: true } : false }),
+    open: "discipline", ready: '[data-warning-list-status="draft"]',
+    act: async (c) => {
+      await click(c, '[data-warning-list-status="draft"]'); await until(c, "[data-warning-issue-why]");
+      await c.page.locator('[data-warning-window] textarea[aria-label="' + c.say("What happened") + '"]').first().fill("");
+      await until(c, "[data-warning-still-needed]");
+      await blur(c); await toTop(c, "[data-warning-still-needed]", 420);
+    } },
 ];
 
 

@@ -32,6 +32,14 @@
 //                                       saved report made by the admin, unless the scene reportBy names
 //                                       someone else. The stub under this one already refuses a removal by
 //                                       anyone but an admin or the report's maker; its rows lacked the maker.
+//   Discipline (section 4), once a case arms the scene discipline: the routes as routes/discipline.js answers
+//                                       them at c5b88ff for Ngozi Okonkwo (u-staff-6), who has a written
+//                                       warning drafted and a verbal one issued. GET /api/discipline pages
+//                                       the list in the summary's shape (no description); GET
+//                                       /api/discipline/person/:userId answers her history whole; GET
+//                                       /api/discipline/:id answers 404, since main has no such route (the
+//                                       scene's byId answers it as a route would); personFails refuses the
+//                                       person read; POST, PUT and /:id/issue keep what they are sent.
 //
 // B1 (the summary's counted) is audit/checklist-stub.js, B5 and B6 (counts.pending, order=attention) are
 // audit/part368-round6.js, and B8 and B9 (effectiveOn, dryRun) are audit/part368-leave.js, each beside the
@@ -49,7 +57,7 @@ module.exports = (ctx) => {
 
   let model = null;
   const m = () => {
-    if (!model) model = { shiftStamp: {}, caseStamp: {}, caseRead: {}, sent: [], timelineMany: false, reportBy: null };
+    if (!model) model = { shiftStamp: {}, caseStamp: {}, caseRead: {}, sent: [], timelineMany: false, reportBy: null, discipline: null };
     return model;
   };
 
@@ -207,15 +215,68 @@ module.exports = (ctx) => {
     return base();
   }
 
+  // ---- Section 4: the discipline routes, as API main answers them ------------------------------------------
+  const WARNED = "u-staff-6";
+  const NAME = "Ngozi Okonkwo";
+  const disc = () => {
+    const x = m();
+    if (!x.discipline.rows) x.discipline.rows = [
+      { id: "dd-1", type: "written_warning", category: "attendance", incidentDate: seed.shift(-3), actionDate: null, status: "draft", issuedAt: null, issuedBy: null,
+        description: "Missed two shifts in one week without calling in.", policyRef: "Handbook 4.2", expectations: "Call the supervisor before a shift you cannot work.", expectedBy: null,
+        followsProtectedActivity: false, controllerDiscussedOn: null, language: "en", updatedAt: seed.shift(-2) + "T15:10:00Z" },
+      { id: "dd-2", type: "verbal_warning", category: "attendance", incidentDate: seed.shift(-40), actionDate: seed.shift(-40), status: "open", issuedAt: seed.shift(-40) + "T14:00:00Z",
+        issuedBy: { userId: seed.PEOPLE.admin.id, name: seed.PEOPLE.admin.firstName + " " + seed.PEOPLE.admin.lastName }, description: "Late twice.", language: "en" },
+    ];
+    return x.discipline;
+  };
+  const SUMMARY = ["id", "type", "category", "incidentDate", "actionDate", "status", "issuedAt", "issuedBy"];
+  const summaryOf = (r) => Object.assign({ person: { userId: WARNED, name: NAME } }, ...SUMMARY.map((k) => ({ [k]: r[k] === undefined ? null : r[k] })), { delivered: null, signed: false, declinedToSign: false, caseId: null, signature: null });
+  const fullOf = (r) => Object.assign(summaryOf(r), clone(r));
+  function disciplineRoute(method, path, query, body, lang, base) {
+    if (!m().discipline || !/^\/api\/discipline(\/|$)/.test(path) || path === "/api/discipline/steps") return null;
+    const D = disc();
+    if (path === "/api/discipline" && method === "GET") {
+      const rows = D.rows.map(summaryOf);
+      const byType = {}; rows.forEach((r) => { if (r.status !== "draft") byType[r.type] = (byType[r.type] || 0) + 1; });
+      return ok({ warnings: rows, counts: { byType, total: rows.filter((r) => r.status !== "draft").length }, nextCursor: null, limit: 50 });
+    }
+    if (path === "/api/discipline/person/" + WARNED && method === "GET") {
+      m().sent.push({ disciplinePerson: WARNED });
+      if (D.personFails) return bad(500, "common.serverError", T(lang, "Something went wrong.", "Algo sali\u00f3 mal."));
+      return ok({ person: { userId: WARNED, name: NAME, role: "custodial_laborer", status: "active", sites: [], language: "en", hasEmail: true },
+        history: D.rows.map(fullOf), last12Months: { since: seed.shift(-365), byType: { verbal_warning: 1 } }, notOnRecord: [], highestStep: "verbal_warning", suggestedNext: "written_warning" });
+    }
+    if (path === "/api/discipline" && method === "POST") {
+      D.seq = (D.seq || 0) + 1;
+      const r = Object.assign({ id: "dd-new-" + D.seq, status: "draft" }, clone(body || {}));
+      D.rows.unshift(r); m().sent.push({ disciplinePost: clone(body || {}) });
+      return { status: 201, json: { warning: fullOf(r) } };
+    }
+    const one = /^\/api\/discipline\/([^/]+)(\/issue)?$/.exec(path);
+    if (one) {
+      const r = D.rows.find((x) => x.id === one[1]);
+      if (method === "GET" && !one[2]) {
+        m().sent.push({ disciplineById: one[1] });
+        if (!D.byId || !r) return bad(404, "common.notFound", T(lang, "Not found", "No encontrado"));
+        return ok({ warning: fullOf(r) });
+      }
+      if (method === "PUT" && !one[2] && r) { Object.assign(r, clone(body || {})); m().sent.push({ disciplinePut: one[1], body: clone(body || {}) }); return ok({ warning: fullOf(r) }); }
+      if (method === "POST" && one[2] && r) { r.status = "open"; r.issuedAt = seed.NOW_ISO; m().sent.push({ disciplineIssue: one[1] }); return ok({ warning: fullOf(r) }); }
+    }
+    return null;
+  }
+
   return {
     route(method, path, query, body, lang, base) {
       return scheduleRoute(method, path, query, body, lang, base) || peopleRoute(method, path, query, body, lang, base)
         || caseRoute(method, path, query, body, lang, base) || timelineRoute(method, path, query, body, lang, base)
-        || pickupRoute(method, path, query, body, lang, base) || reportRoute(method, path, query, body, lang, base) || base();
+        || pickupRoute(method, path, query, body, lang, base) || reportRoute(method, path, query, body, lang, base)
+        || disciplineRoute(method, path, query, body, lang, base) || base();
     },
     setScene(o) {
       if (o && o.timelineMany !== undefined) m().timelineMany = !!o.timelineMany;
       if (o && o.reportBy !== undefined) m().reportBy = o.reportBy || null;
+      if (o && o.discipline !== undefined) m().discipline = o.discipline ? Object.assign(m().discipline || {}, o.discipline) : null;
     },
     sent: () => m().sent.slice(),
     model: () => m(),

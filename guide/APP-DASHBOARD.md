@@ -1407,10 +1407,11 @@ Who can do this: admins and supervisors
 7. Click **Save as draft** (**Guardar como borrador**).
 8. Under **Issue** (**Emitir**), click **Issue** (**Emitir**). **A verbal warning is a note of the conversation, placed on the record. It takes no signatures.** (**Una advertencia verbal es una nota de la conversación que queda en el registro. No lleva firmas.**)
 9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
+If it does not work: a grey **Save as draft** (**Guardar como borrador**) says under it what is still needed. For a person with a draft not issued yet, **Issue a warning** (**Emitir una advertencia**) offers to continue it; see Continue a warning saved as a draft.
 Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
 Picture: discipline-issue-for
 Picture: warning-verbal-window
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Issue a written or final written warning (admin dashboard)
 Who can do this: admins and supervisors for a written warning; admins for a final written warning
@@ -1424,10 +1425,10 @@ Who can do this: admins and supervisors for a written warning; admins for a fina
 8. Under **Issue** (**Emitir**), draw your signature in **The issuer signs** (**Firma quien la emite**) and click **Sign** (**Firmar**).
 9. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen: the person is told on their phone and signs there. To take the signature on this screen, choose **Sign here now** (**Firmar aquí ahora**) and hand the screen to the person. **Signing confirms they received this warning. It does not mean they agree.** (**Al firmar confirma que recibió esta advertencia. No significa que esté de acuerdo.**) They draw their signature and click **Sign** (**Firmar**).
 10. Add **Their account** (**Su versión**) if they want their words on the warning, and click **Issue and send to sign** (**Emitir y enviar a firmar**), or **Issue** (**Emitir**) when they signed here. A warning sent to their phone reads **Waiting for signature** (**A la espera de firma**) until they sign; see the entry on sending something to a person's phone to sign.
-If it does not work: **Who signs** (**Quién firma**) shows once the system answers the signature requests. Until then the person signs in the box, as before.
+If it does not work: **Who signs** (**Quién firma**) shows once the system answers the signature requests. Until then the person signs in the box, as before. A grey button says why under it: **Save as draft** (**Guardar como borrador**) what is still needed, and **Issue** (**Emitir**) **Sign as the issuer first.** (**Primero firme como quien emite la advertencia.**) Closing with typing not saved asks **Close without saving?** (**¿Cerrar sin guardar?**) first.
 Words people use for this: written warning, final warning, final written warning, write up, write-up, suspension, discipline, advertencia por escrito.
 Picture: warning-written-issue
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Issue a termination (admin dashboard)
 Who can do this: admins
@@ -1480,12 +1481,12 @@ Who can do this: admins see every warning; supervisors see the warnings they iss
 1. Click **Discipline** (**Disciplina**) in the menu on the left.
 2. The counts at the top add up each step for the warnings the filters show.
 3. Narrow the table with **Every step** (**Todos los pasos**), **Every category** (**Todas las categorías**), **All sites** (**Todos los sitios**), **Everyone** (**Todos**), **All statuses** (**Todos los estados**), **From** (**Desde**) and **To** (**Hasta**). Admins also have **Issued by anyone** (**Emitida por cualquiera**). In **Everyone** (**Todos**) and **Issued by anyone** (**Emitida por cualquiera**), type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) to find a person.
-4. Click a row to open the warning. **Issue a warning** (**Emitir una advertencia**) at the top starts a new one: pick the person and click **Next** (**Siguiente**); see the entries on issuing a warning.
+4. Click a row to open the warning. A warning saved and not issued yet reads **Draft, not issued** (**Borrador, no emitida**). **Issue a warning** (**Emitir una advertencia**) at the top starts a new one: pick the person and click **Next** (**Siguiente**); see the entries on issuing a warning.
 5. **Export** (**Exportar**) saves the rows shown as a spreadsheet file.
 If it does not work: the page shows once the server keeps warnings. The list shows 50 warnings at a time, newest first, with the filters picked; **Show more** (**Mostrar más**) shows the next ones, and the counts by step cover every warning the filters find. **Export** (**Exportar**) saves every warning the filters find, every page of them.
 Words people use for this: discipline, warnings, write-ups, who has been written up, final warning, discipline report, disciplina.
 Picture: discipline-page
-Last checked: 2026-10-20
+Last checked: 2026-11-09
 
 ## Open a case (admin dashboard)
 Who can do this: admins, and supervisors given Cases
@@ -2873,4 +2874,18 @@ Who can do this: admins and supervisors
 5. **Export CSV** (**Exportar CSV**) and **Print** (**Imprimir**) take the entries shown. Click **Show more** (**Mostrar más**) first to take older ones with them.
 Words people use for this: timeline, activity, history, what did they do, site history, older entries, load more, historial.
 Picture: staff-timeline
+Last checked: 2026-11-09
+
+## Continue a warning saved as a draft (admin dashboard)
+Who can do this: admins and supervisors, for the warnings they may issue
+1. A warning saved with **Save as draft** (**Guardar como borrador**) is not issued yet. On **Discipline** (**Disciplina**) it reads **Draft, not issued** (**Borrador, no emitida**).
+2. To carry it on, click **Issue a warning** (**Emitir una advertencia**) on **Discipline** (**Disciplina**), pick the person and click **Next** (**Siguiente**). For someone with a draft, the window says so and offers **Continue the draft from {0}** (**Continuar el borrador del {0}**), with the draft's day, beside **Start a new warning** (**Empezar una advertencia nueva**).
+3. On the person's **Disciplinary** (**Disciplinario**) card in **HR Records** (**Expedientes de personal**), **Continue the draft from {0}** (**Continuar el borrador del {0}**) sits beside **Issue a warning** (**Emitir una advertencia**). Clicking the draft's row on either list opens it too.
+4. The window reads **Loading...** (**Cargando...**) until the draft is read, then shows it as it was saved. When it cannot be read, it says **This draft did not load. Close it and open it again.** (**Este borrador no se cargó. Ciérrelo y ábralo de nuevo.**) and **Save as draft** (**Guardar como borrador**) stays off, so nothing can be saved over the draft.
+5. A grey **Save as draft** (**Guardar como borrador**) lists under it what is still needed after **Still needed: {0}** (**Todavía falta: {0}**). A grey **Issue** (**Emitir**) says **Sign as the issuer first.** (**Primero firme como quien emite la advertencia.**)
+6. Closing the window with typing not saved asks **Close without saving?** (**¿Cerrar sin guardar?**). **Keep editing** (**Seguir editando**) goes back to it; **Close** (**Cerrar**) closes it, and the draft stays as it was last saved.
+If it does not work: a draft that did not load opens again from its row once the connection is back. To keep what you typed, click **Save as draft** (**Guardar como borrador**) before closing.
+Words people use for this: continue a draft, finish a warning, saved warning, draft warning, warning not issued, unsaved warning, close without saving, borrador.
+Picture: warning-continue-draft
+Picture: warning-still-needed
 Last checked: 2026-11-09

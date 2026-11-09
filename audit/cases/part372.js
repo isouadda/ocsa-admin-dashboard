@@ -17,6 +17,11 @@
 //            token, against audit/part372-pictures.js, whose links run out on the stub's own clock
 //   reports  Deactivate on a saved report only for those the API lets take it off the list: an admin on
 //            every custom report, anyone else on the ones they made, never on a template
+//   discipline a draft opened from a list waits for its read, from GET /api/discipline/:id or else the
+//            person's record, and one that does not load says so and keeps Save as draft off; a greyed
+//            Save as draft says what is still needed and a greyed Issue says to sign first; closing with
+//            typing not saved asks first; a person's open draft is offered from Issue a warning; the
+//            list says Draft, not issued
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -474,12 +479,137 @@ async function reportCases(ctx, lang) {
   });
 }
 
+// ---- Section 4: the warning window --------------------------------------------------------------------------
+const armDiscipline = (o) => (stubs) => stubs.setScene372({ discipline: o || {} });
+const formShown = (d) => d.page.locator('[data-warning-window] select[aria-label="' + d.say("Category") + '"]').count().then((n) => n > 0);
+async function openDraftFromList(d) {
+  await d.goto("discipline");
+  await until(d, "[data-discipline-page] table tbody tr", 8000);
+  await d.page.locator("[data-discipline-page] table tbody tr", { has: d.page.locator('[data-warning-list-status="draft"]') }).first().click().catch(() => {});
+  if (!(await has(d, "[data-warning-window]"))) await d.page.locator("[data-discipline-page] table tbody tr").first().click().catch(() => {});
+}
+async function disciplineCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/discipline/" + x;
+  const what = (d) => d.page.locator('[data-warning-window] textarea[aria-label="' + d.say("What happened") + '"]').first().inputValue().catch(() => null);
+
+  // A draft opened from the list shows no form until its read answers, and then the draft whole.
+  await withDriver(ctx, { name: "draft-waits", lang, arm: armDiscipline({}) }, async (d, stubs) => {
+    stubs.setDelay("/api/discipline/person/u-staff-6", 2500);
+    await openDraftFromList(d);
+    await d.settle(400);
+    const early = await formShown(d);
+    const waiting = await has(d, "[data-warning-reading]");
+    stubs.clearDelays();
+    await until(d, '[data-warning-window] select[aria-label="' + d.say("Category") + '"]', 6000);
+    await d.settle(300);
+    const text = await what(d);
+    results.check(KIND, id("a-draft-from-the-list-waits-for-its-read"), !early && waiting && text === "Missed two shifts in one week without calling in.",
+      (early ? "the form showed before the draft was read" : waiting ? "" : "nothing said it was loading") + "; What happened reads " + say(text));
+  });
+
+  // A draft whose read fails: the line, no form, and Save as draft off.
+  await withDriver(ctx, { name: "draft-fails", lang, arm: armDiscipline({ personFails: true }) }, async (d) => {
+    await openDraftFromList(d);
+    await d.settle(1500);
+    const line = await textOf(d, "[data-warning-read-failed]");
+    const form = await formShown(d);
+    const saveOff = await d.page.locator("[data-warning-window] [data-warning-save-draft]").first().isDisabled().catch(() => false);
+    const want = d.say("This draft did not load. Close it and open it again.");
+    results.check(KIND, id("a-draft-that-did-not-load-keeps-save-as-draft-off"), line === want && !form && saveOff,
+      "the window reads " + say(line) + (form ? ", draws the form" : "") + (saveOff ? "" : ", and Save as draft is offered"));
+  });
+
+  // A greyed-out button says why: Save as draft, what is still needed; Issue, sign first.
+  await withDriver(ctx, { name: "why-grey", lang, arm: armDiscipline({ byId: true }) }, async (d) => {
+    await openDraftFromList(d);
+    await until(d, "[data-warning-issue]", 6000);
+    const issueWhy = await textOf(d, "[data-warning-issue-why]");
+    await d.page.locator('[data-warning-window] textarea[aria-label="' + d.say("What happened") + '"]').first().fill("").catch(() => {});
+    await d.settle(200);
+    const needed = await textOf(d, "[data-warning-still-needed]");
+    const wantNeeded = d.say("Still needed: {0}").replace("{0}", d.say("What happened"));
+    results.check(KIND, id("a-greyed-button-says-why"), issueWhy === d.say("Sign as the issuer first.") && needed === wantNeeded,
+      "under Issue " + say(issueWhy) + ", under Save as draft " + say(needed) + " where " + say(wantNeeded) + " is meant");
+  });
+
+  // Closing with typing not saved asks first; Keep editing keeps it, Close closes, and nothing is sent.
+  await withDriver(ctx, { name: "close-asks", lang, arm: armDiscipline({ byId: true }) }, async (d) => {
+    await openDraftFromList(d);
+    await until(d, '[data-warning-window] select[aria-label="' + d.say("Category") + '"]', 6000);
+    await d.page.locator('[data-warning-window] textarea[aria-label="' + d.say("What must change") + '"]').first().fill("Call before every missed shift.").catch(() => {});
+    const mark = d.mark();
+    await d.setConfirmAnswer(false);
+    await d.page.getByRole("button", { name: d.say("Cancel"), exact: true }).last().click().catch(() => {});
+    await d.settle(300);
+    const asked = await textOf(d, "[data-warning-close-ask]");
+    await d.page.locator("[data-warning-keep-editing]").click().catch(() => {});
+    await d.settle(200);
+    const kept = (await has(d, "[data-warning-window]")) && !(await has(d, "[data-warning-close-ask]"));
+    await d.page.locator('[data-warning-window] button[aria-label="' + d.say("Close") + '"]').first().click().catch(() => {});
+    await d.settle(300);
+    await d.page.locator("[data-warning-close-anyway]").click().catch(() => {});
+    await d.settle(400);
+    const gone = !(await has(d, "[data-warning-window]"));
+    const sent = d.callsSince(mark).filter((c) => /^\/api\/discipline/.test(c.path) && c.method !== "GET");
+    results.check(KIND, id("closing-with-typing-not-saved-asks-first"), asked.indexOf(d.say("Close without saving?")) === 0 && kept && gone && sent.length === 0,
+      "closing asked " + say(asked) + (kept ? "" : "; Keep editing did not keep the window") + (gone ? "" : "; Close did not close it") + "; " + sent.length + " write(s) went");
+  });
+
+  // Guard: a window with nothing typed closes at once.
+  await withDriver(ctx, { name: "close-quiet", lang, arm: armDiscipline({ byId: true }) }, async (d) => {
+    await openDraftFromList(d);
+    await until(d, '[data-warning-window] select[aria-label="' + d.say("Category") + '"]', 6000);
+    await d.page.locator('[data-warning-window] button[aria-label="' + d.say("Close") + '"]').first().click().catch(() => {});
+    await d.settle(400);
+    results.check(KIND, id("guard-a-window-with-nothing-typed-closes-at-once"), !(await has(d, "[data-warning-window]")), "the window stayed open");
+  });
+
+  // A person with an open draft: Issue a warning offers to continue it, in the folder and on the page.
+  await withDriver(ctx, { name: "continue", lang, arm: armDiscipline({ byId: true }) }, async (d) => {
+    await goHash(d, "hr/u-staff-6");
+    await until(d, "[data-person-discipline]", 8000);
+    const folder = await textOf(d, '[data-person-discipline] [data-warning-continue="dd-1"]');
+    const day = await d.page.evaluate((v) => new Date(v + "T12:00:00").toLocaleDateString(document.documentElement.lang === "es" ? "es-US" : "en-US", { month: "short", day: "numeric", year: "numeric" }), seed.shift(-2)).catch(() => "");
+    await d.page.locator('[data-person-discipline] [data-warning-continue="dd-1"]').click().catch(() => {});
+    await until(d, '[data-warning-window] select[aria-label="' + d.say("Category") + '"]', 6000);
+    const opened = await what(d);
+    results.check(KIND, id("the-folder-offers-to-continue-the-draft"), folder.indexOf(d.say("Continue the draft from {0}").replace("{0}", "")) === 0 && opened === "Missed two shifts in one week without calling in.",
+      "the folder offers " + say(folder) + " (the draft was saved " + day + ") and the window opened on " + say(opened));
+    await d.closeModal().catch(() => {});
+    await d.goto("discipline");
+    await until(d, "[data-discipline-page] table tbody tr", 8000);
+    await d.page.getByRole("button", { name: d.say("Issue a warning"), exact: true }).first().click().catch(() => {});
+    await until(d, "[data-discipline-issue-for]", 4000);
+    await d.pickPerson("Ngozi Okonkwo");
+    await d.page.locator("[data-discipline-issue-next]").click().catch(() => {});
+    await until(d, '[data-discipline-issue-for] [data-warning-continue="dd-1"]', 4000);
+    const offer = await textOf(d, '[data-discipline-issue-for] [data-warning-continue="dd-1"]');
+    const fresh = await has(d, "[data-discipline-issue-new]");
+    await d.page.locator('[data-discipline-issue-for] [data-warning-continue="dd-1"]').click().catch(() => {});
+    await until(d, '[data-warning-window] select[aria-label="' + d.say("Category") + '"]', 6000);
+    const page = await what(d);
+    results.check(KIND, id("issue-a-warning-offers-to-continue-the-draft"), offer.indexOf(d.say("Continue the draft from {0}").replace("{0}", "")) === 0 && fresh && page === "Missed two shifts in one week without calling in.",
+      "Issue a warning offered " + say(offer) + (fresh ? "" : " and no new warning") + "; the window opened on " + say(page));
+  });
+
+  // The Discipline list says a draft is not issued.
+  await withDriver(ctx, { name: "list-label", lang, arm: armDiscipline({}) }, async (d) => {
+    await d.goto("discipline");
+    await until(d, "[data-discipline-page] table tbody tr", 8000);
+    const cells = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-discipline-page] table tbody tr")).map((tr) => tr.innerText.replace(/\s+/g, " ")));
+    const want = d.say("Draft, not issued");
+    results.check(KIND, id("the-list-labels-drafts-draft-not-issued"), cells.some((c) => c.toLowerCase().indexOf(want.toLowerCase()) >= 0), "the rows read " + say(cells));
+  });
+}
+
 async function run(ctx) {
   for (const lang of LANGS) {
     await round8Cases(ctx, lang);
     await pictureCases(ctx, lang);
     await reportCases(ctx, lang);
+    await disciplineCases(ctx, lang);
   }
 }
 
-module.exports = { run, round8Cases, pictureCases, reportCases };
+module.exports = { run, round8Cases, pictureCases, reportCases, disciplineCases };

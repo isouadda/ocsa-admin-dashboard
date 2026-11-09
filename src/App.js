@@ -731,11 +731,12 @@ const chkWrap = { display: "inline-flex", alignItems: "center", justifyContent: 
 // A window. A press on its backdrop closes it, and once anything has been typed or chosen in it since it
 // opened (DASH-24) it asks first, so a stray tap beside a phone's window keeps what was typed. Its own
 // Close and Cancel close it as they always have.
-function Mdl({ children, onClose: oc, t, tall }) {
+// A window that asks its own question before closing (asksItself, part 372) is handed the press as it is.
+function Mdl({ children, onClose: oc, t, tall, asksItself = false }) {
   const typed = useRef(false);
   const outside = (e) => {
     if (!oc) return;
-    if (typed.current && !window.confirm(tr("Close this window? What you entered here will be lost."))) return;
+    if (!asksItself && typed.current && !window.confirm(tr("Close this window? What you entered here will be lost."))) return;
     oc(e);
   };
   return <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={outside}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()} onChangeCapture={() => { typed.current = true; }}>{children}</div></div>;
@@ -26675,6 +26676,12 @@ const loadDisciplineSteps = (af) => {
 const warningStepWord = (code, steps) => { const s = (steps || []).find(x => x.code === code); return s && s.label ? s.label : (WARNING_STEP_WORDS[code] ? tr(WARNING_STEP_WORDS[code]) : String(code || "")); };
 const warningCategoryWord = (code, cats) => { const c = (cats || []).find(x => x.code === code); return c && c.label ? c.label : String(code || ""); };
 const warningStatusWord = (s) => (WARNING_STATUS_WORDS[s] ? tr(WARNING_STATUS_WORDS[s]) : String(s || ""));
+// A list says a draft is not issued yet (part 372); every other status in its own word.
+const warningListStatus = (s) => (s === "draft" ? tr("Draft, not issued") : warningStatusWord(s));
+// A person's open draft, the newest, from their record's history, and the day it is shown by: the day it was
+// saved when the record carries it, else the incident's day.
+const openDraftOf = (history) => (Array.isArray(history) ? history : []).find(x => x && x.id != null && x.status === "draft" && !warningRescinded(x)) || null;
+const draftDayOf = (w) => { const v = w && (w.updatedAt || w.updated_at || w.createdAt || w.created_at || w.incidentDate || w.incident_date || w.actionDate || w.action_date); return !v ? "" : String(v).length > 10 ? irDay(v) : fdLong(String(v).slice(0, 10)); };
 const warningOf = (d) => (d && d.warning && typeof d.warning === "object" ? d.warning : d);
 // A warning's fields as the API may name them, read the same way wherever a row comes from.
 const warningIssued = (w) => !!(w && (w.issuedAt || w.issued_at || (w.status && w.status !== "draft")));
@@ -26707,17 +26714,28 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   // DASH-04: the draft is the warning as the API keeps it. A list row may lack fields, so a window
   // opened on one reads GET /api/discipline/:id and takes its answer, unless something was typed
   // first; an answer with no warning leaves the row as it was. touched marks a typed change.
+  // Part 372: a draft opened from a list waits for that read before it shows the form, so a form drawn
+  // from a row short of fields can never be saved over the draft. API main answers no GET
+  // /api/discipline/:id, so when that read fails the draft is taken from the person's record, GET
+  // /api/discipline/person/:userId, whose history carries each warning whole. When neither holds it, the
+  // window says so and Save as draft stays off.
   const touched = useRef(false);
+  const draftFromList = !!(row && row.id != null && !warningIssued(row) && !warningRescinded(row));
+  const [reading, setReading] = useState(draftFromList ? "loading" : "");
   useEffect(() => {
     const rid = row && row.id != null ? String(row.id) : "";
     if (!rid) return undefined;
     let alive = true;
-    af("/api/discipline/" + encodeURIComponent(rid)).then(d => {
-      const got = warningOf(d);
-      if (!alive || !got || got.id == null || String(got.id) !== rid) return;
+    const take = (got) => {
       setW(got);
       if (!touched.current && !warningIssued(got)) { const nf = draftOf(got); setF(nf); setSavedBody(JSON.stringify(bodyOf(nf))); }
-    }).catch(() => {});
+      setReading("");
+    };
+    const mine = (d) => { const got = warningOf(d); return got && got.id != null && String(got.id) === rid ? got : null; };
+    const fromRecord = () => (userId ? af("/api/discipline/person/" + encodeURIComponent(String(userId))).then(d => (d && Array.isArray(d.history) ? d.history.find(x => x && x.id != null && String(x.id) === rid) || null : null)) : Promise.resolve(null));
+    af("/api/discipline/" + encodeURIComponent(rid)).then(d => mine(d) || fromRecord(), () => fromRecord())
+      .then(got => { if (!alive) return; if (got) take(got); else if (draftFromList) setReading("failed"); })
+      .catch(() => { if (alive && draftFromList) setReading("failed"); });
     return () => { alive = false; };
   }, []);
   const [issue, setIssue] = useState({ issuerSignature: "", employeeSignature: "", declined: false, witnessName: "", employeeAccount: "" });
@@ -26788,6 +26806,17 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   });
   const draftReady = !!(f.type && f.category && f.incidentDate && f.description.trim() && (f.follows === "no" || (f.follows === "yes" && f.controllerDiscussedOn)));
   const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || phone || !!issue.employeeSignature || issue.declined)));
+  // Why a greyed-out button is grey (part 372): what Save as draft still needs, and what Issue waits for.
+  const stillNeeded = [
+    !f.category ? tr("Category") : "", !f.incidentDate ? tr("Date of the incident") : "", !String(f.description || "").trim() ? tr("What happened") : "",
+    !f.follows ? tr("Does this follow a complaint or other protected activity by this person?") : "",
+    f.follows === "yes" && !f.controllerDiscussedOn ? tr("Discussed with the Controller on") : "",
+  ].filter(Boolean);
+  const issueWhy = !id || verbal || issueReady ? "" : !issue.issuerSignature ? tr("Sign as the issuer first.") : tr("Have {0} sign, or tick Declined to sign.", personName || tr("The person"));
+  // Closing with typing not saved asks first, in the window: Keep editing or Close (part 372).
+  const [askClose, setAskClose] = useState(false);
+  const unsaved = () => isDraft && reading === "" && ((touched.current && JSON.stringify(body()) !== savedBody) || !!String(issue.employeeAccount || "").trim());
+  const tryClose = () => { if (busy) return; if (unsaved()) { setAskClose(true); return; } onClose(); };
   // Issue sends the draft first when the screen holds edits not yet saved (DASH-04), so the warning
   // issued is the one on screen: a Step changed to written after the last save is issued as written.
   const doIssue = () => run("issue", async () => {
@@ -26830,16 +26859,31 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const small = { minHeight: 44 };
   const signed = (k) => (issue[k] ? <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setIssue(p => ({ ...p, [k]: "" }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div> : null);
   const emailOnFile = person && person.email ? String(person.email) : "";
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
+  return (<Mdl t={t} tall asksItself onClose={tryClose}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{personName || ""}{w && w.status ? ", " + warningStatusWord(w.status) : ""}</div>
       </div>
-      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
+      <button onClick={tryClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
     </div>
+    {askClose && <div data-warning-close-ask="" role="alertdialog" aria-label={tr("Close without saving?")} style={{ position: "sticky", top: 0, zIndex: 2, marginBottom: 12, padding: "12px 14px", borderRadius: 8, background: t.card, border: "1px solid " + OR, boxShadow: "0 4px 14px rgba(0,0,0,0.12)" }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Close without saving?")}</div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" data-warning-keep-editing="" onClick={() => setAskClose(false)} style={{ minHeight: 44 }}>{tr("Keep editing")}</Btn>
+        <Btn t={t} v="danger" data-warning-close-anyway="" onClick={() => { setAskClose(false); onClose(); }} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
+      </div>
+    </div>}
     {refusal.text && !refusal.field && <div data-warning-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
-    {isDraft && <div>
+    {isDraft && reading === "loading" && <div data-warning-reading="" style={{ fontSize: 13, color: t.textMut, padding: "20px 0" }}>{tr("Loading...")}</div>}
+    {isDraft && reading === "failed" && <div>
+      <div data-warning-read-failed="" role="alert" style={{ fontSize: 13, color: RD, padding: "12px 0", lineHeight: 1.5 }}>{tr("This draft did not load. Close it and open it again.")}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={onClose} style={small}>{tr("Close")}</Btn>
+        <Btn t={t} v="ghost" data-warning-save-draft="" disabled style={small}>{tr("Save as draft")}</Btn>
+      </div>
+    </div>}
+    {isDraft && reading === "" && <div>
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("{0} may begin at any step.", clientConfig.company.shortName)}</div>
       <div style={grid}>
         <div><Lbl>{tr("Step")}</Lbl><select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={{ width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: R.sm, border: "1px solid " + (refusal.field === "type" ? RD : t.inputBorder), background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }}>{stepOpts.map(o => <option key={o.v} value={o.v} disabled={o.disabled}>{o.l}</option>)}</select>{under("type")}</div>
@@ -26866,9 +26910,10 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
       <div style={{ marginBottom: 12, maxWidth: 260 }}><Lbl>{tr("Language of the warning")}</Lbl><Sel t={t} aria-label={tr("Language of the warning")} value={f.language} onChange={e => set("language", e.target.value)} options={LANGUAGES.map(x => ({ v: x.id, l: x.label }))} style={box("language")} />{under("language")}</div>
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("If this person is covered by a union agreement, follow that agreement's procedure.")}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        <Btn t={t} v="ghost" onClick={onClose} disabled={!!busy} style={small}>{tr("Cancel")}</Btn>
-        <Btn t={t} v="ghost" onClick={saveDraft} disabled={!!busy || !draftReady} style={small}>{busy === "draft" ? tr("Saving...") : tr("Save as draft")}</Btn>
+        <Btn t={t} v="ghost" onClick={tryClose} disabled={!!busy} style={small}>{tr("Cancel")}</Btn>
+        <Btn t={t} v="ghost" data-warning-save-draft="" onClick={saveDraft} disabled={!!busy || !draftReady} style={small}>{busy === "draft" ? tr("Saving...") : tr("Save as draft")}</Btn>
       </div>
+      {!draftReady && stillNeeded.length > 0 && <div data-warning-still-needed="" style={{ fontSize: 12, color: t.textSec, marginTop: 6, textAlign: "right", lineHeight: 1.5 }}>{tr("Still needed: {0}", stillNeeded.join(", "))}</div>}
       {id && <div data-warning-issue="">
         <div style={sec}>{tr("Issue|warning")}</div>
         {verbal ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("A verbal warning is a note of the conversation, placed on the record. It takes no signatures.")}</div> : <div>
@@ -26886,6 +26931,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
         </div>}
         <div style={{ marginTop: 12 }}><Lbl>{tr("Their account")}</Lbl><TArea t={t} rows={3} aria-label={tr("Their account")} value={issue.employeeAccount} onChange={e => setIssue(p => ({ ...p, employeeAccount: e.target.value }))} placeholder={tr("Optional. What the person says, recorded on the warning.")} style={box("employeeAccount")} />{under("employeeAccount")}</div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} data-warning-issue-send="" onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : phone ? tr("Issue and send to sign") : tr("Issue|warning")}</Btn></div>
+        {issueWhy && <div data-warning-issue-why="" style={{ fontSize: 12, color: t.textSec, marginTop: 6, textAlign: "right" }}>{issueWhy}</div>}
       </div>}
     </div>}
     {!isDraft && <div>
@@ -27003,13 +27049,17 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
   const history = data.history.slice();
   const suggested = data.suggestedNext && WARNING_STEPS.indexOf(data.suggestedNext) >= 0 ? data.suggestedNext : "verbal_warning";
   const start = isAdmin || WARNING_ADMIN_STEPS.indexOf(suggested) < 0 ? suggested : "written_warning";
+  const draft = openDraftOf(data.history);
   const line = (w) => [warningCategoryWord(w.category, steps.categories), (w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) ? fdLong(w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) : ""].filter(Boolean).join(", ");
   const delivered = (w) => { const d = w.delivered || {}; const m = d.method || w.deliveryMethod || w.delivery_method; return m && WARNING_DELIVERY_WORDS[m] ? tr(WARNING_DELIVERY_WORDS[m]) + (d.at ? " " + irDay(d.at) : "") : ""; };
   return (<Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
     <div data-person-discipline="">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Disciplinary")}</div>
-        <Btn t={t} onClick={() => setWin({ row: null, initial: { type: start } })} style={{ minHeight: 44 }}>{tr("Issue a warning")}</Btn>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {draft && <Btn t={t} v="ghost" data-warning-continue={draft.id} onClick={() => setWin({ row: draft, initial: {} })} style={{ minHeight: 44 }}>{tr("Continue the draft from {0}", draftDayOf(draft))}</Btn>}
+          <Btn t={t} onClick={() => setWin({ row: null, initial: { type: start } })} style={{ minHeight: 44 }}>{tr("Issue a warning")}</Btn>
+        </div>
       </div>
       <div data-discipline-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
         {WARNING_STEPS.map(s => <div key={s} style={{ padding: "6px 10px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec }}><b style={{ color: t.text }}>{Number(by[s] || 0)}</b> {warningStepWord(s, steps.steps)}</div>)}
@@ -27022,7 +27072,7 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
         <button data-warning-row={w.id || i} onClick={() => setWin({ row: w, initial: {} })} style={{ display: "block", flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: gone ? t.textMut : t.text, textDecoration: gone ? "line-through" : "none" }}>{warningStepWord(w.type || w.action_type, steps.steps)}</span>
-            <Bdg l={warningStatusWord(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
+            <Bdg l={warningListStatus(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
           </div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, textDecoration: gone ? "line-through" : "none" }}>{line(w)}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[delivered(w), signatureOf(w) ? "" : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Signed") : ""].filter(Boolean).join(". ")}</div>
@@ -27483,6 +27533,9 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
       const d = await af("/api/discipline/person/" + encodeURIComponent(String(p.id)));
       const next = d && d.suggestedNext;
       if (next && WARNING_STEPS.indexOf(next) >= 0) type = isAdmin || WARNING_ADMIN_STEPS.indexOf(next) < 0 ? next : "written_warning";
+      // A person with a draft not issued yet: the window offers to continue it beside starting a new one.
+      const open = openDraftOf(d && d.history);
+      if (open) { setIssueFor(s0 => ({ ...s0, busy: false, draft: open, type, person: p })); return; }
     } catch (e) {
       // A refusal (this person is not one to warn, or not found) is said in the window; a read that
       // failed starts at a verbal warning, which the window's step picker changes.
@@ -27497,7 +27550,7 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
     { header: tr("Step"), tdStyle: { whiteSpace: "nowrap" }, render: w => <span style={{ color: warningRescinded(w) ? t.textMut : t.text, textDecoration: warningRescinded(w) ? "line-through" : "none" }}>{warningStepWord(w.type, steps.steps)}</span> },
     { header: tr("Category"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => warningCategoryWord(w.category, steps.categories) || "--" },
     { header: tr("Date of the incident"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.incidentDate ? fdLong(w.incidentDate) : "--") },
-    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: w => <Bdg l={warningStatusWord(w.status)} c={warningRescinded(w) ? RD : w.status === "draft" ? OR : GR} /> },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: w => <span data-warning-list-status={w.status}><Bdg l={warningListStatus(w.status)} c={warningRescinded(w) ? RD : w.status === "draft" ? OR : GR} /></span> },
     { header: tr("Issued by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.issuedBy && w.issuedBy.name) || "--" },
     { header: tr("Delivered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => delivered(w) },
     { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (signatureOf(w) ? <SignatureChip t={t} sig={signatureOf(w)} /> : w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
@@ -27537,14 +27590,20 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
         <button onClick={() => { if (!issueFor.busy) setIssueFor(null); }} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
       </div>
       <Lbl>{tr("Who is this warning for?")}</Lbl>
-      <PersonPick t={t} aria-label={tr("Who is this warning for?")} data-discipline-issue-person="" value={issueFor.userId} onChange={e => setIssueFor(s0 => ({ ...s0, userId: e.target.value, said: "" }))} options={[{ v: "", l: tr("Choose a person") }].concat(warnable.map(p => ({ v: String(p.id), l: nameOf(p), hint: roleWord(p.role) })))} />
+      <PersonPick t={t} aria-label={tr("Who is this warning for?")} data-discipline-issue-person="" value={issueFor.userId} onChange={e => setIssueFor(s0 => ({ ...s0, userId: e.target.value, said: "", draft: null }))} options={[{ v: "", l: tr("Choose a person") }].concat(warnable.map(p => ({ v: String(p.id), l: nameOf(p), hint: roleWord(p.role) })))} />
       {issueFor.said && <div role="alert" data-discipline-issue-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{issueFor.said}</div>}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+      {issueFor.draft ? <div data-discipline-issue-draft={issueFor.draft.id} style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 13, color: t.text, marginBottom: 10, lineHeight: 1.5 }}>{tr("{0} has a draft not issued yet.", nameOf(issueFor.person || {}))}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <Btn t={t} v="ghost" data-discipline-issue-new="" onClick={() => { const s0 = issueFor; setIssueFor(null); setIssueWin({ userId: String(s0.person.id), name: nameOf(s0.person), person: s0.person, type: s0.type }); }} style={{ minHeight: 44 }}>{tr("Start a new warning")}</Btn>
+          <Btn t={t} data-warning-continue={issueFor.draft.id} onClick={() => { const s0 = issueFor; setIssueFor(null); setIssueWin({ userId: String(s0.person.id), name: nameOf(s0.person), person: s0.person, row: s0.draft }); }} style={{ minHeight: 44 }}>{tr("Continue the draft from {0}", draftDayOf(issueFor.draft))}</Btn>
+        </div>
+      </div> : <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
         <Btn t={t} v="ghost" onClick={() => setIssueFor(null)} disabled={issueFor.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
         <Btn t={t} onClick={startIssue} disabled={issueFor.busy || !issueFor.userId} data-discipline-issue-next="" style={{ minHeight: 44 }}>{issueFor.busy ? tr("Loading...") : tr("Next")}</Btn>
-      </div>
+      </div>}
     </div></Mdl>}
-    {issueWin && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={issueWin.userId} personName={issueWin.name} person={issueWin.person} initial={{ type: issueWin.type }} showToast={showToast} onClose={() => setIssueWin(null)} onChanged={load} />}
+    {issueWin && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={issueWin.userId} personName={issueWin.name} person={issueWin.person} row={issueWin.row || null} initial={issueWin.row ? {} : { type: issueWin.type }} showToast={showToast} onClose={() => setIssueWin(null)} onChanged={load} />}
   </div>);
 }
 

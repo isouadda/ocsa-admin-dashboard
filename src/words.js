@@ -5468,6 +5468,15 @@ export const WORDS = {
   "Nothing has posted yet. {0} lines would post leave, {1} would post none.": { es: "Todav\u00eda no se registr\u00f3 nada. {0} l\u00edneas registrar\u00edan permisos y {1} no registrar\u00edan ninguno." },
   "This file was posted before, on {0}. Posting it again would post nothing.": { es: "Este archivo ya se registr\u00f3 el {0}. Registrarlo de nuevo no registrar\u00eda nada." },
   "Drop approved. Shift assigned.": { es: "Baja aprobada. Turno asignado." },
+  "This draft did not load. Close it and open it again.": { es: "Este borrador no se carg\u00f3. Ci\u00e9rrelo y \u00e1bralo de nuevo." },
+  "Still needed: {0}": { es: "Todav\u00eda falta: {0}" },
+  "Sign as the issuer first.": { es: "Primero firme como quien emite la advertencia." },
+  "Have {0} sign, or tick Declined to sign.": { es: "Pida a {0} que firme, o marque Se neg\u00f3 a firmar." },
+  "Close without saving?": { es: "\u00bfCerrar sin guardar?" },
+  "Continue the draft from {0}": { es: "Continuar el borrador del {0}" },
+  "Start a new warning": { es: "Empezar una advertencia nueva" },
+  "{0} has a draft not issued yet.": { es: "{0} tiene un borrador que todav\u00eda no se emiti\u00f3." },
+  "Draft, not issued": { es: "Borrador, no emitida" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
