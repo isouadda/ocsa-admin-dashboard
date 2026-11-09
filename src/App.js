@@ -1804,7 +1804,7 @@ export default function AdminDashboard() {
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {/* Everyone reads every document (Step 306), so the page is the API's to answer, whoever opens it. */}
         {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
-        {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
+        {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} user={user} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} canReadHrRecords={hasCap("read_hr_records")} canOpenCase={casesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -14338,7 +14338,7 @@ function ManagementReviewView({ af, t, sites = [] }) {
   </div></Crd>);
 }
 
-function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff = [] }) {
+function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkMap, allStaff = [] }) {
   const [defs, setDefs] = useState(null);
   const [view, setView] = useState("library");
   const [active, setActive] = useState(null);
@@ -14416,6 +14416,10 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   const newReport = () => { setEditing(null); setView("edit"); };
   const editReport = (d) => { setEditing(d); setView("edit"); };
   const duplicateReport = (d) => { setEditing({ name: tr("{0} (copy)", d.name || tr("Report")), description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
+  // A report is never deleted: Deactivate takes it off the list and keeps it, with its past runs. The API
+  // lets an admin, or the person who made the report, deactivate a saved one, and never a template, so
+  // Deactivate shows only there (part 372).
+  const canDeactivate = (d) => !d.is_system && (isAdmin || (d.created_by != null && user && user.id != null && String(d.created_by) === String(user.id)));
   const deleteReport = async (d) => {
     if (!window.confirm(tr("Deactivate \"{0}\"?", d.name))) return;
     try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deactivated")); loadDefs(); }
@@ -14576,7 +14580,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
                     <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Run")}</Btn>
                     <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Duplicate")}</Btn>
                     {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Edit")}</Btn> : null}
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Deactivate")}</Btn> : null}
+                    {canDeactivate(d) ? <Btn v="ghost" t={t} data-report-deactivate={d.id} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Deactivate")}</Btn> : null}
                   </div>
                 </Crd>
               ))}

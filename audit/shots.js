@@ -1832,6 +1832,11 @@ const SHOTS = [
   { name: "staff-timeline", entry: "Read a person's or a site's timeline", arm: (stubs, on) => stubs.setScene372({ timelineMany: on }),
     open: "staff/u-staff-5", ready: "[data-profile-edit]",
     act: async (c) => { await press(c, "Timeline"); await until(c, '[data-show-more="person-timeline"]'); } },
+  // Part 372: the report library with a custom report's Deactivate beside its Run, Duplicate and Edit, and a
+  // template's card with none.
+  { name: "reports-deactivate", entry: "Remove a report you no longer need",
+    open: "reports", ready: '[data-report-deactivate="rd-4"]',
+    act: async (c) => { await toTop(c, '[data-report-deactivate="rd-4"]', 360); } },
 ];
 
 

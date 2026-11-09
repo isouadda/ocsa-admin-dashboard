@@ -2569,27 +2569,32 @@ Picture: site-task-list-record
 Last checked: 2026-10-19
 
 ## Change a staff member's hire date (admin dashboard)
-Who can do this: admins. A supervisor sees no hire date to change.
+Who can do this: admins, and anyone given Add people, approve registrations, change employment and roles. Anyone else sees no hire date to change.
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
 3. Pick the date in **Hire Date** (**Fecha de contratación**). The field is empty for someone whose profile reads **Not set** (**Sin indicar**).
 4. Click **Save Changes** (**Guardar los cambios**). The profile shows the new date, and the change is recorded with the old date, the new date and who made it.
-5. A hire date once set cannot be emptied. To fix a wrong one, pick the right date, as the line under the field says: **To fix a wrong date, pick the right one.** (**Para corregir una fecha equivocada, elija la correcta.**)
-If it does not work: a date that is not a real day, or is more than a year ahead, is refused, and the reason shows in red under the field. Pick a real date and click **Save Changes** (**Guardar los cambios**) again. For someone who left and is coming back, use Rehire someone, which sets their new hire date.
-Words people use for this: hire date, start date, date of hire, update a hire date, change a hire date, fix a hire date, missing hire date, when they started, fecha de contratación.
+5. The same **Hire Date** (**Fecha de contratación**) is in **Edit Staff Info** (**Editar los datos de la persona**), the pencil on the person's row in the list.
+6. A hire date once set cannot be emptied. To fix a wrong one, pick the right date, as the line under the field says: **To fix a wrong date, pick the right one.** (**Para corregir una fecha equivocada, elija la correcta.**)
+7. To find everyone with no hire date, click **Leave balances** (**Saldos de permisos**), then **Missing hire dates** (**Sin fecha de contratación**); each name opens the profile.
+If it does not work: a date that is not a real day, or is more than a year ahead, is refused, and the reason shows in red under the field. Pick a real date and click **Save Changes** (**Guardar los cambios**) again. For someone who left and is coming back, use Rehire someone, which sets their new hire date. When someone changed the hire date since you opened the profile, the dashboard asks before saving over it.
+Words people use for this: hire date, start date, date of hire, update a hire date, change a hire date, fix a hire date, wrong hire date, wrong start date, missing hire date, when they started, fecha de contratación, fecha de ingreso.
 Picture: staff-hire-date
 Picture: staff-hire-date-refused
-Last checked: 2026-10-13
+Last checked: 2026-11-09
 
 ## Remove a report you no longer need (admin dashboard)
-Who can do this: admins and supervisors
-1. Click **Reports** (**Informes**).
-2. Find the report. One made on the dashboard reads **Custom** (**Personalizado**); a built-in one reads **Template** (**Plantilla**).
-3. On a custom report, click **Deactivate** (**Desactivar**) and confirm. The report leaves the list and the screen says **Report deactivated** (**Informe desactivado**). It is kept in the system and its past runs are not lost.
-4. A template has no **Deactivate** (**Desactivar**) and stays on the list. To change one, click **Duplicate** (**Duplicar**), change the copy, save it, and run the copy from then on.
-If it does not work: a deactivated report cannot be brought back from the page. Make it again with **New report** (**Nuevo informe**) or **Duplicate** (**Duplicar**).
-Words people use for this: delete a report, remove a report, get rid of a report, deactivate a report, hide a report, borrar un informe, eliminar un informe.
-Last checked: 2026-10-16
+Who can do this: admins remove any report made on the dashboard; anyone else removes the ones they made themselves
+1. A report cannot be deleted. Nothing in the system is deleted, so a report's past runs and anything that names it are never lost. Deactivate takes it off the list instead, and it is kept.
+2. Click **Reports** (**Informes**).
+3. Find the report. One made on the dashboard reads **Custom** (**Personalizado**); a built-in one reads **Template** (**Plantilla**).
+4. On a custom report, click **Deactivate** (**Desactivar**) and confirm. The report leaves the list and the screen says **Report deactivated** (**Informe desactivado**).
+5. **Deactivate** (**Desactivar**) shows only on the reports you may remove: every custom report for an admin, and the ones you made yourself for anyone else.
+6. A template has no **Deactivate** (**Desactivar**) and stays on the list, because everyone shares it. To change one, click **Duplicate** (**Duplicar**), change the copy, save it, and run the copy from then on.
+If it does not work: a deactivated report cannot be brought back from the page. Make it again with **New report** (**Nuevo informe**) or **Duplicate** (**Duplicar**). To remove a custom report someone else made, ask an admin.
+Words people use for this: delete a report, remove a report, get rid of a report, deactivate a report, hide a report, cannot delete a report, no delete button, borrar un informe, eliminar un informe.
+Picture: reports-deactivate
+Last checked: 2026-11-09
 
 ## See which version of the dashboard you run (admin dashboard)
 Who can do this: everyone who signs in to the dashboard

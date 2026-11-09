@@ -6167,7 +6167,7 @@ function createStubs() {
   const part368 = require("./part368-stub")({ seed, state, ok, clone, person, effectiveMap, PNG_BYTES, userProfile });
   // What the API's Round 8 answers for the dashboard (part 372), in audit/part372-stub.js: the API as built at
   // ocsa-api main c5b88ff, over every other layer, in every run, since the API's main answers it.
-  const part372 = require("./part372-stub")({ seed, state, ok, clone });
+  const part372 = require("./part372-stub")({ seed, state, ok, clone, person, reportRows });
   // Pictures behind links that run out (part 372, section 2), in audit/part372-pictures.js, over every other
   // layer once a run arms it with setPictures372.
   const pictures372 = require("./part372-pictures")({ seed, ok, PNG_BYTES });

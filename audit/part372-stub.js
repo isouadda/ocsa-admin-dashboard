@@ -28,6 +28,10 @@
 //                                       step, answered as the assign answers (the open shift with site_name
 //                                       and claimed_by_name).
 //
+//   GET /api/report-engine/definitions  each row as the table holds it (SELECT *), created_by among them: a
+//                                       saved report made by the admin, unless the scene reportBy names
+//                                       someone else. The stub under this one already refuses a removal by
+//                                       anyone but an admin or the report's maker; its rows lacked the maker.
 //
 // B1 (the summary's counted) is audit/checklist-stub.js, B5 and B6 (counts.pending, order=attention) are
 // audit/part368-round6.js, and B8 and B9 (effectiveOn, dryRun) are audit/part368-leave.js, each beside the
@@ -45,7 +49,7 @@ module.exports = (ctx) => {
 
   let model = null;
   const m = () => {
-    if (!model) model = { shiftStamp: {}, caseStamp: {}, caseRead: {}, sent: [], timelineMany: false };
+    if (!model) model = { shiftStamp: {}, caseStamp: {}, caseRead: {}, sent: [], timelineMany: false, reportBy: null };
     return model;
   };
 
@@ -192,14 +196,26 @@ module.exports = (ctx) => {
     return ok(clone(row));
   }
 
+  // ---- Reports: who made a saved report ---------------------------------------------------------------------
+  // The stored rows carry created_by, as the table does: a saved report the admin made, unless the scene
+  // reportBy names someone else. The layers under this one answer the list and refuse a removal by anyone
+  // but an admin or the report's maker, as routes/report-engine.js does.
+  function reportRoute(method, path, query, body, lang, base) {
+    if (!/^\/api\/report-engine\/definitions(\/[^/]+)?$/.test(path) || !ctx.reportRows) return null;
+    ctx.reportRows().forEach((r) => { if (r && !r.is_system && !r.created_by) r.created_by = m().reportBy || seed.PEOPLE.admin.id; });
+    if (method === "DELETE") m().sent.push({ reportDeactivate: path.split("/").pop() });
+    return base();
+  }
+
   return {
     route(method, path, query, body, lang, base) {
       return scheduleRoute(method, path, query, body, lang, base) || peopleRoute(method, path, query, body, lang, base)
         || caseRoute(method, path, query, body, lang, base) || timelineRoute(method, path, query, body, lang, base)
-        || pickupRoute(method, path, query, body, lang, base) || base();
+        || pickupRoute(method, path, query, body, lang, base) || reportRoute(method, path, query, body, lang, base) || base();
     },
     setScene(o) {
       if (o && o.timelineMany !== undefined) m().timelineMany = !!o.timelineMany;
+      if (o && o.reportBy !== undefined) m().reportBy = o.reportBy || null;
     },
     sent: () => m().sent.slice(),
     model: () => m(),

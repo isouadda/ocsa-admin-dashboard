@@ -153,7 +153,7 @@ const WINDOWS = [
   { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [3367] },
   { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [3422] },
   { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [3431] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [27107] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [27111] },
   { id: "staff/add", page: "staff", title: "Add New Staff", lines: [3487] },
   // Step 181: the Temporary PIN window Add New Staff opens once the API has saved the person.
   { id: "staff/temporary-pin", page: "staff", title: "Temporary PIN", lines: [3161] },
@@ -173,55 +173,55 @@ const WINDOWS = [
   { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [7955] },
   { id: "supplies/handle-request", page: "supplies", title: "Request", lines: [7957] },
 
-  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [14823] },
-  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [14848] },
-  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [14857] },
+  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [14827] },
+  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [14852] },
+  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [14861] },
 
-  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [15016] },
-  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [15024] },
-  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [15080] },
-  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [15088] },
-  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [15103] },
+  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [15020] },
+  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [15028] },
+  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [15084] },
+  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [15092] },
+  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [15107] },
 
-  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [15226] },
-  { id: "services/add", page: "services", title: "Add Service", lines: [15280] },
-  { id: "services/edit", page: "services", title: "Edit Service", lines: [15288] },
-  { id: "services/link-site", page: "services", title: "Link Site", lines: [15296] },
+  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [15230] },
+  { id: "services/add", page: "services", title: "Add Service", lines: [15284] },
+  { id: "services/edit", page: "services", title: "Edit Service", lines: [15292] },
+  { id: "services/link-site", page: "services", title: "Link Site", lines: [15300] },
 
-  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [15427] },
-  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [15739] },
-  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [16403] },
-  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [16458] },
-  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [16500] },
-  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [16516] },
-  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [16533] },
+  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [15431] },
+  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [15743] },
+  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [16407] },
+  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [16462] },
+  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [16504] },
+  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [16520] },
+  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [16537] },
 
-  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [17176] },
-  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [17207] },
-  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [17239] },
+  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [17180] },
+  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [17211] },
+  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [17243] },
 
   // One window, rendered from the template detail view and again from the tab view.
-  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [17966, 18334] },
-  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [18324] },
-  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [18345] },
+  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [17970, 18338] },
+  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [18328] },
+  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [18349] },
   // Step 185: Rename on a template's card, which sends the name typed and the description the card has.
-  { id: "inspections/rename-template", page: "inspections", title: "Rename", lines: [17990] },
+  { id: "inspections/rename-template", page: "inspections", title: "Rename", lines: [17994] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [20915] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [20923] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [20931] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [20945] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [20960] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [20971] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [20919] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [20927] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [20935] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [20949] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [20964] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [20975] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [21938] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [25857] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [25910] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [26064] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [21942] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [25861] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [25914] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [26068] },
   // Step 166: the picker Start a form opens, and the window a form is filled in.
-  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [24399] },
-  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [22774] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [26027] },
+  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [24403] },
+  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [22778] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [26031] },
   // Step 169's customer links window is gone: since Step 187 Customer links is a view of Forms
   // (#forms/links), which cases/customer-links.js drives, and its windows are claimed below. Every other
   // line here was re-anchored by the October audit (part 343) from the App.js of 24c775d, where these
@@ -230,37 +230,37 @@ const WINDOWS = [
   // Step 185: a person's questions, opened from Everyone who asked on Help insights.
   { id: "help-insights/person", page: "help-insights", title: "Their questions", lines: [10914] },
   // Step 187: a form's Version history, opened from a row of the Form builder's list.
-  { id: "form-builder/version-history", page: "form-builder", title: "Version history", lines: [22821] },
+  { id: "form-builder/version-history", page: "form-builder", title: "Version history", lines: [22825] },
 
   // Step 181: My alerts, which the shell draws from the name menu, and the phone's More menu, on any
   // page once GET /api/notifications/settings has answered.
   { id: "shell/my-alerts", page: "overview", title: "My alerts", lines: [9786] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [28055] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [28059] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [28743] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [28768] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [28802] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [29100] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [28747] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [28772] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [28806] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [29104] },
   // Round 1 (DASH-07, decision 4): a person's clearance dates, opened on the Clearances page for
   // someone HR Records is closed to, at #clearances/<id>. The shared stub has no clearances, so the
   // round1 suite drives it on the stub as the API is built (drivenBy), and the windows suite leaves it.
-  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [26388], drivenBy: "round1" },
+  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [26392], drivenBy: "round1" },
   // Round 2 (part 353): Who opened this beside an HR file, and the shell's window for a file the API
   // withheld because its log could not be written, with Try again. The round2 suite drives both on the
   // stub as the API is built at its part 352 (drivenBy), and the windows suite leaves them.
-  { id: "hr/who-opened", page: "hr", title: "Who opened this", lines: [19134], drivenBy: "round2" },
+  { id: "hr/who-opened", page: "hr", title: "Who opened this", lines: [19138], drivenBy: "round2" },
   { id: "shell/file-withheld", page: "hr", title: "Try again", lines: [1820], drivenBy: "round2" },
   // Part 364: Take back on an end that waits for its day, the window that asks once before it is sent.
   // The round3 suite opens it from a person's Employment card and sends it.
   { id: "staff/take-back-end", page: "staff", title: "Take back the end", lines: [2251], drivenBy: "round3" },
   // Part 366 (DASH-26): Discipline's Issue a warning picks the person before the warning window opens.
   // The findings366 suite opens it as the contract 1 supervisor and goes on to the warning window.
-  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [27530], drivenBy: "findings366" },
+  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [27534], drivenBy: "findings366" },
   // Part 361: Send welcome emails on Staff Management, which sends the welcome email to everyone who has
   // not signed in. The welcome-all suite drives it on the stub's people of audit/welcome-all-stub.js
   // (drivenBy), and the windows suite leaves it.
-  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [32278], drivenBy: "welcome-all" },
+  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [32282], drivenBy: "welcome-all" },
   // Part 368: maintenance requests. New maintenance request, a request's window with Record a response and
   // Send a follow-up, and a site's maintenance contact. The part368 suite drives each on the stub as the API
   // is built at ca4aafa (drivenBy), and the windows suite leaves them.
@@ -273,7 +273,7 @@ const WINDOWS = [
   { id: "leave/policy-editor", page: "leave", title: "Edit leave policy", lines: [7078], drivenBy: "part368" },
   { id: "leave/policy", page: "leave", title: "Sites that use it", lines: [7152], drivenBy: "part368" },
   { id: "leave/hours-file", page: "leave", title: "Upload an hours file", lines: [7280], drivenBy: "part368" },
-  { id: "settings/changed-since", page: "settings", title: "This changed since you opened it", lines: [19203], drivenBy: "part368" },
+  { id: "settings/changed-since", page: "settings", title: "This changed since you opened it", lines: [19207], drivenBy: "part368" },
 ];
 
 // ---------------------------------------------------------------------------

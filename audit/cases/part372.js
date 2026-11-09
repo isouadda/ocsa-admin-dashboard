@@ -15,6 +15,8 @@
 //            photos; a fresh link that fails as well gives way to the initials with no third read; a list
 //            read again an hour later draws fresh links (a guard); a ticket's screenshot read behind the
 //            token, against audit/part372-pictures.js, whose links run out on the stub's own clock
+//   reports  Deactivate on a saved report only for those the API lets take it off the list: an admin on
+//            every custom report, anyone else on the ones they made, never on a template
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -427,11 +429,57 @@ async function pictureCases(ctx, lang) {
   });
 }
 
+// ---- Section 3: Help gaps, a report taken off the list ------------------------------------------------------
+const deactivates = (d) => d.page.evaluate(() => Array.from(document.querySelectorAll("button")).filter((b) => b.offsetParent !== null).map((b) => {
+  const card = b.closest("[data-report-group] > div > div");
+  return { word: (b.innerText || "").trim(), card: card ? (card.querySelector("span") || {}).innerText || "" : "" };
+}));
+async function reportCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/reports/" + x;
+  const word = (d) => d.say("Deactivate");
+  const onCards = async (d) => (await deactivates(d)).filter((x) => x.word === word(d)).map((x) => x.card);
+
+  // Guard: an admin is offered Deactivate on the saved report and on no template.
+  await withDriver(ctx, { name: "reports-admin", lang }, async (d) => {
+    await d.goto("reports");
+    await until(d, "[data-report-group]", 8000);
+    await d.settle(500);
+    const cards = await onCards(d);
+    results.check(KIND, id("guard-an-admin-is-offered-deactivate-on-a-saved-report-only"), cards.join(",") === "Night shift issue watch", "Deactivate shows on " + say(cards));
+  });
+
+  // A supervisor is not offered Deactivate on a report an admin made, which the API would refuse.
+  await withDriver(ctx, { name: "reports-supervisor", lang, persona: "supervisor" }, async (d) => {
+    await d.goto("reports");
+    await until(d, "[data-report-group]", 8000);
+    await d.settle(500);
+    const cards = await onCards(d);
+    results.check(KIND, id("a-supervisor-is-not-offered-deactivate-on-someone-else-s-report"), cards.length === 0, "Deactivate shows a supervisor on " + say(cards));
+  });
+
+  // Guard: a supervisor who made the report is offered it, and it goes.
+  await withDriver(ctx, { name: "reports-own", lang, persona: "supervisor", arm: (s) => s.setScene372({ reportBy: seed.PEOPLE.supervisor.id }) }, async (d) => {
+    await d.goto("reports");
+    await until(d, "[data-report-group]", 8000);
+    await d.settle(500);
+    const cards = await onCards(d);
+    await d.setConfirmAnswer(true);
+    const mark = d.mark();
+    await d.page.getByRole("button", { name: word(d), exact: true }).first().click().catch(() => {});
+    await d.settle(800);
+    const sent = d.callsSince(mark).filter((c) => c.method === "DELETE" && /^\/api\/report-engine\/definitions\/rd-4$/.test(c.path));
+    results.check(KIND, id("guard-the-maker-is-offered-deactivate-and-it-goes"), cards.join(",") === "Night shift issue watch" && sent.length === 1 && sent[0].status === 200,
+      "Deactivate shows on " + say(cards) + "; " + sent.length + " removal(s) answered " + say(sent.map((c) => c.status)));
+  });
+}
+
 async function run(ctx) {
   for (const lang of LANGS) {
     await round8Cases(ctx, lang);
     await pictureCases(ctx, lang);
+    await reportCases(ctx, lang);
   }
 }
 
-module.exports = { run, round8Cases, pictureCases };
+module.exports = { run, round8Cases, pictureCases, reportCases };
