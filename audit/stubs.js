@@ -6168,6 +6168,9 @@ function createStubs() {
   // What the API's Round 8 answers for the dashboard (part 372), in audit/part372-stub.js: the API as built at
   // ocsa-api main c5b88ff, over every other layer, in every run, since the API's main answers it.
   const part372 = require("./part372-stub")({ seed, state, ok, clone });
+  // Pictures behind links that run out (part 372, section 2), in audit/part372-pictures.js, over every other
+  // layer once a run arms it with setPictures372.
+  const pictures372 = require("./part372-pictures")({ seed, ok, PNG_BYTES });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7349,7 +7352,8 @@ function createStubs() {
     const under364 = () => (step358 ? checklist358.route(method, path, u.searchParams, body, record.language, beneath) : beneath());
     const under368 = () => (step364 ? round3.route(method, path, u.searchParams, body, record.language, under364) : under364());
     const under372 = () => part368.route(method, path, u.searchParams, body, record.language, under368);
-    const answer = part372.route(method, path, u.searchParams, body, record.language, under372);
+    const under372p = () => part372.route(method, path, u.searchParams, body, record.language, under372);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under372p);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7469,6 +7473,13 @@ function createStubs() {
     setScene372: (o) => { part372.setScene(o || {}); },
     sent372: () => part372.sent(),
     model372: () => part372.model(),
+    // Part 372, section 2: pictures behind links that run out on the stub's own clock.
+    setPictures372: (o) => { pictures372.set(o === false ? false : (o || {})); },
+    pictures372: () => pictures372.model(),
+    pictures372Advance: (minutes) => { pictures372.advance(minutes); },
+    pictures372ExpiresAt: (url) => pictures372.expiresAt(url),
+    // A link on the stub's storage host, answered the way storage answers it (the driver routes it here).
+    storagePicture: (url) => pictures372.picture(url),
     ISSUE_PHOTOS_364: round3.ISSUE_PHOTOS,
     invites361: () => welcomeAll.invites(),
     // The routes and keys of the API's Step 289 contract (the dashboard's Step 291), on or off, laid
@@ -7619,6 +7630,7 @@ function createStubs() {
       step364 = false; state.r3 = null; round3.setFindings(false);
       part368.reset();
       part372.reset();
+      pictures372.reset();
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

@@ -1589,7 +1589,8 @@ const SHOTS = [
     open: "staff/" + ACTIVE, ready: "[data-open-hr-file]" },
   { name: "tickets-inbox", entry: "Read and answer app support tickets",
     open: "tickets", ready: "[data-ticket-state]" },
-  { name: "tickets-ticket-window", entry: "Read and answer app support tickets",
+  // Part 372: with the screenshot the API answers behind the token, read with it and drawn.
+  { name: "tickets-ticket-window", entry: "Read and answer app support tickets", arm: (stubs, on) => stubs.setPictures372(on ? {} : false),
     open: "tickets", ready: '[data-ticket-state="new"]',
     act: async (c) => {
       await click(c, '[data-ticket-state="new"]');

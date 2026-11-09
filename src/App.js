@@ -1796,7 +1796,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} token={token} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
@@ -2055,6 +2055,48 @@ function useBusyGuard() {
     try { return await fn(...args); } finally { out.current = false; setBusy(false); }
   }, []);
   return [guard, busy];
+}
+// ===== PICTURES THAT COME BACK BY THEMSELVES (part 372; the API's Round 7, finding API-119) =====
+// Since the API's Round 7 a photo is a signed link that works for 60 minutes from the read that handed it
+// out, so a screen read more than an hour ago holds links that no longer open. A picture drawn from such
+// a link that fails to load asks its screen to read its record again, once, and draws the fresh link that
+// read hands back; a list read again carries fresh links of its own. Every picture of one record or one
+// list names the same readKey, so pictures that fail together share one read, and a record read again
+// for its pictures in the last minute is not read again for them. A picture whose fresh link fails too,
+// or whose record hands back no other link, gives way to fallback, the initials or nothing.
+const PICTURE_READS = new Map();
+function pictureReadAgain(key, read) {
+  const k = String(key || "");
+  const r = PICTURE_READS.get(k) || { out: null, at: -Infinity };
+  PICTURE_READS.set(k, r);
+  if (r.out) return r.out;
+  if (performance.now() - r.at < 60000) return Promise.resolve(false);
+  r.out = Promise.resolve().then(() => read()).then(() => true, () => true).finally(() => { r.out = null; r.at = performance.now(); });
+  return r.out;
+}
+function FreshImg({ src, readKey, onStale, fallback = null, as = "img", ...rest }) {
+  const [st, setSt] = useState({ tried: false, failed: "" });
+  const latest = useRef(src);
+  latest.current = src;
+  if (!src || (st.failed && st.failed === src)) return fallback;
+  const onError = async () => {
+    const was = src;
+    if (st.tried || !onStale) { setSt(x => ({ ...x, failed: was })); return; }
+    setSt(x => ({ ...x, tried: true }));
+    const went = await pictureReadAgain(readKey || was, onStale);
+    // No read, or a read that handed back the same link: nothing new to draw.
+    if (!went) { setSt(x => ({ ...x, failed: was })); return; }
+    setTimeout(() => { if (latest.current === was || !latest.current) setSt(x => ({ ...x, failed: was })); }, 300);
+  };
+  const Tag = as;
+  return <Tag src={src} onError={onError} data-fresh-img={st.tried ? "read-again" : "first"} {...rest} />;
+}
+// A person's face: their photo, or their initials when there is none or it does not load.
+function PersonFace({ user, sz = 36, readKey, onStale, color }) {
+  const name = (user.firstName || user.first_name || "") + " " + (user.lastName || user.last_name || "");
+  const url = user.profilePhotoUrl || user.profile_photo_url;
+  const ini = <Ini name={name} sz={sz} color={color || (user.status === "pending" ? OR : GO)} />;
+  return <FreshImg src={url} readKey={readKey} onStale={onStale} fallback={ini} alt={name} style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />;
 }
 // The same search for a list a screen draws itself (Step 291): a person matches what is typed by name,
 // or by badge number or employee ID, read from the person or else from the shell's people by id.
@@ -2806,6 +2848,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const tlCountText = (n, more) => trn("{0} entry|count", n) + (more ? " " + tr("so far") : "");
 
   // Fetch timeline entry detail (Session 18)
+  // The record behind a timeline entry, read again for its pictures' fresh links (part 372).
+  const tlDetailAgain = async () => {
+    const e = tlDetail && tlDetail.entry;
+    if (!e) return;
+    const d = await af("/api/users/timeline-detail/" + e.entityType + "/" + e.entityId);
+    setTlDetail(cur => (cur && cur.entry === e ? { ...cur, record: oneCategoryKey(d.record), photos: d.photos } : cur));
+  };
   const openTimelineDetail = async (entry) => {
     setTlDetailLoading(true);
     try {
@@ -3088,13 +3137,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     }
   };
 
-  // Avatar component with photo support
-  const Avatar = ({ user, sz = 36 }) => {
-    const name = (user.firstName || user.first_name || "") + " " + (user.lastName || user.last_name || "");
-    const url = user.profilePhotoUrl || user.profile_photo_url;
-    if (url) return <img src={url} alt={name} style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />;
-    return <Ini name={name} sz={sz} color={user.status === "pending" ? OR : GO} />;
-  };
+  // Avatar component with photo support. A photo that does not load reads the profile, or the list, again
+  // once for a fresh link (part 372).
+  const Avatar = PersonFace;
+  const profilePhotoAgain = async (id) => { const d = await af("/api/users/profile/" + id); setProfile(cur => (cur && cur.user && String(cur.user.id) === String(id) ? { ...cur, user: { ...cur.user, profilePhotoUrl: d && d.user ? d.user.profilePhotoUrl : null } } : cur)); };
+  const listPhotosAgain = () => af("/api/users").then(d => { if (Array.isArray(d)) setStaff(d); });
 
   const ptabs = [{ id: "info", l: tr("Profile") }, { id: "assign", l: tr("Assignments") }, { id: "timeline", l: tr("Timeline") }];
   // Shared branded print header builder (Session 18)
@@ -3140,7 +3187,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {/* Profile Header */}
       <ProfileBanner t={t}
         avatar={<div style={{ position: "relative" }}>
-            <Avatar user={u} sz={84} />
+            <Avatar user={u} sz={84} readKey={"profile:" + u.id} onStale={() => profilePhotoAgain(u.id)} />
             <label aria-label={tr("Change photo")} title={tr("Change photo")} style={{ position: "absolute", bottom: -10, right: -10, width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <span style={{ width: 28, height: 28, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}><Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" sz={14} c={NAVY} /></span>
               <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f, u.id); }} />
@@ -3357,7 +3404,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Photos ({0})", tlDetail.photos.length)}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <a key={i} href={linkUrl(p.photo_url || p.file_url || "")} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
+              {tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <a key={i} href={linkUrl(p.photo_url || p.file_url || "")} target="_blank" rel="noopener noreferrer"><FreshImg src={p.photo_url || p.file_url || ""} readKey={"timeline-detail:" + (tlDetail.entry ? tlDetail.entry.entityType + "/" + tlDetail.entry.entityId : "")} onStale={tlDetailAgain} alt={tr("Photo {0}", i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
             </div>
           </div>}
           {/* Related items */}
@@ -3420,7 +3467,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{s.email}</div>}</div></div> },
+        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} readKey="staff-list" onStale={listPhotosAgain} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{s.email}</div>}</div></div> },
         // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
@@ -3992,6 +4039,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const tlCountText = (n, more) => trn("{0} entry|count", n) + (more ? " " + tr("so far") : "");
 
   const refreshProfile = async () => { if (selectedSite) { try { const p = await af("/api/sites/profile/" + selectedSite); gotProfile(p); } catch (e) { console.warn(e); } } };
+  // The site's chat read again for its faces' fresh links, quietly (part 372).
+  const chatPhotosAgain = async () => { if (!selectedSite) return; const d = await af("/api/sites/chat/" + selectedSite + "?limit=200"); if (d && Array.isArray(d.messages)) setSiteChat(d.messages); };
   // Step 338: whether staff check off tasks at this site, once a site read answers checklistMode (the
   // site's own read, else the list's), set by a holder of manage_sites through PATCH /api/sites/:id.
   const checklistModeOf = (id) => {
@@ -4123,6 +4172,15 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     } catch (e) { showToast(e.message, "error"); }
   });
 
+  // The task's stored picture read again for a fresh link, while the window still shows it (part 372); a
+  // picture uploaded in the window and not saved yet has no stored link to read.
+  const taskMediaAgain = async () => {
+    if (!editTask || editTask.mediaOwn || !selectedSite) return;
+    const id = editTask.id;
+    const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM);
+    const tk = (Array.isArray(tasks) ? tasks : []).find(x => String(x.id) === String(id));
+    if (tk) setEditTask(cur => (cur && cur.id === id && !cur.mediaOwn ? { ...cur, mediaUrl: tk.media_url || "" } : cur));
+  };
   const submitEditTask = async () => {
     try {
       await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, serviceCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
@@ -4192,6 +4250,13 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   };
 
   // Open timeline detail record
+  // The record behind a timeline entry, read again for its pictures' fresh links (part 372).
+  const tlDetailAgain = async () => {
+    const e = tlDetail && tlDetail.entry;
+    if (!e) return;
+    const d = await af("/api/users/timeline-detail/" + e.entityType + "/" + e.entityId);
+    setTlDetail(cur => (cur && cur.entry === e ? { ...cur, record: oneCategoryKey(d.record), photos: d.photos } : cur));
+  };
   const openTimelineDetail = async (entry) => {
     setTlDetailLoading(true);
     try {
@@ -4401,7 +4466,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Assigned Staff ({0})", sp.staff.length)}</div>
           {sp.staff.map((st2, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {st2.profile_photo_url ? <img src={st2.profile_photo_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} /> : <Ini name={st2.first_name + " " + st2.last_name} sz={32} />}
+              <FreshImg src={st2.profile_photo_url} readKey={"site-profile:" + selectedSite} onStale={refreshProfile} fallback={<Ini name={st2.first_name + " " + st2.last_name} sz={32} />} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
               <div><div style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{st2.first_name} {st2.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{roleOf(st2)}</div></div>
             </div>
             {st2.shift_name && <div style={{ fontSize: 10, color: t.textSec }}>{shiftNameShown[st2.shift_name] || st2.shift_name}{st2.shift_start ? " " + st2.shift_start + " - " + st2.shift_end : ""}</div>}
@@ -4556,7 +4621,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         {[...siteChat].reverse().map(m => {
           const dt = new Date(m.sentAt);
           return <div key={m.id} style={{ display: "flex", gap: 10, marginBottom: 8, padding: "10px 12px", background: t.hover, borderRadius: 8 }}>
-            {m.profilePhotoUrl ? <img src={m.profilePhotoUrl} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} /> : <Ini name={m.senderName || "?"} sz={32} />}
+            <FreshImg src={m.profilePhotoUrl} readKey={"site-chat:" + selectedSite} onStale={chatPhotosAgain} fallback={<Ini name={m.senderName || "?"} sz={32} />} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{m.senderName || tr("Unknown")}</div>
@@ -4657,7 +4722,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash") && detailKeyShown(k)).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
-              if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><img src={v} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
+              if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><FreshImg src={v} readKey={"timeline-detail:" + (tlDetail.entry ? tlDetail.entry.entityType + "/" + tlDetail.entry.entityId : "")} onStale={tlDetailAgain} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
               let val = typeof v === "object" ? detailObjectText(v, fieldOf) : String(valueOf(k, v));
               if (val.length > 200) val = val.substring(0, 200) + "...";
               return <div key={k}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><div style={{ fontSize: 12, color: t.text, marginTop: 2 }}>{val}</div></div>;
@@ -4666,7 +4731,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         </div>}
         {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos ({0})", tlDetail.photos.length)}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <img key={i} src={p.photo_url || p.file_url || ""} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.filter(p => p && (p.photo_url || p.file_url)).map((p, i) => <FreshImg key={i} src={p.photo_url || p.file_url || ""} readKey={"timeline-detail:" + (tlDetail.entry ? tlDetail.entry.entityType + "/" + tlDetail.entry.entityId : "")} onStale={tlDetailAgain} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
         </div>}
         {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Related Items ({0})", tlDetail.relatedItems.length)}</div>
@@ -4737,9 +4802,9 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder={tr("Step-by-step instructions, tips, or notes...")} rows={4} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video")}</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
-          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(err && err.message ? tr("Upload failed: {0}", err.message) : tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
+          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type, mediaOwn: true })); showToast(tr("Uploaded")); } catch (err) { showToast(err && err.message ? tr("Upload failed: {0}", err.message) : tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
-        {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>{tr("YouTube link attached")}</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt={tr("Task reference")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
+        {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><FreshImg as="video" src={editTask.mediaUrl} readKey={"site-task:" + editTask.id} onStale={taskMediaAgain} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>{tr("YouTube link attached")}</div></div> : <div style={{ marginBottom: 12 }}><FreshImg src={editTask.mediaUrl} readKey={"site-task:" + editTask.id} onStale={taskMediaAgain} alt={tr("Task reference")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
         {taskEs && taskEs.id === editTask.id && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: R.sm, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
           <Lbl>{tr("Shown in Spanish as")}</Lbl>
           {!taskEs.was ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : <>
@@ -5677,6 +5742,8 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
   const [said, setSaid] = useState("");
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // The request read again for its photos' fresh links, quietly (part 372).
+  const photosAgain = () => af("/api/issues/requests/" + encodeURIComponent(id)).then(d => { if (mounted.current && d && d.request) setData(d); });
   const load = useCallback(() => {
     setFailed("");
     af("/api/issues/requests/" + encodeURIComponent(id))
@@ -5741,7 +5808,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
         {Number(r.reportsCount) > 1 && <Bdg l={trn("Asked {0} times|count", Number(r.reportsCount))} c={OR} />}
       </div>
       {r.note && <div data-request-note="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.note}</div>}
-      {Array.isArray(r.photos) && r.photos.some(p => p && p.url) && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.filter(p => p && p.url).map((p, i) => <a key={p.id || i} href={linkUrl(p.url)} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
+      {Array.isArray(r.photos) && r.photos.some(p => p && p.url) && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.filter(p => p && p.url).map((p, i) => <a key={p.id || i} href={linkUrl(p.url)} target="_blank" rel="noopener noreferrer"><FreshImg src={p.url} readKey={"client-request:" + id} onStale={photosAgain} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <div style={cellSt}>{tr("Site")}<div style={valSt}>{r.siteName || "--"}</div></div>
         <div style={cellSt}>{tr("Area")}<div style={valSt}>{r.area || tr("Whole site|request QR")}</div></div>
@@ -6052,6 +6119,13 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       setMaintSend(Object.assign({}, p, { issuePhotos: Array.isArray(d && d.issuePhotos) ? d.issuePhotos : [], contacts: Array.isArray(d && d.contacts) ? d.contacts : [] }));
     } catch (e) { setMaintSaid((e && e.message) || tr("Request failed")); }
   });
+  // The issue's photos for the request read again for fresh links, the window's typing kept (part 372).
+  const maintPhotosAgain = async () => {
+    const id = maintSend && maintSend.issueId != null ? maintSend.issueId : sel && sel.id;
+    if (id == null) return;
+    const d = await af("/api/maintenance-requests/from-issue/" + encodeURIComponent(id));
+    if (d && Array.isArray(d.issuePhotos)) setMaintSend(cur => (cur ? { ...cur, issuePhotos: d.issuePhotos } : cur));
+  };
   const openIssue = async (iss) => {
     setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); setStatusDraft(iss.status || ""); setStatusRefusal("");
     setMaintSend(null); setMaintSaid(""); setMaintLinks(null);
@@ -6060,6 +6134,19 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
     try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(Array.isArray(p) ? p : []); } catch (e) { setAllPhotos([]); }
   };
   const closeSel = () => { setSel(null); setView(null); if (routeId && onRoute) onRoute([]); };
+  // The issue read again for its photos' fresh links, quietly (part 372): its own read, its photos, and the
+  // list row's photo when it has none of its own.
+  const issuePhotosAgain = async () => {
+    const id = sel && sel.id;
+    if (id == null) return;
+    const same = (x) => x && String(x.id) === String(id);
+    if (findingsOn || maintenance) { try { const d = await af("/api/issues/" + encodeURIComponent(id)); if (d && d.issue && same(selRef.current)) setView(d.issue); } catch (e) { /* the window keeps what it has */ } }
+    let mine = [];
+    try { const p = await af("/api/issues/" + id + "/photos"); mine = Array.isArray(p) ? p : []; if (same(selRef.current)) setAllPhotos(mine); } catch (e) { /* the window keeps what it has */ }
+    if (mine.length) return;
+    try { const rows = await af("/api/issues"); const row = (Array.isArray(rows) ? rows : rows && Array.isArray(rows.issues) ? rows.issues : []).find(same); if (row && same(selRef.current)) setSel(cur => (same(cur) ? { ...cur, photo_url: row.photo_url } : cur)); }
+    catch (e) { /* the window keeps what it has */ }
+  };
   // #issues/<id>, the office's link in a finding's notice: the row once the list holds it, else the
   // id alone, which the single read fills in.
   useEffect(() => {
@@ -6175,8 +6262,8 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><Btn t={t} onClick={doVerify} disabled={verify.busy} data-verify-save="" style={{ minHeight: 44 }}>{verify.busy ? tr("Saving...") : tr("Verify")}</Btn></div>
       </div>}
       {shown.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{shown.assignment_note}</div>}
-      {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
-      {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={shown.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><FreshImg src={p.photo_url} readKey={"issue:" + shown.id} onStale={issuePhotosAgain} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
+      {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><FreshImg src={shown.photo_url} readKey={"issue:" + shown.id} onStale={issuePhotosAgain} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
       {maintenance && <div data-issue-maintenance="" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Building maintenance")}</div>
         {linksNow().map(m => <div key={m.id} data-issue-maintenance-request={m.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -6213,7 +6300,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask} disabled={assignBusy}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
-    {maintSend && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={maintSend} maxPhotos={maintenance ? maintenance.maxPhotos : 6} canManageSites={canManageSites} onClose={() => setMaintSend(null)}
+    {maintSend && <MaintenanceNewWindow af={af} t={t} token={token} sites={sites} start={maintSend} photosAgain={maintPhotosAgain} maxPhotos={maintenance ? maintenance.maxPhotos : 6} canManageSites={canManageSites} onClose={() => setMaintSend(null)}
       onFiled={(req, warning) => {
         setMaintSend(null);
         if (req) addLink({ id: req.id, reference: req.reference, status: req.status, statusName: req.statusName, filedAt: req.filedAt });
@@ -6306,7 +6393,7 @@ const maintRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), k
 
 // New maintenance request. start is what the window opens with: a site, or GET
 // /api/maintenance-requests/from-issue/:issueId's prefill, issuePhotos and contacts for an issue.
-function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, maxPhotos = 6, canManageSites = false, onClose, onFiled }) {
+function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgain, maxPhotos = 6, canManageSites = false, onClose, onFiled }) {
   const fromIssue = !!start.issueId;
   const [form, setForm] = useState(() => ({ siteId: start.siteId ? String(start.siteId) : "", building: start.building || "", floor: start.floor || "", area: start.area || "", category: start.category || "", urgency: start.urgency || "", description: start.description || "" }));
   const [files, setFiles] = useState([]);
@@ -6371,7 +6458,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, maxPhotos 
     <div style={{ marginBottom: 12 }}><Lbl>{tr("What is wrong *")}</Lbl><TArea t={t} data-maint-field="description" aria-label={tr("What is wrong")} rows={4} maxLength={4000} value={form.description} onChange={e => set("description", e.target.value)} placeholder={tr("Where it is, what you see, and since when.")} style={bad("description") ? { borderColor: RD } : undefined} /></div>
     {fromIssue && Array.isArray(start.issuePhotos) && start.issuePhotos.length > 0 && <div data-maint-issue-photos="" style={{ marginBottom: 12 }}><Lbl>{tr("The issue's photos to send")}</Lbl>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{start.issuePhotos.map((p, i) => { const on = issuePicked.indexOf(String(p.id)) >= 0; return <label key={p.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer" }}>
-        {p.url ? <img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 6, border: "2px solid " + (on ? GO : t.border) }} /> : null}
+        {p.url ? <FreshImg src={p.url} readKey={"maintenance-from-issue:" + (start.issueId != null ? start.issueId : "")} onStale={photosAgain} alt={tr("Photo {0}", i + 1)} style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 6, border: "2px solid " + (on ? GO : t.border) }} /> : null}
         <span style={chkWrap}><input type="checkbox" data-maint-issue-photo={p.id} checked={on} onChange={() => { const nextPicked = on ? issuePicked.filter(x => x !== String(p.id)) : issuePicked.concat([String(p.id)]); if (nextPicked.length > maxPhotos) return; setIssuePicked(nextPicked); setFiles(f => f.slice(0, Math.max(0, maxPhotos - nextPicked.length))); setSaid(null); }} aria-label={tr("Send photo {0}", i + 1)} /></span>
       </label>; })}</div></div>}
     <div style={{ marginBottom: 14 }}><Lbl>{tr("Photos")}</Lbl><MaintPhotoPick t={t} files={files} onChange={(f) => { setFiles(f); setSaid(null); }} left={left} name="new" /></div>
@@ -7936,7 +8023,9 @@ function newSendId() {
 }
 
 // A person's photo in the chat list, or their initials while there is none.
-const chatFace = (name, url, sz, color) => (url ? <img src={url} alt="" style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} /> : <Ini name={name} sz={sz} color={color} />);
+// A face in the chat: the person's photo, read again once through again (readKey, read) when its link has
+// run out (part 372), or their initials.
+const chatFace = (name, url, sz, color, again) => <FreshImg src={url} readKey={again ? again.key : undefined} onStale={again ? again.read : undefined} fallback={<Ini name={name} sz={sz} color={color} />} alt="" style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />;
 
 // New message (Step 213): everyone active the office can write to, from GET /api/chat/people, the
 // office first and then staff, with a search by name or badge that the API reads. Picking a person
@@ -7956,6 +8045,8 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
     }, want ? 250 : 0);
     return () => { alive = false; clearTimeout(h); };
   }, [af, q, again]);
+  // The list read again for its faces' fresh links (part 372).
+  const facesAgain = { key: "chat-people:" + q.trim(), read: () => af("/api/chat/people" + (q.trim() ? "?q=" + encodeURIComponent(q.trim()) : "")).then(d => { if (d && Array.isArray(d.people)) setList(d.people); }) };
   const groups = [
     { key: "office", label: tr("Office|people"), rows: (list || []).filter(p => p && p.kind === "office") },
     { key: "staff", label: tr("Staff"), rows: officeOnly ? [] : (list || []).filter(p => p && p.kind !== "office") },
@@ -7975,7 +8066,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
       {!failed && groups.map(g => (g.rows.length === 0 ? null : <div key={g.key} data-new-message-group={g.key}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{g.label}</div>
         {g.rows.map(p => (<button key={p.userId} onClick={() => onPick(p)} disabled={!!starting} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: starting ? "default" : "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-          {chatFace(p.name, p.photoUrl, 34, t.textSec)}
+          {chatFace(p.name, p.photoUrl, 34, t.textSec, facesAgain)}
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ display: "block", fontSize: 13, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
             {p.role && <span style={{ display: "block", fontSize: 11, color: t.textMut }}>{roleWord(p.role)}</span>}
@@ -9169,6 +9260,8 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
     af("/api/chat/people").then(d => { if (alive) setEveryone(d && Array.isArray(d.people) ? d.people : null); }).catch(e => { if (alive) setEveryone(null); console.warn("Chat people:", e.message); });
     return () => { alive = false; };
   }, [af]);
+  // The people and the direct messages read again for their faces' fresh links (part 372).
+  const chatFacesAgain = { key: "chat-page", read: () => Promise.all([loadDirect(), af("/api/chat/people").then(d => { if (d && Array.isArray(d.people)) setEveryone(d.people); }).catch(() => {})]) };
   const markRead = async (id) => {
     try { await af("/api/chat/channels/" + encodeURIComponent(id) + "/read", { method: "POST" }); } catch (e) { return; }
     setDms(p => p.map(d => d.channelId === id ? { ...d, unreadCount: 0 } : d));
@@ -9295,7 +9388,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
           {!directFailed && direct && direct.length === 0 && !needle && <div style={{ padding: "4px 10px 10px", color: t.textMut, fontSize: 12 }}>{tr("No direct messages yet. New message starts one.")}</div>}
           {!directFailed && directShown.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} data-direct-chat="" onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
-              {chatFace(dm.otherName, dm.otherPhotoUrl, 38, active ? GO : t.textSec)}
+              {chatFace(dm.otherName, dm.otherPhotoUrl, 38, active ? GO : t.textSec, chatFacesAgain)}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.otherName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{unreadPill(Number(dm.unreadCount) || 0)}</div>
@@ -9326,7 +9419,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
           {toStart.length > 0 && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("People")}</div>}
           {toStart.map(p => (
             <button key={"start-" + p.userId} data-chat-start={p.kind === "office" ? "office" : "staff"} onClick={() => startWith(p)} disabled={!!starting} style={rowStyle(false)} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-              {chatFace(p.name, p.photoUrl, 38, t.textSec)}
+              {chatFace(p.name, p.photoUrl, 38, t.textSec, chatFacesAgain)}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Message {0}", p.name)}</div>
                 <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{String(starting) === String(p.userId) ? tr("Opening...") : (p.role ? roleWord(p.role) : "")}</div>
@@ -9352,7 +9445,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
         ) : (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
             {phone && <button onClick={() => { setSel(null); setTagOpen(false); }} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
-            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : activeDirect ? activeDirect.otherName : (namedHere ? namedHere.name : ""), activeDirect ? activeDirect.otherPhotoUrl : (!activeDm && namedHere ? namedHere.photoUrl : null), 34)}
+            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : activeDirect ? activeDirect.otherName : (namedHere ? namedHere.name : ""), activeDirect ? activeDirect.otherPhotoUrl : (!activeDm && namedHere ? namedHere.photoUrl : null), 34, undefined, chatFacesAgain)}
             <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || activeDirect?.otherName || (namedHere ? namedHere.name : "") || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : isDirect ? tr("Direct message") : tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
@@ -9943,7 +10036,29 @@ const dashboardDevice = () => { try { return String(navigator.userAgent || "").s
 // One ticket, opened from a row: every detail, the screenshot when the API sends its address, and the
 // status with its note, saved with PATCH /api/support/tickets/:id { status, statusNote }. A refusal is
 // drawn over Save in the API's words, and nothing closes.
-function TicketWindow({ af, t, ticket, showToast, onClose, onSaved }) {
+// A ticket's screenshot. The API answers it behind the token, at /api/support/tickets/:id/screenshot, so it is
+// fetched with the token and drawn from the bytes, as a maintenance request's photo is; an address of any
+// other kind is drawn as it is. Before part 372 the path went straight into the picture, which the browser
+// read from the dashboard's own address with no token, so it never loaded.
+function TicketShot({ t, token, url }) {
+  const own = /^\/api\//.test(String(url || ""));
+  const [blob, setBlob] = useState("");
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!own) return undefined;
+    let alive = true; let made = "";
+    apiDownload(url, token, "screenshot.png")
+      .then(f => { made = URL.createObjectURL(f.blob); if (alive) setBlob(made); else URL.revokeObjectURL(made); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [url, token, own]);
+  const src = own ? blob : url;
+  const box = { display: "block", maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border };
+  if (own && failed) return <div data-ticket-screenshot="failed" style={{ fontSize: 12, color: t.textMut, marginBottom: 12 }}>{tr("This photo did not load.")}</div>;
+  if (!src) return <div data-ticket-screenshot="loading" style={{ height: 60, marginBottom: 12 }} />;
+  return <a href={own ? src : linkUrl(src)} target="_blank" rel="noopener noreferrer" data-ticket-screenshot={own ? "behind-token" : "link"} style={{ display: "block", marginBottom: 12 }}><img src={src} alt={tr("Screenshot")} style={box} /></a>;
+}
+function TicketWindow({ af, t, token = "", ticket, showToast, onClose, onSaved }) {
   const [status, setStatus] = useState(ticket.status);
   const [note, setNote] = useState(ticket.statusNote || "");
   const [busy, setBusy] = useState(false);
@@ -9969,7 +10084,7 @@ function TicketWindow({ af, t, ticket, showToast, onClose, onSaved }) {
     <div style={{ marginBottom: 12 }}>{ticketDetails(ticket).filter(([l]) => l !== "Kind of ticket" && l !== "Status" && l !== "Note|ticket").map(([l, v]) => row(l, v))}</div>
     <Lbl>{tr("Description")}</Lbl>
     <div data-ticket-description="" style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, overflowWrap: "anywhere" }}>{ticket.description || "--"}</div>
-    {ticket.screenshotUrl ? <a href={linkUrl(ticket.screenshotUrl)} target="_blank" rel="noopener noreferrer" data-ticket-screenshot="" style={{ display: "block", marginBottom: 12 }}><img src={ticket.screenshotUrl} alt={tr("Screenshot")} style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid " + t.border }} /></a>
+    {ticket.screenshotUrl ? <TicketShot t={t} token={token} url={ticket.screenshotUrl} />
       : ticket.screenshot ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("A screenshot is attached.")}</div> : null}
     <Lbl>{tr("Status")}</Lbl>
     <div role="group" aria-label={tr("Status")} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -10010,7 +10125,7 @@ function TicketsExportWindow({ t, text, showToast, onClose }) {
 
 // The Tickets inbox: GET /api/support/tickets?kind= read once per kind and app, the status tabs counted
 // from what it answers, a row opening the ticket, and Export making the rows shown into text.
-function TicketsPage({ af, t, showToast }) {
+function TicketsPage({ af, t, token = "", showToast }) {
   const [rows, setRows] = useState(null);
   const [failed, setFailed] = useState("");
   const [state, setState] = useState("new");
@@ -10047,7 +10162,7 @@ function TicketsPage({ af, t, showToast }) {
     {rows === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
       : <DataTable t={t} columns={cols} rows={shown} rowKey={x => x.id} onRowClick={x => setOpen(x)} empty={all.length ? tr("Nothing matches this filter.") : tr("No tickets yet.")} />}
-    {open && <TicketWindow af={af} t={t} ticket={open} showToast={showToast} onClose={() => setOpen(null)} onSaved={(x) => { setOpen(null); setRows(prev => (prev || []).map(y => (y.id === x.id ? Object.assign({}, y, x) : y))); load(); }} />}
+    {open && <TicketWindow af={af} t={t} token={token} ticket={open} showToast={showToast} onClose={() => setOpen(null)} onSaved={(x) => { setOpen(null); setRows(prev => (prev || []).map(y => (y.id === x.id ? Object.assign({}, y, x) : y))); load(); }} />}
     {exporting !== null && <TicketsExportWindow t={t} text={exporting} showToast={showToast} onClose={() => setExporting(null)} />}
   </div>);
 }
@@ -13766,6 +13881,8 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
   const [failed, setFailed] = useState("");
   const [act, setAct] = useState(null);
   const [editing, setEditing] = useState(false);
+  // The item read again for its photos' fresh links, quietly (part 372).
+  const photosAgain = () => af("/api/equipment/" + encodeURIComponent(id)).then(r => { if (r && r.equipment) setD(r); });
   const load = useCallback(() => {
     setFailed("");
     af("/api/equipment/" + encodeURIComponent(id)).then(r => { if (!r || !r.equipment) throw new Error(tr("This did not load.")); setD(r); }).catch(e => { setD(null); setFailed(e.message || tr("This did not load.")); });
@@ -13817,7 +13934,7 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
           </div>
           {ev.kind === "moved" && (ev.fromSiteId || ev.toSiteId) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("From {0} to {1}", ev.fromSiteName || siteName(ev.fromSiteId) || "--", ev.toSiteName || siteName(ev.toSiteId) || "--")}</div> : null}
           {ev.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
-          {ev.photoUrl ? <a href={linkUrl(ev.photoUrl)} target="_blank" rel="noreferrer"><img src={ev.photoUrl} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
+          {ev.photoUrl ? <a href={linkUrl(ev.photoUrl)} target="_blank" rel="noreferrer"><FreshImg src={ev.photoUrl} readKey={"equipment:" + id} onStale={photosAgain} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
         </div>))}
     </Crd>
     {act && <EquipmentEventWindow af={af} t={t} item={x} action={act} sites={sites} onClose={() => setAct(null)} onSaved={() => { setAct(null); if (showToast) showToast(tr("Recorded.")); load(); }} />}
@@ -14650,6 +14767,19 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   const [reassignForm, setReassignForm] = useState(null); const [createForm, setCreateForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const load = async (f) => { setLoading(true); try { const params = new URLSearchParams(); const ff = f || filters; if (ff.site_id) params.set("site_id", ff.site_id); if (ff.building_name) params.set("building_name", ff.building_name); if (ff.floor_number) params.set("floor_number", ff.floor_number); if (ff.zone) params.set("zone", ff.zone); if (ff.user_id) params.set("user_id", ff.user_id); if (ff.status) params.set("status", ff.status); const d = await af("/api/clock/tasks/assigned-all?" + params.toString()); setTasks(d); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
+  // The task window is drawn from the list's row, so a picture there whose link ran out reads the list again,
+  // quietly, and the window takes the row's fresh links (part 372).
+  const taskPhotosAgain = async () => {
+    const id = sel && sel.id;
+    if (id == null) return;
+    const params = new URLSearchParams(); const ff = filters;
+    ["site_id", "building_name", "floor_number", "zone", "user_id", "status"].forEach(k => { if (ff[k]) params.set(k, ff[k]); });
+    const d = await af("/api/clock/tasks/assigned-all?" + params.toString());
+    if (!Array.isArray(d)) return;
+    setTasks(d);
+    const row = d.find(x => String(x.id) === String(id));
+    if (row) setSel(cur => (cur && String(cur.id) === String(id) ? { ...cur, media_url: row.media_url, resolution_photo_url: row.resolution_photo_url } : cur));
+  };
   useEffect(() => { load(); }, []);
   const updateFilter = (key, val) => { const nf = { ...filters, [key]: val }; setFilters(nf); load(nf); };
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
@@ -14707,8 +14837,8 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
       {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 12 }}>{tr("Resolution: {0}", sel.resolution_note)}</div>}
-      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{sel.media_type === "video" ? tr("Attached Video") : tr("Attached Photo")}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt={tr("Task")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
-      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Resolution Photo")}</div><img src={sel.resolution_photo_url} alt={tr("Resolution")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
+      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{sel.media_type === "video" ? tr("Attached Video") : tr("Attached Photo")}</div>{sel.media_type === "video" ? <FreshImg as="video" src={sel.media_url} readKey={"assigned-task:" + sel.id} onStale={taskPhotosAgain} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <FreshImg src={sel.media_url} readKey={"assigned-task:" + sel.id} onStale={taskPhotosAgain} alt={tr("Task")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
+      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Resolution Photo")}</div><FreshImg src={sel.resolution_photo_url} readKey={"assigned-task:" + sel.id} onStale={taskPhotosAgain} alt={tr("Resolution")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
         {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? tr("Assigned|task") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "resolution_photo" ? tr("Photo Attached") : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -17214,8 +17344,8 @@ const inspectionPhotosOf = (sr) => {
 // The photos of the inspection as a whole, from the result.
 const inspectionOverallPhotosOf = (d) => (d && d.result && Array.isArray(d.result.photo_urls) ? d.result.photo_urls.filter(u => typeof u === "string" && u) : []);
 // Photos as thumbnails, each opening full size in a new tab.
-const InspectionThumbs = ({ t, urls, mark }) => (<div data-inspection-photos={mark} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-  {urls.map((u, i) => <a key={i} href={linkUrl(u)} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
+const InspectionThumbs = ({ t, urls, mark, readKey, onStale }) => (<div data-inspection-photos={mark} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+  {urls.map((u, i) => <a key={i} href={linkUrl(u)} target="_blank" rel="noreferrer"><FreshImg src={u} readKey={readKey} onStale={onStale} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
 </div>);
 
 // A filed inspection's review line (Step 232, STEP217_CONTRACT_A v2 section 6): signed, with the
@@ -17553,6 +17683,13 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const openDetail = async (id) => {
     try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
   };
+  // The inspection read again for its photos' fresh links, what is expanded kept (part 372).
+  const detailPhotosAgain = async () => {
+    const id = detailView && detailView.inspection ? detailView.inspection.id : detailView && detailView.id;
+    if (id == null) return;
+    const d = await af("/api/inspections/scheduled/" + id);
+    setDetailView(cur => (cur && (cur.inspection ? cur.inspection.id : cur.id) === id ? d : cur));
+  };
   // Step 314: #inspections/<id> opens that inspection, which is where a safety inspection record's
   // Open the inspection lands; Back goes to #inspections.
   const routeId = route[0] ? decodeURIComponent(route[0]) : "";
@@ -17778,7 +17915,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                         {d.capture ? (inspectionPhotosOf(sr).length > 0 ? (
                           <div>
                             <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos ({0})", inspectionPhotosOf(sr).length)}</div>
-                            <InspectionThumbs t={t} urls={inspectionPhotosOf(sr)} mark={item.id} />
+                            <InspectionThumbs t={t} urls={inspectionPhotosOf(sr)} mark={item.id} readKey="inspection-detail" onStale={detailPhotosAgain} />
                             <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
                           </div>
                         ) : (
@@ -17787,7 +17924,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
                           <div>
                             <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Attached Photo")}</div>
                             <a href={linkUrl(sr.photo_url)} target="_blank" rel="noreferrer">
-                              <img src={sr.photo_url} alt={tr("Inspection photo")} style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
+                              <FreshImg src={sr.photo_url} readKey="inspection-detail" onStale={detailPhotosAgain} alt={tr("Inspection photo")} style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
                             </a>
                             <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
                           </div>
@@ -17808,7 +17945,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         {/* Step 218: the photos of the whole inspection and the signature, once the answer carries capture. */}
         {isComplete && d.capture && inspectionOverallPhotosOf(d).length > 0 && <Crd t={t} style={{ marginTop: 16 }}>
           <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos of the whole inspection")}</div>
-          <InspectionThumbs t={t} urls={inspectionOverallPhotosOf(d)} mark="overall" />
+          <InspectionThumbs t={t} urls={inspectionOverallPhotosOf(d)} mark="overall" readKey="inspection-detail" onStale={detailPhotosAgain} />
         </Crd>}
         {isComplete && d.capture && <Crd t={t} style={{ marginTop: 16 }}>
           <div data-inspection-signature="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Signature")}</div>
@@ -26335,6 +26472,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
     } catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
     finally { setLoading(false); }
   }, [af, showToast, statusFilter, showTest]);
+  // The same read, quietly, for the faces' fresh links (part 372).
+  const facesAgain = () => af("/api/hr/employees-summary?status=" + encodeURIComponent(statusFilter) + (showTest ? "&include_test=true" : "")).then(d => { if (d && Array.isArray(d.employees)) setEmployees(d.employees); });
 
   useEffect(() => { load(); }, [load]);
 
@@ -26467,9 +26606,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
               <div style={{ height: 4, background: "linear-gradient(90deg, " + GO + ", " + GL + ")" }} />
               <div style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  {e.profile_photo_url
-                    ? <img src={e.profile_photo_url} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />
-                    : <Ini name={name} sz={52} color={e.status === "active" ? GO : "#94A3B8"} />
+                  <FreshImg src={e.profile_photo_url} readKey="hr-employees" onStale={facesAgain} fallback={<Ini name={name} sz={52} color={e.status === "active" ? GO : "#94A3B8"} />} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
@@ -26999,6 +27136,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     } catch (e) { showToast(e.message, "error"); }
     finally { setLoading(false); }
   }, [af, userId, showToast]);
+  // The folder read again, quietly, for the face's fresh link (part 372).
+  const faceAgain = () => af("/api/hr/employee-folder/" + userId).then(d => { if (d) setData(d); });
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -27134,9 +27273,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         <Ic d="M15 18l-6-6 6-6" sz={14} c={t.goldText} /> {tr("Back to Employees")}
       </button>
       <ProfileBanner t={t}
-        avatar={e.profile_photo_url
-          ? <img src={e.profile_photo_url} alt="" style={{ width: 84, height: 84, borderRadius: "50%", objectFit: "cover" }} />
-          : <Ini name={fullName} sz={84} />}
+        avatar={<FreshImg src={e.profile_photo_url} readKey={"hr-folder:" + userId} onStale={faceAgain} fallback={<Ini name={fullName} sz={84} />} alt="" style={{ width: 84, height: 84, borderRadius: "50%", objectFit: "cover" }} />}
         name={fullName + (e.is_test_account ? " (" + tr("TEST") + ")" : "")}
         idCode={e.employee_id}
         subtitle={<span style={{ textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.hire_date ? " . " + tr("Hired {0}", fmtDate(e.hire_date)) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
@@ -30384,6 +30521,15 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
   const edit = (next) => { setF(next); setDirty(true); };
   const setC = (fn) => edit({ ...f, content: fn(f.content) });
   const setBlock = (i, b) => setC(x => ({ ...x, blocks: x.blocks.map((y, j) => (j === i ? b : y)) }));
+  // A picture's link lasts 12 hours. One that has run out reads the draft again and takes the fresh link of
+  // each stored picture by its path, keeping everything typed (part 372).
+  const imagesAgain = async () => {
+    if (!draft || draft.id == null) return;
+    const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id));
+    const fresh = {};
+    ((d && d.draft && d.draft.content && Array.isArray(d.draft.content.blocks)) ? d.draft.content.blocks : []).forEach(b => { if (b && b.path && b.src) fresh[b.path] = b.src; });
+    setC(x => ({ ...x, blocks: x.blocks.map(b => (b && b.kind === "image" && b.path && fresh[b.path] ? { ...b, src: fresh[b.path] } : b)) }));
+  };
   const setQ = (i, q) => setC(x => ({ ...x, questions: x.questions.map((y, j) => (j === i ? q : y)) }));
   const setStep = (i, st) => setC(x => ({ ...x, steps: x.steps.map((y, j) => (j === i ? st : y)) }));
   const move = (list, i, by) => { const a = list.slice(); const j = i + by; if (j < 0 || j >= a.length) return a; const tmp = a[i]; a[i] = a[j]; a[j] = tmp; return a; };
@@ -30476,7 +30622,7 @@ function LessonDraftEditor({ af, t, token = "", tp, initial, showToast, guard, o
       </div>
     </div>
     {b.src ? <div style={{ marginBottom: 8 }}>
-      <img data-lesson-image-preview={i} src={b.src} alt={b.alt.en || ""} style={{ display: "block", maxWidth: "100%", maxHeight: 260, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />
+      <FreshImg data-lesson-image-preview={i} src={b.src} readKey={"lesson-draft:" + (draft ? draft.id : "")} onStale={b.path ? imagesAgain : undefined} alt={b.alt.en || ""} style={{ display: "block", maxWidth: "100%", maxHeight: 260, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
         <span style={{ fontSize: 11, color: t.textMut }}>{b.path ? tr("Picture uploaded") : tr("Drawing pasted")}</span>
         <button style={{ ...small, color: RD }} data-lesson-image-remove={i} onClick={() => setBlock(i, { ...b, svg: null, path: null, src: "" })}>{tr("Remove the picture")}</button>

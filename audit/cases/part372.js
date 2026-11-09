@@ -10,6 +10,11 @@
 //            the case's next save; the supply requests pending counted whole; the Signatures page read in
 //            the attention order; both timelines a page at a time with Show more; a leave adjustment's day;
 //            an hours file checked first, then posted; a drop approved and assigned in one step
+//   pictures a picture whose signed link ran out reads its record again once and draws the fresh link: a
+//            person's face on their profile, the faces of the staff list sharing one read, an issue's
+//            photos; a fresh link that fails as well gives way to the initials with no third read; a list
+//            read again an hour later draws fresh links (a guard); a ticket's screenshot read behind the
+//            token, against audit/part372-pictures.js, whose links run out on the stub's own clock
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -320,10 +325,113 @@ async function round8Cases(ctx, lang) {
 }
 
 
+// ---- Section 2: pictures that come back by themselves -------------------------------------------------------
+// The pictures of the screen, read off the page: each one's link, whether it drew, and how it was asked for.
+const pictures = (d, sel) => d.page.evaluate((s) => Array.from(document.querySelectorAll(s)).map((im) => ({ src: im.getAttribute("src") || "", drew: im.complete && im.naturalWidth > 0, how: im.getAttribute("data-fresh-img") })), sel);
+const armPictures = (o) => (stubs) => stubs.setPictures372(o || {});
+const storage = (d) => d.stubs.pictures372().served;
+
+async function pictureCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/pictures/" + x;
+
+  // A person's face on their profile, from a read an hour old: read again once, and the fresh link drawn.
+  await withDriver(ctx, { name: "profile-face", lang, arm: armPictures({ expireNext: { "profile:u-staff-5": 1 } }) }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "staff/u-staff-5");
+    await until(d, "[data-profile-edit]", 6000);
+    await d.settle(1200);
+    const profileReads = reads(d, mark, /^\/api\/users\/profile\/u-staff-5$/);
+    const readsOf = profileReads.length;
+    const handed = profileReads.map((c) => (c.json && c.json.user ? c.json.user.profilePhotoUrl : ""));
+    const face = (await pictures(d, "img[data-fresh-img]")).filter((f) => handed.indexOf(f.src) >= 0);
+    const servedOf = (u) => storage(d).filter((x) => x.url === u).map((x) => x.ok);
+    results.check(KIND, id("a-face-whose-link-ran-out-reads-the-profile-again-once"), readsOf === 2 && servedOf(handed[0]).join() === "false" && face.length === 1 && face[0].src === handed[1] && face[0].drew,
+      "the profile was read " + readsOf + " times; storage answered the first link " + say(servedOf(handed[0])) + " and the face drew " + say(face.map((f) => [f.src === handed[1], f.drew])));
+  });
+
+  // The staff list's faces, from a list read an hour old: one read again for all of them, and every face drawn.
+  // The shell reads the people at sign-in, so the list's read an hour old is armed once that read is done.
+  await withDriver(ctx, { name: "list-faces", lang, arm: armPictures({}) }, async (d, stubs) => {
+    await d.settle(800);
+    stubs.setPictures372({ expireNext: { "staff-list": 1 } });
+    const mark = d.mark();
+    await d.goto("staff");
+    await d.settle(1500);
+    const listReads = reads(d, mark, /^\/api\/users$/).filter((c) => !q(c).has("role")).length;
+    const faces = await pictures(d, 'img[src*="profile-photos/"]');
+    const failedFirst = storage(d).filter((x) => !x.ok).length;
+    results.check(KIND, id("the-list-s-faces-share-one-read-again"), faces.length === 3 && faces.every((f) => f.drew) && listReads === 2 && failedFirst === 3,
+      "the list was read " + listReads + " times, " + failedFirst + " links had run out, and the faces drew " + say(faces.map((f) => f.drew)));
+  });
+
+  // An issue's photos, from a read an hour old: the issue read again once, and its photos drawn.
+  // Opened from the list once the page has read everything it reads on its own, so the issue's one read is
+  // the window's.
+  await withDriver(ctx, { name: "issue-photos", lang, arm: armPictures({}) }, async (d, stubs) => {
+    await d.goto("issues");
+    await d.settle(1500);
+    stubs.setPictures372({ expireNext: { "issue:i-1": 1 } });
+    const mark = d.mark();
+    await d.page.evaluate(() => { window.location.hash = "issues/i-1"; });
+    await d.settle(1800);
+    const issueReads = reads(d, mark, /^\/api\/issues\/i-1$/).length;
+    const shots = await pictures(d, 'img[src*="issue-photos/i-1/"]');
+    const served = storage(d).map((x) => x.ok);
+    const ranOut = served.filter((x) => !x).length;
+    results.check(KIND, id("an-issue-s-photos-read-the-issue-again-once"), issueReads === 2 && shots.length === 2 && shots.every((f) => f.drew && f.how === "read-again") && ranOut === 2 && served.slice(ranOut).every((x) => x),
+      "the issue was read " + issueReads + " times and its photos drew " + say(shots.map((f) => [f.drew, f.how])) + " after storage answered " + say(served));
+  });
+
+  // A fresh link that fails as well: the initials in its place, and no third read.
+  await withDriver(ctx, { name: "fails-twice", lang, arm: armPictures({ expireNext: { "profile:u-staff-5": 2 } }) }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "staff/u-staff-5");
+    await until(d, "[data-profile-edit]", 6000);
+    await d.settle(2000);
+    const readsOf = reads(d, mark, /^\/api\/users\/profile\/u-staff-5$/).length;
+    const faces = await pictures(d, 'img[src*="profile-photos/u-staff-5/"]');
+    const initials = await d.page.evaluate(() => Array.from(document.querySelectorAll("div")).some((x) => x.childElementCount === 0 && x.innerText.trim() === "TW" && parseFloat(getComputedStyle(x).width) >= 80));
+    results.check(KIND, id("a-fresh-link-that-fails-too-gives-way-to-the-initials"), readsOf === 2 && faces.length === 0 && initials,
+      "the profile was read " + readsOf + " times; " + faces.length + " broken face(s) stayed" + (initials ? "" : " and no initials were drawn"));
+  });
+
+  // Guard: a list read again an hour later draws the fresh links it hands out.
+  await withDriver(ctx, { name: "an-hour-later", lang, arm: armPictures({}) }, async (d, stubs) => {
+    await d.goto("staff");
+    await d.settle(1200);
+    const before = (await pictures(d, 'img[src*="profile-photos/"]')).map((f) => f.src);
+    stubs.pictures372Advance(61);
+    await d.goto("overview");
+    await d.settle(400);
+    await d.goto("staff");
+    await d.settle(1500);
+    const after = await pictures(d, 'img[src*="profile-photos/"]');
+    const now = stubs.pictures372().now;
+    const fresh = after.every((f) => before.indexOf(f.src) < 0 && (stubs.pictures372ExpiresAt(f.src) || 0) > now);
+    results.check(KIND, id("guard-a-list-read-again-an-hour-later-draws-fresh-links"), before.length === 3 && after.length === 3 && fresh && after.every((f) => f.drew),
+      "before " + before.length + " faces, after " + after.length + "; fresh " + fresh + ", drawn " + say(after.map((f) => f.drew)));
+  });
+
+  // A ticket's screenshot, which the API answers behind the token: read with the token and drawn.
+  await withDriver(ctx, { name: "ticket-screenshot", lang, arm: (s) => { s.setStep289(true); s.setPictures372({}); } }, async (d) => {
+    await d.goto("tickets");
+    await d.settle(900);
+    const mark = d.mark();
+    await d.page.locator("table tbody tr", { hasText: "When I press Send on the time off screen" }).first().click().catch(() => {});
+    await d.settle(1200);
+    const read = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/support/tickets/tk-1/screenshot");
+    const shot = await pictures(d, "[data-ticket-screenshot] img");
+    results.check(KIND, id("a-ticket-s-screenshot-is-read-behind-the-token"), read.length === 1 && shot.length === 1 && shot[0].drew && /^blob:/.test(shot[0].src),
+      "the screenshot was read " + read.length + " time(s) with the token and drew " + say(shot));
+  });
+}
+
 async function run(ctx) {
   for (const lang of LANGS) {
     await round8Cases(ctx, lang);
+    await pictureCases(ctx, lang);
   }
 }
 
-module.exports = { run, round8Cases };
+module.exports = { run, round8Cases, pictureCases };

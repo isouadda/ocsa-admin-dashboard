@@ -2336,13 +2336,13 @@ Who can do this: admins, and the app support contact
 1. Click **Tickets** (**Tickets**) in the menu on the left.
 2. The tabs are **New** (**Nuevo**), **Working on it** (**En proceso**), **Done** (**Hecho**), **Won't do** (**No se hará**) and **All** (**Todos**), each with how many. Narrow the list with **All kinds** (**Todos los tipos**) and **Both apps** (**Las dos aplicaciones**).
 3. Each row is a ticket someone sent from App support in the staff portal or from Help: when it was sent, its **Kind of ticket** (**Tipo de ticket**), who sent it, where, what they wrote and its status.
-4. Click a row to open it. It shows every detail the app sent on its own: the **Screen** (**Pantalla**), the **App version** (**Versión de la aplicación**), the **Device** (**Dispositivo**), the language, and the screenshot when there is one.
+4. Click a row to open it. It shows every detail the app sent on its own: the **Screen** (**Pantalla**), the **App version** (**Versión de la aplicación**), the **Device** (**Dispositivo**), the language, and the screenshot when there is one. Click the screenshot to open it full size in a new tab.
 5. Click a status, type a **Note to the person who sent it** (**Nota para la persona que lo envió**) if you like, and click **Save** (**Guardar**). When the status changes, the person is told in the app, in their language, with your note.
-If it does not work: a refusal shows over **Save** (**Guardar**) in the system's words. A bug and a sign-in problem are emailed to the support contact the moment they are sent; the other kinds go in one summary each working morning at 7:00 AM.
+If it does not work: a refusal shows over **Save** (**Guardar**) in the system's words. A screenshot that cannot be read says **This photo did not load.** (**Esta foto no se cargó.**); open the ticket again later. A bug and a sign-in problem are emailed to the support contact the moment they are sent; the other kinds go in one summary each working morning at 7:00 AM.
 Words people use for this: tickets, app support, bug report, the app is broken, feature request, help could not answer, wrong information, cannot sign in, tickets de soporte.
 Picture: tickets-inbox
 Picture: tickets-ticket-window
-Last checked: 2026-10-07
+Last checked: 2026-11-09
 
 ## Copy app support tickets into a chat (admin dashboard)
 Who can do this: admins, and the app support contact
