@@ -118,8 +118,9 @@ async function healthCases(ctx, lang) {
     await d.settle(300);
     const picked = await d.pickPerson(seed.STAFF[4].name);
     await d.settle(500);
-    const row = picked ? await d.capabilityRow(d.say(HEALTH_ROW)) : "unpicked";
-    results.check(KIND, id("an-ordinary-admin-is-offered-no-grant-guard"), row === null, row === "unpicked" ? "the person picker did not offer the custodial lead" : "an ordinary admin is shown the Health page's row");
+    // The row by its words on this screen, or by the English the API sends with it, which main draws.
+    const row = picked ? ((await d.capabilityRow(d.say(HEALTH_ROW))) || (await d.capabilityRow(HEALTH_ROW))) : "unpicked";
+    results.check(KIND, id("an-ordinary-admin-is-offered-no-grant"), row === null, row === "unpicked" ? "the person picker did not offer the custodial lead" : "an ordinary admin is shown the Health page's row, which only the super admin may change");
   });
   await withDriver(ctx, { name: "grant-super", lang, persona: "superAdmin" }, async (d) => {
     await d.goto("settings");
@@ -437,7 +438,9 @@ async function shiftsCases(ctx, lang) {
       who: (g.querySelector("[data-cr-who]") || {}).innerText || "", head: (g.querySelector("div") || {}).innerText || "" })));
     const second = await d.page.evaluate(() => { const box = document.querySelector("[data-cr-list-group='Second']"); if (!box) return null; const card = box.parentElement; return Array.from(card.querySelectorAll("[data-cr-task]")).map((r) => [r.getAttribute("data-cr-task"), r.getAttribute("data-cr-task-done")]); });
     const grey = await textOf(d, "[data-cr-list-group='Second'] ~ div [data-cr-earlier='t379-1']");
-    const g1 = groups.find((g) => g.key === "First") || {}, g2 = groups.find((g) => g.key === "Second") || {}, rest = groups.find((g) => g.key === "*");
+    const g1 = groups.find((g) => g.key === "First") || {}, g2 = groups.find((g) => g.key === "Second") || {};
+    // Repeating work stays the site's: no ring of its own, and listed under Whole site.
+    const rest = !groups.some((g) => g.key === "*") && (await d.page.evaluate(() => { const box = document.querySelector("[data-cr-list-group='*']"); return !!box && !!box.parentElement.querySelector("[data-cr-task='t379-5']"); }));
     const clock = await d.page.evaluate((tag) => new Date("2026-03-17T13:10:00.000Z").toLocaleTimeString(tag, { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }), ES ? "es-US" : "en-US");
     const greyWant = d.say("Done by {0} on the {1} shift at {2}. It is due again on this shift.").replace("{0}", "Elena Barbosa").replace("{1}", ES ? "Primer turno" : "First").replace("{2}", clock);
     results.check(KIND, id("each-run-with-its-own-ring-who-and-the-grey-line"), g1.run === "1" && g1.due === "3" && g1.done === "3" && g2.run === "1" && g2.due === "3" && g2.done === "2" && g1.who.indexOf("Elena Barbosa") >= 0 && g2.who.indexOf("Tomasz Wisniewski") >= 0 && g2.who.indexOf("Elena") < 0
