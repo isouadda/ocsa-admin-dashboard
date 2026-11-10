@@ -5688,6 +5688,7 @@ export const WORDS = {
   "Goes to the person who sent the warning to sign. When they are no longer an admin or a supervisor, every admin is told. Nobody is added here.": { es: "Le llega a quien envi\u00f3 la advertencia a firmar. Si ya no es administrador ni supervisor, se avisa a todos los administradores. Aqu\u00ed no se agrega a nadie." },
   "Set on the Health page, under Who is told and when.": { es: "Se indica en la p\u00e1gina de Salud, en A qui\u00e9n se avisa y cu\u00e1ndo." },
   "Goes only to the people it is about. Nobody is added here.": { es: "Solo les llega a las personas a las que se refiere. Aqu\u00ed no se agrega a nadie." },
+  "The office is copied at {0}, and replies come to the office.": { es: "La oficina va en copia en {0} y las respuestas llegan a la oficina." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

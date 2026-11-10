@@ -1290,14 +1290,14 @@ Who can do this: anyone who can open Inspections
 3. **Photos of the whole inspection** (**Fotos de toda la inspección**) holds the photos taken of the inspection as a whole.
 4. **Signature** (**Firma**) shows the inspector's signature with **Signed by {0}, {1}** (**Firmado por {0}, {1}**) under it: their name, then the day and time. An inspection with no signature says **Not signed** (**Sin firmar**).
 5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
-6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
+6. **Export PDF** (**Exportar PDF**) reads the inspection again first, so its photos print from fresh links, and prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with how many photos each item has in its Photos column. A photo's address stops working an hour after it is read, so none is written into the file; the photos stay on the inspection.
 7. Beside the score, **Band** (**Banda**) reads the inspection's band under OCSA-QMS-014 5.2, and **Findings** (**Hallazgos**) lists the tickets the inspection opened; see the entry on reading an inspection's findings and band.
 8. An inspection that held the safety walk shows **Safety walk** (**Recorrido de seguridad**) with its safety part above the items; see Read an inspection's safety walk.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
 Picture: inspection-completed-photos
 Picture: inspection-completed-signature
-Last checked: 2026-10-07
+Last checked: 2026-11-10
 
 ## Check who is still working with the roster check (admin dashboard)
 Who can do this: admins who manage staff
@@ -1713,11 +1713,11 @@ Last checked: 2026-10-02
 Who can do this: admins and supervisors
 1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **Inspections** (**Inspecciones**) and click **Open** (**Abrir**).
 2. Pick the **Site** (**Sitio**) and the dates. The line beside **Print** (**Imprimir**) says how many inspections were completed in them.
-3. Click **Print** (**Imprimir**). Each completed inspection prints on its own page, headed by its kind and its form: OCSA-FRM-001 for a supervisor inspection and OCSA-FRM-002 for an audit, with the photos and the signatures.
+3. Click **Print** (**Imprimir**). The record is read again first, so the photos print from fresh links. Each completed inspection prints on its own page, headed by its kind and its form: OCSA-FRM-001 for a supervisor inspection and OCSA-FRM-002 for an audit, with the photos and the signatures.
 4. One inspection's **Export PDF** (**Exportar PDF**) prints the same page.
 Words people use for this: inspection records, inspection reports, audit records, binder, print all inspections, frm-001, frm-002.
 Picture: kept-inspections
-Last checked: 2026-10-02
+Last checked: 2026-11-10
 
 ## Print a site's training attendance rosters (admin dashboard)
 Who can do this: admins and supervisors
@@ -2712,12 +2712,12 @@ Who can do this: admins and supervisors, at the sites they can see, and anyone g
 3. Choose the site under **Site *** (**Sitio ***). Fill in the **Building** (**Edificio**), the **Floor** (**Piso**) and the **Area or room** (**Área o sala**) where the problem is.
 4. Choose the **Category *** (**Categoría ***) and the **Urgency *** (**Urgencia ***), and write **What is wrong *** (**Qué está mal ***): where it is, what you see, and since when.
 5. To send photos, click **Add photos** (**Agregar fotos**) and pick up to 6.
-6. Check **It goes to** (**Se envía a**). It lists the site's maintenance contacts for that building and those who cover the whole site. The office is copied, and replies come to the office.
-7. Click **Send to building maintenance** (**Enviar a mantenimiento del edificio**). The request gets a reference such as MR-2026-0008, and its window opens.
+6. Check **It goes to** (**Se envía a**). The system names who it goes to for the building typed: that building's maintenance contacts and those who cover the whole site. The office is copied at its address, and replies come to the office.
+7. Click **Send to building maintenance** (**Enviar a mantenimiento del edificio**). The request gets a reference such as MR-2026-0008, and its window opens. When the answer is lost, as on a weak connection, click it again: the request is filed once.
 If it does not work: When the site has no active maintenance contact, the window says so and Send stays off. Click **Add a contact** (**Agregar un contacto**) to add one on the site's page, or ask an admin to. When the email did not go, the request is still saved: open it and click **Send the email again** (**Enviar el correo de nuevo**).
 Words people use for this: maintenance request, building maintenance, work order, leak, broken, repair, landlord, property manager, facilities, report a building problem, solicitud de mantenimiento.
 Picture: maintenance-new
-Last checked: 2026-10-20
+Last checked: 2026-11-10
 
 ## Follow a maintenance request and record the building's answer (admin dashboard)
 Who can do this: admins and supervisors, at the sites they can see, and anyone given File and follow building maintenance requests
@@ -2870,13 +2870,13 @@ Last checked: 2026-11-09
 ## Read a person's or a site's timeline (admin dashboard)
 Who can do this: admins and supervisors
 1. For a person, click **Staff Management** (**Gestión de personal**), click the person's row, and click the **Timeline** (**Historial**) tab. For a site, click **Sites** (**Sitios**), open the site, and click its **Timeline** (**Historial**) tab.
-2. The timeline lists what happened, newest first: shifts started, problems reported, tasks done, supplies logged and the rest, each with when and by whom. Click an entry to open its record.
+2. The timeline lists what happened, newest first: shifts started, problems reported, tasks done, supplies logged and the rest, each with when and by whom. Click an entry to open its record. A record's **Print** (**Imprimir**) reads it again first, so its photos print whole, and so do a person's **Print Report** (**Imprimir el informe**) and a site's chat **Print** (**Imprimir**).
 3. Pick a category or dates above the list to narrow it. The count beside the title says how many entries are shown, with **so far** (**hasta ahora**) while there are more.
 4. The timeline shows 50 entries at a time. Click **Show more** (**Mostrar más**) under the list for the next ones, with the same category and dates, until it no longer shows.
 5. **Export CSV** (**Exportar CSV**) and **Print** (**Imprimir**) take the entries shown. Click **Show more** (**Mostrar más**) first to take older ones with them.
 Words people use for this: timeline, activity, history, what did they do, site history, older entries, load more, historial.
 Picture: staff-timeline
-Last checked: 2026-11-09
+Last checked: 2026-11-10
 
 ## Continue a warning saved as a draft (admin dashboard)
 Who can do this: admins and supervisors, for the warnings they may issue
@@ -2964,4 +2964,13 @@ Who can do this: admins, and the person who sent the warning to sign
 If it does not work: only a warning's request can be recorded this way, while it is still waiting or not right; anything else is refused in the system's words under the form. A request entered by mistake is closed with **Cancel** (**Cancelar**) instead.
 Words people use for this: signed on paper, paper signature, printed copy, refused to sign in person, witnessed refusal, scan the signed warning, firma en papel.
 Picture: signature-paper
+Last checked: 2026-11-10
+
+## Tell the test site apart (admin dashboard)
+Who can do this: anyone who can see the sites
+1. One site is kept for the robot's run-throughs on the Health page. In **Sites** (**Sitios**) its name carries **TEST** (**PRUEBA**), and so does its page.
+2. Wherever a site is picked, such as **Checklist Results** (**Resultados de la lista**), a schedule, a task or a report, the test site reads with (**TEST** (**PRUEBA**)) after its name, the way a test account is marked.
+3. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export.
+Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
+Picture: sites-test-site
 Last checked: 2026-11-10

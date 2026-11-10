@@ -1883,6 +1883,10 @@ const SHOTS = [
   { name: "signature-paper", entry: "Record a paper signature or a refusal",
     open: "hr/signatures/sr-3", ready: "[data-signature-request-window='sr-3'] [data-paper-record-open]",
     act: async (c) => { await click(c, "[data-paper-record-open]"); await until(c, "[data-paper-next]"); await c.page.locator("[data-paper-save]").first().scrollIntoViewIfNeeded(); await wait(300); } },
+  // Part 379, section 4: the Sites list with Riverbend Logistics Hub as the test site (audit/part379-stub.js,
+  // testSite).
+  { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
+    open: "sites", ready: "[data-site-test]" },
 ];
 
 

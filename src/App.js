@@ -451,6 +451,10 @@ const PAY_KEY = /(hourly|wage|salary|pay_?rate|^pay$|_pay$|cost|price|amount|bud
 // row, and a field the row lacked is not sent as empty.
 const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
 const changedFields = (now, was) => { const out = {}; Object.keys(now).forEach(k => { if (!sameValue(now[k], was ? was[k] : undefined)) out[k] = now[k]; }); return out; };
+// A site's name as a list or a picker shows it (part 379): the test site, which GET /api/sites marks is_test
+// since the API's Round 10 (part 376), carries TEST after its name, as a test account is marked, so nobody
+// assigns real staff or work to it by mistake.
+const siteShown = (s) => (s ? String(s.name || "") + (s.is_test === true || s.isTest === true ? " (" + tr("TEST") + ")" : "") : "");
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
 // The health alerts and the morning health email link <dashboard>/health (the API's Round 10, part 376).
 // Opened in the browser, that address reads as #health, so it lands on the Health page.
@@ -2132,7 +2136,7 @@ const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages =
 
 const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) => <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}><div style={{ height: 92, background: "linear-gradient(120deg, " + GO + " 0%, " + GL + " 55%, " + GO + " 100%)" }} /><div style={{ padding: "0 20px 18px", display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}><div style={{ marginTop: -42, flexShrink: 0, borderRadius: "50%", border: "3px solid " + t.card, background: t.card, lineHeight: 0 }}>{avatar}</div><div style={{ flex: 1, minWidth: 200, paddingTop: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{name}</span>{idCode && <span style={{ fontSize: 11, fontFamily: "monospace", color: t.goldText, padding: "2px 8px", borderRadius: 6, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{idCode}</span>}</div>{subtitle && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{subtitle}</div>}{badges && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{badges}</div>}</div>{actions && <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 12 }}>{actions}</div>}</div></Crd>;
 
-const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ display: "flex", gap: 12 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>{node}{!last && <div style={{ flex: 1, width: 2, background: t.border, marginTop: 4, minHeight: 12, borderRadius: 1 }} />}</div><div onClick={onClick} onMouseEnter={onClick ? (e => e.currentTarget.style.background = t.hover) : undefined} onMouseLeave={onClick ? (e => e.currentTarget.style.background = "transparent") : undefined} style={{ flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 14, paddingLeft: onClick ? 8 : 0, paddingRight: onClick ? 8 : 0, marginLeft: onClick ? -8 : 0, borderRadius: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.12s" }}>{children}</div></div>;
+const TimelineRow = ({ t, node, last, onClick, children, entryId }) => <div data-tl-entry={entryId} style={{ display: "flex", gap: 12 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>{node}{!last && <div style={{ flex: 1, width: 2, background: t.border, marginTop: 4, minHeight: 12, borderRadius: 1 }} />}</div><div onClick={onClick} onMouseEnter={onClick ? (e => e.currentTarget.style.background = t.hover) : undefined} onMouseLeave={onClick ? (e => e.currentTarget.style.background = "transparent") : undefined} style={{ flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 14, paddingLeft: onClick ? 8 : 0, paddingRight: onClick ? 8 : 0, marginLeft: onClick ? -8 : 0, borderRadius: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.12s" }}>{children}</div></div>;
 
 // Step 338 (the API's Step 337, TRAINING_DAY_CONTRACT.md 1.337): a site whose checklistMode is
 // reference keeps its task list as the record of the work, and nothing is checked off there. Every
@@ -2878,11 +2882,17 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   };
 
   // Print detail record (Session 18)
-  const printTimelineDetail = () => {
+  const printTimelineDetail = async () => {
     if (!tlDetail) return;
-    const u = profile.user;
+    // The window opens in the click, so a pop-up blocker lets it through, and the record is read again before
+    // it is written, so every photo in it prints from a fresh link (part 379).
+    const w = keptWindow();
+    if (!w) { showToast(tr("Allow pop-ups to print"), "error"); return; }
     const e = tlDetail.entry;
-    const r = tlDetail.record;
+    const [fd, fp] = await Promise.all([af("/api/users/timeline-detail/" + e.entityType + "/" + e.entityId).catch(() => null), af("/api/users/profile/" + profile.user.id).catch(() => null)]);
+    const det = fd ? { ...tlDetail, record: oneCategoryKey(fd.record), photos: Array.isArray(fd.photos) ? fd.photos : [], relatedItems: Array.isArray(fd.relatedItems) ? fd.relatedItems.map(oneCategoryKey) : det.relatedItems } : tlDetail;
+    const u = (fp && fp.user) || profile.user;
+    const r = det.record;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("Record Detail")) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
@@ -2913,30 +2923,35 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       });
       html += '</div></div>';
     }
-    if (tlDetail.photos && tlDetail.photos.length > 0) {
-      html += '<div class="section"><div class="section-title">' + escHtml(tr("Photos ({0})", tlDetail.photos.length)) + '</div>';
-      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + escUrl(p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + escHtml(p.caption || p.notes || new Date(p.created_at || "").toLocaleString(localeTag()) || "") + '</div></div>'; });
+    if (det.photos && det.photos.length > 0) {
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Photos ({0})", det.photos.length)) + '</div>';
+      det.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + escUrl(p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + escHtml(p.caption || p.notes || new Date(p.created_at || "").toLocaleString(localeTag()) || "") + '</div></div>'; });
       html += '</div>';
     }
-    if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
-      html += '<div class="section"><div class="section-title">' + escHtml(tr("Related Items ({0})", tlDetail.relatedItems.length)) + '</div><table><tr>';
-      const first = tlDetail.relatedItems[0];
+    if (det.relatedItems && det.relatedItems.length > 0) {
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Related Items ({0})", det.relatedItems.length)) + '</div><table><tr>';
+      const first = det.relatedItems[0];
       const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k));
       cols.slice(0, 6).forEach(c => { html += '<th>' + escHtml(fieldOf(c)) + '</th>'; });
       html += '</tr>';
-      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + escHtml(v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
+      det.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + escHtml(v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
     // The company's footer line, with its confidential label in the language the page is printed in.
     html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr(clientConfig.company.confidentialLabel)) + '</div></div></body></html>';
-    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
 
   // Print filtered timeline (Session 18)
-  const printTimeline = () => {
+  const printTimeline = async () => {
     if (timeline.length === 0) { showToast(tr("No data to print"), "error"); return; }
-    const u = profile.user;
+    // The window opens in the click, so a pop-up blocker lets it through, and the record is read again before
+    // it is written, so every photo in it prints from a fresh link (part 379).
+    const w = keptWindow();
+    if (!w) { showToast(tr("Allow pop-ups to print"), "error"); return; }
+    const fp = await af("/api/users/profile/" + profile.user.id).catch(() => null);
+    const u = (fp && fp.user) || profile.user;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName)) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
@@ -2948,13 +2963,19 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '<div class="content"><table><tr><th>' + escHtml(tr("Date")) + '</th><th>' + escHtml(tr("Time")) + '</th><th>' + escHtml(tr("Category")) + '</th><th>' + escHtml(tr("Action")) + '</th><th>' + escHtml(tr("Description")) + '</th><th>' + escHtml(tr("By")) + '</th></tr>';
     timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + escHtml(dt.toLocaleDateString(localeTag())) + '</td><td>' + escHtml(dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })) + '</td><td>' + escHtml(entityOf(e.entityType)) + '</td><td>' + escHtml(actionOf(e.actionType)) + '</td><td>' + escHtml(e.description || "") + '</td><td>' + escHtml(e.actorName || tr("System")) + '</td></tr>'; });
     html += '</table><div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record")) + '</div></div></body></html>';
-    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
 
   // Print report for employee profile (Session 18)
-  const printProfileReport = () => {
-    const u = profile.user;
+  const printProfileReport = async () => {
+    // The window opens in the click, so a pop-up blocker lets it through, and the record is read again before
+    // it is written, so every photo in it prints from a fresh link (part 379).
+    const w = keptWindow();
+    if (!w) { showToast(tr("Allow pop-ups to print"), "error"); return; }
+    const fp = await af("/api/users/profile/" + profile.user.id).catch(() => null);
+    const prof = fp && fp.user ? fp : profile;
+    const u = prof.user;
     const fullName = u.firstName + " " + u.lastName;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("{0} - Employee Report", fullName)) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
@@ -2980,14 +3001,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     if (canEmploy) html += line(tr("Hourly Rate"), u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : tr("N/A"));
     html += '</div></div>';
     // Assignments
-    const activeAssign = (profile.assignments || []).filter(a => a.is_active);
+    const activeAssign = (prof.assignments || []).filter(a => a.is_active);
     if (activeAssign.length > 0) {
       html += '<div class="section"><div class="section-title">' + escHtml(tr("Site Assignments ({0})", activeAssign.length)) + '</div><table><tr><th>' + escHtml(tr("Site")) + '</th><th>' + escHtml(tr("Role")) + '</th><th>' + escHtml(tr("Shift")) + '</th><th>' + escHtml(tr("Hours")) + '</th></tr>';
       activeAssign.forEach(a => { html += '<tr><td>' + escHtml(a.site_name || "") + '</td><td>' + escHtml(a.role_at_site ? (siteRoleShown[a.role_at_site] || a.role_at_site) : "") + '</td><td>' + escHtml(a.shift_name ? (shiftShown[a.shift_name] || a.shift_name) : "") + '</td><td>' + escHtml(a.shift_start ? a.shift_start + " - " + a.shift_end : "") + '</td></tr>'; });
       html += '</table></div>';
     }
     // Certifications
-    const certs = profile.certifications || [];
+    const certs = prof.certifications || [];
     if (certs.length > 0) {
       html += '<div class="section"><div class="section-title">' + escHtml(tr("Certifications ({0})", certs.length)) + '</div><table><tr><th>' + escHtml(tr("Name")) + '</th><th>' + escHtml(tr("Type")) + '</th><th>' + escHtml(tr("Issuer")) + '</th><th>' + escHtml(tr("Expiry")) + '</th></tr>';
       certs.forEach(c => { html += '<tr><td>' + escHtml(c.cert_name || "") + '</td><td>' + escHtml(c.cert_type ? (certTypeShown[c.cert_type] || c.cert_type) : "") + '</td><td>' + escHtml(c.issuing_body || "") + '</td><td>' + escHtml(c.expiry_date ? fmtDate(c.expiry_date) : tr("N/A")) + '</td></tr>'; });
@@ -3001,7 +3022,6 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     }
     html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record")) + '</div>';
     html += '</div></body></html>';
-    const w = window.open("", "_blank");
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3211,7 +3231,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         actions={<>
           {canOpenHr && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-open-hr-file={u.id} onClick={() => { window.location.hash = "hr/" + encodeURIComponent(String(u.id)); }}>{tr("Open HR file")}</Btn>}
           {canChange(u) && signInOf(u) && (signInOf(u).lockedUntil || signInOf(u).heldSince) && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} data-staff-unlock={u.id} disabled={!!unlocking} onClick={() => unlock(u.id)}>{tr("Unlock")}</Btn>}
-          <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
+          <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} data-print="profile-report" onClick={printProfileReport}>{tr("Print Report")}</Btn>
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); setPinSaid(""); }}>{tr("Reset PIN")}</Btn>}
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendResetLink(u.id)}>{tr("Send a PIN reset link")}</Btn>}
           {canChange(u) && welcomeOf(u) === undefined && u.status === "pending" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendInvite(u.id)}>{tr("Send activation invite")}</Btn>}
@@ -3332,7 +3352,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Activity Timeline")} <span data-timeline-count={timeline.length} style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500, color: t.textMut }}>{tlCountText(timeline.length, !!tlNext)}</span></div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Export CSV")}</button>
-              <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
+              <button data-print="timeline" onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
             </div>
           </div>
           {/* Category filter chips */}
@@ -3356,7 +3376,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: PU, training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
               return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(localeTag(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
-                <TimelineRow t={t} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
+                <TimelineRow t={t} entryId={entry.id} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{entry.description || actionOf(entry.actionType)}</div>
@@ -3378,7 +3398,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
+            <button data-print="timeline-detail" onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
             <button onClick={() => setTlDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
           </div>
         </div>
@@ -3440,7 +3460,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div></Mdl>}
       {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Assign to Site")}</div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Role at Site")}</Lbl><Sel t={t} value={assignForm.role} onChange={e => setAssignForm({ ...assignForm, role: e.target.value })} options={getOpts("site_roles", tr("Select role..."), true)} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Shift")}</Lbl><Sel t={t} value={assignForm.shift} onChange={e => setAssignForm({ ...assignForm, shift: e.target.value })} options={getOpts("shift_names", tr("Select shift..."), true)} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Start")}</Lbl><Inp t={t} type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>{tr("End")}</Lbl><Inp t={t} type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
@@ -4235,8 +4255,15 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const printSiteChat = () => {
+  const printSiteChat = async () => {
     if (siteChat.length === 0) { showToast(tr("No messages to print"), "error"); return; }
+    // The window opens in the click, so a pop-up blocker lets it through, and the record is read again before
+    // it is written, so every photo in it prints from a fresh link (part 379).
+    const w = keptWindow();
+    if (!w) { showToast(tr("Allow pop-ups to print"), "error"); return; }
+    const fc = await af("/api/sites/chat/" + selectedSite + "?limit=200").catch(() => null);
+    const chat = fc && Array.isArray(fc.messages) ? fc.messages : siteChat;
+    if (fc && Array.isArray(fc.messages)) { setSiteChat(fc.messages); setSiteChatTotal(fc.total || 0); }
     const siteName = siteProfile?.site?.name || tr("Site");
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("{0} - Chat History", siteName)) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
@@ -4248,9 +4275,9 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     html += '.msg .sender{font-weight:700;font-size:12px;color:' + NAVY + '}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(tr("{0} - Chat History", siteName), trn("{0} message|count", siteChatTotal) + ' | ' + tr("Channel: {0}", siteChatChannel?.name || tr("Site")) + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
+    html += sitePrintHeader(tr("{0} - Chat History", siteName), trn("{0} message|count", fc && Array.isArray(fc.messages) ? (fc.total || 0) : siteChatTotal) + ' | ' + tr("Channel: {0}", siteChatChannel?.name || tr("Site")) + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
     html += '<div class="content">';
-    const sorted = [...siteChat].reverse();
+    const sorted = [...chat].reverse();
     sorted.forEach(m => {
       const dt = new Date(m.sentAt);
       const name = m.senderName || tr("Unknown");
@@ -4265,7 +4292,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       html += '<div class="text">' + escHtml(m.text || "") + '</div></div></div>';
     });
     html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Communication Record")) + '</div></div></body></html>';
-    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
 
@@ -4430,11 +4457,17 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   };
 
   // Print timeline detail
-  const printSiteTimelineDetail = () => {
+  const printSiteTimelineDetail = async () => {
     if (!tlDetail) return;
+    // The window opens in the click, so a pop-up blocker lets it through, and the record is read again before
+    // it is written, so every photo in it prints from a fresh link (part 379).
+    const w = keptWindow();
+    if (!w) { showToast(tr("Allow pop-ups to print"), "error"); return; }
     const siteName = siteProfile.site.name || tr("Site");
     const e = tlDetail.entry;
-    const r = tlDetail.record;
+    const fd = await af("/api/users/timeline-detail/" + e.entityType + "/" + e.entityId).catch(() => null);
+    const det = fd ? { ...tlDetail, record: oneCategoryKey(fd.record), photos: Array.isArray(fd.photos) ? fd.photos : [], relatedItems: Array.isArray(fd.relatedItems) ? fd.relatedItems.map(oneCategoryKey) : det.relatedItems } : tlDetail;
+    const r = det.record;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(tr("Record Detail")) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
@@ -4465,22 +4498,22 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       });
       html += '</div></div>';
     }
-    if (tlDetail.photos && tlDetail.photos.length > 0) {
-      html += '<div class="section"><div class="section-title">' + escHtml(tr("Photos ({0})", tlDetail.photos.length)) + '</div>';
-      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + escUrl(p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + escHtml(p.caption || p.notes || "") + '</div></div>'; });
+    if (det.photos && det.photos.length > 0) {
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Photos ({0})", det.photos.length)) + '</div>';
+      det.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + escUrl(p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + escHtml(p.caption || p.notes || "") + '</div></div>'; });
       html += '</div>';
     }
-    if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
-      html += '<div class="section"><div class="section-title">' + escHtml(tr("Related Items ({0})", tlDetail.relatedItems.length)) + '</div><table><tr>';
-      const first = tlDetail.relatedItems[0];
+    if (det.relatedItems && det.relatedItems.length > 0) {
+      html += '<div class="section"><div class="section-title">' + escHtml(tr("Related Items ({0})", det.relatedItems.length)) + '</div><table><tr>';
+      const first = det.relatedItems[0];
       const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id") && detailKeyShown(k));
       cols.slice(0, 6).forEach(c => { html += '<th>' + escHtml(fieldOf(c)) + '</th>'; });
       html += '</tr>';
-      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + escHtml(v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
+      det.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + escHtml(v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
     html += '<div class="footer">' + escHtml(clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Site Record")) + '</div></div></body></html>';
-    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
 
@@ -4520,6 +4553,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
               <MpI sz={24} c={t.goldText} />
               <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{s.name}</div>
               <Bdg l={siteStateOf(s.status)} c={s.status === "active" ? GR : OR} />
+              {(s.is_test === true || (sites.find(x => String(x.id) === String(s.id)) || {}).is_test === true) && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}
             </div>
             <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
             {/* Part 358: what was done at this site, on Checklist Results, yesterday picked. */}
@@ -4737,7 +4771,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Site Channel Messages")} {siteChatChannel ? "(" + siteChatChannel.name + ")" : ""}</div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={printSiteChat} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
+            <button data-print="site-chat" onClick={printSiteChat} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
           </div>
         </div>
         <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{trn("{0} message|count", siteChatTotal)}</div>
@@ -4834,7 +4868,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <button onClick={printSiteTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
+            <button data-print="site-timeline-detail" onClick={printSiteTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
             <button onClick={() => setTlDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
           </div>
         </div>
@@ -4984,7 +5018,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
+        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{s.name}</span>{s.is_test === true && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
         { header: tr("Staff"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? trn("{0} staff|count", s.staff_count) : "-" },
         { header: tr("Tasks"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? trn("{0} task|count", s.task_count) : "-" },
         { header: tr("Contract"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => contractOf(s.contract_type) || "-" },
@@ -5637,7 +5671,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
 
   const pickers = (<div data-cr-picker="" style={{ marginBottom: 14 }}>
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
-      <div style={{ flex: "1 1 220px", maxWidth: 340, minWidth: 0 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-cr-site-pick="" value={siteId || "all"} onChange={e => go(e.target.value, period.token, "")} options={[{ v: "all", l: tr("All sites") }].concat(active.map(s => ({ v: String(s.id), l: s.name })))} /></div>
+      <div style={{ flex: "1 1 220px", maxWidth: 340, minWidth: 0 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-cr-site-pick="" value={siteId || "all"} onChange={e => go(e.target.value, period.token, "")} options={[{ v: "all", l: tr("All sites") }].concat(active.map(s => ({ v: String(s.id), l: siteShown(s) })))} /></div>
       {shifts.length >= 2 && <div style={{ flex: "0 1 220px", minWidth: 0 }}><Lbl>{tr("Shift")}</Lbl><Sel t={t} aria-label={tr("Shift")} data-cr-shift-pick="" value={pickOk ? shiftPick : ""} onChange={e => go(siteId, period.token, e.target.value)} options={[{ v: "", l: tr("All shifts") }].concat(shifts.map(s => ({ v: s.label, l: s.displayLabel || s.label })))} /></div>}
     </div>
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -5687,7 +5721,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
           <div data-cr-site-card={String(c.s.id)} data-cr-due={c.notTracked || c.got.error ? undefined : c.st.due} data-cr-done={c.notTracked || c.got.error ? undefined : c.st.done} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{c.s.name}</div>{live && !c.notTracked && !c.got.error ? <Bdg l={tr("Live")} c={GR} /> : null}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{siteShown(c.s)}</div>{live && !c.notTracked && !c.got.error ? <Bdg l={tr("Live")} c={GR} /> : null}</div>
             {c.notTracked ? <div style={{ padding: "18px 0" }}><NotTrackedWord t={t} style={{ fontSize: 12 }} /><div style={{ fontSize: 12, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div></div>
               : c.got.error ? <div style={{ fontSize: 12, color: RD, padding: "18px 0" }}>{c.got.error}</div>
                 : <>
@@ -6143,7 +6177,7 @@ function ClientRequestsTab({ af, t, sites = [], canViewReports = false, route = 
   const closeOne = () => { setOpenId(""); if (onRoute) onRoute(site ? ["requests", "site", site] : ["requests"]); };
   const changed = (req) => { if (!req) { load(); return; } setRows(prev => (prev ? prev.map(x => (x.id === req.id ? req : x)).sort(requestOrder) : prev)); if (onWaiting && state !== "closed") setRows(prev => { if (prev) onWaiting(prev.filter(isWaiting).length); return prev; }); };
   const pickSite = (v) => { setSite(v); if (onRoute && !openId) onRoute(v ? ["requests", "site", v] : ["requests"]); };
-  const siteOptions = [{ v: "", l: tr("All sites") }].concat(sites.map(x => ({ v: String(x.id), l: x.name })));
+  const siteOptions = [{ v: "", l: tr("All sites") }].concat(sites.map(x => ({ v: String(x.id), l: siteShown(x) })));
   if (site && !siteOptions.some(o => o.v === site)) siteOptions.push({ v: site, l: ((rows || []).find(x => String(x.siteId) === site) || {}).siteName || site });
   const stateTabs = [{ id: "waiting", label: tr("Waiting|requests") }, { id: "open", label: tr("Open|requests") }, { id: "closed", label: tr("Closed|requests") }, { id: "all", label: tr("All|requests") }];
   const list = rows || [];
@@ -6601,17 +6635,32 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgai
   const [issuePicked, setIssuePicked] = useState(() => (Array.isArray(start.issuePhotos) ? start.issuePhotos.map(p => String(p.id)) : []));
   const [contacts, setContacts] = useState(() => (fromIssue && Array.isArray(start.contacts) ? start.contacts : null));
   const [contactsFailed, setContactsFailed] = useState(false);
+  // Who a filing about this building would go to now, as the API picks them (its Round 8, part 371):
+  // GET /api/sites/:siteId/maintenance-contacts?building= answers recipients and cc, the office's copy.
+  // An answer without them is read the way the dashboard read it before, from the contacts.
+  const [recips, setRecips] = useState(null);
+  // The window's own clientId (the API's Round 8): a filing sent again after a lost answer is answered
+  // with the first request, so it is never filed twice.
+  const clientId = useRef(null);
+  if (!clientId.current) { try { clientId.current = ("dash-" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64); } catch (e) { clientId.current = "dash-" + Date.now(); } }
   const [said, setSaid] = useState(null);
   const [once, busy] = useBusyGuard();
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaid(null); };
-  const readContacts = useCallback(async (siteId) => {
-    if (!siteId) { setContacts(null); return; }
+  const readContacts = useCallback(async (siteId, building) => {
+    if (!siteId) { setContacts(null); setRecips(null); return; }
     setContactsFailed(false);
-    try { const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts"); setContacts(Array.isArray(d && d.contacts) ? d.contacts : []); }
-    catch (e) { setContacts(null); setContactsFailed(true); }
-  }, [af]);
-  useEffect(() => { if (!fromIssue) readContacts(form.siteId); }, [form.siteId, fromIssue, readContacts]);
-  const to = contacts ? maintRecipients(contacts, form.building) : [];
+    try {
+      const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/maintenance-contacts?building=" + encodeURIComponent(String(building || "").trim()));
+      setContacts(Array.isArray(d && d.contacts) ? d.contacts : []);
+      setRecips(d && Array.isArray(d.recipients) ? { list: d.recipients, cc: d.cc || null } : null);
+    } catch (e) {
+      // A window opened from an issue keeps the contacts its prefill brought when the read fails.
+      setRecips(null);
+      if (!fromIssue) { setContacts(null); setContactsFailed(true); }
+    }
+  }, [af, fromIssue]);
+  useEffect(() => { const h = setTimeout(() => readContacts(form.siteId, form.building), 300); return () => clearTimeout(h); }, [form.siteId, form.building, readContacts]);
+  const to = recips ? recips.list.map(r => ({ id: String(r.contactId), name: r.name, company: r.company, email: r.email, isPrimary: !!((contacts || []).find(c => String(c.id) === String(r.contactId)) || {}).isPrimary })) : contacts ? maintRecipients(contacts, form.building) : [];
   const buildings = Array.from(new Set((contacts || []).filter(c => c.isActive && String(c.building || "").trim()).map(c => String(c.building).trim())));
   const left = Math.max(0, maxPhotos - issuePicked.length);
   const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
@@ -6619,7 +6668,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgai
   const submit = once(async () => {
     if (needs) { setSaid({ text: tr("Fill in the site, the category, the urgency and what is wrong."), keys: [needs], code: "" }); return; }
     setSaid(null);
-    const body = { siteId: form.siteId, category: form.category, urgency: form.urgency, description: form.description.trim() };
+    const body = { siteId: form.siteId, category: form.category, urgency: form.urgency, description: form.description.trim(), clientId: clientId.current };
     ["building", "floor", "area"].forEach(k => { if (form[k].trim()) body[k] = form[k].trim(); });
     if (fromIssue) { body.issueId = String(start.issueId); if (issuePicked.length) body.issuePhotoIds = issuePicked; }
     try {
@@ -6631,7 +6680,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgai
         d = await apiMultipart("/api/maintenance-requests", token, fdata);
       } else d = await af("/api/maintenance-requests", { method: "POST", body });
       onFiled(d && d.request ? d.request : null, d && d.warning ? (d.warning.message || tr("The request is saved, and its email did not go. Send it again from the request.")) : "");
-    } catch (e) { setSaid(maintRefusal(e)); if (e && e.code === "maintenance.noContact") readContacts(form.siteId); }
+    } catch (e) { setSaid(maintRefusal(e)); if (e && e.code === "maintenance.noContact") readContacts(form.siteId, form.building); }
   });
   const siteName = (sites.find(s => String(s.id) === String(form.siteId)) || {}).name || start.siteName || "";
   const noContact = !!(contacts && to.length === 0) || (said && said.code === "maintenance.noContact");
@@ -6644,7 +6693,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgai
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("This emails the building's own maintenance team, with the office copied. Their answers are recorded on the request.")}</div>
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl>
       {fromIssue ? <div data-maint-field="siteId" style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{siteName}</div>
-        : <Sel t={t} data-maint-field="siteId" aria-label={tr("Site")} value={form.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose a site...") }, ...sites.filter(s => s.status !== "inactive").map(s => ({ v: String(s.id), l: s.name }))]} style={bad("siteId") ? { borderColor: RD } : undefined} />}
+        : <Sel t={t} data-maint-field="siteId" aria-label={tr("Site")} value={form.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose a site...") }, ...sites.filter(s => s.status !== "inactive").map(s => ({ v: String(s.id), l: siteShown(s) }))]} style={bad("siteId") ? { borderColor: RD } : undefined} />}
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
       <div><Lbl>{tr("Building")}</Lbl><Inp t={t} data-maint-field="building" aria-label={tr("Building")} list="maint-buildings" maxLength={200} value={form.building} onChange={e => set("building", e.target.value)} style={bad("building") ? { borderColor: RD } : undefined} />
@@ -6669,7 +6718,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgai
       {form.siteId && contactsFailed && <LoadFailed t={t} onRetry={() => readContacts(form.siteId)} text={tr("The site's maintenance contacts did not load.")} style={{ padding: 4, textAlign: "left" }} />}
       {form.siteId && !contactsFailed && contacts == null && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
       {form.siteId && to.map(c => <div key={c.id} data-maint-recipient={c.id} style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{c.name}{c.company ? ", " + c.company : ""} <span style={{ color: t.textSec }}>{c.email}</span>{c.isPrimary ? <span style={{ marginLeft: 6 }}><Bdg l={tr("Primary")} c={GO} /></span> : null}</div>)}
-      {form.siteId && to.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("The office is copied, and replies come to the office.")}</div>}
+      {form.siteId && to.length > 0 && <div data-maint-cc={recips && recips.cc ? recips.cc : ""} style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{recips && recips.cc ? tr("The office is copied at {0}, and replies come to the office.", recips.cc) : tr("The office is copied, and replies come to the office.")}</div>}
       {form.siteId && noContact && <div data-maint-no-contact="" role="alert" style={{ fontSize: 12, color: RD, lineHeight: 1.5 }}>{tr("This site has no active maintenance contact. Add one on the site's page before sending.")}
         {canManageSites ? <button data-maint-add-contact-link="" onClick={() => { onClose(); window.location.hash = "sites/" + encodeURIComponent(form.siteId) + "/maintenance"; }} style={{ minHeight: 44, marginLeft: 6, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Add a contact")}</button>
           : <span style={{ color: t.textSec }}> {tr("Ask an admin to add one.")}</span>}</div>}
@@ -6895,7 +6944,7 @@ function MaintenanceList({ af, t, sites = [], siteId = "", onOpen, reloadKey = 0
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 12 }}>
       <Sel t={t} data-maint-filter="urgency" aria-label={tr("Urgency")} value={urgency} onChange={e => setUrgency(e.target.value)} options={[{ v: "", l: tr("Any urgency") }, ...Object.keys(MAINT_URGENCY_WORDS).map(u => ({ v: u, l: maintUrgencyWord(u) }))]} style={pick} />
       <Sel t={t} data-maint-filter="category" aria-label={tr("Category")} value={category} onChange={e => setCategory(e.target.value)} options={[{ v: "", l: tr("Any category") }, ...Object.keys(MAINT_CATEGORY_WORDS).map(c => ({ v: c, l: maintCategoryWord(c) }))]} style={pick} />
-      {!siteId && <Sel t={t} data-maint-filter="site" aria-label={tr("Site")} value={siteF} onChange={e => setSiteF(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: String(s.id), l: s.name }))]} style={pick} />}
+      {!siteId && <Sel t={t} data-maint-filter="site" aria-label={tr("Site")} value={siteF} onChange={e => setSiteF(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: String(s.id), l: siteShown(s) }))]} style={pick} />}
       <Sel t={t} data-maint-filter="age" aria-label={tr("Age")} value={age} onChange={e => setAge(e.target.value)} options={MAINT_AGES.map(a => ({ v: a.v, l: tr(a.l) }))} style={pick} />
     </div>
     {failed && rows.length === 0 ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
@@ -7657,7 +7706,7 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
     {tab === "balances" && <div data-leave-tab="balances">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 10 }}>
         <Sel t={t} data-leave-filter="year" aria-label={tr("Year")} value={String(year)} onChange={e => setYear(Number(e.target.value))} options={[leaveYear() + 1, leaveYear(), leaveYear() - 1, leaveYear() - 2].map(y => ({ v: String(y), l: String(y) }))} style={pickStyle} />
-        <Sel t={t} data-leave-filter="site" aria-label={tr("Site")} value={f.siteId} onChange={e => setF(x => ({ ...x, siteId: e.target.value }))} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s => ({ v: String(s.id), l: s.name })))} style={pickStyle} />
+        <Sel t={t} data-leave-filter="site" aria-label={tr("Site")} value={f.siteId} onChange={e => setF(x => ({ ...x, siteId: e.target.value }))} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s => ({ v: String(s.id), l: siteShown(s) })))} style={pickStyle} />
         <Sel t={t} data-leave-filter="policy" aria-label={tr("Policy")} value={f.policyId} onChange={e => setF(x => ({ ...x, policyId: e.target.value }))} options={[{ v: "", l: tr("Every policy") }].concat((policies || []).map(p => ({ v: p.id, l: p.name })))} style={pickStyle} />
         <Sel t={t} data-leave-filter="role" aria-label={tr("Role")} value={f.role} onChange={e => setF(x => ({ ...x, role: e.target.value }))} options={[{ v: "", l: tr("Every role") }].concat(LEAVE_ROLES.map(r => ({ v: r, l: roleWord(r) })))} style={pickStyle} />
         <Sel t={t} data-leave-filter="status" aria-label={tr("Status")} value={f.status} onChange={e => setF(x => ({ ...x, status: e.target.value }))} options={LEAVE_STATUSES.map(([v, l]) => ({ v, l: v === "pending" ? personStateOf("pending") : tr(l) }))} style={pickStyle} />
@@ -8128,7 +8177,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
       <button onClick={() => setTab("requests")} data-supplies-tab="requests" style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? <span data-requests-pending={pendingCount}>{trn("({0} pending)|count", pendingCount)}</span> : ""}</button>
     </div>
     {tab === "inventory" && labelsOn && canManageSupplies && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}><div data-supply-site-labels="" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
-      <div style={{ flex: "1 1 220px", minWidth: 0, maxWidth: 360 }}><Lbl>{tr("Print labels for a site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={siteForLabels} onChange={e => setLabelSite(e.target.value)} options={sites.map(x => ({ v: String(x.id), l: x.name }))} /></div>
+      <div style={{ flex: "1 1 220px", minWidth: 0, maxWidth: 360 }}><Lbl>{tr("Print labels for a site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={siteForLabels} onChange={e => setLabelSite(e.target.value)} options={sites.map(x => ({ v: String(x.id), l: siteShown(x) }))} /></div>
       <Btn t={t} v="ghost" onClick={() => printLabels("siteId=" + encodeURIComponent(siteForLabels), "site")} disabled={!!labels.busy || !siteForLabels} style={{ minHeight: 44 }}>{labels.busy === "site" ? tr("Downloading...") : tr("Print labels for a site")}</Btn>
       {labels.error && labels.busy === "" && !editForm && <div data-supply-label-refusal="" role="alert" style={{ flexBasis: "100%", fontSize: 12, color: RD }}>{labels.error}</div>}
     </div></Crd>}
@@ -8143,7 +8192,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, alignItems: "end" }}>
         <div><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" aria-label={tr("From")} data-ordering-from="" value={ordering.from} max={ordering.to || undefined} onChange={e => { const v = e.target.value; setOrdering(o => ({ ...o, from: v, error: "" })); }} /></div>
         <div><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" aria-label={tr("To")} data-ordering-to="" value={ordering.to} min={ordering.from || undefined} onChange={e => { const v = e.target.value; setOrdering(o => ({ ...o, to: v, error: "" })); }} /></div>
-        <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-ordering-site="" value={ordering.siteId} onChange={e => { const v = e.target.value; setOrdering(o => ({ ...o, siteId: v, error: "" })); }} options={[{ v: "", l: tr("All sites") }].concat(sites.map(x => ({ v: String(x.id), l: x.name })))} /></div>
+        <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-ordering-site="" value={ordering.siteId} onChange={e => { const v = e.target.value; setOrdering(o => ({ ...o, siteId: v, error: "" })); }} options={[{ v: "", l: tr("All sites") }].concat(sites.map(x => ({ v: String(x.id), l: siteShown(x) })))} /></div>
         <div><Btn t={t} v="ghost" data-ordering-download="" disabled={ordering.busy || !orderingOk} onClick={downloadOrdering} style={{ width: "100%", opacity: ordering.busy || !orderingOk ? 0.6 : 1 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><DlI sz={14} c="currentColor" />{ordering.busy ? tr("Downloading...") : tr("Download for ordering (CSV)")}</span></Btn></div>
       </div>
       {!orderingOk ? <div role="alert" data-ordering-range="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{tr("Choose a To date on or after the From date.")}</div> : null}
@@ -9778,7 +9827,7 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Written once; each person gets it in their language.")}</div>{errLine("body")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Send to")}</Lbl>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>{choice("all", tr("Everyone"))}{choice("site", tr("One site's people"))}{choice("role", tr("A role"))}{choice("users", tr("Chosen people"))}</div>
-          {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ minHeight: 44 }} />}
+          {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ minHeight: 44 }} />}
           {aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
           {aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
             <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
@@ -11213,7 +11262,7 @@ function HelpInsightsPage({ af, t, sites = [], getOpts }) {
     <SecT t={t} action={tr("Refresh")} icon={RfI} onAction={load}>{tr("Help insights")}</SecT>
     <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Site")} value={filters.siteId} onChange={e => setFilter("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Site")} value={filters.siteId} onChange={e => setFilter("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Role")} value={filters.role} onChange={e => setFilter("role", e.target.value)} options={[{ v: "", l: tr("All roles") }, ...(getOpts ? getOpts("staff_roles", null, true) : [])]} /></div>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Language")} value={filters.language} onChange={e => setFilter("language", e.target.value)} options={[{ v: "", l: tr("All languages") }, ...RECORD_LANGUAGES.map(l => ({ v: l.id, l: l.label }))]} /></div>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("App")} value={filters.app} onChange={e => setFilter("app", e.target.value)} options={[{ v: "", l: tr("All apps") }, { v: "portal", l: tr("Portal") }, { v: "dashboard", l: tr("Dashboard") }]} /></div>
@@ -12786,7 +12835,7 @@ function MonthlyReportsView({ af, token, t, sites, allStaff = [], showToast }) {
         <button onClick={() => setMaking(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
       </div>
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The figures are filled in from the records. You can correct any of them and write the rest before it is signed.")}</div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={making.siteId} onChange={e => setMaking({ ...making, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={making.siteId} onChange={e => setMaking({ ...making, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })))} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div><Lbl>{tr("First day")}</Lbl><Inp t={t} type="date" aria-label={tr("First day")} value={making.start} onChange={e => setMaking({ ...making, start: e.target.value })} /></div>
         <div><Lbl>{tr("Last day")}</Lbl><Inp t={t} type="date" aria-label={tr("Last day")} value={making.end} onChange={e => setMaking({ ...making, end: e.target.value })} /></div>
@@ -13244,7 +13293,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
             <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={bucket} onChange={e => setBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
             <div><Lbl>{tr("Default severity")}</Lbl><Sel t={t} value={severity} onChange={e => setSeverity(e.target.value)} options={[{ v: "", l: tr("All severities") }, { v: "high", l: tr("High") }, { v: "medium", l: tr("Medium") }, { v: "low", l: tr("Low") }]} /></div>
           </div>
-          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
           <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "10px 0 8px" }}>{tr("Service level targets (hours)")}</div>
           {slaRow(tr("High"), hiFr, setHiFr, hiRes, setHiRes)}
           {slaRow(tr("Medium"), medFr, setMedFr, medRes, setMedRes)}
@@ -13264,7 +13313,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
             <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
             <div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={supCategory} onChange={e => setSupCategory(e.target.value)} options={[{ v: "", l: tr("All categories") }, { v: "chemical", l: tr("Chemical") }, { v: "supply", l: tr("Supply") }, { v: "equipment", l: tr("Equipment") }, { v: "ppe", l: tr("PPE") }]} /></div>
           </div>
-          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={supSiteId} onChange={e => setSupSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={supSiteId} onChange={e => setSupSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
           <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
           {chk(tr("Cost trend"), supOutTrend, setSupOutTrend)}
@@ -13277,7 +13326,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Inspection report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={reportPresets().map(p => ({ v: p.key, l: p.label }))} /></div>
-            <div><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+            <div><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
           </div>
           <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
@@ -13796,8 +13845,12 @@ function KeptRecordView({ id, af, token, t, sites = [], allStaff = [], lkMap }) 
     if (!w) { setNote(tr("Allow pop-ups to print")); return; }
     setBusy(true); setNote("");
     try {
-      if (rec.print) await rec.print(w, data, ctx);
-      else { const more = rec.before ? await rec.before(data, ctx) : {}; keptWrite(w, tr(rec.name), rec.pages(data, { ...ctx, ...more })); }
+      // The record is read again first, so every photo in it prints from a fresh link (part 379).
+      const fresh = await rec.load(af, siteId, range).catch(() => null);
+      const d = fresh || data;
+      if (fresh) setData(fresh);
+      if (rec.print) await rec.print(w, d, ctx);
+      else { const more = rec.before ? await rec.before(d, ctx) : {}; keptWrite(w, tr(rec.name), rec.pages(d, { ...ctx, ...more })); }
     } catch (e) { try { w.close(); } catch (x) {} setNote(e.message || tr("Request failed")); }
     setBusy(false);
   };
@@ -13806,11 +13859,11 @@ function KeptRecordView({ id, af, token, t, sites = [], allStaff = [], lkMap }) 
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{rec.codes}</div>
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr(rec.line)}</div>
       <div style={{ maxWidth: 360, marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl>
-        <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("Pick a site...") }, ...(sites || []).map(s => ({ v: String(s.id), l: s.name }))]} /></div>
+        <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("Pick a site...") }, ...(sites || []).map(s => ({ v: String(s.id), l: siteShown(s) }))]} /></div>
       {rec.ranged ? <DateRangePicker value={range} onChange={setRange} t={t} /> : <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("As of {0}", keptDay(todayISO()))}</div>}
       {rec.most ? <div style={{ fontSize: 11, color: tooLong ? RD : t.textMut, marginBottom: 10 }}>{tr("At most {0} days at a time.", rec.most)}</div> : null}
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Btn t={t} onClick={print} disabled={busy || !count} style={{ minHeight: 44 }}>{busy ? tr("Preparing...") : tr("Print")}</Btn>
+        <Btn t={t} data-kept-print="" onClick={print} disabled={busy || !count} style={{ minHeight: 44 }}>{busy ? tr("Preparing...") : tr("Print")}</Btn>
         <span role="status" style={{ fontSize: 12, color: t.textSec }}>{!siteId ? tr("Pick a site to print its record.") : tooLong ? "" : failed ? "" : count === null ? tr("Loading...") : rec.summary(data, ctx, pages || [])}</span>
       </div>
       {siteId && !failed && count === 0 && <div style={{ fontSize: 12, color: t.textMut, marginTop: 8 }}>{tr("Nothing to print for this site in this range.")}</div>}
@@ -13921,7 +13974,7 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
     {!userId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
       <PersonPick t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((people || []).map(p => ({ v: String(p.id), l: ppePersonName(p) })))} style={box("userId")} />{under("userId")}</div>}
     {!siteId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
-      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF(p => ({ ...p, siteId: e.target.value, supplyId: p.supplyId === PPE_TYPED ? PPE_TYPED : "" }))} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF(p => ({ ...p, siteId: e.target.value, supplyId: p.supplyId === PPE_TYPED ? PPE_TYPED : "" }))} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Item")}</Lbl>
       <Sel t={t} aria-label={tr("Item")} value={f.supplyId} onChange={e => set("supplyId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat(stock.map(s => ({ v: String(s.id), l: s.name })), [{ v: PPE_TYPED, l: tr("Something else, typed") }])} style={box("item")} />
       {typed && <Inp t={t} aria-label={tr("What was issued")} value={f.item} onChange={e => set("item", e.target.value)} placeholder={tr("What was issued")} maxLength={200} style={{ marginTop: 8, ...box("item") }} />}
@@ -14075,7 +14128,7 @@ function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
     </div>
     {refusal.text && known.length === 0 && <div role="alert" data-equipment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     <div style={{ marginBottom: 12 }}>{field("name", tr("Name"), { maxLength: 120, placeholder: tr("e.g. {0}", tr("Floor scrubber 2")) })}</div>
-    {!item && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+    {!item && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={grid}>
       <div><Lbl>{tr("Type")}</Lbl><Sel t={t} aria-label={tr("Type")} data-equipment-type="" value={f.category} onChange={e => set("category", e.target.value)} options={(f.category && EQUIPMENT_CATEGORIES.indexOf(f.category) < 0 ? [{ v: f.category, l: f.category }] : []).concat([{ v: "", l: tr("Select...") }], EQUIPMENT_CATEGORIES.map(c => ({ v: c, l: equipmentCategoryWord(c) })))} style={box("category")} />{under("category")}</div>
       {field("make", tr("Make"), { maxLength: 80 })}
@@ -14968,7 +15021,7 @@ function OwnerDashboardPage({ af, t, sites = [], lang = "en" }) {
   return (<div data-owner-dashboard="" style={{ animation: "fadeIn 0.3s ease" }}>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 14 }}>
       <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: 260 }}><Lbl>{tr("Period")}</Lbl><Sel t={t} aria-label={tr("Period")} data-owner-period="" value={period} onChange={e => setPeriod(e.target.value)} options={periods.map(k => ({ v: k, l: ownerPeriodWord(k) }))} /></div>
-      <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: 260 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-owner-site-choice="" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} /></div>
+      <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: 260 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-owner-site-choice="" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} /></div>
       <span style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" data-owner-print="" disabled={!d || d.sections.length === 0} onClick={print}>{tr("Print")}</Btn></span>
     </div>
     {printBlocked && <div role="alert" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{tr("Allow pop-ups to print the sheet")}</div>}
@@ -15036,7 +15089,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   return (<div>
     <SecT t={t} action={canManageTasks ? tr("Create Task") : undefined} onAction={canManageTasks ? () => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" }) : undefined}>{tr("Assigned Tasks")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-      <Sel t={t} value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <Sel t={t} value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ flex: 1, minWidth: 120 }} />
       <Sel t={t} value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: tr("All Buildings") }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
       <Sel t={t} value={filters.floor_number} onChange={e => updateFilter("floor_number", e.target.value)} options={[{ v: "", l: tr("All Floors") }, ...floors.map(f => ({ v: f, l: tr("Floor {0}", f) }))]} style={{ flex: 1, minWidth: 90 }} />
       <Sel t={t} value={filters.zone} onChange={e => updateFilter("zone", e.target.value)} options={[{ v: "", l: tr("All Zones") }, ...zones.map(z => ({ v: z, l: zoneWord[z] || z }))]} style={{ flex: 1, minWidth: 100 }} />
@@ -15087,7 +15140,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
     </div></Mdl>}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Create Assigned Task")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder={tr("e.g. 1")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder={tr("e.g. Offices")} /></div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
@@ -15527,7 +15580,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     {linkSite && <Mdl t={t} onClose={() => setLinkSite(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Site to Service")}</div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={linkSite.notes} onChange={e => setLinkSite({ ...linkSite, notes: e.target.value })} placeholder={tr("e.g. Green cleaning only, monthly frequency")} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSite(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitLinkSite}>{tr("Link Site")}</Btn></div>
       </div>
@@ -15749,7 +15802,7 @@ function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, on
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <PersonPick t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("All people") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
-      <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ width: 200, fontSize: 12 }} />
       <div style={{ display: "flex", gap: 6 }}>{statusBtn("active", "Active|pattern")}{statusBtn("ended", "Ended|pattern")}{statusBtn("all", "All|patterns")}</div>
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading patterns...")}</div>}
@@ -16611,7 +16664,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {view !== "patterns" && view !== "timeoff" && <>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: tr("This Week") }, { key: "lastWeek", label: tr("Last Week") }, { key: "nextWeek", label: tr("Next Week") }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ width: 200, fontSize: 12 }} />
       <Inp t={t} value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder={tr("Search staff...")} style={{ width: 160, fontSize: 12 }} />
       {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>{tr("Show")}</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{tr("{0} staff", nn)}</option>)}</select></div>}
     </div>
@@ -16634,7 +16687,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>{tr("Scheduling for")} {fmtShortDate(createModal.date)}</div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} aria-label={tr("Site")} data-schedule-shift-site="" value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} aria-label={tr("Site")} data-schedule-shift-site="" value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff Member *")}</Lbl>
         <PersonPick t={t} aria-label={tr("Staff Member")} data-schedule-shift-staff="" value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={shiftPickOptions} />
       </div>
@@ -16690,7 +16743,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Start Time")}</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
         <div><Lbl>{tr("End Time")}</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
@@ -17046,7 +17099,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {/* Filters row */}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ flex: "0 0 180px" }}>
-        <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+        <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} />
       </div>
       <div style={{ flex: "0 0 160px" }}>
         <Sel t={t} value={originFilter} onChange={e => setOriginFilter(e.target.value)} options={[{ v: "", l: tr("All Reasons") }, ...getOpts("shift_origins", undefined, true)]} />
@@ -17407,7 +17460,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post Open Shift")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
 
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Date *")}</Lbl><Inp t={t} type="date" value={createForm.scheduled_date} onChange={e => setCreateForm({ ...createForm, scheduled_date: e.target.value })} /></div>
@@ -17527,7 +17580,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           </div>
         </div>
       </>) : (<>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={shiftDetail.editSite} onChange={e => { setShiftDetail({ ...shiftDetail, editSite: e.target.value }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={shiftDetail.editSite} onChange={e => { setShiftDetail({ ...shiftDetail, editSite: e.target.value }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" value={shiftDetail.editDate} onChange={e => setShiftDetail({ ...shiftDetail, editDate: e.target.value })} /></div>
           <div><Lbl>{tr("Start")}</Lbl><Inp t={t} type="time" value={shiftDetail.editStart} onChange={e => setShiftDetail({ ...shiftDetail, editStart: e.target.value })} /></div>
@@ -17954,13 +18007,15 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
 
   const exportCSV = (d) => {
     const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
-    // Step 218: with capture in the answer, the photo column holds every photo on the card.
+    // Part 379: the photo column says how many photos each card holds (with capture in the answer, every
+    // photo on the card, since Step 218). Their links stop working an hour after they are read, so none is
+    // written into the file; the photos stay on the inspection.
     const many = !!d.capture;
-    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", many ? "Photo URLs" : "Photo URL"];
+    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", "Photos"];
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, serviceCategoryLabel(catOf(item), cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
+      return [item.label, item.zone, serviceCategoryLabel(catOf(item), cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", String(many ? inspectionPhotosOf(sr).length : (sr && sr.photo_url ? 1 : 0))];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
@@ -17972,7 +18027,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const exportPrint = async (d) => {
     const w = keptWindow();
     if (!w) return;
-    await printInspections(w, [d], { token, words: { CIMS_C, catWord, zoneWord } });
+    // The inspection is read again first, so its photos print from fresh links (part 379).
+    const id = d && d.inspection ? d.inspection.id : d && d.id;
+    const fresh = id == null ? null : await af("/api/inspections/scheduled/" + id).catch(() => null);
+    if (fresh) setDetailView(cur => (cur && (cur.inspection ? cur.inspection.id : cur.id) === id ? fresh : cur));
+    await printInspections(w, [fresh || d], { token, words: { CIMS_C, catWord, zoneWord } });
   };
 
   // The analytics export, a data file: its columns and words stay the English the API holds.
@@ -18019,10 +18078,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           </div>
           {isComplete && (
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => exportCSV(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
+              <button data-inspection-csv="" onClick={() => exportCSV(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
                 {tr("CSV")}
               </button>
-              <button onClick={() => exportPrint(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              <button data-print="inspection" onClick={() => exportPrint(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                 {tr("Export PDF")}
               </button>
             </div>
@@ -18197,7 +18256,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
-          <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, editInspForm.assigned_to)} /></div>
           <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
@@ -18395,7 +18454,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
               ]} />
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Sel t={t} value={analyticsSite} onChange={e => setAnalyticsSite(e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 180, padding: "5px 10px", fontSize: 11 }} />
+              <Sel t={t} value={analyticsSite} onChange={e => setAnalyticsSite(e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ width: 180, padding: "5px 10px", fontSize: 11 }} />
               <button onClick={exportAnalyticsCsv} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={t.goldText} /> {tr("Export CSV")}</button>
             </div>
           </div>
@@ -18565,7 +18624,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
       {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, editInspForm.assigned_to)} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
@@ -18576,7 +18635,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
       {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, scheduleForm.assigned_to)} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <label data-schedule-with-safety="" style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 20, cursor: "pointer" }}>
@@ -19232,7 +19291,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
   const groups = model ? model.groups : [];
   const g = groups[step] || null;
   const filled = calc && calc.inputs;
-  const siteOpts = [{ v: "", l: tr("No site on file") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })));
+  const siteOpts = [{ v: "", l: tr("No site on file") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })));
   const detailBox = (k, label, type) => (<div style={{ minWidth: 0 }}><Lbl>{label}</Lbl>
     <Inp t={t} type={type || "text"} aria-label={label} value={details[k]} onChange={e => setDetail(k, e.target.value)} disabled={readOnly} style={quoteBoxStyle(!!detailRefused(k))} />
     <QuoteRefusal text={detailRefused(k)} /></div>);
@@ -21590,7 +21649,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
 
       {tab === "site" && isAdmin && <div>
         <div style={{ marginBottom: 12 }}>
-          <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+          <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} />
         </div>
         {selSite && <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
@@ -24677,7 +24736,7 @@ function MakeLinkBar({ af, t, forms, sites = [], siteId: fixedSite = "", request
       {requestsOn && forms.length > 0 && <div style={{ flex: "1 1 160px", minWidth: 0 }}><Lbl>{tr("Kind|link")}</Lbl><Sel t={t} aria-label={tr("Kind|link")} data-link-kind="" value={kind} onChange={e => setKind(e.target.value)} options={[{ v: "form", l: tr("A form") }, { v: "request", l: tr("A request QR") }]} /></div>}
       {!asRequest && <div style={field}><Lbl>{tr("Form")}</Lbl><Sel t={t} aria-label={tr("Form")} value={code} onChange={e => setFormCode(e.target.value)} options={forms.map(f => ({ v: f.code, l: formTitleName(f) }))} /></div>}
       {asRequest && <div style={field}><Lbl>{tr("Area")}</Lbl><Inp t={t} aria-label={tr("Area")} data-link-area-input="" value={area} maxLength={80} onChange={e => setArea(e.target.value)} onKeyDown={e => { if (e.key === "Enter") make(); }} placeholder={tr("Second floor restroom")} /></div>}
-      {!fixedSite && <div style={field}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={site} onChange={e => setSiteId(e.target.value)} options={sites.map(s => ({ v: String(s.id), l: s.name }))} /></div>}
+      {!fixedSite && <div style={field}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={site} onChange={e => setSiteId(e.target.value)} options={sites.map(s => ({ v: String(s.id), l: siteShown(s) }))} /></div>}
       <Btn t={t} onClick={make} disabled={making || !canMake} style={{ minHeight: 44, minWidth: 120 }}>{making ? tr("Saving...") : asRequest ? tr("Make a request QR") : tr("Make a link")}</Btn>
     </div>
     {asRequest && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Blank makes one QR for the whole site, whose page asks where in the building.")}</div>}
@@ -24731,7 +24790,7 @@ function CustomerLinksTab({ af, token, t, sites = [], siteFilter = "", onSiteFil
 
   // The site and form choices: every site and every customer form, and any a link names that the
   // lists do not, so a filter never points at a choice the select cannot show.
-  const siteOptions = [{ v: "", l: tr("All sites") }].concat(sites.map(s => ({ v: String(s.id), l: s.name })));
+  const siteOptions = [{ v: "", l: tr("All sites") }].concat(sites.map(s => ({ v: String(s.id), l: siteShown(s) })));
   links.forEach(l => { const id = linkSiteId(l); if (id && !siteOptions.some(o => o.v === id)) siteOptions.push({ v: id, l: linkSiteName(l) }); });
   if (site && !siteOptions.some(o => o.v === site)) siteOptions.push({ v: site, l: site });
   const formOptions = [{ v: "", l: tr("All forms") }].concat(forms.map(f => ({ v: f.code, l: formTitleName(f) })));
@@ -25097,7 +25156,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}{voidListed && sw("void", tr("Void|status"))}</div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
-      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
         {canManageSettings && onOpenLinks && <Btn t={t} v="ghost" onClick={onOpenLinks} style={{ minHeight: 44 }}>{tr("Customer links")}</Btn>}
         {startable.length > 0 && <Btn t={t} onClick={openPicker} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Start a form")}</Btn>}
@@ -29902,7 +29961,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
             {TRAINING_LANGUAGES.map((l) => <button key={l.id} type="button" aria-pressed={form.lang === l.id} onClick={() => setForm({ ...form, lang: l.id })} style={choice(form.lang === l.id)}>{tr(l.word)}</button>)}
           </div>{badLine("locale")}</div>
         <div data-session-field="people"><div style={field}>{tr("Who attended")}</div>
-          <Sel t={t} aria-label={tr("Who attended")} options={[{ v: "", l: tr("Everyone active") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={tall} />
+          <Sel t={t} aria-label={tr("Who attended")} options={[{ v: "", l: tr("Everyone active") }, ...sites.map((s) => ({ v: String(s.id), l: siteShown(s) }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={tall} />
           {badLine("siteId")}
           <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
@@ -29994,7 +30053,7 @@ function TrainingGapsPanel({ af, t, sites = [], staff = [], refreshKey, typeWord
       <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Who has no record")}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 220px", minWidth: 0 }}><Sel t={t} aria-label={tr("Training Name")} options={[{ v: "", l: tr("Pick a training...") }, ...names.map((n) => ({ v: n, l: n }))]} value={pick} onChange={(e) => setPick(e.target.value)} style={{ minHeight: 44 }} /></div>
-        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Sel t={t} aria-label={tr("Site")} options={[{ v: "", l: tr("All sites") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={{ minHeight: 44 }} /></div>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Sel t={t} aria-label={tr("Site")} options={[{ v: "", l: tr("All sites") }, ...sites.map((s) => ({ v: String(s.id), l: siteShown(s) }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={{ minHeight: 44 }} /></div>
       </div>
       {error && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10, overflowWrap: "anywhere" }}>{error}</div>}
       {rows !== null && names.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginTop: 10 }}>{tr("No training records found.")}</div>}
@@ -30617,7 +30676,7 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, is
   const topicCols = [{ header: tr("Topic"), tdStyle: { minWidth: 160 }, render: x => <span style={{ color: t.text, fontWeight: 600 }}>{x.name}</span> }].concat(counts.map(([k, l]) => ({ header: tr(l), align: "right", tdStyle: { whiteSpace: "nowrap", color: k === "required" || k === "current" ? t.textSec : gapStatusColor(k) }, render: x => num(x[k]) })));
   return (<div data-training-gaps="">
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
-      <Sel t={t} aria-label={tr("Site")} data-gaps-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Sel t={t} aria-label={tr("Site")} data-gaps-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} />
       <Sel t={t} aria-label={tr("Role")} data-gaps-filter="role" value={f.role} onChange={set("role")} options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} />
       <Sel t={t} aria-label={tr("Topic")} data-gaps-filter="topicId" value={f.topicId} onChange={set("topicId")} options={[{ v: "", l: tr("All topics") }].concat(topics.map(tp => ({ v: String(tp.id), l: tp.name })))} />
       <Sel t={t} aria-label={tr("Status")} data-gaps-filter="status" value={f.status} onChange={set("status")} options={[{ v: "", l: tr("All statuses") }].concat(GAP_STATUSES.map(o => ({ v: o.v, l: tr(o.l) })))} />
@@ -30811,7 +30870,7 @@ function TrainingMatrix({ af, t, token, sites = [], isAdmin = false, showToast }
     af("/api/auth/me").then(x => { if (alive) setMine((x && Array.isArray(x.sites) ? x.sites : []).filter(s0 => s0 && s0.siteId != null).map(s0 => ({ id: String(s0.siteId), name: s0.siteName || "" }))); }).catch(e => { if (alive) setMine([]); console.warn("Own sites:", e.message); });
     return () => { alive = false; };
   }, [af, isAdmin]);
-  const siteChoices = isAdmin ? sites.map(s0 => ({ id: String(s0.id), name: s0.name })) : (mine || []);
+  const siteChoices = isAdmin ? sites.map(s0 => ({ id: String(s0.id), name: siteShown(s0) })) : (mine || []);
   const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
   // Only the latest read is drawn.
   const seq = useRef(0);
@@ -30969,7 +31028,7 @@ function TrainingTime({ af, t, token, sites = [], showToast }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
       <div><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" aria-label={tr("From")} data-time-from="" value={f.from} max={f.to || undefined} onChange={set("from")} />{under("from")}</div>
       <div><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" aria-label={tr("To")} data-time-to="" value={f.to} min={f.from || undefined} onChange={set("to")} />{under("to")}</div>
-      <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-time-site="" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />{under("siteId")}</div>
+      <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-time-site="" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} />{under("siteId")}</div>
     </div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
       {rangeOk ? <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} days|count", days)}</span>
@@ -31028,7 +31087,7 @@ function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], 
   const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-certificate-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const picked = (topics || []).find(tp => String(tp.id) === f.topicId) || null;
   const perSite = !!(picked && picked.perSite === true);
-  const siteOptions = sites.map(s0 => ({ v: String(s0.id), l: s0.name || String(s0.id) }));
+  const siteOptions = sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) || String(s0.id) }));
   const ready = f.topicId && (!perSite || f.siteId) && f.completedDate && file && !fileWhy(file);
   const send = async () => {
     if (!ready || busy) return;
@@ -31767,7 +31826,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
         <div data-assign-field="userIds">
           <div style={lbl}>{tr("People")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-            <Sel t={t} aria-label={tr("Site")} data-assign-site="" options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} value={siteId} onChange={e => setSiteId(e.target.value)} style={tall} />
+            <Sel t={t} aria-label={tr("Site")} data-assign-site="" options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} value={siteId} onChange={e => setSiteId(e.target.value)} style={tall} />
             <Sel t={t} aria-label={tr("Role")} data-assign-role="" options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} value={role} onChange={e => setRole(e.target.value)} style={tall} />
             <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
           </div>
@@ -31845,7 +31904,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = fal
   ];
   return (<div data-training-awaiting="">
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} /></div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} /></div>
       {list && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} waiting for a trainer|count", shown.length)}</span>}
     </div>
     <div style={{ fontSize: 12, color: t.textMut, marginBottom: 12 }}>{tr("Safety topics need a trainer to watch a demonstration (OCSA-HR-016 5.5).")}</div>
@@ -32000,7 +32059,7 @@ function TrainingSessions({ af, t, token, sites = [], staff = [], typeWords = {}
   return (<div data-training-sessions="">
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
       <Sel t={t} aria-label={tr("Status")} data-sessions-filter="status" value={f.status} onChange={set("status")} options={[{ v: "", l: tr("All statuses") }].concat(Object.keys(SESSION_STATUS).map(k => ({ v: k, l: sessionStatusWord(k) })))} />
-      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} />
       <Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={set("from")} />
       <Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={set("to")} />
     </div>
@@ -32051,7 +32110,7 @@ function StartSessionWindow({ af, t, sites = [], onClose, onStarted }) {
       <div data-session-start-field="title"><div style={lbl}>{tr("Title")}</div><Inp t={t} aria-label={tr("Title")} value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder={tr("e.g. Monthly safety talk")} />{bad("title")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         <div data-session-start-field="day"><div style={lbl}>{tr("Day")}</div><Inp t={t} type="date" aria-label={tr("Day")} value={f.day} onChange={e => setF({ ...f, day: e.target.value })} />{bad("day")}</div>
-        <div data-session-start-field="siteId"><div style={lbl}>{tr("Site")}</div><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF({ ...f, siteId: e.target.value })} options={[{ v: "", l: tr("No site") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />{bad("siteId")}</div>
+        <div data-session-start-field="siteId"><div style={lbl}>{tr("Site")}</div><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF({ ...f, siteId: e.target.value })} options={[{ v: "", l: tr("No site") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} />{bad("siteId")}</div>
       </div>
       <div data-session-start-field="locale"><div style={lbl}>{tr("Language it is given in")}</div>
         <div role="group" aria-label={tr("Language it is given in")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -32352,7 +32411,7 @@ function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], is
       <DocumentWhoMustSign af={af} t={t} doc={doc} reqs={reqs} isAdmin={isAdmin} people={people} onSaved={(rows) => { setReqs(rows); loadReqs(); load(); }} />
     </Crd>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 12 }}>
-      <Sel t={t} aria-label={tr("Site")} data-doc-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Sel t={t} aria-label={tr("Site")} data-doc-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} />
       <Sel t={t} aria-label={tr("Role")} data-doc-filter="role" value={f.role} onChange={set("role")} options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} />
     </div>
     {d && !failed && <div role="status" data-doc-summary="" style={{ fontSize: 13, color: t.textSec, marginBottom: 10 }}>{trn("{0} must sign|count", d.people.length)}{" . "}{trn("{0} not signed|count", notSigned)}</div>}
@@ -32663,7 +32722,7 @@ function SignatureRequests({ af, t, token, sites = [], showToast, focusId = "", 
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Every record sent to a phone to sign, Not right first and then the oldest. Remind sends the notice again, Cancel closes one entered by mistake, and Sign here now takes the signature on this screen. A warning signed on paper or refused in person is recorded from its window.")}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <div style={box}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} data-signature-kind="" value={kind} onChange={e => setKind(e.target.value)} options={[{ v: "", l: tr("All kinds") }].concat(SIGN_KINDS.map(k => ({ v: k.v, l: tr(k.l) })))} /></div>
-        <div style={box}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-signature-site="" value={site} onChange={e => setSite(e.target.value)} options={[{ v: "", l: tr("All|sites") }].concat((sites || []).map(x => ({ v: String(x.id), l: x.name })))} /></div>
+        <div style={box}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-signature-site="" value={site} onChange={e => setSite(e.target.value)} options={[{ v: "", l: tr("All|sites") }].concat((sites || []).map(x => ({ v: String(x.id), l: siteShown(x) })))} /></div>
         <div style={box}><Lbl>{tr("State")}</Lbl><Sel t={t} aria-label={tr("State")} data-signature-filter-state="" value={state} onChange={e => setState(e.target.value)} options={SIGN_LIST_STATES.map(x => ({ v: x.v, l: tr(x.l) }))} /></div>
       </div>
     </Crd>
@@ -32917,7 +32976,7 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
       <div><Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" aria-label={tr("Date")} data-property-field="issuedOn" value={f.issuedOn} onChange={e => set("issuedOn", e.target.value)} style={box("issuedOn")} />{under("issuedOn")}</div>
     </div>
     {sited && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
-      <Sel t={t} aria-label={tr("Site")} data-property-field="siteId" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+      <Sel t={t} aria-label={tr("Site")} data-property-field="siteId" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })))} style={box("siteId")} />{under("siteId")}</div>}
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
     {phoneLive && <WhoSigns t={t} value={who} onChange={setWho} disabled={busy} name={name} />}
     {phone ? null : sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>

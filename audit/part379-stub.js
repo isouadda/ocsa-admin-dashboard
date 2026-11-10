@@ -75,6 +75,22 @@
 //     GET /api/notification-recipients    the API's named signature types beside the rest, signature_signed
 //                                         among them, and health_alert, each with named: true
 //
+//   Section 4, what Round 6 left:
+//     GET /api/sites                      every row carries is_test (routes/sites.js, part 376), false unless
+//                                         the scene testSite makes Riverbend Logistics Hub (s-3) the test site
+//     GET /api/users/timeline-detail/..., /api/sites/chat/:id, /api/inspections/scheduled/insp-4
+//                                         with the scene freshLinks, every photo link names the read that
+//                                         handed it out (?read=<n>), so a print shows which read it drew from
+//     GET /api/sites/:siteId/maintenance-contacts?building=
+//                                         recipients and cc beside the contacts (routes/maintenance.js, part
+//                                         371): the active contacts, those of the building named and those of
+//                                         no building when one matches, primary first, an address once; cc the
+//                                         office's copy
+//     POST /api/maintenance-requests      clientId kept: the same clientId again answers 200 { request,
+//                                         email, repeat: true } with the first request and files nothing; the
+//                                         scene lostAnswer answers the first filing 502 after it was filed, as
+//                                         a dropped answer reads
+//
 // Every value is invented: the people are the seed's, the commits made up, the routes the API's own patterns.
 "use strict";
 
@@ -645,6 +661,71 @@ module.exports = (ctx) => {
     return ok({ request, finalMail: { status: m().scene.finalMail || "sent", at: seed.NOW_ISO } });
   }
 
+  // ---- Section 4: what Round 6 left -------------------------------------------------------------------
+  const OFFICE_CC = "office.copy@example.invalid";
+  const readNo = (k) => { const x = m(); if (!x.reads) x.reads = {}; x.reads[k] = (x.reads[k] || 0) + 1; return x.reads[k]; };
+  const HOST = "https://storage.example.invalid/storage/v1/object/sign/";
+  function recipientsOf(contacts, building) {
+    const key = (v) => String(v || "").replace(/\s+/g, " ").trim().toLowerCase();
+    const active = contacts.filter((c) => c && c.isActive).sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
+    let picked = active;
+    if (key(building) && active.some((c) => key(c.building) === key(building))) picked = active.filter((c) => key(c.building) === key(building) || !key(c.building));
+    const seen = new Set();
+    const out = [];
+    picked.forEach((c) => { const e = String(c.email || "").toLowerCase(); if (!e || seen.has(e)) return; seen.add(e); out.push({ contactId: c.id, name: c.name, company: c.company || null, email: e }); });
+    return out;
+  }
+  function round6Route(method, path, query, body, lang, base) {
+    if (path === "/api/sites" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((r) => Object.assign({}, r, { is_test: !!m().scene.testSite && r.id === seed.SITES[2].id }));
+      return a;
+    }
+    const ct = /^\/api\/sites\/([^/]+)\/maintenance-contacts$/.exec(path);
+    if (ct && method === "GET" && query.has("building")) {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.contacts)) a.json = Object.assign({}, a.json, { recipients: recipientsOf(a.json.contacts, query.get("building")), cc: OFFICE_CC });
+      sent("contacts", { siteId: decodeURIComponent(ct[1]), building: query.get("building") });
+      return a;
+    }
+    if (path === "/api/maintenance-requests" && method === "POST") {
+      const id = typeof body === "string" ? ((/name="clientId"\r\n\r\n([^\r\n]*)/.exec(body) || [])[1] || null) : body && body.clientId ? String(body.clientId) : null;
+      sent("maintenance", { clientId: id, multipart: typeof body === "string" });
+      const x = m();
+      if (!x.filed) x.filed = {};
+      if (id && x.filed[id]) return ok({ request: clone(x.filed[id].request), email: clone(x.filed[id].email), repeat: true });
+      const a = base();
+      if (a && a.status === 201 && a.json && id) {
+        x.filed[id] = { request: clone(a.json.request), email: clone(a.json.email) };
+        a.json = Object.assign({}, a.json, { repeat: false });
+        if (x.scene.lostAnswer && !x.lostOnce) { x.lostOnce = true; return { status: 502, json: { error: T(lang, "Bad gateway", "Puerta de enlace incorrecta") } }; }
+      }
+      return a;
+    }
+    if (!m().scene.freshLinks || method !== "GET") return null;
+    const det = /^\/api\/users\/timeline-detail\/([^/]+)\/([^/]+)$/.exec(path);
+    if (det) {
+      const a = base();
+      const n = readNo("detail:" + det[1] + ":" + det[2]);
+      if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { found: true, photos: [{ id: "ph-379", photo_url: HOST + "issue-photos/detail-379.jpg?read=" + n, caption: "Before" }] });
+      return a;
+    }
+    const chat = /^\/api\/sites\/chat\/([^/]+)$/.exec(path);
+    if (chat) {
+      const a = base();
+      const n = readNo("chat:" + chat[1]);
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.messages)) a.json = Object.assign({}, a.json, { messages: a.json.messages.map((x) => Object.assign({}, x, { profilePhotoUrl: HOST + "profile-photos/" + (x.senderId || "someone") + "/face.jpg?read=" + n })) });
+      return a;
+    }
+    if (path === "/api/inspections/scheduled/insp-4") {
+      const a = base();
+      const n = readNo("inspection:insp-4");
+      if (a && a.status === 200 && a.json) a.json = JSON.parse(JSON.stringify(a.json).replace(/(https:\/\/photos\.example\.invalid\/api\/inspection-photos\/[^"?]+)/g, "$1?read=" + n));
+      return a;
+    }
+    return null;
+  }
+
   function route(method, path, query, body, lang, base) {
     const a = permissionsRoute(method, path, body, lang, base);
     if (a) return a;
@@ -654,6 +735,8 @@ module.exports = (ctx) => {
     if (sh) return sh;
     const sg = signaturesRoute(method, path, query, body, lang, base);
     if (sg) return sg;
+    const r6 = round6Route(method, path, query, body, lang, base);
+    if (r6) return r6;
     return base();
   }
 

@@ -566,6 +566,144 @@ async function signaturesCases(ctx, lang) {
   });
 }
 
+// ---- Section 4: the test site and what Round 6 left -------------------------------------------------------
+const S3 = seed.SITES[2];
+const lastPrint = async (d, before) => { const all = await d.prints(); return all.slice(before).pop() || null; };
+async function round6Cases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/round6/" + x;
+
+  // 1. The test site is marked TEST where sites are listed and picked.
+  await withDriver(ctx, { name: "test-site", lang, arm: (s) => s.setScene379({ testSite: true }) }, async (d) => {
+    await d.goto("sites");
+    await until(d, "[data-site-test]", 6000);
+    const listed = await d.page.locator("[data-site-test='" + S3.id + "']").count();
+    const others = await d.page.locator("[data-site-test]").count();
+    await goHash(d, "checklist/all/today");
+    await until(d, "[data-cr-site-pick]", 6000);
+    const options = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-site-pick] option")).map((o) => o.textContent.trim()));
+    await goHash(d, "sites/" + S3.id);
+    await until(d, "[data-site-test='" + S3.id + "']", 6000);
+    const header = await d.page.locator("[data-site-test='" + S3.id + "']").count();
+    const mark = d.say("TEST");
+    results.check(KIND, id("the-test-site-is-marked-where-sites-are-listed-and-picked"), listed === 1 && others === 1 && options.indexOf(S3.name + " (" + mark + ")") >= 0 && options.indexOf(seed.SITES[0].name) >= 0 && header === 1,
+      "the Sites list marks " + others + " site(s), " + listed + " of them the test site; the picker reads " + say(options) + "; the site's page marks it " + header + " time(s)");
+  });
+
+  // 2. A person's printed report reads the profile again first, so its photo is a fresh link.
+  await withDriver(ctx, { name: "print-profile", lang, arm: (s) => s.setPictures372({}) }, async (d, stubs) => {
+    await goHash(d, "staff/u-staff-5");
+    await until(d, "[data-print='profile-report']", 8000);
+    await d.settle(400);
+    stubs.pictures372Advance(61);
+    const before = (await d.prints()).length;
+    const mark = d.mark();
+    await d.page.locator("[data-print='profile-report']").first().click().catch(() => {});
+    await d.settle(1200);
+    const again = reads(d, mark, /^\/api\/users\/profile\/u-staff-5$/).pop();
+    const fresh = again && again.json && again.json.user ? again.json.user.profilePhotoUrl : null;
+    const pr = await lastPrint(d, before);
+    const html = pr ? pr.html : "";
+    results.check(KIND, id("a-person-s-report-prints-a-fresh-photo"), !!fresh && html.indexOf(fresh.replace(/&/g, "&amp;")) >= 0 || (!!fresh && html.indexOf(fresh) >= 0),
+      !again ? "Print Report read the profile no second time" : !pr ? "nothing was printed" : "the print holds no photo link of the read made for it: " + say((html.match(/storage\.example\.invalid[^"]*/g) || []).slice(0, 2)));
+  });
+
+  // 3. A timeline record, a site's chat and an inspection read their record again before they print.
+  await withDriver(ctx, { name: "print-records", lang, arm: (s) => { s.setScene379({ freshLinks: true }); s.setStep278(true); } }, async (d) => {
+    const out = {};
+    // A person's timeline record.
+    await goHash(d, "staff/u-staff-5");
+    await d.clickText(d.say("Timeline"), { exact: true });
+    await until(d, "[data-tl-entry]", 6000);
+    await d.page.locator("[data-tl-entry] > div:nth-child(2)").first().click().catch(() => {});
+    await until(d, "[data-print='timeline-detail']", 5000);
+    let before = (await d.prints()).length;
+    await d.page.locator("[data-print='timeline-detail']").first().click().catch(() => {});
+    await d.settle(1000);
+    let pr = await lastPrint(d, before);
+    out.detail = pr ? (pr.html.match(/detail-379\.jpg\?read=(\d+)/) || [])[1] || "none" : "no print";
+    // A site's chat.
+    await goHash(d, "sites/" + seed.SITES[0].id + "/chat");
+    await until(d, "[data-print='site-chat']", 6000);
+    await d.settle(500);
+    before = (await d.prints()).length;
+    await d.page.locator("[data-print='site-chat']").first().click().catch(() => {});
+    await d.settle(1000);
+    pr = await lastPrint(d, before);
+    out.chat = pr ? (pr.html.match(/face\.jpg\?read=(\d+)/) || [])[1] || "none" : "no print";
+    // An inspection.
+    await goHash(d, "inspections/insp-4");
+    await until(d, "[data-print='inspection']", 8000);
+    await d.settle(500);
+    before = (await d.prints()).length;
+    await d.page.locator("[data-print='inspection']").first().click().catch(() => {});
+    await d.settle(1500);
+    pr = await lastPrint(d, before);
+    out.inspection = pr ? (pr.html.match(/insp-4-[a-e]\.svg\?read=(\d+)/) || [])[1] || "none" : "no print";
+    results.check(KIND, id("records-read-again-before-they-print"), out.detail === "2" && out.chat === "2" && out.inspection === "2",
+      "the prints drew the links of read " + say(out) + " where each is the second read, the one made for the print");
+  });
+
+  // 4. The kept records read the record again at Print.
+  await withDriver(ctx, { name: "print-kept", lang }, async (d) => {
+    await d.goto("reports");
+    await until(d, "[data-report-group]", 8000);
+    const card = d.page.locator("[data-report-group] > div:nth-child(2) > div").filter({ has: d.page.getByText(d.say("Inspections"), { exact: true }) });
+    await card.getByRole("button").first().click().catch(() => {});
+    await until(d, "[data-kept-record]", 5000);
+    await d.page.locator("[data-kept-record] select").first().selectOption(seed.SITES[0].id).catch(() => {});
+    await d.page.locator('[data-kept-record] [role="status"]').filter({ hasText: /\d/ }).first().waitFor({ timeout: 6000 }).catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-kept-print]").first().click().catch(() => {});
+    await d.settle(1500);
+    const list = reads(d, mark, /^\/api\/inspections\/scheduled$/).length;
+    results.check(KIND, id("a-kept-record-is-read-again-at-print"), list >= 1, "Print read the list " + list + " time(s)");
+  });
+
+  // 5. An inspection's CSV writes how many photos each row has, and no photo link.
+  await withDriver(ctx, { name: "inspection-csv", lang, arm: (s) => s.setStep278(true) }, async (d) => {
+    await goHash(d, "inspections/insp-4");
+    await until(d, "[data-print='inspection']", 8000);
+    await d.clearCaptures();
+    await d.page.locator("[data-inspection-csv]").first().click().catch(() => {});
+    await d.settle(800);
+    const file = (await d.downloads()).pop() || null;
+    const body = file ? String(file.body || "").replace(/^\ufeff/, "") : "";
+    const lines = body.split(/\r?\n/).filter(Boolean);
+    const head = lines[0] || "";
+    const counts = lines.slice(1).map((l) => l.split(",").pop().replace(/"/g, "")).filter((x) => x !== "");
+    results.check(KIND, id("an-inspection-s-csv-counts-photos-and-holds-no-link"), !!file && /Photos"?$/.test(head) && body.indexOf("http") < 0 && counts.length >= 3 && counts.every((x) => /^\d+$/.test(x)),
+      !file ? "Export CSV saved no file" : "the file reads " + say(lines.slice(0, 3)));
+  });
+
+  // 6. New maintenance request asks who it goes to for the building typed, and sends a clientId that a
+  //    second send after a lost answer repeats, so the request is filed once.
+  await withDriver(ctx, { name: "maintenance", lang, arm: (s) => s.setScene379({ lostAnswer: true }) }, async (d, stubs) => {
+    await d.goto("maintenance");
+    await d.clickText(d.say("New maintenance request"), { exact: true });
+    await until(d, "[data-maint-new]", 5000);
+    await d.page.locator("[data-maint-field='siteId']").first().selectOption(seed.SITES[0].id).catch(() => {});
+    await d.page.locator("[data-maint-field='building']").first().fill("South Wing").catch(() => {});
+    await d.settle(900);
+    const asked = stubs.sent379().filter((x) => x.what === "contacts").map((x) => x.body.building);
+    const cc = await attr(d, "[data-maint-cc]", "data-maint-cc");
+    await d.page.locator("[data-maint-field='category']").first().selectOption({ index: 1 }).catch(() => {});
+    await d.page.locator("[data-maint-field='urgency']").first().selectOption({ index: 1 }).catch(() => {});
+    await d.page.locator("[data-maint-field='description']").first().fill("The south corridor door does not close.").catch(() => {});
+    const send = d.page.locator("[data-maint-send]");
+    const mark = d.mark();
+    await send.last().click().catch(() => {});
+    await d.settle(900);
+    await send.last().click().catch(() => {});
+    await d.settle(1200);
+    const posts = writes(d, mark, "POST", /^\/api\/maintenance-requests$/);
+    const ids = stubs.sent379().filter((x) => x.what === "maintenance").map((x) => x.body.clientId);
+    const closed = !(await has(d, "[data-maint-new]"));
+    results.check(KIND, id("a-request-asks-who-it-goes-to-and-is-filed-once"), asked.indexOf("South Wing") >= 0 && cc === "office.copy@example.invalid" && posts.length === 2 && ids.length === 2 && !!ids[0] && ids[0] === ids[1] && /^[A-Za-z0-9_-]{8,64}$/.test(ids[0]) && posts[1].status === 200 && closed,
+      "the window asked for " + say(asked) + " with the copy " + say(cc) + "; it sent " + posts.length + " filing(s) answered " + say(posts.map((c) => c.status)) + " with the clientIds " + say(ids) + (closed ? "" : " and stayed open"));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
@@ -573,6 +711,7 @@ async function run(ctx) {
     if (want("health")) await healthCases(ctx, lang);
     if (want("shifts")) await shiftsCases(ctx, lang);
     if (want("signatures")) await signaturesCases(ctx, lang);
+    if (want("round6")) await round6Cases(ctx, lang);
   }
 }
 
