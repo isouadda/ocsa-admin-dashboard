@@ -79,10 +79,11 @@ Who can do this: admins
 5. Turn **Email** and **In app** on or off for each person. At least one stays on.
 6. To take someone off, click **Remove** and confirm.
 7. Each form's own list also chooses what its email carries: **Link to the app**, which every form starts on, or **Attach the filled report as a PDF**. With the PDF chosen, every email about that form carries everything the report says, to every person and address on its lists. **Every form** has no choice of its own.
+8. Some kinds go only to the people they are about, such as **Someone signed a warning on their phone** (**Alguien firmó una advertencia en su teléfono**), which goes to the person who sent the warning to sign. Their card says who gets them, and nobody is added there. The health alerts are set on the Health page.
 If it does not work: when nobody is set for a kind, every admin gets a notice in the app.
 Words people use for this: notifications, who gets the email, alerts, stop getting notices, send to an outside email, email the report as a pdf, attach the report, pdf delivery.
 Picture: settings-who-gets-told
-Last checked: 2026-10-07
+Last checked: 2026-11-10
 
 ## Add a staff member (admin dashboard)
 Who can do this: admins. A supervisor opens **Staff Management** (**Gestión de personal**) and does not see **Add Staff** (**Agregar persona**).
@@ -1462,9 +1463,10 @@ Who can do this: admins and supervisors
 4. Add **Their account** (**Su versión**) if they want their words on the warning.
 5. Click **Issue** (**Emitir**). The warning shows **Declined to sign** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
 6. A person who will not sign a warning sent to their phone declines there. The warning then reads **Declined** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
+7. When the warning was sent to their phone and the person refuses in front of you instead, record the refusal from its request in **Waiting for signatures** (**A la espera de firmas**), with the witness; see the entry on recording a paper signature or a refusal.
 Words people use for this: refused to sign, would not sign, declined to sign, witness, write-up, se negó a firmar.
 Picture: warning-declined-to-sign
-Last checked: 2026-10-06
+Last checked: 2026-11-10
 
 ## Rescind a warning (admin dashboard)
 Who can do this: admins
@@ -2228,12 +2230,12 @@ Who can do this: admins and supervisors
 1. Admins and supervisors issue PPE from the site in **Sites** (**Sitios**), on its **Supplies** (**Suministros**) tab, or a written warning from **Issue a warning** (**Emitir una advertencia**) on **Discipline** (**Disciplina**). An admin can also open **Issue property** (**Entregar propiedad**) or **Issue PPE** (**Entregar EPP**) from the person's folder in **HR Records** (**Expedientes de personal**), or **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
 2. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen. Fill in the rest and click **Send to sign** (**Enviar a firmar**), or **Issue and send to sign** (**Emitir y enviar a firmar**) on a warning. The person is told on their phone and signs there; nobody has to come to the office.
 3. The record reads **Waiting for signature** (**A la espera de firma**) until they sign, then **Signed** (**Firmado**) with **on their phone** (**en su teléfono**). A person who sends property or PPE back reads **Not right** (**No es correcto**) with their note. A person who will not sign a warning reads **Declined** (**Se negó a firmar**).
-4. On a record still waiting, click **Remind** (**Recordar**) to send the notice again, up to twenty times in all. On one waiting or not right, click **Cancel** (**Cancelar**) to close the request when it was signed on paper or entered by mistake, or **Sign here now** (**Firmar aquí ahora**) to have the person sign on the screen in front of them. It then reads **Signed** (**Firmado**) with **in the office** (**en la oficina**).
+4. On a record still waiting, click **Remind** (**Recordar**) to send the notice again, up to twenty times in all. On one waiting or not right, click **Cancel** (**Cancelar**) to close the request when it was entered by mistake, or **Sign here now** (**Firmar aquí ahora**) to have the person sign on the screen in front of them. It then reads **Signed** (**Firmado**) with **in the office** (**en la oficina**). A warning signed on a printed copy, or refused in front of you, is recorded from its request instead; see the entry on recording a paper signature or a refusal.
 5. To take the signature on the spot from the start, choose **Sign here now** (**Firmar aquí ahora**) under **Who signs** (**Quién firma**), and the box is drawn as before.
 If it does not work: **Who signs** (**Quién firma**) and the chips show once the system answers the signature requests. Until then the person signs in the box, as before. A refusal is shown under the field it names.
 Words people use for this: sign on their phone, send to sign, signature request, remind to sign, sign here, not right, waiting for signature, firmar en el teléfono.
 Picture: signature-send-to-phone
-Last checked: 2026-10-20
+Last checked: 2026-11-10
 
 ## See what is waiting for a signature (admin dashboard)
 Who can do this: admins see every request; supervisors see their sites
@@ -2949,4 +2951,17 @@ Who can do this: admins and supervisors
 If it does not work: a site with no shifts of its own reads as before, by its shift blocks or as one list a day. An overnight shift's checks after midnight count on the day the shift began.
 Words people use for this: checklist by shift, first shift checklist, second shift, what did each shift do, shift ring, done by the last shift, resultados por turno.
 Picture: checklist-results-runs
+Last checked: 2026-11-10
+
+## Record a paper signature or a refusal (admin dashboard)
+Who can do this: admins, and the person who sent the warning to sign
+1. A warning sent to a person's phone can still be signed on a printed copy, or refused in front of you. Click **HR Records** (**Expedientes de personal**), then **Waiting for signatures** (**A la espera de firmas**), and open the warning's request.
+2. Click **Record a paper signature or a refusal** (**Registrar una firma en papel o un rechazo**). Under **What happened** (**Qué pasó**), pick that the person signed a printed copy, or that they refused to sign in person.
+3. For a refusal, type the **Witness (optional)** (**Testigo (opcional)**) who saw it, if one did.
+4. Choose the signed paper's photo or PDF, up to 10 MB, if you have one. It is kept privately with the warning.
+5. The window says what happens next: **Once saved, the request closes and the warning records it. Its final copy is emailed to {0}, with the issuer copied.** (**Al guardarlo, la solicitud se cierra y la advertencia lo registra. Su copia final se envía por correo a {0}, con copia a quien la emitió.**) Click **Record it** (**Registrarlo**).
+6. The request then reads **Signed** (**Firmado**) with **on paper** (**en papel**), or **Declined** (**Se negó a firmar**) with **Refused in person** (**Rechazado en persona**), and the window says whether the final copy was emailed. With no email on file it says **Recorded. No email on file, so the signed copy was not mailed. Deliver it another way.** (**Registrado. No hay correo registrado, así que la copia firmada no se envió. Entréguela de otra forma.**)
+If it does not work: only a warning's request can be recorded this way, while it is still waiting or not right; anything else is refused in the system's words under the form. A request entered by mistake is closed with **Cancel** (**Cancelar**) instead.
+Words people use for this: signed on paper, paper signature, printed copy, refused to sign in person, witnessed refusal, scan the signed warning, firma en papel.
+Picture: signature-paper
 Last checked: 2026-11-10

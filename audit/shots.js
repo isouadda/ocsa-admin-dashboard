@@ -1878,6 +1878,11 @@ const SHOTS = [
     act: async (c) => { await click(c, "[data-site-task='t379-2']"); await until(c, "[data-task-shifts]"); await c.page.locator("[data-task-shifts]").first().scrollIntoViewIfNeeded(); await wait(300); } },
   { name: "checklist-results-runs", entry: "Read a site's checklist by shift", arm: (stubs, on) => stubs.setScene379({ shifts: on }),
     open: "checklist/s-2/" + seed.TODAY, ready: "[data-cr-run] .apexcharts-canvas", act: async () => { await wait(900); } },
+  // Part 379, section 3: the written warning sent to Rashid Haddad's phone (sr-3), recorded as signed on a
+  // printed copy, before it is saved: what happened and what happens next.
+  { name: "signature-paper", entry: "Record a paper signature or a refusal",
+    open: "hr/signatures/sr-3", ready: "[data-signature-request-window='sr-3'] [data-paper-record-open]",
+    act: async (c) => { await click(c, "[data-paper-record-open]"); await until(c, "[data-paper-next]"); await c.page.locator("[data-paper-save]").first().scrollIntoViewIfNeeded(); await wait(300); } },
 ];
 
 

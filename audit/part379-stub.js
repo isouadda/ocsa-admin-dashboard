@@ -60,6 +60,21 @@
 //     GET /api/sites/s-2/shift-blocks/schedule  no blocks; GET /api/shift-sessions/by-site the two people,
 //                                         each on their shift
 //
+//   Section 3, signatures (routes/signatures.js, routes/notificationRecipients.js), over Step 270's requests:
+//     POST /api/signatures/:id/record     { outcome: "paper" | "declined", witnessName?, file? } as JSON or
+//                                         multipart; by the request's sender or an admin, else 403
+//                                         signatures.notYours; a request that is not a warning's 409
+//                                         signatures.cannotRecord; one no longer open 409 signatures.notOpen; a
+//                                         stray key, an outcome it does not know, a witness on a paper
+//                                         signature or over 120 characters, or a file that is not a PDF or a
+//                                         photo 400 signatures.badDetails with keys. The request closes as
+//                                         signed with signedWhere paper, or as declined, and answers {
+//                                         request, finalMail: { status } }, sent unless the scene's finalMail
+//                                         says otherwise.
+//     GET /api/signatures/:id             the request with recorded: { outcome, witnessName, hasFile } | null
+//     GET /api/notification-recipients    the API's named signature types beside the rest, signature_signed
+//                                         among them, and health_alert, each with named: true
+//
 // Every value is invented: the people are the seed's, the commits made up, the routes the API's own patterns.
 "use strict";
 
@@ -551,6 +566,85 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 3: signatures -------------------------------------------------------------------------
+  const S270 = {
+    "signatures.notFound": ["That signature request was not found", "No se encontr\u00f3 esa solicitud de firma"],
+    "signatures.notYours": ["This signature request is not yours", "Esta solicitud de firma no es suya"],
+    "signatures.notOpen": ["This request is no longer waiting for a signature", "Esta solicitud ya no espera una firma"],
+    "signatures.cannotRecord": ["Only a warning sent to the phone can be recorded as signed on paper or refused.", "Solo una amonestaci\u00f3n enviada al tel\u00e9fono se puede registrar como firmada en papel o rechazada."],
+    "signatures.badDetails": ["Some details are missing or not valid", "Faltan algunos datos o no son v\u00e1lidos"],
+  };
+  const sig = (code, status, lang, extra) => bad(status, code, S270[code] ? S270[code][lang === "es" ? 1 : 0] : code, extra);
+  function multipart(raw) {
+    const out = { fields: {}, files: [] };
+    String(raw || "").split(/-{2,}[^\r\n]*\r\n/).forEach((part) => {
+      const name = /name="([^"]+)"/.exec(part);
+      if (!name) return;
+      const fileName = /filename="([^"]*)"/.exec(part);
+      const type = /Content-Type:\s*([^\r\n]+)/i.exec(part);
+      const value = part.split("\r\n\r\n").slice(1).join("\r\n\r\n").replace(/\r\n$/, "");
+      if (fileName) out.files.push({ field: name[1], name: fileName[1], type: type ? type[1].trim() : "", size: value.length, pdf: value.slice(0, 5) === "%PDF-" });
+      else out.fields[name[1]] = value;
+    });
+    return out;
+  }
+  const NAMED_TYPES = [
+    { type: "signature_request", label: "Someone is asked to sign on their phone", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "signature_disputed", label: "Someone says a record sent to sign is not right", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "signature_declined", label: "Someone declined to sign a warning", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "signature_overdue", label: "A signature has waited three working days", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "signature_signed", label: "Someone signed a warning on their phone", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "health_alert", label: "Health alerts and the morning health email (part 376)", keyed: false, named: true, allowOutsideEmail: true, emailCarriesDetail: true },
+  ];
+  function signaturesRoute(method, path, query, body, lang, base) {
+    if (path === "/api/notification-recipients" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.types)) a.json = Object.assign({}, a.json, { types: a.json.types.concat(NAMED_TYPES.filter((x) => !a.json.types.some((y) => y.type === x.type))) });
+      return a;
+    }
+    const one = /^\/api\/signatures\/([^/]+)$/.exec(path);
+    if (one && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && a.json.request) a.json = Object.assign({}, a.json, { request: Object.assign({}, a.json.request, { recorded: (m().recorded || {})[decodeURIComponent(one[1])] || null }) });
+      return a;
+    }
+    const rec = /^\/api\/signatures\/([^/]+)\/record$/.exec(path);
+    if (!rec || method !== "POST") return null;
+    const multi = typeof body === "string";
+    const mp = multi ? multipart(body) : null;
+    const b = multi ? mp.fields : (body && typeof body === "object" ? body : {});
+    const file = multi ? mp.files.find((f) => f.field === "file") || null : (typeof b.file === "string" && b.file ? { dataUrl: b.file } : null);
+    sent("record", { body: clone(b), multipart: multi, file: file ? { name: file.name || null, type: file.type || null, size: file.size || (file.dataUrl ? file.dataUrl.length : 0) } : null });
+    const list = state.requests270 || [];
+    const r = list.find((x) => x.id === decodeURIComponent(rec[1]));
+    if (!r) return sig("signatures.notFound", 404, lang);
+    if (r.kind !== "warning") return sig("signatures.cannotRecord", 409, lang);
+    const p = me();
+    if (!(p && (p.role === "admin" || p.isSuperAdmin) || (p && String(r.requestedById) === String(p.id)))) return sig("signatures.notYours", 403, lang);
+    // The scene closedMeanwhile: someone else closed the request after this window opened.
+    if (m().scene.closedMeanwhile) r.state = "cancelled";
+    if (r.state !== "waiting" && r.state !== "disputed") return sig("signatures.notOpen", 409, lang);
+    const keys = Object.keys(b).filter((k) => ["outcome", "witnessName", "file"].indexOf(k) < 0);
+    const outcome = b.outcome === "paper" || b.outcome === "declined" ? b.outcome : null;
+    if (!outcome) keys.push("outcome");
+    let witness = null;
+    if (b.witnessName !== undefined && b.witnessName !== null && String(b.witnessName).trim() !== "") {
+      witness = String(b.witnessName).replace(/\s+/g, " ").trim();
+      if (witness.length > 120 || outcome !== "declined") keys.push("witnessName");
+    }
+    if (file && !(file.pdf || /^image\/(jpeg|png|heic|heif)$/.test(file.type || "") || /^data:(application\/pdf|image\/(jpeg|png));base64,/.test(file.dataUrl || ""))) keys.push("file");
+    if (keys.length) return sig("signatures.badDetails", 400, lang, { keys: Array.from(new Set(keys)) });
+    if (outcome === "paper") { r.state = "signed"; r.signedAt = seed.NOW_ISO; r.signedWhere = "paper"; }
+    else { r.state = "declined"; r.disputeNote = null; }
+    if (!m().recorded) m().recorded = {};
+    m().recorded[r.id] = { outcome, witnessName: witness, hasFile: !!file };
+    // The request as the record's answer carries it; the window reads GET /api/signatures/:id again after.
+    const who = personById(r.userId), by = personById(r.requestedById);
+    const request = { id: r.id, kind: r.kind, subjectId: r.subjectId, person: { id: r.userId, name: nameOf(who) }, item: clone(r.item || {}), state: r.state, requestedAt: r.requestedAt,
+      requestedBy: { name: nameOf(by) }, signedAt: r.signedAt || null, signedWhere: r.signedWhere || null, recorded: m().recorded[r.id], disputeNote: r.disputeNote || null, reminders: Number(r.reminders || 0), warning: clone(r.warning || null) };
+    return ok({ request, finalMail: { status: m().scene.finalMail || "sent", at: seed.NOW_ISO } });
+  }
+
   function route(method, path, query, body, lang, base) {
     const a = permissionsRoute(method, path, body, lang, base);
     if (a) return a;
@@ -558,6 +652,8 @@ module.exports = (ctx) => {
     if (h) return h;
     const sh = shiftsRoute(method, path, query, body, lang, base);
     if (sh) return sh;
+    const sg = signaturesRoute(method, path, query, body, lang, base);
+    if (sg) return sg;
     return base();
   }
 

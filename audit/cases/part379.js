@@ -455,12 +455,124 @@ async function shiftsCases(ctx, lang) {
   });
 }
 
+// ---- Section 3: signatures ---------------------------------------------------------------------------------
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+const PHOTO = path.join(__dirname, "..", "fixtures", "photo.jpg");
+const WARNED = "Rashid Haddad";
+async function openRequest(d, id) {
+  await goHash(d, "hr/signatures/" + id);
+  await until(d, "[data-signature-request-window='" + id + "']", 8000);
+  await d.settle(400);
+}
+async function signaturesCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/signatures/" + x;
+  const ES = lang === "es";
+
+  // 1. A paper signature, with the signed page's photo: what happens next is said first, the request closes as
+  //    signed on paper, and the final copy's email is said.
+  await withDriver(ctx, { name: "paper", lang }, async (d, stubs) => {
+    await openRequest(d, "sr-3");
+    await d.page.locator("[data-paper-record-open]").first().click().catch(() => {});
+    await until(d, "[data-paper-next]", 4000);
+    const next = await textOf(d, "[data-paper-next]");
+    await d.page.locator("[data-paper-file]").first().setInputFiles(PHOTO).catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-paper-save]").first().click().catch(() => {});
+    await until(d, "[data-paper-recorded]", 5000);
+    await d.settle(600);
+    const post = writes(d, mark, "POST", /^\/api\/signatures\/sr-3\/record$/).pop();
+    const sent = (stubs.sent379().filter((x) => x.what === "record").pop() || {}).body || {};
+    const said = await textOf(d, "[data-paper-recorded]");
+    const state = await attr(d, "[data-signature-request-window='sr-3'] [data-signature-state]", "data-signature-state");
+    const where = await textOf(d, "[data-signature-request-window='sr-3']");
+    results.check(KIND, id("a-paper-signature-recorded-with-the-signed-page"), next === d.say("Once saved, the request closes and the warning records it. Its final copy is emailed to {0}, with the issuer copied.").replace("{0}", WARNED)
+      && !!post && post.status === 200 && sent.multipart === true && sent.body && sent.body.outcome === "paper" && !sent.body.witnessName && !!sent.file && sent.file.name === "photo.jpg"
+      && said === d.say("Recorded. The final copy was emailed to {0}, with the issuer copied.").replace("{0}", WARNED) && state === "signed" && where.indexOf(d.say("on paper")) >= 0,
+      "the window said " + say(next) + "; the record sent " + say(sent) + " (" + (post && post.status) + "), then said " + say(said) + " with the request " + say(state));
+  });
+
+  // 2. A refusal witnessed in person, with no email on file: the witness is sent, and the window says the copy
+  //    was not mailed.
+  await withDriver(ctx, { name: "declined", lang, arm: (s) => s.setScene379({ finalMail: "no_email" }) }, async (d, stubs) => {
+    await openRequest(d, "sr-3");
+    await d.page.locator("[data-paper-record-open]").first().click().catch(() => {});
+    await d.page.locator("[data-paper-outcome='declined']").first().check().catch(() => {});
+    await d.page.locator("[data-paper-witness]").first().fill("  Marcus   Ferreira ").catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-paper-save]").first().click().catch(() => {});
+    await until(d, "[data-paper-recorded]", 5000);
+    await d.settle(600);
+    const post = writes(d, mark, "POST", /^\/api\/signatures\/sr-3\/record$/).pop();
+    const said = await textOf(d, "[data-paper-recorded]");
+    const win = await textOf(d, "[data-signature-request-window='sr-3']");
+    results.check(KIND, id("a-refusal-witnessed-in-person-with-no-email-on-file"), !!post && post.status === 200 && say(post.body) === say({ outcome: "declined", witnessName: "Marcus Ferreira" })
+      && said === d.say("Recorded. No email on file, so the signed copy was not mailed. Deliver it another way.") && win.indexOf(d.say("Refused in person, witnessed by {0}").replace("{0}", "Marcus Ferreira")) >= 0,
+      "the record sent " + say(post && post.body) + " (" + (post && post.status) + ") and the window said " + say(said));
+  });
+
+  // 3. A request closed meanwhile is refused in the API's words and nothing is drawn as recorded.
+  await withDriver(ctx, { name: "not-open", lang, arm: (s) => s.setScene379({ closedMeanwhile: true }) }, async (d) => {
+    await openRequest(d, "sr-3");
+    await d.page.locator("[data-paper-record-open]").first().click().catch(() => {});
+    await d.page.locator("[data-paper-save]").first().click().catch(() => {});
+    await until(d, "[data-paper-refused]", 5000);
+    const code = await attr(d, "[data-paper-refused]", "data-paper-refused");
+    const text = await textOf(d, "[data-paper-refused]");
+    const words = ES ? "Esta solicitud ya no espera una firma" : "This request is no longer waiting for a signature";
+    results.check(KIND, id("a-request-closed-meanwhile-is-refused-in-words"), code === "signatures.notOpen" && text === words && !(await has(d, "[data-paper-recorded]")), "the window said " + say([code, text]));
+  });
+
+  // 4. A guard: a supervisor who did not send the warning is offered nothing to record.
+  await withDriver(ctx, { name: "supervisor", lang, persona: "supervisor" }, async (d) => {
+    await openRequest(d, "sr-3");
+    const offered = await has(d, "[data-paper-record]");
+    results.check(KIND, id("a-supervisor-who-did-not-send-it-is-offered-nothing-guard"), !offered && (await has(d, "[data-signature-request-window='sr-3']")), offered ? "the supervisor is offered Record a paper signature" : "the request did not open");
+  });
+
+  // 5. signature_signed in the notification settings, by its name, with who it goes to in place of the
+  //    controls that add people.
+  await withDriver(ctx, { name: "notice-settings", lang }, async (d) => {
+    await d.goto("settings");
+    await d.settle(400);
+    await d.clickText(d.say("Who gets told"), { exact: true });
+    await until(d, "[data-notice-type='signature_signed']", 6000);
+    const card = d.page.locator("div").filter({ has: d.page.locator("[data-notice-type='signature_signed']") }).last();
+    const name = await textOf(d, "[data-notice-type='signature_signed']");
+    const note = await textOf(d, "[data-notice-named='signature_signed']");
+    const adds = await card.locator("[data-person-pick-field], input[type='email']").count();
+    results.check(KIND, id("signature-signed-in-the-notification-settings"), name === d.say("Someone signed a warning on their phone") && note === d.say("Goes to the person who sent the warning to sign. When they are no longer an admin or a supervisor, every admin is told. Nobody is added here.") && adds === 0,
+      "the card reads " + say([name, note]) + " with " + adds + " control(s) to add people");
+  });
+
+  // 6. A signed warning's notice opens its request, from the bell and from the phone's alert on this computer.
+  await withDriver(ctx, { name: "notice-opens", lang }, async (d, stubs) => {
+    stubs.addNotices([{ id: "n-379-signed", title: "Rashid Haddad signed a warning", body: "The signed copy is on the record.", subjectType: "signature_signed", subjectId: "sr-3", link: null, isRead: false, createdAt: "2026-03-18T01:20:00.000Z" }]);
+    await goHash(d, "overview");
+    await d.page.evaluate((title) => { const b = Array.from(document.querySelectorAll("button")).find((x) => x.getAttribute("title") === title && x.offsetParent !== null); if (b) b.click(); }, d.say("Notifications"));
+    await d.settle(500);
+    await d.page.evaluate(() => { const row = Array.from(document.querySelectorAll("button")).find((b) => (b.innerText || "").indexOf("Rashid Haddad signed a warning") >= 0); if (row) row.click(); });
+    await until(d, "[data-signature-request-window='sr-3']", 5000);
+    const hash = await d.page.evaluate(() => window.location.hash);
+    const sw = await d.page.evaluate(async () => (await fetch("/sw.js")).text());
+    const box = { self: { addEventListener() {}, location: { origin: "" } } };
+    vm.createContext(box);
+    try { vm.runInContext(sw, box); } catch (e) { /* placeOf is read below */ }
+    const place = typeof box.placeOf === "function" ? [box.placeOf("signature_signed", "sr-3"), box.placeOf("health_alert", null)] : [];
+    results.check(KIND, id("a-signed-warning-s-notice-opens-its-request"), hash === "#hr/signatures/sr-3" && (await has(d, "[data-signature-request-window='sr-3']")) && say(place) === say(["hr/signatures/sr-3", "health"]),
+      "the bell's notice opened " + say(hash) + " and the alert's places are " + say(place));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("health")) await healthCases(ctx, lang);
     if (want("shifts")) await shiftsCases(ctx, lang);
+    if (want("signatures")) await signaturesCases(ctx, lang);
   }
 }
 
