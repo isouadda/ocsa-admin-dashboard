@@ -1857,6 +1857,18 @@ const SHOTS = [
       await until(c, "[data-warning-still-needed]");
       await blur(c); await toTop(c, "[data-warning-still-needed]", 420);
     } },
+  // Part 379, section 1: the Health page as the super admin, against audit/part379-stub.js: the light and the
+  // numbers, a failed run-through's window with its step's error and screenshot, who is told and the lines,
+  // and the reports kept.
+  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin",
+    open: "health", ready: "[data-health-number='server_errors']" },
+  { name: "health-run", entry: "Read the Health page", as: "superAdmin",
+    open: "health/runs", ready: "[data-health-run-row]",
+    act: async (c) => { await click(c, "[data-health-run-row='00000000-0000-4000-8000-000000000902']"); await until(c, "[data-health-run] [data-health-step-error]"); await wait(400); } },
+  { name: "health-reports", entry: "Make a health report", as: "superAdmin",
+    open: "health/reports", ready: "[data-health-report]" },
+  { name: "health-settings", entry: "Choose who gets the health alerts", as: "superAdmin",
+    open: "health/settings", ready: "[data-health-threshold]" },
 ];
 
 

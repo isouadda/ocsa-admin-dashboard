@@ -2633,13 +2633,13 @@ Last checked: 2026-10-18
 ## Grant the HR file access report (admin dashboard)
 Who can do this: the super admin only
 1. Click **Settings** (**Configuración**), then **Roles and Permissions** (**Roles y permisos**).
-2. Pick the person. On an admin's account the line reads **An admin account holds the rest by role. As the super admin, you can grant or take away chat records and the HR file access report.** (**Una cuenta de administrador tiene el resto por su rol. Como superadministrador, usted puede dar o quitar el acceso a los registros del chat y al informe de acceso a archivos de RR. HH.**)
-3. On the **HR file access report** (**Informe de acceso a archivos de RR. HH.**) row, click **Allow** (**Permitir**) to grant it, or **Default** (**Predeterminado**) to take it away. **Read chat records** (**Leer los registros del chat**) works the same way.
-4. Click **Save changes** (**Guardar los cambios**). The person finds **HR file access report** (**Informe de acceso a archivos de RR. HH.**) in their side panel the next time the dashboard opens.
-If it does not work: nobody but the super admin is shown these two rows, and the system refuses the change from anyone else.
-Words people use for this: give the access report, grant the access report, who can see the access log, take away the access report, chat records access, permiso del informe de acceso.
+2. Pick the person. On an admin's account the line reads **An admin account holds the rest by role. As the super admin, you can grant or take away chat records, the HR file access report and the Health page.** (**Una cuenta de administrador tiene el resto por su rol. Como superadministrador, usted puede dar o quitar el acceso a los registros del chat, al informe de acceso a archivos de RR. HH. y a la página de Salud.**)
+3. On the **HR file access report** (**Informe de acceso a archivos de RR. HH.**) row, click **Allow** (**Permitir**) to grant it, or **Default** (**Predeterminado**) to take it away. **Read chat records** (**Leer los registros del chat**) and **The Health page: platform health, run-throughs and reports** (**La página de Salud: salud de la plataforma, recorridos de prueba e informes**) work the same way.
+4. Click **Save changes** (**Guardar los cambios**). The person finds **HR file access report** (**Informe de acceso a archivos de RR. HH.**) in their side panel the next time the dashboard opens, and **Health** (**Salud**) for the Health page.
+If it does not work: nobody but the super admin is shown these three rows, and the system refuses the change from anyone else.
+Words people use for this: give the access report, grant the access report, who can see the access log, take away the access report, chat records access, give the health page, permiso del informe de acceso.
 Picture: settings-grant-access-report
-Last checked: 2026-10-18
+Last checked: 2026-11-10
 
 ## Open a site's floor plan (admin dashboard)
 Who can do this: admins and supervisors
@@ -2889,3 +2889,40 @@ Words people use for this: continue a draft, finish a warning, saved warning, dr
 Picture: warning-continue-draft
 Picture: warning-still-needed
 Last checked: 2026-11-09
+
+## Read the Health page (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
+2. **Numbers** (**Indicadores**) shows the 20 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
+3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors.
+4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
+5. **Run-throughs** (**Recorridos de prueba**) lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
+6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
+7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
+If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
+Words people use for this: health page, platform health, is the app working, status page, run-throughs, the robot, incidents, red alert, daily numbers, salud.
+Picture: health-numbers
+Picture: health-run
+Last checked: 2026-11-10
+
+## Make a health report (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**), then **Reports** (**Informes**).
+2. Under **Make report** (**Crear informe**), set **From** (**Desde**) and **To** (**Hasta**), then click **Make report** (**Crear informe**). Both reports are made for those days: the **One-page summary** (**Resumen de una página**) and the **Full report** (**Informe completo**).
+3. **Every report kept** (**Todos los informes guardados**) lists each report, its period, when it was made and when it was emailed. The month before is made and emailed by itself on the 1st, marked **Monthly** (**Mensual**).
+4. Click **Open PDF** (**Abrir PDF**) beside a report to read it, and download it from there.
+If it does not work: **The last day is before the first.** (**El último día es anterior al primero.**) means the days are the wrong way round. A day after today is refused.
+Words people use for this: health report, monthly health report, uptime report, executive summary, platform report, health pdf, informe de salud.
+Picture: health-reports
+Last checked: 2026-11-10
+
+## Choose who gets the health alerts (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**), then **Who is told and when** (**A quién se avisa y cuándo**).
+2. Under **Who gets the morning email and the red alerts** (**Quién recibe el correo de la mañana y las alertas en rojo**), the list says who gets them. With nobody set it reads **Nobody is set, so the super admins get them.** (**No hay nadie indicado, así que los reciben los superadministradores.**)
+3. Pick someone in **Add a person** (**Agregar una persona**) and click **Add** (**Agregar**), or type an address in **Add an email address** (**Agregar un correo**) and click **Add** (**Agregar**). **Remove** (**Quitar**) takes one off. Click **Save the list** (**Guardar la lista**).
+4. Under **Each number's yellow and red lines** (**Las líneas amarilla y roja de cada indicador**), each number shows its **Yellow at** (**Amarillo en**) and **Red at** (**Rojo en**) lines, with its **Default** (**Predeterminado**) beside them. Type a new line, or leave a box empty for a line that is never crossed, and click **Save the lines** (**Guardar las líneas**). Check-offs and shifts started are typed as a percent of the week before.
+If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line.
+Words people use for this: health alerts, morning email, who gets the alerts, red alert, thresholds, alert lines, change the limits, alertas de salud.
+Picture: health-settings
+Last checked: 2026-11-10

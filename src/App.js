@@ -423,7 +423,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave", "health"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -452,6 +452,9 @@ const PAY_KEY = /(hourly|wage|salary|pay_?rate|^pay$|_pay$|cost|price|amount|bud
 const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
 const changedFields = (now, was) => { const out = {}; Object.keys(now).forEach(k => { if (!sameValue(now[k], was ? was[k] : undefined)) out[k] = now[k]; }); return out; };
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
+// The health alerts and the morning health email link <dashboard>/health (the API's Round 10, part 376).
+// Opened in the browser, that address reads as #health, so it lands on the Health page.
+try { if (/^\/health\/?$/.test(window.location.pathname || "") && !window.location.hash) window.history.replaceState(null, "", "/#health"); } catch (e) { /* the address stays as it is */ }
 const pageFromHash = () => { const h = hashParts()[0] || ""; return PAGE_IDS.includes(h) ? h : "overview"; };
 // What follows the page id in the hash, for a page that reads one. #forms is unchanged by this.
 const subFromHash = () => { const parts = hashParts(); return PAGE_IDS.includes(parts[0]) ? parts.slice(1) : []; };
@@ -1086,6 +1089,9 @@ export default function AdminDashboard() {
     // The HR file access report (part 353) opens for the super admin and a holder of
     // view_hr_access_report, which no role holds by default; the API names it for both.
     if (id === "hr-access") return !!(caps && caps.view_hr_access_report === true);
+    // The Health page (part 379) opens for the super admin and a holder of view_health, which no role
+    // holds by default and only the super admin grants; the API names it for both.
+    if (id === "health") return !!(caps && caps.view_health === true);
     // The owner's dashboard (Step 273) is offered to a holder of view_owner_dashboard, which
     // GET /api/users/me/permissions names (the API's Step 269: admins by default, supervisors not).
     // The role defaults here do not hold it, so the item waits for the API to name it.
@@ -1485,6 +1491,7 @@ export default function AdminDashboard() {
   const LibI = p => <Ic d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" {...p} />;
   const TkI = p => <Ic d="M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" {...p} />;
   const CkrI = p => <Ic d="M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" {...p} />;
+  const HltI = p => <Ic d="M22 12h-4l-3 9L9 3l-3 9H2" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
@@ -1529,15 +1536,16 @@ export default function AdminDashboard() {
       ...(canOpenPage("form-builder") ? [{ id: "form-builder", l: tr("Form builder"), i: BldI }] : []),
     ]},
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
-    ...(canOpenPage("settings") || canOpenPage("chat-records") || canOpenPage("tickets") ? [{ label: null, items: [
+    ...(canOpenPage("settings") || canOpenPage("chat-records") || canOpenPage("health") || canOpenPage("tickets") ? [{ label: null, items: [
       ...(canOpenPage("settings") ? [{ id: "settings", l: tr("Settings"), i: StgI }] : []),
       ...(canOpenPage("chat-records") ? [{ id: "chat-records", l: tr("Chat records"), i: RecI }] : []),
+      ...(canOpenPage("health") ? [{ id: "health", l: tr("Health"), i: HltI }] : []),
       ...(canOpenPage("tickets") ? [{ id: "tickets", l: tr("Tickets"), i: TkI }] : []),
     ] }] : []),
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances"), health: tr("Health") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1797,6 +1805,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "health" && (canOpenPage("health") ? <HealthPage af={af} t={t} token={token} allStaff={allStaff} route={route} onRoute={replaceRoute} /> : capsPending ? <CapsPendingNotice t={t} /> : <HealthRefused t={t} onBack={() => setPage("overview")} />)}
         {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} token={token} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -11275,6 +11284,9 @@ const notifTarget = (link) => {
   // opens Waiting for signatures in HR Records with that request open.
   const sg0 = /^\/signatures\/([^/]+)\/?$/.exec(u.pathname || "");
   if (sg0) return { kind: "page", page: "hr", hash: "hr/signatures/" + sg0[1], signatures: true };
+  // The health alerts and the morning email link <dashboard>/health (the API's Round 10, part 376), which
+  // opens the Health page.
+  if (/^\/health\/?$/.test(u.pathname || "")) return { kind: "page", page: "health", hash: "" };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -11316,7 +11328,10 @@ function noticePlace(n) {
   // Step 272: a signature sent back as not right, declined, or overdue names its request and opens
   // it in Waiting for signatures.
   // Since DASH-06 they open for whoever Waiting for signatures opens for, HR Records or not.
-  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue") && sid) return { page: "hr", hash: "hr/signatures/" + enc(sid), signatures: true };
+  // Part 379: signature_signed, a warning signed on the phone (the API's Round 9), opens its request too.
+  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue" || st === "signature_signed") && sid) return { page: "hr", hash: "hr/signatures/" + enc(sid), signatures: true };
+  // Part 379: a red number or a failed run-through (the API's Round 10) opens the Health page.
+  if (st === "health_alert") return { page: "health", hash: "health" };
   // Step 333.
   if (/^issue(_|$)/.test(st) && sid) return { page: "issues", hash: "issues/" + enc(sid) };
   if (/^inspection(_|$)/.test(st) && sid) return { page: "inspections", hash: "inspections/" + enc(sid) };
@@ -19375,6 +19390,486 @@ function HrAccessReport({ af, token, t, allStaff = [], showToast }) {
   </div>);
 }
 
+// ===== THE HEALTH PAGE (part 379, against the API's Round 10, part 376) =====
+// Problems caught before staff find them. Everything here is worked out by the API (routes/health.js and
+// helpers/healthPage.js); this page draws what it answers, behind view_health: the super admin always,
+// and anyone the super admin grants it by name (the grant sits on Settings, By person, with the other
+// two only the super admin makes). No role holds it, so the side panel item and the page wait for GET
+// /api/users/me/permissions to name it, and anyone else who goes to #health reads a plain refusal.
+//   GET /api/health/summary            the light, the day, when it was last worked out, the last run, the
+//                                      incidents open
+//   GET /api/health/numbers            the 20 numbers: today, yesterday, the 7 days before, 30 days of
+//                                      history, each with its yellow and red lines and its state
+//   POST /api/health/numbers/refresh   today's numbers worked out again, answered as GET
+//   GET /api/health/numbers/:key/list  who or what is behind a number
+//   GET /api/health/runs, /runs/:id    the robot's run-throughs, a page at a time, and one run whole with
+//                                      every journey and step; a failed step's screenshot is a link signed
+//                                      for 5 minutes, read again when it no longer loads
+//   POST /api/health/run-now           202, or the API's refusal in its words (asked again within 2
+//                                      minutes, the robot not set up, GitHub refused)
+//   GET /api/health/incidents, PATCH /api/health/incidents/:id { resolution }
+//   GET and PUT /api/health/recipients, GET and PUT /api/health/thresholds
+//   GET and POST /api/health/reports, GET /api/health/reports/:id/pdf
+// Test accounts and the test site are left out of every number and list by the API; this draws what it
+// answers. The page is #health/<tab>: numbers, runs, incidents, settings or reports.
+const HEALTH_TABS = [["numbers", "Numbers|health"], ["runs", "Run-throughs"], ["incidents", "Incidents"], ["settings", "Who is told and when"], ["reports", "Reports|health"]];
+const HEALTH_GROUPS = [["speed", "Speed and errors"], ["work", "Work at the sites"], ["people", "People and sign-ins"], ["training", "Training"], ["warnings", "Warnings and signatures"], ["messages", "Emails and phone notices"], ["runs", "Run-throughs"], ["uptime", "Uptime"]];
+const HEALTH_STATE_WORDS = { green: "Green, all normal", yellow: "Yellow, something to watch", red: "Red, something needs attention", unknown: "Not measured yet" };
+const healthStateWord = (s) => tr(HEALTH_STATE_WORDS[s] || HEALTH_STATE_WORDS.unknown);
+const healthInk = (s, t) => (s === "green" ? GR : s === "yellow" ? GO : s === "red" ? RD : t.textMut);
+const HEALTH_TRIGGERS = { nightly: "Nightly", merge: "After a merge", on_demand: "Run now|health" };
+const healthTriggerWord = (x) => (HEALTH_TRIGGERS[x] ? tr(HEALTH_TRIGGERS[x]) : String(x || ""));
+const HEALTH_OUTCOMES = { passed: "Passed|run", failed: "Failed|run", skipped: "Skipped|run" };
+const healthOutcomeWord = (x) => (HEALTH_OUTCOMES[x] ? tr(HEALTH_OUTCOMES[x]) : String(x || ""));
+const healthOutcomeInk = (x, t) => (x === "passed" ? GR : x === "failed" ? RD : t.textMut);
+const HEALTH_KINDS = { number: "A number|incident", run: "A run-through|incident", monitor: "An uptime monitor|incident", deep: "The deep check|incident" };
+const healthKindWord = (x) => (HEALTH_KINDS[x] ? tr(HEALTH_KINDS[x]) : String(x || ""));
+const HEALTH_FINAL_MAIL = { sending: "Being emailed", sent: "Emailed", failed: "The email failed", no_email: "No email on file", withheld: "Held back" };
+// A length of time in plain words: under a minute in seconds, else minutes and hours.
+const healthLength = (ms) => { const n = Number(ms); if (!Number.isFinite(n) || n < 0) return "--"; if (n < 60000) return tr("{0} s", Math.round(n / 1000)); const m = Math.round(n / 60000); return m < 60 ? tr("{0} min", m) : tr("{0} h {1} min", Math.floor(m / 60), m % 60); };
+const healthSpan = (a, b) => (a && b ? healthLength(Date.parse(b) - Date.parse(a)) : "--");
+const healthNum = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
+const healthValueText = (v, unit) => { const n = healthNum(v); if (n === null) return tr("Not measured yet"); const s = Math.round(n * 10) / 10; return unit === "ms" ? tr("{0} ms", s.toLocaleString(localeTag())) : s.toLocaleString(localeTag()); };
+// A number's lines in words: above, yellow at one value and red at another; belowShare, a share of the
+// week before's average. null is a line never crossed.
+const healthLineText = (lines, unit) => {
+  if (!lines) return "";
+  const one = (x) => (x === null || x === undefined ? tr("never|line") : lines.kind === "belowShare" ? tr("under {0}% of the week", Math.round(Number(x) * 100)) : healthValueText(x, unit));
+  return tr("Yellow at {0}, red at {1}", one(lines.yellow), one(lines.red));
+};
+// The state a value would have on a number's own lines, for a value the API does not color itself (the
+// week's average). A share of the week cannot be judged against itself, so it reads unknown.
+const healthStateOf = (lines, v) => {
+  const n = healthNum(v);
+  if (!lines || n === null || lines.kind !== "above") return "unknown";
+  if (lines.red !== null && lines.red !== undefined && n >= lines.red) return "red";
+  if (lines.yellow !== null && lines.yellow !== undefined && n >= lines.yellow) return "yellow";
+  return "green";
+};
+const healthCommits = (c) => [["api", "API|app"], ["dashboard", "Dashboard|app"], ["staffApp", "Staff app"]].filter(([k]) => c && c[k]).map(([k, l]) => tr(l) + " " + String(c[k]).slice(0, 7)).join(", ") || "--";
+const healthDay = (d) => (d ? keptDay(d) : "--");
+const healthPerson = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
+const HealthRefused = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div data-health-refused="" style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{tr("Only the super admin and people given the Health page can open this page.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
+const HealthDot = ({ state, t, sz = 14 }) => <span aria-hidden="true" style={{ display: "inline-block", width: sz, height: sz, borderRadius: "50%", background: healthInk(state, t), boxShadow: "0 0 0 3px " + healthInk(state, t) + "33", flexShrink: 0 }} />;
+// 30 days as a line, each day's point in its own state's color. A day not measured leaves a gap.
+function HealthTrend({ t, history = [], lines }) {
+  const pts = history.map((h, i) => ({ i, v: healthNum(h.value), s: h.state }));
+  const vals = pts.filter(p => p.v !== null).map(p => p.v);
+  if (!vals.length) return <div data-health-trend="" style={{ height: 40, fontSize: 11, color: t.textMut, display: "flex", alignItems: "center" }}>{tr("No days measured yet")}</div>;
+  const W = 220, H = 40, n = Math.max(2, pts.length);
+  const lo = Math.min(...vals), hi = Math.max(...vals, lo + 1);
+  const x = (i) => 4 + (i * (W - 8)) / (n - 1), y = (v) => H - 4 - ((v - lo) * (H - 8)) / (hi - lo);
+  let path = "", open = false;
+  pts.forEach(p => { if (p.v === null) { open = false; return; } path += (open ? " L" : " M") + x(p.i).toFixed(1) + " " + y(p.v).toFixed(1); open = true; });
+  return (<svg data-health-trend={pts.map(p => (p.v === null ? "" : p.v)).join(",")} width="100%" height={H} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" role="img" aria-label={tr("30 days")}>
+    <path d={path} fill="none" stroke={t.textMut} strokeWidth="1.5" />
+    {pts.filter(p => p.v !== null).map(p => <circle key={p.i} cx={x(p.i)} cy={y(p.v)} r="2.6" fill={healthInk(p.s, t)} />)}
+  </svg>);
+}
+// The light at the top of every tab: the worst state of the numbers, when they were last worked out,
+// the last run-through and the incidents still open, and Refresh, which works today's numbers out again.
+function HealthStatus({ t, summary, failed, busy, onRefresh, onRetry }) {
+  if (failed) return <Crd t={t} style={{ marginBottom: 14 }}><LoadFailed t={t} onRetry={onRetry} text={failed} /></Crd>;
+  if (!summary) return <Crd t={t} style={{ marginBottom: 14 }}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
+  const c = summary.counts || {};
+  const run = summary.lastRun;
+  return (<Crd t={t} style={{ marginBottom: 14 }}><div data-health-status={summary.state || "unknown"} style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+    <HealthDot state={summary.state} t={t} sz={22} />
+    <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+      <div data-health-state-word="" style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{healthStateWord(summary.state)}</div>
+      <div data-health-checked="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{summary.lastCheckedAt ? tr("Last checked {0}", irWhen(summary.lastCheckedAt)) : tr("Not checked yet")}{summary.day ? " . " + tr("Numbers for {0}", healthDay(summary.day)) : ""}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("{0} red, {1} yellow, {2} green, {3} not measured", c.red || 0, c.yellow || 0, c.green || 0, c.unknown || 0)}</div>
+      <div data-health-last-run={run ? run.outcome : ""} style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{run ? tr("Last run-through: {0}, {1}, {2}", healthOutcomeWord(run.outcome), healthTriggerWord(run.trigger), irWhen(run.startedAt)) : tr("The robot has not reported a run yet.")}</div>
+      <div data-health-open-incidents={summary.openIncidents || 0} style={{ fontSize: 12, color: summary.openIncidents ? RD : t.textSec, marginTop: 2 }}>{trn("{0} incident open|count", summary.openIncidents || 0)}</div>
+    </div>
+    <Btn t={t} data-health-refresh="" onClick={onRefresh} disabled={busy}>{busy ? tr("Working it out...") : tr("Refresh|health")}</Btn>
+  </div></Crd>);
+}
+// What a list row's value reads like, by the kind of value it is.
+const healthCell = (kind, v, t) => {
+  if (v === null || v === undefined || v === "") return "--";
+  if (kind === "when") return irWhen(v);
+  if (kind === "ms") return healthValueText(v, "ms");
+  if (kind === "trigger") return healthTriggerWord(v);
+  if (kind === "outcome") return <Bdg l={healthOutcomeWord(v)} c={healthOutcomeInk(v, t)} />;
+  if (kind === "role") return roleWord(v);
+  if (kind === "yesno") return v === true ? tr("Yes") : tr("No");
+  if (kind === "warning") return warningStepWord(v);
+  if (kind === "finalMail") return v && v.status ? tr(HEALTH_FINAL_MAIL[v.status] || v.status) : "--";
+  if (typeof v === "object") return String(v.name || "") || "--";
+  return String(v);
+};
+// The columns of each number's list, by its key, the fields GET /api/health/numbers/:key/list answers.
+const HEALTH_LIST_COLS = {
+  app_open_ms: [["startedAt", "Started", "when"], ["trigger", "How it started", "trigger"], ["appOpenMs", "App open time", "ms"]],
+  server_errors: [["method", "Method"], ["route", "Route"], ["errors", "Errors"], ["requests", "Requests"]],
+  slowest_p95_ms: [["method", "Method"], ["route", "Route"], ["p50", "Typical time", "ms"], ["p95", "Slowest time", "ms"], ["requests", "Requests"]],
+  failed_sign_ins: [["name", "Person"], ["tries", "Tries"], ["lastAt", "Last try", "when"]],
+  check_offs: [["site", "Site"], ["checkOffs", "Check-offs"]],
+  shifts_started: [["site", "Site"], ["shiftsStarted", "Shifts started"]],
+  shifts_closed_automatically: [["name", "Person"], ["site", "Site"], ["startedAt", "Started", "when"], ["endedAt", "Closed", "when"]],
+  shifts_left_open: [["name", "Person"], ["site", "Site"], ["startedAt", "Started", "when"]],
+  training_waiting: [["name", "Person"], ["topic", "Lesson"], ["waitingSince", "Waiting since", "when"]],
+  training_out_of_tries: [["name", "Person"], ["topic", "Lesson"], ["tries", "Tries used"], ["maxTries", "Tries allowed"]],
+  lessons_failed_three: [["name", "Person"], ["topic", "Lesson"], ["fails", "Times failed"]],
+  warning_drafts_old: [["name", "Person"], ["type", "Warning", "warning"], ["draftedAt", "Drafted", "when"], ["draftedBy", "Drafted by"]],
+  signatures_waiting: [["name", "Person"], ["requestedAt", "Sent", "when"], ["reminders", "Reminders"]],
+  final_mails_not_sent: [["name", "Person"], ["type", "Warning", "warning"], ["finalMail", "Final copy", "finalMail"]],
+  emails_failed: [["purpose", "What it was for"], ["failed", "Failed"], ["lastAt", "Last failure", "when"]],
+  push_failed: [["hour", "Hour", "when"], ["sent", "Sent"], ["failed", "Failed"]],
+  never_signed_in: [["name", "Person"], ["role", "Role", "role"], ["createdAt", "Account made", "when"]],
+  no_email: [["name", "Person"], ["role", "Role", "role"], ["office", "Office account", "yesno"]],
+  runs_failed: [["journey", "Journey"], ["outcome", "Outcome", "outcome"], ["durationMs", "Length", "ms"]],
+  monitors_down: [["name", "Monitor"], ["state", "State"], ["down", "Down", "yesno"]],
+};
+function HealthListWindow({ af, t, number, day, onClose }) {
+  const [items, setItems] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setItems(null); setFailed("");
+    af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : ""))
+      .then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : []); })
+      .catch(e => { if (alive) { setItems([]); setFailed(e.message || tr("This did not load.")); } });
+    return () => { alive = false; };
+  }, [af, number.key, day, again]);
+  const cols = (HEALTH_LIST_COLS[number.key] || [["name", "Name"]]).map(([k, l, kind]) => ({ header: tr(l), render: r => (k === "name" && r.matchedNobody ? tr("No account matched") : healthCell(kind, r[k], t)) }));
+  return (<Mdl t={t} tall onClose={onClose}><div data-health-list={number.key} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{number.label || number.key}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Who or what is behind this number on {0}, read now.", healthDay(day))}</div>
+    {items === null ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} text={failed} />
+      : <DataTable t={t} columns={cols} rows={items} empty={tr("Nothing is behind this number now.")} />}
+  </div></Mdl>);
+}
+function HealthNumbers({ af, t, data, failed, onRetry }) {
+  const [open, setOpen] = useState(null);
+  if (failed) return <Crd t={t}><LoadFailed t={t} onRetry={onRetry} text={failed} /></Crd>;
+  if (!data) return <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
+  const numbers = Array.isArray(data.numbers) ? data.numbers : [];
+  const groups = HEALTH_GROUPS.map(([g, l]) => ({ g, l, items: numbers.filter(n => n.group === g) })).concat([{ g: "", l: "Other|health", items: numbers.filter(n => !HEALTH_GROUPS.some(x => x[0] === n.group)) }]).filter(x => x.items.length > 0);
+  return (<div data-health-numbers={data.day || ""}>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Each number is for {0}, beside the day before and the 7 days before it, with 30 days as a line. Its color comes from its own yellow and red lines. Click a number to see who or what is behind it.", healthDay(data.day))}</div>
+    {groups.map(gr => (<div key={gr.g || "other"} style={{ marginBottom: 16 }}>
+      <SecT t={t}>{tr(gr.l)}</SecT>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 12 }}>
+        {gr.items.map(n => {
+          const prevState = (n.history || []).length >= 2 ? n.history[n.history.length - 2].state : healthStateOf(n.lines, n.previous);
+          return (<Crd key={n.key} t={t} onClick={() => setOpen(n)} style={{ padding: 14 }}>
+            <div data-health-number={n.key} data-health-number-state={n.state || "unknown"} data-health-number-value={healthNum(n.value) === null ? "" : String(n.value)}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><HealthDot state={n.state} t={t} sz={10} /><div style={{ fontSize: 13, fontWeight: 600, color: t.text, minWidth: 0 }}>{n.label || n.key}</div></div>
+              <div data-health-today="" style={{ fontFamily: FONT_HEAD, fontSize: healthNum(n.value) === null ? 14 : 22, fontWeight: 600, color: healthNum(n.value) === null ? t.textMut : healthInk(n.state, t) }}>{healthValueText(n.value, n.unit)}</div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: t.textSec, marginTop: 4 }}>
+                <span data-health-yesterday="">{tr("Yesterday")}: <span style={{ color: healthNum(n.previous) === null ? t.textMut : healthInk(prevState, t), fontWeight: 600 }}>{healthValueText(n.previous, n.unit)}</span></span>
+                <span data-health-week="">{tr("7 days")}: <span style={{ color: healthNum(n.weekAverage) === null ? t.textMut : healthInk(healthStateOf(n.lines, n.weekAverage), t), fontWeight: 600 }}>{healthValueText(n.weekAverage, n.unit)}</span></span>
+              </div>
+              <div style={{ marginTop: 6 }}><HealthTrend t={t} history={n.history || []} lines={n.lines} /></div>
+              <div data-health-lines="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{healthLineText(n.lines, n.unit)}</div>
+            </div>
+          </Crd>);
+        })}
+      </div>
+    </div>))}
+    {open && <HealthListWindow af={af} t={t} number={open} day={data.day} onClose={() => setOpen(null)} />}
+  </div>);
+}
+// Run now's refusals in plain words, by their codes, for an answer that carries none.
+const HEALTH_RUN_NOW_WORDS = { "health.runNowBusy": "A run-through was just asked for. Wait two minutes before asking again.", "health.runNowOff": "Run now is not set up on this server yet.", "health.runNowFailed": "GitHub did not start the run-through. Try again in a few minutes." };
+function HealthRunWindow({ af, t, runId, onClose }) {
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [again, setAgain] = useState(0);
+  const read = useCallback(() => af("/api/health/runs/" + encodeURIComponent(runId)).then(x => { setD(x && x.run ? x : null); setFailed(x && x.run ? "" : tr("This did not load.")); }).catch(e => setFailed(e.message || tr("This did not load."))), [af, runId]);
+  useEffect(() => { read(); }, [read, again]);
+  const run = d && d.run;
+  return (<Mdl t={t} tall onClose={onClose}><div data-health-run={runId} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Run-through")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {failed ? <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} text={failed} /> : !run ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div> : <>
+      <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.7, marginBottom: 12 }}>
+        <div><Bdg l={healthOutcomeWord(run.outcome)} c={healthOutcomeInk(run.outcome, t)} /> {healthTriggerWord(run.trigger)}</div>
+        <div>{tr("Started {0}, took {1}", irWhen(run.startedAt), healthSpan(run.startedAt, run.finishedAt))}</div>
+        <div data-health-run-commits="">{tr("Each app's commit: {0}", healthCommits(run.commits))}</div>
+        {healthNum(run.appOpenMs) !== null ? <div>{tr("App open time")}: {healthValueText(run.appOpenMs, "ms")}</div> : null}
+        {run.runUrl ? <div><a href={run.runUrl} target="_blank" rel="noopener noreferrer" style={{ color: t.goldText, fontWeight: 600 }}>{tr("Open the run on GitHub")}</a></div> : null}
+      </div>
+      {(d.journeys || []).map((j, ji) => (<Crd key={ji} t={t} style={{ marginBottom: 10, padding: 12 }}><div data-health-journey={j.name} data-health-journey-outcome={j.outcome}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{j.name}</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Bdg l={healthOutcomeWord(j.outcome)} c={healthOutcomeInk(j.outcome, t)} /><span style={{ fontSize: 12, color: t.textMut }}>{healthLength(j.durationMs)}</span></div>
+        </div>
+        {(j.steps || []).map((s, si) => (<div key={si} data-health-step={s.name} data-health-step-outcome={s.outcome} style={{ padding: "6px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: t.text }}>{si + 1}. {s.name}</span><span style={{ color: healthOutcomeInk(s.outcome, t), fontWeight: 600, whiteSpace: "nowrap" }}>{healthOutcomeWord(s.outcome)} . {healthLength(s.durationMs)}</span></div>
+          {s.error ? <div data-health-step-error="" style={{ fontSize: 12, color: RD, marginTop: 4, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{s.error}</div> : null}
+          {s.screenshotUrl ? <FreshImg src={s.screenshotUrl} readKey={"health-run:" + runId} onStale={read} alt={tr("Screenshot of the step that failed")} data-health-shot="" style={{ display: "block", maxWidth: "100%", marginTop: 6, borderRadius: 6, border: "1px solid " + t.border }} /> : null}
+        </div>))}
+      </div></Crd>))}
+      {!(d.journeys || []).length ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("This run reported no journeys.")}</div> : null}
+    </>}
+  </div></Mdl>);
+}
+function HealthRuns({ af, t, onAsked }) {
+  const [rows, setRows] = useState(null);
+  const [next, setNext] = useState("");
+  const [failed, setFailed] = useState("");
+  const [trigger, setTrigger] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(null);
+  const [said, setSaid] = useState(null);
+  const [asking, setAsking] = useState(false);
+  const read = useCallback(async (cursor) => {
+    setBusy(true);
+    const sp = new URLSearchParams();
+    if (trigger) sp.set("trigger", trigger);
+    if (cursor) sp.set("cursor", cursor);
+    try {
+      const d = await af("/api/health/runs" + (sp.toString() ? "?" + sp.toString() : ""));
+      const list = d && Array.isArray(d.runs) ? d.runs : [];
+      setRows(prev => (cursor ? (prev || []).concat(list) : list)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); setFailed("");
+    } catch (e) { if (!cursor) setRows([]); setFailed(e.message || tr("This did not load.")); }
+    setBusy(false);
+  }, [af, trigger]);
+  useEffect(() => { read(""); }, [read]);
+  const runNow = async () => {
+    if (asking) return;
+    setAsking(true); setSaid(null);
+    try { const d = await af("/api/health/run-now", { method: "POST", body: {} }); setSaid({ ok: true, text: tr("The run-through was asked for at {0}. It shows here when the robot reports it.", irWhen(d && d.at ? d.at : new Date().toISOString())) }); if (onAsked) onAsked(); }
+    catch (e) { setSaid({ ok: false, code: String((e && e.code) || ""), text: (e && e.message) || tr(HEALTH_RUN_NOW_WORDS[e && e.code] || "Request failed") }); }
+    setAsking(false);
+  };
+  const cols = [
+    { header: tr("Started"), render: r => <span data-health-run-row={r.id} style={{ whiteSpace: "nowrap" }}>{irWhen(r.startedAt)}</span> },
+    { header: tr("How it started"), render: r => healthTriggerWord(r.trigger) },
+    { header: tr("Length"), tdStyle: { whiteSpace: "nowrap" }, render: r => healthSpan(r.startedAt, r.finishedAt) },
+    { header: tr("Outcome"), render: r => <Bdg l={healthOutcomeWord(r.outcome)} c={healthOutcomeInk(r.outcome, t)} /> },
+    { header: tr("Journeys"), render: r => { const j = r.journeys || {}; return tr("{0} passed, {1} failed, {2} skipped", j.passed || 0, j.failed || 0, j.skipped || 0); } },
+    { header: tr("Each app's commit"), tdStyle: { fontSize: 12, color: t.textSec }, render: r => healthCommits(r.commits) },
+  ];
+  return (<div data-health-runs="">
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 260px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("The robot walks the apps every night and after every merge, the way staff use them, and reports each run here. Run now asks it for one more run.")}</div>
+        <div style={{ width: 200 }}><Lbl>{tr("How it started")}</Lbl><Sel t={t} aria-label={tr("How it started")} data-health-trigger="" value={trigger} onChange={e => setTrigger(e.target.value)} options={[{ v: "", l: tr("Every run-through") }].concat(Object.keys(HEALTH_TRIGGERS).map(k => ({ v: k, l: healthTriggerWord(k) })))} /></div>
+        <Btn t={t} data-health-run-now="" onClick={runNow} disabled={asking}>{asking ? tr("Asking...") : tr("Run now|health")}</Btn>
+      </div>
+      {said ? <div data-health-run-now-said={said.ok ? "started" : said.code || "refused"} role={said.ok ? "status" : "alert"} style={{ fontSize: 13, color: said.ok ? GR : RD, marginTop: 10, lineHeight: 1.5 }}>{said.text}</div> : null}
+    </Crd>
+    {rows === null ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>
+      : failed && !rows.length ? <Crd t={t}><LoadFailed t={t} onRetry={() => read("")} text={failed} /></Crd>
+      : <><DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(r.id)} empty={<span data-health-no-runs="">{tr("The robot has not reported a run yet.")}</span>} /><ShowMore t={t} next={next} busy={busy} onMore={() => read(next)} at="health-runs" /></>}
+    {open && <HealthRunWindow af={af} t={t} runId={open} onClose={() => setOpen(null)} />}
+  </div>);
+}
+function HealthIncidents({ af, t, onChanged }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [onlyOpen, setOnlyOpen] = useState(true);
+  const [writing, setWriting] = useState(null);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const read = useCallback(() => af("/api/health/incidents" + (onlyOpen ? "?open=true" : "")).then(d => { setList(d && Array.isArray(d.incidents) ? d.incidents : []); setFailed(""); }).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); }), [af, onlyOpen]);
+  useEffect(() => { setList(null); read(); }, [read]);
+  const save = once(async () => {
+    const text = (writing && writing.text || "").replace(/\s+/g, " ").trim();
+    if (!text) { setSaid({ id: writing.id, text: tr("Write what fixed it first.") }); return; }
+    try { await af("/api/health/incidents/" + encodeURIComponent(writing.id), { method: "PATCH", body: { resolution: text } }); setWriting(null); setSaid(null); await read(); if (onChanged) onChanged(); }
+    catch (e) { setSaid({ id: writing.id, text: e.message || tr("Request failed") }); }
+  });
+  return (<div data-health-incidents={onlyOpen ? "open" : "all"}>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+      <button data-health-incidents-show="open" aria-pressed={onlyOpen} onClick={() => setOnlyOpen(true)} style={crPill(t, onlyOpen)}>{tr("Open|incidents")}</button>
+      <button data-health-incidents-show="all" aria-pressed={!onlyOpen} onClick={() => setOnlyOpen(false)} style={crPill(t, !onlyOpen)}>{tr("Open and closed")}</button>
+    </div>
+    {list === null ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>
+      : !list.length ? <Crd t={t}><div data-health-no-incidents="" style={{ fontSize: 13, color: t.textMut }}>{onlyOpen ? tr("No incident is open.") : tr("No incidents yet.")}</div></Crd>
+      : list.map(x => (<Crd key={x.id} t={t} style={{ marginBottom: 10 }}><div data-health-incident={x.id} data-health-incident-closed={x.closedAt ? "1" : "0"}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{x.title}</div>
+          <Bdg l={x.closedAt ? tr("Closed|incident") : tr("Open|incident")} c={x.closedAt ? GR : RD} />
+        </div>
+        <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{healthKindWord(x.kind)} . {tr("Opened {0}", irWhen(x.openedAt))}{x.closedAt ? " . " + tr("Closed {0}, after {1}", irWhen(x.closedAt), healthSpan(x.openedAt, x.closedAt)) : ""}</div>
+        <div data-health-resolution="" style={{ fontSize: 13, color: x.resolution ? t.text : t.textMut, marginTop: 6 }}>{x.resolution ? tr("What fixed it: {0}", x.resolution) : tr("What fixed it is not written yet.")}</div>
+        {(x.timeline || []).length > 0 && <div style={{ marginTop: 8 }}>{x.timeline.map((e, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, padding: "2px 0" }}>{irWhen(e.at)}: {e.text}</div>)}</div>}
+        {writing && writing.id === x.id ? (<div style={{ marginTop: 10 }}>
+          <Lbl>{tr("What fixed it")}</Lbl>
+          <TArea t={t} data-health-resolution-text="" aria-label={tr("What fixed it")} rows={3} maxLength={1000} value={writing.text} onChange={e => setWriting({ ...writing, text: e.target.value })} />
+          {said && said.id === x.id ? <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{said.text}</div> : null}
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}><Btn t={t} data-health-resolution-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn><Btn t={t} v="ghost" onClick={() => { setWriting(null); setSaid(null); }}>{tr("Cancel")}</Btn></div>
+        </div>) : <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-health-resolve={x.id} onClick={() => { setWriting({ id: x.id, text: x.resolution || "" }); setSaid(null); }}>{x.resolution ? tr("Change what fixed it") : tr("Write what fixed it")}</Btn></div>}
+      </div></Crd>))}
+  </div>);
+}
+// The recipients of the morning email and the red alerts, replaced as a set: the people picked and the
+// addresses typed. An empty set means the super admins, which the page says.
+function HealthRecipients({ af, t, allStaff = [] }) {
+  const [view, setView] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [draft, setDraft] = useState(null);
+  const [pick, setPick] = useState("");
+  const [mail, setMail] = useState("");
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const read = useCallback(() => af("/api/health/recipients").then(d => { setView(d || {}); setFailed(""); setDraft(null); }).catch(e => { setView(null); setFailed(e.message || tr("This did not load.")); }), [af]);
+  useEffect(() => { read(); }, [read]);
+  if (failed) return <Crd t={t} style={{ marginBottom: 14 }}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>;
+  if (!view) return <Crd t={t} style={{ marginBottom: 14 }}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
+  const set = view.recipients || [];
+  const cur = draft || { userIds: set.filter(r => r.userId).map(r => String(r.userId)), emails: set.filter(r => !r.userId && r.email).map(r => String(r.email)) };
+  const nameOf = (id) => { const p = allStaff.find(s => String(s.id) === String(id)); const r = set.find(x => String(x.userId) === String(id)); return (p && healthPerson(p)) || (r && r.name) || String(id); };
+  const people = allStaff.filter(p => p && p.id != null && p.role !== "client_contact" && !p.isTestAccount && !p.is_test_account && (!p.status || p.status === "active") && cur.userIds.indexOf(String(p.id)) < 0);
+  const change = (next) => { setDraft(next); setSaid(null); };
+  const save = once(async () => {
+    try { const d = await af("/api/health/recipients", { method: "PUT", body: { userIds: cur.userIds, emails: cur.emails } }); setView(d || {}); setDraft(null); setSaid({ ok: true, text: tr("Saved. The next alert and the next morning email go to this list.") }); }
+    catch (e) { setSaid({ ok: false, keys: refusalKeys(e), text: e.message || tr("Request failed") }); }
+  });
+  const row = (key, label, onRemove) => <div key={key} data-health-recipient={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderTop: "1px solid " + t.border }}><div style={{ flex: 1, fontSize: 13, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{label}</div><button onClick={onRemove} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Remove")}</button></div>;
+  const bad = (k) => !!(said && !said.ok && (said.keys || []).indexOf(k) >= 0);
+  return (<Crd t={t} style={{ marginBottom: 14 }}><div data-health-recipients={view.byDefault ? "default" : "set"}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Who gets the morning email and the red alerts")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The morning email goes out at 7:30 AM. A red number alerts at once, by the bell, the phone and email, once a day for each number.")}</div>
+    {!cur.userIds.length && !cur.emails.length ? <div data-health-recipients-default="" style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>{tr("Nobody is set, so the super admins get them.")}</div> : null}
+    {cur.userIds.map(id => row(id, nameOf(id), () => change({ ...cur, userIds: cur.userIds.filter(x => x !== id) })))}
+    {cur.emails.map(em => row(em, em + " (" + tr("Email only") + ")", () => change({ ...cur, emails: cur.emails.filter(x => x !== em) })))}
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+      <div style={{ flex: 1, minWidth: 180 }}><PersonPick t={t} aria-label={tr("Add a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Add a person") }].concat(people.map(p => ({ v: String(p.id), l: healthPerson(p) })))} style={bad("userIds") ? { borderColor: RD } : undefined} /></div>
+      <Btn t={t} v="ghost" data-health-recipient-add="person" disabled={!pick} onClick={() => { change({ ...cur, userIds: cur.userIds.concat([pick]) }); setPick(""); }}>{tr("Add")}</Btn>
+    </div>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+      <div style={{ flex: 1, minWidth: 180 }}><Inp t={t} type="email" data-health-recipient-email="" aria-label={tr("Add an email address")} placeholder={tr("Add an email address")} value={mail} onChange={e => setMail(e.target.value)} style={bad("emails") ? { borderColor: RD } : undefined} /></div>
+      <Btn t={t} v="ghost" data-health-recipient-add="email" disabled={!mail.trim()} onClick={() => { const v = mail.trim().toLowerCase(); if (cur.emails.indexOf(v) < 0) change({ ...cur, emails: cur.emails.concat([v]) }); setMail(""); }}>{tr("Add")}</Btn>
+    </div>
+    {Array.isArray(view.receiving) && view.receiving.length > 0 && !draft ? <div data-health-receiving="" style={{ fontSize: 12, color: t.textSec, marginTop: 10 }}>{tr("Getting them now: {0}", view.receiving.map(r => (r.userId ? nameOf(r.userId) : r.email) || r.email).join(", "))}</div> : null}
+    {said ? <div data-health-recipients-said={said.ok ? "saved" : "refused"} role={said.ok ? "status" : "alert"} style={{ fontSize: 12, color: said.ok ? GR : RD, marginTop: 8 }}>{said.text}</div> : null}
+    <div style={{ marginTop: 10 }}><Btn t={t} data-health-recipients-save="" onClick={save} disabled={busy || !draft}>{busy ? tr("Saving...") : tr("Save the list")}</Btn></div>
+  </div></Crd>);
+}
+// Each number's yellow and red lines, changeable, with the defaults shown. A line left empty is never
+// crossed. A share of the week is typed as a percent and sent as the share the API keeps, 0 to 1.
+function HealthThresholds({ af, t }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [edits, setEdits] = useState({});
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const read = useCallback(() => af("/api/health/thresholds").then(d => { setRows(d && Array.isArray(d.thresholds) ? d.thresholds : []); setFailed(""); }).catch(e => { setRows(null); setFailed(e.message || tr("This did not load.")); }), [af]);
+  useEffect(() => { read(); }, [read]);
+  if (failed) return <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>;
+  if (!rows) return <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
+  const share = (r) => r.kind === "belowShare";
+  const shown = (r, v) => (v === null || v === undefined ? "" : share(r) ? String(Math.round(Number(v) * 1000) / 10) : String(v));
+  const valueOf = (r, line) => (edits[r.key] && Object.prototype.hasOwnProperty.call(edits[r.key], line) ? edits[r.key][line] : shown(r, r[line]));
+  const sent = (r, text) => { const s = String(text).trim(); if (s === "") return null; const n = Number(s); if (!Number.isFinite(n)) return NaN; return share(r) ? n / 100 : n; };
+  const setLine = (key, line, v) => { setEdits(e => ({ ...e, [key]: { ...(e[key] || {}), [line]: v } })); setSaid(null); };
+  const changed = Object.keys(edits).filter(k => { const r = rows.find(x => x.key === k); return r && ["yellow", "red"].some(l => Object.prototype.hasOwnProperty.call(edits[k], l) && edits[k][l] !== shown(r, r[l])); });
+  const save = once(async () => {
+    const body = {};
+    for (const k of changed) { const r = rows.find(x => x.key === k); body[k] = { yellow: sent(r, valueOf(r, "yellow")), red: sent(r, valueOf(r, "red")) }; }
+    if (Object.keys(body).some(k => Number.isNaN(body[k].yellow) || Number.isNaN(body[k].red))) { setSaid({ ok: false, keys: [], text: tr("Type a number, or leave the box empty for never.") }); return; }
+    try { const d = await af("/api/health/thresholds", { method: "PUT", body: { thresholds: body } }); setRows(d && Array.isArray(d.thresholds) ? d.thresholds : rows); setEdits({}); setSaid({ ok: true, text: tr("Saved. The numbers are colored by the new lines from their next check.") }); }
+    catch (e) { setSaid({ ok: false, keys: refusalKeys(e), text: e.message || tr("Request failed") }); }
+  });
+  const bad = (key, line) => !!(said && !said.ok && (said.keys || []).some(k => k === "thresholds." + key + "." + line || k === "thresholds." + key));
+  const dflt = (r) => tr("Default: {0}", healthLineText({ kind: r.kind, yellow: r.defaults ? r.defaults.yellow : null, red: r.defaults ? r.defaults.red : null }, r.unit));
+  const box = (r, line) => <Inp t={t} type="number" min="0" step="any" data-health-line={r.key + "." + line} aria-label={tr(line === "yellow" ? "{0}, yellow at" : "{0}, red at", r.label || r.key)} placeholder={tr("Never|line")} value={valueOf(r, line)} onChange={e => setLine(r.key, line, e.target.value)} style={{ width: 110, ...(bad(r.key, line) ? { borderColor: RD } : {}) }} />;
+  return (<Crd t={t}><div data-health-thresholds="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Each number's yellow and red lines")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("A number turns yellow at its yellow line and red at its red line. Leave a box empty for a line that is never crossed. Check-offs and shifts started are judged against the week before, as a percent of its average.")}</div>
+    <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <thead><tr><th style={crHead(t)}>{tr("Number|health")}</th><th style={crHead(t)}>{tr("Yellow at")}</th><th style={crHead(t)}>{tr("Red at")}</th><th style={crHead(t)}>{tr("Default")}</th></tr></thead>
+      <tbody>{rows.map(r => (<tr key={r.key} data-health-threshold={r.key} style={{ borderTop: "1px solid " + t.border }}>
+        <td style={{ padding: "8px 10px", color: t.text, minWidth: 180 }}>{r.label || r.key}{share(r) ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Percent of the week before")}</div> : r.unit === "ms" ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Milliseconds")}</div> : null}</td>
+        <td style={{ padding: "8px 10px" }}>{box(r, "yellow")}</td>
+        <td style={{ padding: "8px 10px" }}>{box(r, "red")}</td>
+        <td data-health-default="" style={{ padding: "8px 10px", fontSize: 12, color: t.textSec, minWidth: 160 }}>{dflt(r)}</td>
+      </tr>))}</tbody>
+    </table></div>
+    {said ? <div data-health-thresholds-said={said.ok ? "saved" : "refused"} role={said.ok ? "status" : "alert"} style={{ fontSize: 12, color: said.ok ? GR : RD, marginTop: 8 }}>{said.text}</div> : null}
+    <div style={{ marginTop: 10 }}><Btn t={t} data-health-thresholds-save="" onClick={save} disabled={busy || !changed.length}>{busy ? tr("Saving...") : tr("Save the lines")}</Btn></div>
+  </div></Crd>);
+}
+const HEALTH_REPORT_KINDS = { executive: "One-page summary", full: "Full report|health" };
+function HealthReports({ af, t, token }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const firstOfLast = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return toISO(d); })();
+  const lastOfLast = (() => { const d = new Date(); d.setDate(0); return toISO(d); })();
+  const [range, setRange] = useState({ from: firstOfLast, to: lastOfLast });
+  const [said, setSaid] = useState(null);
+  const [pdf, setPdf] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const read = useCallback(() => af("/api/health/reports").then(d => { setList(d && Array.isArray(d.reports) ? d.reports : []); setFailed(""); }).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); }), [af]);
+  useEffect(() => { read(); }, [read]);
+  const make = once(async () => {
+    if (!range.from || !range.to) { setSaid({ ok: false, keys: [!range.from ? "from" : "to"], text: tr("Choose the first and the last day.") }); return; }
+    if (range.from > range.to) { setSaid({ ok: false, keys: ["to"], text: tr("The last day is before the first.") }); return; }
+    setSaid(null);
+    try { const d = await af("/api/health/reports", { method: "POST", body: { from: range.from, to: range.to } }); const made = d && Array.isArray(d.reports) ? d.reports : []; setSaid({ ok: true, text: tr("Both reports are made for {0} to {1}. Open them below.", healthDay(range.from), healthDay(range.to)), made: made.map(r => r.id) }); read(); }
+    catch (e) { setSaid({ ok: false, keys: refusalKeys(e), text: e.message || tr("Request failed") }); }
+  });
+  const bad = (k) => !!(said && !said.ok && (said.keys || []).indexOf(k) >= 0);
+  const cols = [
+    { header: tr("Report|health"), render: r => <span data-health-report={r.id} data-health-report-kind={r.kind}>{tr(HEALTH_REPORT_KINDS[r.kind] || r.kind)}{r.monthly ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Monthly")} c={BL} /></span> : null}</span> },
+    { header: tr("Period"), tdStyle: { whiteSpace: "nowrap" }, render: r => tr("{0} to {1}", healthDay(r.from), healthDay(r.to)) },
+    { header: tr("Made"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
+    { header: tr("Emailed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.mailedAt ? irWhen(r.mailedAt) : "--") },
+    { header: "", render: r => <Btn t={t} v="ghost" data-health-report-open={r.id} onClick={e => { e.stopPropagation(); setPdf(r); }} style={{ minHeight: 44, padding: "0 12px" }}>{tr("Open PDF")}</Btn> },
+  ];
+  return (<div data-health-reports="">
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Make report")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Makes both reports for the days you choose: the one-page summary and the full report. The month before is made and emailed by itself on the 1st.")}</div>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ width: 180 }}><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" data-health-report-from="" aria-label={tr("From")} value={range.from} onChange={e => { setRange({ ...range, from: e.target.value }); setSaid(null); }} style={bad("from") ? { borderColor: RD } : undefined} /></div>
+        <div style={{ width: 180 }}><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" data-health-report-to="" aria-label={tr("To")} value={range.to} onChange={e => { setRange({ ...range, to: e.target.value }); setSaid(null); }} style={bad("to") ? { borderColor: RD } : undefined} /></div>
+        <Btn t={t} data-health-report-make="" onClick={make} disabled={busy}>{busy ? tr("Making the reports...") : tr("Make report")}</Btn>
+      </div>
+      {said ? <div data-health-report-said={said.ok ? "made" : "refused"} role={said.ok ? "status" : "alert"} style={{ fontSize: 12, color: said.ok ? GR : RD, marginTop: 8 }}>{said.text}</div> : null}
+    </Crd>
+    <SecT t={t}>{tr("Every report kept")}</SecT>
+    {list === null ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>
+      : <DataTable t={t} columns={cols} rows={list} rowKey={r => r.id} empty={<span data-health-no-reports="">{tr("No report has been made yet.")}</span>} />}
+    {pdf && <PdfWindow token={token} t={t} onClose={() => setPdf(null)} boxProps={{ "data-health-pdf": pdf.id }} title={tr(HEALTH_REPORT_KINDS[pdf.kind] || pdf.kind)} sub={tr("{0} to {1}", healthDay(pdf.from), healthDay(pdf.to))} pathFor={() => "/api/health/reports/" + encodeURIComponent(pdf.id) + "/pdf"} fallbackName={"health-" + pdf.kind + "-" + pdf.from + "-" + pdf.to + ".pdf"} oneLanguage />}
+  </div>);
+}
+function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
+  const tab = HEALTH_TABS.some(x => x[0] === route[0]) ? route[0] : "numbers";
+  const [summary, setSummary] = useState(null);
+  const [sumFailed, setSumFailed] = useState("");
+  const [numbers, setNumbers] = useState(null);
+  const [numFailed, setNumFailed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const readSummary = useCallback(() => af("/api/health/summary").then(d => { setSummary(d || {}); setSumFailed(""); }).catch(e => { setSummary(null); setSumFailed(e.message || tr("This did not load.")); }), [af]);
+  const readNumbers = useCallback(() => af("/api/health/numbers").then(d => { setNumbers(d || { numbers: [] }); setNumFailed(""); }).catch(e => { setNumbers(null); setNumFailed(e.message || tr("This did not load.")); }), [af]);
+  useEffect(() => { readSummary(); readNumbers(); }, [readSummary, readNumbers]);
+  const refresh = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { const d = await af("/api/health/numbers/refresh", { method: "POST", body: {} }); setNumbers(d || { numbers: [] }); setNumFailed(""); } catch (e) { setNumFailed(e.message || tr("Request failed")); }
+    await readSummary();
+    setBusy(false);
+  };
+  const pick = (k) => { if (onRoute) onRoute(k === "numbers" ? [] : [k]); else window.location.hash = "health" + (k === "numbers" ? "" : "/" + k); };
+  return (<div data-health-page={tab}>
+    <HealthStatus t={t} summary={summary} failed={sumFailed} busy={busy} onRefresh={refresh} onRetry={readSummary} />
+    <div data-health-tabs="" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
+      {HEALTH_TABS.map(([k, l]) => <button key={k} data-health-tab={k} aria-pressed={tab === k} onClick={() => pick(k)} style={{ flexShrink: 0, minHeight: 44, padding: "7px 14px", borderRadius: 8, border: tab === k ? "1px solid " + GO : "1px solid transparent", background: tab === k ? t.goldBg : "transparent", color: tab === k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: FONT_BODY }}>{tr(l)}</button>)}
+    </div>
+    {tab === "numbers" && <HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} />}
+    {tab === "runs" && <HealthRuns af={af} t={t} onAsked={readSummary} />}
+    {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} />}
+    {tab === "settings" && <><HealthRecipients af={af} t={t} allStaff={allStaff} /><HealthThresholds af={af} t={t} /></>}
+    {tab === "reports" && <HealthReports af={af} t={t} token={token} />}
+  </div>);
+}
+
 // A PDF the API draws, in a window: the language picked, which starts as startLang when the caller
 // names one the screen offers and as the screen's otherwise, Download PDF, and the page itself.
 // pathFor gives the route for a language. The quote's two PDFs, a site's workload plan and a warning
@@ -20124,13 +20619,16 @@ const CAPABILITY_LABELS = {
   // Step 235 and part 353: the two grants only the super admin makes or takes away.
   read_chat_records: "Read chat records",
   view_hr_access_report: "HR file access report",
+  // Part 379: the Health page, routes/health.js (the API's Round 10, part 376), the third grant only the
+  // super admin makes or takes away.
+  view_health: "The Health page: platform health, run-throughs and reports",
 };
 // The grants only the super admin makes or takes away, to anyone, admins included (the API's
 // SUPER_ADMIN_GRANTS, routes/users.js): nobody else sees their rows, and a save by anyone else carries
 // them as they were, since PUT /api/users/:id/permissions replaces a person's whole set of overrides. An
 // admin's other capabilities stay fixed by role; for an admin the save names these keys alone, which is
 // the one change the API takes on an admin's account.
-const SUPER_ADMIN_GRANTS = ["read_chat_records", "view_hr_access_report"];
+const SUPER_ADMIN_GRANTS = ["read_chat_records", "view_hr_access_report", "view_health"];
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
 const PERMISSION_GROUPS = [
@@ -20300,7 +20798,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
   // the signed-in person's own account, and manage admins is offered only by someone who holds it.
   const isSelf = !!selId && String(selId) === String(selfId);
   const fixedNote = isSelf ? tr("Your own capabilities are set by another admin.")
-    : isAdminTarget ? (superAdmin ? tr("An admin account holds the rest by role. As the super admin, you can grant or take away chat records and the HR file access report.") : tr("An admin account holds these by role. There is nothing to change here.")) : null;
+    : isAdminTarget ? (superAdmin ? tr("An admin account holds the rest by role. As the super admin, you can grant or take away chat records, the HR file access report and the Health page.") : tr("An admin account holds these by role. There is nothing to change here.")) : null;
   // A row that can change here: none on the person's own account, and on an admin's only the super
   // admin's grants, for the super admin.
   const editable = (c) => !isSelf && (!isAdminTarget || (superAdmin && superGrant(c)));

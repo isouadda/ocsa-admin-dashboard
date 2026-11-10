@@ -309,10 +309,10 @@ async function grantCases(ctx) {
     await d.signOutHard();
     await d.signIn("admin");
     const ids = await navIds(d);
-    results.check(KIND, "round2/grant/the-super-admin-grants-it", !!row && set && !!put && put.status === 200 && !!body && body.view_hr_access_report === true && Object.keys(body).every((k) => k === "view_hr_access_report" || k === "read_chat_records") && ids.indexOf("hr-access") >= 0,
+    results.check(KIND, "round2/grant/the-super-admin-grants-it", !!row && set && !!put && put.status === 200 && !!body && body.view_hr_access_report === true && Object.keys(body).every((k) => k === "view_hr_access_report" || k === "read_chat_records" || k === "view_health") && ids.indexOf("hr-access") >= 0,
       !picked ? "the person picker did not offer the admin" : !row ? "the super admin is shown no HR file access report switch on an admin's account" : !set ? "the switch offers no Allow"
         : !put ? "Save changes sent no PUT" : put.status !== 200 ? "the PUT was answered " + put.status + " " + JSON.stringify(put.json) : !body || body.view_hr_access_report !== true ? "the PUT sent " + JSON.stringify(put.body)
-          : Object.keys(body).some((k) => k !== "view_hr_access_report" && k !== "read_chat_records") ? "the PUT on an admin's account sent " + JSON.stringify(body) + ", more than the two grants"
+          : Object.keys(body).some((k) => k !== "view_hr_access_report" && k !== "read_chat_records" && k !== "view_health") ? "the PUT on an admin's account sent " + JSON.stringify(body) + ", more than the three grants"
             : "the admin granted the report has no HR file access report in the side panel");
   } catch (e) {
     results.fail(KIND, "round2/grant/suite", threw(e));
