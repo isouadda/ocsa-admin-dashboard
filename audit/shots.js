@@ -1857,6 +1857,36 @@ const SHOTS = [
       await until(c, "[data-warning-still-needed]");
       await blur(c); await toTop(c, "[data-warning-still-needed]", 420);
     } },
+  // Part 379, section 1: the Health page as the super admin, against audit/part379-stub.js: the light and the
+  // numbers, a failed run-through's window with its step's error and screenshot, who is told and the lines,
+  // and the reports kept.
+  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin",
+    open: "health", ready: "[data-health-number='server_errors']" },
+  { name: "health-run", entry: "Read the Health page", as: "superAdmin",
+    open: "health/runs", ready: "[data-health-run-row]",
+    act: async (c) => { await click(c, "[data-health-run-row='00000000-0000-4000-8000-000000000902']"); await until(c, "[data-health-run] [data-health-step-error]"); await wait(400); } },
+  { name: "health-reports", entry: "Make a health report", as: "superAdmin",
+    open: "health/reports", ready: "[data-health-report]" },
+  { name: "health-settings", entry: "Choose who gets the health alerts", as: "superAdmin",
+    open: "health/settings", ready: "[data-health-threshold]" },
+  // Part 379, section 2: Lakeside Medical Plaza with its two shifts (audit/part379-stub.js, shifts): the
+  // site's shifts, Edit Task on an item the Second shift does, and Checklist Results with a ring per run.
+  { name: "site-shifts", entry: "Set a site's shifts", arm: (stubs, on) => stubs.setScene379({ shifts: on }),
+    open: "sites/s-2/shifts", ready: "[data-site-shift]" },
+  { name: "task-shifts", entry: "Set a site's shifts", arm: (stubs, on) => stubs.setScene379({ shifts: on }),
+    open: "sites/s-2/tasks", ready: "[data-site-task='t379-2']",
+    act: async (c) => { await click(c, "[data-site-task='t379-2']"); await until(c, "[data-task-shifts]"); await c.page.locator("[data-task-shifts]").first().scrollIntoViewIfNeeded(); await wait(300); } },
+  { name: "checklist-results-runs", entry: "Read a site's checklist by shift", arm: (stubs, on) => stubs.setScene379({ shifts: on }),
+    open: "checklist/s-2/" + seed.TODAY, ready: "[data-cr-run] .apexcharts-canvas", act: async () => { await wait(900); } },
+  // Part 379, section 3: the written warning sent to Rashid Haddad's phone (sr-3), recorded as signed on a
+  // printed copy, before it is saved: what happened and what happens next.
+  { name: "signature-paper", entry: "Record a paper signature or a refusal",
+    open: "hr/signatures/sr-3", ready: "[data-signature-request-window='sr-3'] [data-paper-record-open]",
+    act: async (c) => { await click(c, "[data-paper-record-open]"); await until(c, "[data-paper-next]"); await c.page.locator("[data-paper-save]").first().scrollIntoViewIfNeeded(); await wait(300); } },
+  // Part 379, section 4: the Sites list with Riverbend Logistics Hub as the test site (audit/part379-stub.js,
+  // testSite).
+  { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
+    open: "sites", ready: "[data-site-test]" },
 ];
 
 

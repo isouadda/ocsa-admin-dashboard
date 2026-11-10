@@ -53,7 +53,9 @@ function placeOf(subjectType, subjectId) {
   if (st === "inspection_finding" && id) return "issues/" + id;
   if ((st === "training_signoff" || st === "training_reteach") && id) return "training/attempts/" + id;
   if (st === "training_expiring") return "training/gaps";
-  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue") && id) return "hr/signatures/" + id;
+  if ((st === "signature_disputed" || st === "signature_declined" || st === "signature_overdue" || st === "signature_signed") && id) return "hr/signatures/" + id;
+  // A red number or a failed run-through opens the Health page (part 379).
+  if (st === "health_alert") return "health";
   if (/^issue(_|$)/.test(st) && id) return "issues/" + id;
   if (/^inspection(_|$)/.test(st) && id) return "inspections/" + id;
   if (st === "time_off") return id ? "schedule/timeoff/" + id : "schedule/timeoff";

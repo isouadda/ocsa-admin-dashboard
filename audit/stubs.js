@@ -6171,6 +6171,9 @@ function createStubs() {
   // Pictures behind links that run out (part 372, section 2), in audit/part372-pictures.js, over every other
   // layer once a run arms it with setPictures372.
   const pictures372 = require("./part372-pictures")({ seed, ok, PNG_BYTES });
+  // What the API's Rounds 9 and 10 answer for the dashboard (part 379), in audit/part379-stub.js: the API as
+  // built at ocsa-api 43cc70c, over every other layer but the pictures, in every run.
+  const part379 = require("./part379-stub")({ seed, state, ok, clone, person });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7353,7 +7356,8 @@ function createStubs() {
     const under368 = () => (step364 ? round3.route(method, path, u.searchParams, body, record.language, under364) : under364());
     const under372 = () => part368.route(method, path, u.searchParams, body, record.language, under368);
     const under372p = () => part372.route(method, path, u.searchParams, body, record.language, under372);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under372p);
+    const under379 = () => part379.route(method, path, u.searchParams, body, record.language, under372p);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under379);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7470,6 +7474,10 @@ function createStubs() {
     sinceRefused368: (p) => part368.sinceRefused(p),
     leave368: () => part368.leaveModel(),
     // Part 372: the API's Round 8 (audit/part372-stub.js), what a run sent it, and its scenes.
+    // Part 379: the API's Rounds 9 and 10 (audit/part379-stub.js), what a run sent it, and its scenes.
+    setScene379: (o) => { part379.setScene(o || {}); },
+    sent379: () => part379.sent(),
+    model379: () => part379.model(),
     setScene372: (o) => { part372.setScene(o || {}); },
     sent372: () => part372.sent(),
     model372: () => part372.model(),
@@ -7630,6 +7638,7 @@ function createStubs() {
       step364 = false; state.r3 = null; round3.setFindings(false);
       part368.reset();
       part372.reset();
+      part379.reset();
       pictures372.reset();
     },
     fixtures: {

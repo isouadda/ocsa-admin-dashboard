@@ -79,10 +79,11 @@ Who can do this: admins
 5. Turn **Email** and **In app** on or off for each person. At least one stays on.
 6. To take someone off, click **Remove** and confirm.
 7. Each form's own list also chooses what its email carries: **Link to the app**, which every form starts on, or **Attach the filled report as a PDF**. With the PDF chosen, every email about that form carries everything the report says, to every person and address on its lists. **Every form** has no choice of its own.
+8. Some kinds go only to the people they are about, such as **Someone signed a warning on their phone** (**Alguien firmó una advertencia en su teléfono**), which goes to the person who sent the warning to sign. Their card says who gets them, and nobody is added there. The health alerts are set on the Health page.
 If it does not work: when nobody is set for a kind, every admin gets a notice in the app.
 Words people use for this: notifications, who gets the email, alerts, stop getting notices, send to an outside email, email the report as a pdf, attach the report, pdf delivery.
 Picture: settings-who-gets-told
-Last checked: 2026-10-07
+Last checked: 2026-11-10
 
 ## Add a staff member (admin dashboard)
 Who can do this: admins. A supervisor opens **Staff Management** (**Gestión de personal**) and does not see **Add Staff** (**Agregar persona**).
@@ -1289,14 +1290,14 @@ Who can do this: anyone who can open Inspections
 3. **Photos of the whole inspection** (**Fotos de toda la inspección**) holds the photos taken of the inspection as a whole.
 4. **Signature** (**Firma**) shows the inspector's signature with **Signed by {0}, {1}** (**Firmado por {0}, {1}**) under it: their name, then the day and time. An inspection with no signature says **Not signed** (**Sin firmar**).
 5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
-6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
+6. **Export PDF** (**Exportar PDF**) reads the inspection again first, so its photos print from fresh links, and prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with how many photos each item has in its Photos column. A photo's address stops working an hour after it is read, so none is written into the file; the photos stay on the inspection.
 7. Beside the score, **Band** (**Banda**) reads the inspection's band under OCSA-QMS-014 5.2, and **Findings** (**Hallazgos**) lists the tickets the inspection opened; see the entry on reading an inspection's findings and band.
 8. An inspection that held the safety walk shows **Safety walk** (**Recorrido de seguridad**) with its safety part above the items; see Read an inspection's safety walk.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
 Picture: inspection-completed-photos
 Picture: inspection-completed-signature
-Last checked: 2026-10-07
+Last checked: 2026-11-10
 
 ## Check who is still working with the roster check (admin dashboard)
 Who can do this: admins who manage staff
@@ -1462,9 +1463,10 @@ Who can do this: admins and supervisors
 4. Add **Their account** (**Su versión**) if they want their words on the warning.
 5. Click **Issue** (**Emitir**). The warning shows **Declined to sign** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
 6. A person who will not sign a warning sent to their phone declines there. The warning then reads **Declined** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
+7. When the warning was sent to their phone and the person refuses in front of you instead, record the refusal from its request in **Waiting for signatures** (**A la espera de firmas**), with the witness; see the entry on recording a paper signature or a refusal.
 Words people use for this: refused to sign, would not sign, declined to sign, witness, write-up, se negó a firmar.
 Picture: warning-declined-to-sign
-Last checked: 2026-10-06
+Last checked: 2026-11-10
 
 ## Rescind a warning (admin dashboard)
 Who can do this: admins
@@ -1711,11 +1713,11 @@ Last checked: 2026-10-02
 Who can do this: admins and supervisors
 1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **Inspections** (**Inspecciones**) and click **Open** (**Abrir**).
 2. Pick the **Site** (**Sitio**) and the dates. The line beside **Print** (**Imprimir**) says how many inspections were completed in them.
-3. Click **Print** (**Imprimir**). Each completed inspection prints on its own page, headed by its kind and its form: OCSA-FRM-001 for a supervisor inspection and OCSA-FRM-002 for an audit, with the photos and the signatures.
+3. Click **Print** (**Imprimir**). The record is read again first, so the photos print from fresh links. Each completed inspection prints on its own page, headed by its kind and its form: OCSA-FRM-001 for a supervisor inspection and OCSA-FRM-002 for an audit, with the photos and the signatures.
 4. One inspection's **Export PDF** (**Exportar PDF**) prints the same page.
 Words people use for this: inspection records, inspection reports, audit records, binder, print all inspections, frm-001, frm-002.
 Picture: kept-inspections
-Last checked: 2026-10-02
+Last checked: 2026-11-10
 
 ## Print a site's training attendance rosters (admin dashboard)
 Who can do this: admins and supervisors
@@ -2228,12 +2230,12 @@ Who can do this: admins and supervisors
 1. Admins and supervisors issue PPE from the site in **Sites** (**Sitios**), on its **Supplies** (**Suministros**) tab, or a written warning from **Issue a warning** (**Emitir una advertencia**) on **Discipline** (**Disciplina**). An admin can also open **Issue property** (**Entregar propiedad**) or **Issue PPE** (**Entregar EPP**) from the person's folder in **HR Records** (**Expedientes de personal**), or **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
 2. Under **Who signs** (**Quién firma**), **Send to their phone** (**Enviar a su teléfono**) is already chosen. Fill in the rest and click **Send to sign** (**Enviar a firmar**), or **Issue and send to sign** (**Emitir y enviar a firmar**) on a warning. The person is told on their phone and signs there; nobody has to come to the office.
 3. The record reads **Waiting for signature** (**A la espera de firma**) until they sign, then **Signed** (**Firmado**) with **on their phone** (**en su teléfono**). A person who sends property or PPE back reads **Not right** (**No es correcto**) with their note. A person who will not sign a warning reads **Declined** (**Se negó a firmar**).
-4. On a record still waiting, click **Remind** (**Recordar**) to send the notice again, up to twenty times in all. On one waiting or not right, click **Cancel** (**Cancelar**) to close the request when it was signed on paper or entered by mistake, or **Sign here now** (**Firmar aquí ahora**) to have the person sign on the screen in front of them. It then reads **Signed** (**Firmado**) with **in the office** (**en la oficina**).
+4. On a record still waiting, click **Remind** (**Recordar**) to send the notice again, up to twenty times in all. On one waiting or not right, click **Cancel** (**Cancelar**) to close the request when it was entered by mistake, or **Sign here now** (**Firmar aquí ahora**) to have the person sign on the screen in front of them. It then reads **Signed** (**Firmado**) with **in the office** (**en la oficina**). A warning signed on a printed copy, or refused in front of you, is recorded from its request instead; see the entry on recording a paper signature or a refusal.
 5. To take the signature on the spot from the start, choose **Sign here now** (**Firmar aquí ahora**) under **Who signs** (**Quién firma**), and the box is drawn as before.
 If it does not work: **Who signs** (**Quién firma**) and the chips show once the system answers the signature requests. Until then the person signs in the box, as before. A refusal is shown under the field it names.
 Words people use for this: sign on their phone, send to sign, signature request, remind to sign, sign here, not right, waiting for signature, firmar en el teléfono.
 Picture: signature-send-to-phone
-Last checked: 2026-10-20
+Last checked: 2026-11-10
 
 ## See what is waiting for a signature (admin dashboard)
 Who can do this: admins see every request; supervisors see their sites
@@ -2633,13 +2635,13 @@ Last checked: 2026-10-18
 ## Grant the HR file access report (admin dashboard)
 Who can do this: the super admin only
 1. Click **Settings** (**Configuración**), then **Roles and Permissions** (**Roles y permisos**).
-2. Pick the person. On an admin's account the line reads **An admin account holds the rest by role. As the super admin, you can grant or take away chat records and the HR file access report.** (**Una cuenta de administrador tiene el resto por su rol. Como superadministrador, usted puede dar o quitar el acceso a los registros del chat y al informe de acceso a archivos de RR. HH.**)
-3. On the **HR file access report** (**Informe de acceso a archivos de RR. HH.**) row, click **Allow** (**Permitir**) to grant it, or **Default** (**Predeterminado**) to take it away. **Read chat records** (**Leer los registros del chat**) works the same way.
-4. Click **Save changes** (**Guardar los cambios**). The person finds **HR file access report** (**Informe de acceso a archivos de RR. HH.**) in their side panel the next time the dashboard opens.
-If it does not work: nobody but the super admin is shown these two rows, and the system refuses the change from anyone else.
-Words people use for this: give the access report, grant the access report, who can see the access log, take away the access report, chat records access, permiso del informe de acceso.
+2. Pick the person. On an admin's account the line reads **An admin account holds the rest by role. As the super admin, you can grant or take away chat records, the HR file access report and the Health page.** (**Una cuenta de administrador tiene el resto por su rol. Como superadministrador, usted puede dar o quitar el acceso a los registros del chat, al informe de acceso a archivos de RR. HH. y a la página de Salud.**)
+3. On the **HR file access report** (**Informe de acceso a archivos de RR. HH.**) row, click **Allow** (**Permitir**) to grant it, or **Default** (**Predeterminado**) to take it away. **Read chat records** (**Leer los registros del chat**) and **The Health page: platform health, run-throughs and reports** (**La página de Salud: salud de la plataforma, recorridos de prueba e informes**) work the same way.
+4. Click **Save changes** (**Guardar los cambios**). The person finds **HR file access report** (**Informe de acceso a archivos de RR. HH.**) in their side panel the next time the dashboard opens, and **Health** (**Salud**) for the Health page.
+If it does not work: nobody but the super admin is shown these three rows, and the system refuses the change from anyone else.
+Words people use for this: give the access report, grant the access report, who can see the access log, take away the access report, chat records access, give the health page, permiso del informe de acceso.
 Picture: settings-grant-access-report
-Last checked: 2026-10-18
+Last checked: 2026-11-10
 
 ## Open a site's floor plan (admin dashboard)
 Who can do this: admins and supervisors
@@ -2656,7 +2658,7 @@ Last checked: 2026-10-18
 Who can do this: admins and supervisors
 1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. A card counts the steps the way the rings on the site's own page count them: the daily, per visit and every other day steps due. Click a site's card, or pick the site in **Site** (**Sitio**).
 2. Pick the days: **Today** (**Hoy**), **Yesterday** (**Ayer**), **Last 7 days** (**Últimos 7 días**), **This month** (**Este mes**), or **Pick dates** (**Elegir fechas**) for any one day or any dates up to 31 days, then **Show** (**Mostrar**). At a site with two shifts or more, **Shift** (**Turno**) shows one shift, or **All shifts** (**Todos los turnos**).
-3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**).
+3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**). At a site with shifts of its own, each shift's run of the day has its own ring; see the entry on reading a site's checklist by shift.
 4. **When the checks happened** (**Cuándo se hicieron las marcas**) draws a bar for every 15 minutes of the shift, and the line under it says how many checks were made in the shift's last 30 minutes.
 5. **By zone** (**Por zona**) shows each zone's steps done of steps due; click a zone to show only its tasks. **Repeating work** (**Trabajo que se repite**) lists the weekly, monthly, quarterly and seasonal tasks with when and by whom each was last done and the day it is due by, as they stood on the day shown.
 6. **Tasks** (**Tareas**) lists every task by shift and zone: done or not, who and when, and every check when more than one person checked it. Tick **Not done only** (**Solo lo que no se hizo**), or type in **Search tasks** (**Buscar tareas**). **Download CSV** (**Descargar CSV**) saves the list as it is shown: day, shift, zone, task, done, who and when.
@@ -2668,7 +2670,7 @@ If it does not work: more than 31 days is refused, and the reason shows on the p
 Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-11-09
+Last checked: 2026-11-10
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors
@@ -2710,12 +2712,12 @@ Who can do this: admins and supervisors, at the sites they can see, and anyone g
 3. Choose the site under **Site *** (**Sitio ***). Fill in the **Building** (**Edificio**), the **Floor** (**Piso**) and the **Area or room** (**Área o sala**) where the problem is.
 4. Choose the **Category *** (**Categoría ***) and the **Urgency *** (**Urgencia ***), and write **What is wrong *** (**Qué está mal ***): where it is, what you see, and since when.
 5. To send photos, click **Add photos** (**Agregar fotos**) and pick up to 6.
-6. Check **It goes to** (**Se envía a**). It lists the site's maintenance contacts for that building and those who cover the whole site. The office is copied, and replies come to the office.
-7. Click **Send to building maintenance** (**Enviar a mantenimiento del edificio**). The request gets a reference such as MR-2026-0008, and its window opens.
+6. Check **It goes to** (**Se envía a**). The system names who it goes to for the building typed: that building's maintenance contacts and those who cover the whole site. The office is copied at its address, and replies come to the office.
+7. Click **Send to building maintenance** (**Enviar a mantenimiento del edificio**). The request gets a reference such as MR-2026-0008, and its window opens. When the answer is lost, as on a weak connection, click it again: the request is filed once.
 If it does not work: When the site has no active maintenance contact, the window says so and Send stays off. Click **Add a contact** (**Agregar un contacto**) to add one on the site's page, or ask an admin to. When the email did not go, the request is still saved: open it and click **Send the email again** (**Enviar el correo de nuevo**).
 Words people use for this: maintenance request, building maintenance, work order, leak, broken, repair, landlord, property manager, facilities, report a building problem, solicitud de mantenimiento.
 Picture: maintenance-new
-Last checked: 2026-10-20
+Last checked: 2026-11-10
 
 ## Follow a maintenance request and record the building's answer (admin dashboard)
 Who can do this: admins and supervisors, at the sites they can see, and anyone given File and follow building maintenance requests
@@ -2868,13 +2870,13 @@ Last checked: 2026-11-09
 ## Read a person's or a site's timeline (admin dashboard)
 Who can do this: admins and supervisors
 1. For a person, click **Staff Management** (**Gestión de personal**), click the person's row, and click the **Timeline** (**Historial**) tab. For a site, click **Sites** (**Sitios**), open the site, and click its **Timeline** (**Historial**) tab.
-2. The timeline lists what happened, newest first: shifts started, problems reported, tasks done, supplies logged and the rest, each with when and by whom. Click an entry to open its record.
+2. The timeline lists what happened, newest first: shifts started, problems reported, tasks done, supplies logged and the rest, each with when and by whom. Click an entry to open its record. A record's **Print** (**Imprimir**) reads it again first, so its photos print whole, and so do a person's **Print Report** (**Imprimir el informe**) and a site's chat **Print** (**Imprimir**).
 3. Pick a category or dates above the list to narrow it. The count beside the title says how many entries are shown, with **so far** (**hasta ahora**) while there are more.
 4. The timeline shows 50 entries at a time. Click **Show more** (**Mostrar más**) under the list for the next ones, with the same category and dates, until it no longer shows.
 5. **Export CSV** (**Exportar CSV**) and **Print** (**Imprimir**) take the entries shown. Click **Show more** (**Mostrar más**) first to take older ones with them.
 Words people use for this: timeline, activity, history, what did they do, site history, older entries, load more, historial.
 Picture: staff-timeline
-Last checked: 2026-11-09
+Last checked: 2026-11-10
 
 ## Continue a warning saved as a draft (admin dashboard)
 Who can do this: admins and supervisors, for the warnings they may issue
@@ -2889,3 +2891,86 @@ Words people use for this: continue a draft, finish a warning, saved warning, dr
 Picture: warning-continue-draft
 Picture: warning-still-needed
 Last checked: 2026-11-09
+
+## Read the Health page (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
+2. **Numbers** (**Indicadores**) shows the 20 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
+3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors.
+4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
+5. **Run-throughs** (**Recorridos de prueba**) lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
+6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
+7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
+If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
+Words people use for this: health page, platform health, is the app working, status page, run-throughs, the robot, incidents, red alert, daily numbers, salud.
+Picture: health-numbers
+Picture: health-run
+Last checked: 2026-11-10
+
+## Make a health report (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**), then **Reports** (**Informes**).
+2. Under **Make report** (**Crear informe**), set **From** (**Desde**) and **To** (**Hasta**), then click **Make report** (**Crear informe**). Both reports are made for those days: the **One-page summary** (**Resumen de una página**) and the **Full report** (**Informe completo**).
+3. **Every report kept** (**Todos los informes guardados**) lists each report, its period, when it was made and when it was emailed. The month before is made and emailed by itself on the 1st, marked **Monthly** (**Mensual**).
+4. Click **Open PDF** (**Abrir PDF**) beside a report to read it, and download it from there.
+If it does not work: **The last day is before the first.** (**El último día es anterior al primero.**) means the days are the wrong way round. A day after today is refused.
+Words people use for this: health report, monthly health report, uptime report, executive summary, platform report, health pdf, informe de salud.
+Picture: health-reports
+Last checked: 2026-11-10
+
+## Choose who gets the health alerts (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**), then **Who is told and when** (**A quién se avisa y cuándo**).
+2. Under **Who gets the morning email and the red alerts** (**Quién recibe el correo de la mañana y las alertas en rojo**), the list says who gets them. With nobody set it reads **Nobody is set, so the super admins get them.** (**No hay nadie indicado, así que los reciben los superadministradores.**)
+3. Pick someone in **Add a person** (**Agregar una persona**) and click **Add** (**Agregar**), or type an address in **Add an email address** (**Agregar un correo**) and click **Add** (**Agregar**). **Remove** (**Quitar**) takes one off. Click **Save the list** (**Guardar la lista**).
+4. Under **Each number's yellow and red lines** (**Las líneas amarilla y roja de cada indicador**), each number shows its **Yellow at** (**Amarillo en**) and **Red at** (**Rojo en**) lines, with its **Default** (**Predeterminado**) beside them. Type a new line, or leave a box empty for a line that is never crossed, and click **Save the lines** (**Guardar las líneas**). Check-offs and shifts started are typed as a percent of the week before.
+If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line.
+Words people use for this: health alerts, morning email, who gets the alerts, red alert, thresholds, alert lines, change the limits, alertas de salud.
+Picture: health-settings
+Last checked: 2026-11-10
+
+## Set a site's shifts (admin dashboard)
+Who can do this: people who manage sites change them; anyone who can see the site can read them
+1. Click **Sites** (**Sitios**) in the side panel, pick the site, and click the **Shifts & Schedule** (**Turnos y horario**) tab. **This site's shifts** (**Los turnos de este sitio**) lists each shift with when it **Starts** (**Comienza**) and **Ends** (**Termina**), the **Days** (**Días**) it runs, and its name **In Spanish** (**En español**) and **In French** (**En francés**), which is what the staff app shows in those languages.
+2. Click **Change the shifts** (**Cambiar los turnos**), or **Add shifts** (**Agregar turnos**) at a site with none. For each shift, type the **Shift name** (**Nombre del turno**), when it **Starts** (**Comienza**) and **Ends** (**Termina**), and its names **In Spanish** (**En español**) and **In French** (**En francés**). A shift that ends at or before it starts runs past midnight.
+3. Under **Days it starts on** (**Días en que empieza**), pick the days it runs, or none for every day. Use the up and down arrows to set the order, and untick **In use** (**En uso**) to take a shift out of use; it is kept, with its runs and check-offs. **Add a shift** (**Agregar un turno**) adds one, up to 12.
+4. Click **Save the shifts** (**Guardar los turnos**). Each shift keeps its own daily checklist from its start to its end. A daily item checked on one shift is due again on the next.
+5. To choose which shifts do a daily item, open the item on **Service Details** (**Detalles del servicio**), or click **Add Task** (**Agregar tarea**). Under **Shifts that do it each day** (**Turnos que la hacen cada día**) every shift is picked to start with; click a shift to leave it out, and save. The item's line then reads **Shifts: {0}** (**Turnos: {0}**) with the shifts that do it. An item in a shift block follows its block's shift.
+If it does not work: a name used twice, an end at the same time as the start, or a day the system does not know is refused, outlined in red with the reason under the list, and nothing is saved. A site with no shifts reads **This site has no named shifts. Its checklist is one list a day, as before.** (**Este sitio no tiene turnos con nombre. Su lista es una sola por día, como antes.**)
+Words people use for this: shifts, first shift, second shift, night shift, overnight shift, shift times, shift names in spanish, which shift does it, turnos.
+Picture: site-shifts
+Picture: task-shifts
+Last checked: 2026-11-10
+
+## Read a site's checklist by shift (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Checklist Results** (**Resultados de la lista**) and pick a site that has its own shifts. On one day, each shift's run has its own ring: the daily, per visit and every other day steps on that shift's list, done of due, counted inside the shift's hours.
+2. **Who worked: {0}** (**Quién trabajó: {0}**) names who started that shift and who checked its work, and **When the checks happened** (**Cuándo se hicieron las marcas**) draws its checks across its hours.
+3. Under **Tasks** (**Tareas**), each shift lists its own steps. A daily step an earlier shift did that day, and this shift has not, reads in grey **Done by {0} on the {1} shift at {2}. It is due again on this shift.** (**{0} la hizo a las {2} ({1}). Vuelve a tocar en este turno.**) It counts for the shift that did it.
+4. Weekly, monthly and other repeating work stays the site's for its period, under **Whole site** (**Todo el sitio**) and **Repeating work** (**Trabajo que se repite**).
+If it does not work: a site with no shifts of its own reads as before, by its shift blocks or as one list a day. An overnight shift's checks after midnight count on the day the shift began.
+Words people use for this: checklist by shift, first shift checklist, second shift, what did each shift do, shift ring, done by the last shift, resultados por turno.
+Picture: checklist-results-runs
+Last checked: 2026-11-10
+
+## Record a paper signature or a refusal (admin dashboard)
+Who can do this: admins, and the person who sent the warning to sign
+1. A warning sent to a person's phone can still be signed on a printed copy, or refused in front of you. Click **HR Records** (**Expedientes de personal**), then **Waiting for signatures** (**A la espera de firmas**), and open the warning's request.
+2. Click **Record a paper signature or a refusal** (**Registrar una firma en papel o un rechazo**). Under **What happened** (**Qué pasó**), pick that the person signed a printed copy, or that they refused to sign in person.
+3. For a refusal, type the **Witness (optional)** (**Testigo (opcional)**) who saw it, if one did.
+4. Choose the signed paper's photo or PDF, up to 10 MB, if you have one. It is kept privately with the warning.
+5. The window says what happens next: **Once saved, the request closes and the warning records it. Its final copy is emailed to {0}, with the issuer copied.** (**Al guardarlo, la solicitud se cierra y la advertencia lo registra. Su copia final se envía por correo a {0}, con copia a quien la emitió.**) Click **Record it** (**Registrarlo**).
+6. The request then reads **Signed** (**Firmado**) with **on paper** (**en papel**), or **Declined** (**Se negó a firmar**) with **Refused in person** (**Rechazado en persona**), and the window says whether the final copy was emailed. With no email on file it says **Recorded. No email on file, so the signed copy was not mailed. Deliver it another way.** (**Registrado. No hay correo registrado, así que la copia firmada no se envió. Entréguela de otra forma.**)
+If it does not work: only a warning's request can be recorded this way, while it is still waiting or not right; anything else is refused in the system's words under the form. A request entered by mistake is closed with **Cancel** (**Cancelar**) instead.
+Words people use for this: signed on paper, paper signature, printed copy, refused to sign in person, witnessed refusal, scan the signed warning, firma en papel.
+Picture: signature-paper
+Last checked: 2026-11-10
+
+## Tell the test site apart (admin dashboard)
+Who can do this: anyone who can see the sites
+1. One site is kept for the robot's run-throughs on the Health page. In **Sites** (**Sitios**) its name carries **TEST** (**PRUEBA**), and so does its page.
+2. Wherever a site is picked, such as **Checklist Results** (**Resultados de la lista**), a schedule, a task or a report, the test site reads with (**TEST** (**PRUEBA**)) after its name, the way a test account is marked.
+3. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export.
+Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
+Picture: sites-test-site
+Last checked: 2026-11-10

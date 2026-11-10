@@ -27,25 +27,25 @@
     },
     {
       "noCase": true,
-      "match": "^coverage page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records)$",
+      "match": "^coverage page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records|health)$",
       "finding": "DASH-71",
-      "shows": "Ten pages in PAGE_IDS have no entry in the inventory, so the pages suite never opens them: workspace, tickets, quotes, periodic, owner, library, equipment, discipline, clearances, chat-records.",
-      "why": "Added since Sept 28 (Steps 208 to 306) while the full audit was paused; the smoke check opens every side panel item instead.",
+      "shows": "Eleven pages in PAGE_IDS have no entry in the inventory, so the pages suite never opens them: workspace, tickets, quotes, periodic, owner, library, equipment, discipline, clearances, chat-records, health.",
+      "why": "Added since Sept 28 (Steps 208 to 306) while the full audit was paused; the smoke check opens every side panel item instead. Health (part 379) opens for the super admin alone, which the pages suite cannot hold a page to yet; the part379 suite opens it as the super admin and refuses it to the admin and the supervisor.",
       "where": "audit/inventory.js PAGES; src/App.js PAGE_IDS"
     },
     {
       "noCase": true,
-      "match": "^coverage page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records) in light$",
+      "match": "^coverage page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records|health) in light$",
       "finding": "DASH-71",
-      "shows": "The same 10 pages are driven in light mode by no case: the light-mode pass walks the pages the pages suite claims, and these 10 have no claim yet.",
+      "shows": "The same 11 pages are driven in light mode by no case: the light-mode pass walks the pages the pages suite claims, and these 11 have no claim yet.",
       "why": "The light-mode coverage row follows the page's own claim, so it comes off with the page's case.",
       "where": "audit/inventory.js PAGES; audit/cases/coverage.js (the light-mode rows)"
     },
     {
       "noCase": true,
-      "match": "^coverage views for page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records|training)$",
+      "match": "^coverage views for page (workspace|tickets|quotes|periodic|owner|library|equipment|discipline|clearances|chat-records|training|health)$",
       "finding": "DASH-71",
-      "shows": "Eleven pages have no view case: the ten above and Training.",
+      "shows": "Twelve pages have no view case: the eleven above and Training. The Health page's five tabs are driven by the part379 suite.",
       "why": "The views suite claims tabs and sub-screens page by page; none was written for these.",
       "where": "audit/inventory.js VIEWS"
     },
