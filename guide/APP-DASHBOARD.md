@@ -2656,7 +2656,7 @@ Last checked: 2026-10-18
 Who can do this: admins and supervisors
 1. Click **Checklist Results** (**Resultados de la lista**) in the side panel, under Operations. It opens on **All sites** (**Todos los sitios**) for **Today** (**Hoy**): a card for each site with its share of steps done and a small trend line. A card counts the steps the way the rings on the site's own page count them: the daily, per visit and every other day steps due. Click a site's card, or pick the site in **Site** (**Sitio**).
 2. Pick the days: **Today** (**Hoy**), **Yesterday** (**Ayer**), **Last 7 days** (**Últimos 7 días**), **This month** (**Este mes**), or **Pick dates** (**Elegir fechas**) for any one day or any dates up to 31 days, then **Show** (**Mostrar**). At a site with two shifts or more, **Shift** (**Turno**) shows one shift, or **All shifts** (**Todos los turnos**).
-3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**).
+3. On one day, each shift has a ring with the steps done of the steps due, its checks, the first and last check, and who worked. The steps counted are the daily and per visit ones; weekly and other repeating work is shown on its own, and work done as needed is never counted. Work tied to no shift is under **Any shift** (**Cualquier turno**). At a site with shifts of its own, each shift's run of the day has its own ring; see the entry on reading a site's checklist by shift.
 4. **When the checks happened** (**Cuándo se hicieron las marcas**) draws a bar for every 15 minutes of the shift, and the line under it says how many checks were made in the shift's last 30 minutes.
 5. **By zone** (**Por zona**) shows each zone's steps done of steps due; click a zone to show only its tasks. **Repeating work** (**Trabajo que se repite**) lists the weekly, monthly, quarterly and seasonal tasks with when and by whom each was last done and the day it is due by, as they stood on the day shown.
 6. **Tasks** (**Tareas**) lists every task by shift and zone: done or not, who and when, and every check when more than one person checked it. Tick **Not done only** (**Solo lo que no se hizo**), or type in **Search tasks** (**Buscar tareas**). **Download CSV** (**Descargar CSV**) saves the list as it is shown: day, shift, zone, task, done, who and when.
@@ -2668,7 +2668,7 @@ If it does not work: more than 31 days is refused, and the reason shows on the p
 Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-11-09
+Last checked: 2026-11-10
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors
@@ -2925,4 +2925,28 @@ Who can do this: the super admin, and anyone the super admin has given the Healt
 If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line.
 Words people use for this: health alerts, morning email, who gets the alerts, red alert, thresholds, alert lines, change the limits, alertas de salud.
 Picture: health-settings
+Last checked: 2026-11-10
+
+## Set a site's shifts (admin dashboard)
+Who can do this: people who manage sites change them; anyone who can see the site can read them
+1. Click **Sites** (**Sitios**) in the side panel, pick the site, and click the **Shifts & Schedule** (**Turnos y horario**) tab. **This site's shifts** (**Los turnos de este sitio**) lists each shift with when it **Starts** (**Comienza**) and **Ends** (**Termina**), the **Days** (**Días**) it runs, and its name **In Spanish** (**En español**) and **In French** (**En francés**), which is what the staff app shows in those languages.
+2. Click **Change the shifts** (**Cambiar los turnos**), or **Add shifts** (**Agregar turnos**) at a site with none. For each shift, type the **Shift name** (**Nombre del turno**), when it **Starts** (**Comienza**) and **Ends** (**Termina**), and its names **In Spanish** (**En español**) and **In French** (**En francés**). A shift that ends at or before it starts runs past midnight.
+3. Under **Days it starts on** (**Días en que empieza**), pick the days it runs, or none for every day. Use the up and down arrows to set the order, and untick **In use** (**En uso**) to take a shift out of use; it is kept, with its runs and check-offs. **Add a shift** (**Agregar un turno**) adds one, up to 12.
+4. Click **Save the shifts** (**Guardar los turnos**). Each shift keeps its own daily checklist from its start to its end. A daily item checked on one shift is due again on the next.
+5. To choose which shifts do a daily item, open the item on **Service Details** (**Detalles del servicio**), or click **Add Task** (**Agregar tarea**). Under **Shifts that do it each day** (**Turnos que la hacen cada día**) every shift is picked to start with; click a shift to leave it out, and save. The item's line then reads **Shifts: {0}** (**Turnos: {0}**) with the shifts that do it. An item in a shift block follows its block's shift.
+If it does not work: a name used twice, an end at the same time as the start, or a day the system does not know is refused, outlined in red with the reason under the list, and nothing is saved. A site with no shifts reads **This site has no named shifts. Its checklist is one list a day, as before.** (**Este sitio no tiene turnos con nombre. Su lista es una sola por día, como antes.**)
+Words people use for this: shifts, first shift, second shift, night shift, overnight shift, shift times, shift names in spanish, which shift does it, turnos.
+Picture: site-shifts
+Picture: task-shifts
+Last checked: 2026-11-10
+
+## Read a site's checklist by shift (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Checklist Results** (**Resultados de la lista**) and pick a site that has its own shifts. On one day, each shift's run has its own ring: the daily, per visit and every other day steps on that shift's list, done of due, counted inside the shift's hours.
+2. **Who worked: {0}** (**Quién trabajó: {0}**) names who started that shift and who checked its work, and **When the checks happened** (**Cuándo se hicieron las marcas**) draws its checks across its hours.
+3. Under **Tasks** (**Tareas**), each shift lists its own steps. A daily step an earlier shift did that day, and this shift has not, reads in grey **Done by {0} on the {1} shift at {2}. It is due again on this shift.** (**{0} la hizo a las {2} ({1}). Vuelve a tocar en este turno.**) It counts for the shift that did it.
+4. Weekly, monthly and other repeating work stays the site's for its period, under **Whole site** (**Todo el sitio**) and **Repeating work** (**Trabajo que se repite**).
+If it does not work: a site with no shifts of its own reads as before, by its shift blocks or as one list a day. An overnight shift's checks after midnight count on the day the shift began.
+Words people use for this: checklist by shift, first shift checklist, second shift, what did each shift do, shift ring, done by the last shift, resultados por turno.
+Picture: checklist-results-runs
 Last checked: 2026-11-10

@@ -39,6 +39,27 @@
 //   The scene healthEmpty answers what a server with nothing measured yet answers: no runs, no incidents, no
 //   reports, and every number null.
 //
+//   Section 2, shifts per site (routes/siteShifts.js, routes/sites.js, helpers/checklistRecord.js):
+//     GET /api/sites/:siteId/shifts       { shifts: [Shift] }, the active ones in sort order, display in the
+//                                         screen's language; [] at a site with none, which is every site
+//                                         until the scene shifts gives Lakeside Medical Plaza (s-2) two
+//     PUT /api/sites/:siteId/shifts       manage_sites, else 403; readBody's rules: at most 12, a label 1 to
+//                                         40 and used once among the active ones whatever its case, times
+//                                         HH:MM, an end equal to the start refused, days sun to sat, an id the
+//                                         site has; 400 siteShifts.badDetails with shifts.<n>.<field>, nothing
+//                                         written; an active shift left out is kept as inactive
+//     GET /api/sites/s-2/tasks            the scene's five items with shiftLabels, after the layers' own
+//     POST, PATCH /api/sites/s-2/tasks    shiftLabels checked against the site's labels, any case, at most
+//                                         10; else 400 tasks.badShiftLabels keys ["shiftLabels"]
+//     GET /api/sites/s-2/checklist-record each day's items and checks, and days[].shifts, one per shift whose
+//                                         run starts that day: due, the per visit, daily and every other day
+//                                         items on its list, and done, those checked inside its run. Today the
+//                                         First shift (6:00 AM to 2:00 PM) checked three of its three and the
+//                                         Second (2:00 PM to 10:00 PM) two of its three: the floor it was due
+//                                         again was checked by the First shift at 9:10 AM.
+//     GET /api/sites/s-2/shift-blocks/schedule  no blocks; GET /api/shift-sessions/by-site the two people,
+//                                         each on their shift
+//
 // Every value is invented: the people are the seed's, the commits made up, the routes the API's own patterns.
 "use strict";
 
@@ -375,17 +396,175 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 2: shifts per site ---------------------------------------------------------------------
+  const S2 = seed.SITES[1].id;
+  const at = (day, hm) => new Date(Date.parse(day + "T" + hm + ":00-04:00")).toISOString();
+  const TIME = /^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/;
+  const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  const SHIFTS_379 = [
+    { id: uid(301), label: "First", startTime: "06:00", endTime: "14:00", daysOfWeek: null, sortOrder: 0, es: "Primer turno", fr: "Premier quart" },
+    { id: uid(302), label: "Second", startTime: "14:00", endTime: "22:00", daysOfWeek: null, sortOrder: 1, es: "Segundo turno", fr: null },
+  ];
+  const ELENA = { name: "Elena Barbosa", initials: "EB" }, TOMASZ = { name: "Tomasz Wisniewski", initials: "TW" };
+  const TASKS_379 = [
+    { id: "t379-1", label: "Mop the clinic floor", es: "Trapear el piso de la cl\u00ednica", zone: "Clinic", zoneEs: "Cl\u00ednica", frequency: "daily", period: "today", shiftLabels: null, checks: [["09:10", ELENA]] },
+    { id: "t379-2", label: "Empty the trash", es: "Vaciar la basura", zone: "Clinic", zoneEs: "Cl\u00ednica", frequency: "daily", period: "today", shiftLabels: ["Second"], checks: [["15:20", TOMASZ]] },
+    { id: "t379-3", label: "Restock the restrooms", es: "Reponer los ba\u00f1os", zone: "Restrooms", zoneEs: "Ba\u00f1os", frequency: "daily", period: "today", shiftLabels: ["First"], checks: [["10:05", ELENA]] },
+    { id: "t379-4", label: "Wipe the door handles", es: "Limpiar las manijas", zone: "Lobby", zoneEs: "Vest\u00edbulo", frequency: "per_visit", period: "today", shiftLabels: null, checks: [["11:30", ELENA], ["16:00", TOMASZ]] },
+    { id: "t379-5", label: "Dust the vents", es: "Quitar el polvo de las rejillas", zone: "Lobby", zoneEs: "Vest\u00edbulo", frequency: "weekly", period: "weekly", shiftLabels: null, checks: [] },
+  ];
+  const shiftsAt = (siteId) => {
+    const x = m();
+    if (!x.siteShifts) x.siteShifts = {};
+    if (!x.siteShifts[siteId]) x.siteShifts[siteId] = siteId === S2 && x.scene.shifts ? SHIFTS_379.map((r) => Object.assign({ active: true, updatedAt: "2026-03-10T15:00:00.000Z", updatedBy: { id: seed.PEOPLE.admin.id, name: "Dana Whitlock" } }, r)) : [];
+    return x.siteShifts[siteId];
+  };
+  const labelsAt = (siteId) => shiftsAt(siteId).filter((r) => r.active).map((r) => r.label);
+  const shiftView = (r, lang) => {
+    const mins = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+    return { id: r.id, label: r.label, display: (lang === "es" && r.es) || r.label, startTime: r.startTime, endTime: r.endTime, crossesMidnight: mins(r.endTime) <= mins(r.startTime),
+      daysOfWeek: r.daysOfWeek || null, sortOrder: r.sortOrder, active: r.active !== false, translations: { es: r.es || null, fr: r.fr || null }, updatedAt: r.updatedAt, updatedBy: r.updatedBy || null };
+  };
+  const shiftsAnswer = (siteId, lang) => ok({ shifts: shiftsAt(siteId).filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder).map((r) => shiftView(r, lang)) });
+  const BAD_SHIFTS = (lang, keys) => bad(400, "siteShifts.badDetails", T(lang, "Some shift details are missing or not valid. Each shift needs a name used once, a start and an end time that differ, and days as sun to sat.", "Faltan algunos datos del turno o no son v\u00e1lidos. Cada turno necesita un nombre que no se repita, una hora de inicio y una de fin distintas, y d\u00edas de sun a sat."), { keys });
+  // routes/siteShifts.js readBody, as written.
+  function readShifts(siteId, b) {
+    const body = b && typeof b === "object" && !Array.isArray(b) ? b : {};
+    if (!Array.isArray(body.shifts) || body.shifts.length > 12) return { keys: ["shifts"] };
+    const mine = shiftsAt(siteId);
+    const keys = [];
+    const seen = new Set();
+    const out = body.shifts.map((raw, n) => {
+      const k = "shifts." + n + ".";
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) { keys.push("shifts." + n); return null; }
+      const item = {};
+      if (raw.id !== undefined && raw.id !== null) { if (!mine.some((r) => r.id === raw.id) || seen.has(raw.id)) keys.push(k + "id"); else { item.id = raw.id; seen.add(raw.id); } }
+      item.label = typeof raw.label === "string" ? raw.label.trim().replace(/\s+/g, " ") : "";
+      if (!item.label || item.label.length > 40) keys.push(k + "label");
+      ["startTime", "endTime"].forEach((f) => { const v = typeof raw[f] === "string" ? raw[f].trim() : ""; if (!TIME.test(v)) keys.push(k + f); item[f] = v.slice(0, 5); });
+      if (item.startTime && item.startTime === item.endTime) keys.push(k + "endTime");
+      const days = raw.daysOfWeek === undefined || raw.daysOfWeek === null ? null : (Array.isArray(raw.daysOfWeek) ? raw.daysOfWeek : String(raw.daysOfWeek).split(",")).map((x) => String(x).trim().toLowerCase());
+      if (days && (!days.length || days.some((x) => DAYS.indexOf(x) < 0))) keys.push(k + "daysOfWeek");
+      item.daysOfWeek = days && days.length ? days.join(",") : null;
+      item.sortOrder = raw.sortOrder === undefined || raw.sortOrder === null ? n : raw.sortOrder;
+      if (!Number.isInteger(item.sortOrder) || item.sortOrder < 0 || item.sortOrder > 1000) keys.push(k + "sortOrder");
+      item.active = raw.active === undefined ? true : raw.active;
+      if (typeof item.active !== "boolean") keys.push(k + "active");
+      const tr0 = raw.translations || {};
+      if (typeof tr0 !== "object" || Array.isArray(tr0) || Object.keys(tr0).some((l) => (l !== "es" && l !== "fr") || (tr0[l] !== null && (typeof tr0[l] !== "string" || tr0[l].trim().length > 40)))) keys.push(k + "translations");
+      item.es = typeof tr0.es === "string" && tr0.es.trim() ? tr0.es.trim() : null;
+      item.fr = typeof tr0.fr === "string" && tr0.fr.trim() ? tr0.fr.trim() : null;
+      return item;
+    });
+    const active = out.filter((x) => x && x.active && x.label);
+    const lower = active.map((x) => x.label.toLowerCase());
+    lower.forEach((l, i) => { if (lower.indexOf(l) !== i) keys.push("shifts." + out.indexOf(active[i]) + ".label"); });
+    return keys.length ? { keys: Array.from(new Set(keys)) } : { shifts: out };
+  }
+  const BAD_LABELS = (lang) => bad(400, "tasks.badShiftLabels", T(lang, "Choose shifts this site has, or none for every shift.", "Elija turnos que tenga este sitio, o ninguno para todos los turnos."), { keys: ["shiftLabels"] });
+  const labelsOk = (siteId, v) => v === undefined || v === null || (Array.isArray(v) && v.length <= 10 && v.every((x) => typeof x === "string" && labelsAt(siteId).some((l) => l.toLowerCase() === x.trim().toLowerCase())));
+  const taskRow = (tk, lang) => ({ id: tk.id, site_id: S2, label: tk.label, zone: tk.zone, priority: "standard", cims_category: "SD", frequency: tk.frequency, building_name: null, floor_number: null, description: "", media_url: null, site_shift_block_id: null, shift_label: null,
+    display: { label: T(lang, tk.label, tk.es), zone: T(lang, tk.zone, tk.zoneEs) }, shiftLabels: (m().taskLabels || {})[tk.id] !== undefined ? m().taskLabels[tk.id] : tk.shiftLabels, shownToday: true, dueToday: true, doneThisPeriod: false, checkedToday: false });
+  // The record's day: every item due, its checks that day, and each run's count.
+  function recordDay(day, lang) {
+    const today = day === TODAY;
+    const labelsOf = (tk) => { const v = (m().taskLabels || {})[tk.id] !== undefined ? m().taskLabels[tk.id] : tk.shiftLabels; return Array.isArray(v) ? v : []; };
+    const items = TASKS_379.map((tk) => {
+      const checks = today ? tk.checks.map(([hm, who]) => ({ completedAt: at(day, hm), completedBy: who, notes: null })) : [];
+      return { taskId: tk.id, zone: tk.zone, building: null, floor: null, label: tk.label, display: { label: T(lang, tk.label, tk.es), zone: T(lang, tk.zone, tk.zoneEs) }, frequency: tk.frequency, shift: null, period: tk.period,
+        priority: "standard", touchpoint: false, critical: false, due: true, done: checks.length > 0, completedAt: checks.length ? checks[0].completedAt : null, completedBy: checks.length ? checks[0].completedBy : null, notes: null, checks };
+    });
+    const shifts = shiftsAt(S2).filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder).map((r) => {
+      const from = Date.parse(at(day, r.startTime)), to = Date.parse(at(day, r.endTime));
+      const mine = TASKS_379.filter((tk) => tk.period === "today" && (!labelsOf(tk).length || labelsOf(tk).indexOf(r.label) >= 0));
+      const done = mine.filter((tk) => today && tk.checks.some(([hm]) => { const x = Date.parse(at(day, hm)); return x >= from && x < to; }));
+      return { label: r.label, due: mine.length, done: done.length };
+    });
+    return { date: day, shift: null, items, shifts };
+  }
+
+  function shiftsRoute(method, path, query, body, lang, base) {
+    const sh = /^\/api\/sites\/([^/]+)\/shifts$/.exec(path);
+    if (sh) {
+      const siteId = decodeURIComponent(sh[1]);
+      if (!seed.SITES.some((x) => x.id === siteId)) return bad(404, "sites.notFound", T(lang, "Site not found", "No se encontr\u00f3 el sitio"));
+      if (method === "GET") return shiftsAnswer(siteId, lang);
+      if (method !== "PUT") return null;
+      sent("shifts:" + siteId, body);
+      if (!(me() && (me().role === "admin" || me().isSuperAdmin))) return bad(403, "access.insufficientPermissions", T(lang, "Insufficient permissions", "No tiene permiso para hacer esto"), { capability: "manage_sites" });
+      const read = readShifts(siteId, body);
+      if (read.keys) return BAD_SHIFTS(lang, read.keys);
+      const mine = shiftsAt(siteId);
+      const named = new Set(read.shifts.filter((x) => x.id).map((x) => x.id));
+      mine.forEach((r) => { if (!named.has(r.id) && r.active) { r.active = false; r.updatedAt = seed.NOW_ISO; } });
+      read.shifts.forEach((x) => {
+        const row = x.id ? mine.find((r) => r.id === x.id) : null;
+        const next = { label: x.label, startTime: x.startTime, endTime: x.endTime, daysOfWeek: x.daysOfWeek, sortOrder: x.sortOrder, active: x.active, es: x.es, fr: x.fr, updatedAt: seed.NOW_ISO, updatedBy: { id: me().id, name: nameOf(me()) } };
+        if (row) Object.assign(row, next); else mine.push(Object.assign({ id: uid(310 + mine.length) }, next));
+      });
+      return shiftsAnswer(siteId, lang);
+    }
+    const tasks = /^\/api\/sites\/([^/]+)\/tasks(?:\/([^/]+))?$/.exec(path);
+    if (tasks && decodeURIComponent(tasks[1]) === S2 && m().scene.shifts) {
+      if (method === "GET" && !tasks[2]) {
+        const a = base();
+        const rows = a && a.status === 200 && Array.isArray(a.json) ? a.json.map((r) => Object.assign({ shiftLabels: null }, r)) : [];
+        return ok(rows.concat(TASKS_379.map((tk) => taskRow(tk, lang))));
+      }
+      if (method === "POST" && !tasks[2]) {
+        sent("task:new", body);
+        if (!labelsOk(S2, body && body.shiftLabels)) return BAD_LABELS(lang);
+        return base();
+      }
+      if (method === "PATCH" && tasks[2]) {
+        sent("task:" + tasks[2], body);
+        if (!labelsOk(S2, body && body.shiftLabels)) return BAD_LABELS(lang);
+        const tk = TASKS_379.find((x) => x.id === decodeURIComponent(tasks[2]));
+        if (tk) {
+          if (body && Object.prototype.hasOwnProperty.call(body, "shiftLabels")) { if (!m().taskLabels) m().taskLabels = {}; m().taskLabels[tk.id] = Array.isArray(body.shiftLabels) && body.shiftLabels.length ? body.shiftLabels.slice() : null; }
+          return ok({ task: taskRow(tk, lang) });
+        }
+        return base();
+      }
+    }
+    if (!m().scene.shifts) return null;
+    if (path === "/api/sites/" + S2 + "/shift-blocks/schedule" && method === "GET") return ok({ siteId: S2, day: query.get("date") || TODAY, shifts: [], blocks: [] });
+    if (path === "/api/sites/" + S2 + "/checklist-record" && method === "GET") {
+      const from = query.get("from"), to = query.get("to");
+      if (!isDay(from) || !isDay(to) || to < from) return bad(400, "records.badRange", T(lang, "Choose a range of days", "Elija un rango de d\u00edas"), { keys: ["from", "to"] });
+      const days = [];
+      for (let d = from; d <= to && days.length < 32; d = addDays(d, 1)) days.push(recordDay(d, lang));
+      return ok({ site: { id: S2, name: seed.SITES[1].name }, from, to, shift: null, touchpointOnly: false, days });
+    }
+    if (path === "/api/shift-sessions/by-site" && method === "GET") {
+      const a = base();
+      if (!a || a.status !== 200 || !a.json || !Array.isArray(a.json.sites)) return a;
+      const day = query.get("date") || query.get("start_date") || TODAY;
+      const people = day !== TODAY ? [] : [
+        { userId: "u-staff-7", name: ELENA.name, shiftLabel: "First", startedAt: at(TODAY, "05:58"), endedAt: at(TODAY, "14:04"), sessionDate: TODAY, endNote: null },
+        { userId: "u-staff-5", name: TOMASZ.name, shiftLabel: "Second", startedAt: at(TODAY, "13:55"), endedAt: null, sessionDate: TODAY, endNote: null },
+      ];
+      a.json = Object.assign({}, a.json, { sites: a.json.sites.filter((x) => String(x.siteId) !== S2).concat(people.length ? [{ siteId: S2, siteName: seed.SITES[1].name, notTracked: false, people }] : []) });
+      return a;
+    }
+    if (path === "/api/periodic-work" && method === "GET" && query.get("siteId") === S2) return ok({ items: [] });
+    return null;
+  }
+
   function route(method, path, query, body, lang, base) {
     const a = permissionsRoute(method, path, body, lang, base);
     if (a) return a;
     const h = healthRoute(method, path, query, body, lang);
     if (h) return h;
+    const sh = shiftsRoute(method, path, query, body, lang, base);
+    if (sh) return sh;
     return base();
   }
 
   return {
     route,
-    setScene: (o) => { Object.assign(m().scene, o || {}); if (o && o.grants) Object.assign(m().grants, o.grants); },
+    // A scene that turns shifts on or off starts the site's shifts and the tasks' labels over.
+    setScene: (o) => { Object.assign(m().scene, o || {}); if (o && o.grants) Object.assign(m().grants, o.grants); if (o && Object.prototype.hasOwnProperty.call(o, "shifts")) { m().siteShifts = null; m().taskLabels = null; } },
     sent: () => m().sent,
     model: () => m(),
     reset: () => { model = null; },

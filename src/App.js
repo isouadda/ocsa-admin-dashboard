@@ -3521,6 +3521,116 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 }
 
 
+// ===== A SITE'S SHIFTS (part 379, against the API's Round 9, part 374) =====
+// The named shifts a site's daily checklist runs in, read from GET /api/sites/:siteId/shifts by anyone who
+// can read the site, and replaced as a set by PUT with manage_sites: { shifts: [{ id?, label, startTime,
+// endTime, daysOfWeek, sortOrder, active, translations: { es, fr } }] }. A shift named by its id is changed,
+// one with no id is added, and an active shift left out, or sent with active false, is kept as inactive.
+// An end at or before the start runs past midnight; the API refuses an end equal to the start, a name used
+// twice, and more than 12, with 400 siteShifts.badDetails naming shifts.<n>.<field>. The Spanish and French
+// names are what the staff app shows in those languages. A site with no shifts works as before: one list a
+// day, from the checklist day's start.
+const SHIFT_DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const SHIFT_DAY_WORDS = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
+const shiftDaysOf = (v) => (Array.isArray(v) ? v : String(v || "").split(",")).map(x => String(x).trim().toLowerCase()).filter(x => SHIFT_DAYS.indexOf(x) >= 0);
+const shiftDaysText = (v) => { const d = shiftDaysOf(v); return d.length === 0 || d.length === 7 ? tr("Every day") : d.map(x => tr(SHIFT_DAY_WORDS[x])).join(", "); };
+const shiftTimeText = (hm) => (hm ? patternTime(String(hm).slice(0, 5)) : "--");
+// The shift's name in the screen's language: the display the API answers in it, else the label.
+const siteShiftName = (s) => (s && (s.display || s.label)) || "";
+function SiteShiftsPanel({ af, t, siteId, canEdit, onRead }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [draft, setDraft] = useState(null);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const read = useCallback(() => af("/api/sites/" + encodeURIComponent(siteId) + "/shifts")
+    .then(d => { const l = d && Array.isArray(d.shifts) ? d.shifts : []; setList(l); setFailed(""); if (onRead) onRead(l); })
+    .catch(e => { setList(null); setFailed(e.message || tr("This did not load.")); }), [af, siteId, onRead]);
+  useEffect(() => { read(); }, [read]);
+  const edit = () => { setSaid(null); setDraft((list || []).map(s => ({ id: s.id, label: s.label, startTime: s.startTime || "", endTime: s.endTime || "", days: shiftDaysOf(s.daysOfWeek), es: (s.translations && s.translations.es) || "", fr: (s.translations && s.translations.fr) || "", active: true }))); };
+  const setRow = (i, k, v) => { setDraft(d => d.map((r, j) => (j === i ? { ...r, [k]: v } : r))); setSaid(null); };
+  const move = (i, by) => setDraft(d => { const n = d.slice(); const j = i + by; if (j < 0 || j >= n.length) return d; const x = n[i]; n[i] = n[j]; n[j] = x; return n; });
+  const save = once(async () => {
+    const body = { shifts: draft.map((r, i) => ({ ...(r.id ? { id: r.id } : {}), label: r.label.trim(), startTime: r.startTime, endTime: r.endTime, daysOfWeek: r.days.length && r.days.length < 7 ? SHIFT_DAYS.filter(x => r.days.indexOf(x) >= 0).join(",") : null, sortOrder: i, active: r.active !== false, translations: { es: r.es.trim() || null, fr: r.fr.trim() || null } })) };
+    try {
+      const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/shifts", { method: "PUT", body });
+      const l = d && Array.isArray(d.shifts) ? d.shifts : [];
+      setList(l); setDraft(null); setSaid({ ok: true, text: l.length ? tr("Saved. The staff app reads these shifts from the next shift started.") : tr("Saved. This site has no shifts now.") });
+      if (onRead) onRead(l);
+    } catch (e) { setSaid({ ok: false, keys: refusalKeys(e), text: e.message || tr("Request failed") }); }
+  });
+  const bad = (i, k) => !!(said && !said.ok && (said.keys || []).some(x => x === "shifts." + i + "." + k || (k === "label" && x === "shifts." + i) || (i === -1 && x === "shifts")));
+  const red = (on) => (on ? { borderColor: RD } : {});
+  const head = { fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: ".5px", fontWeight: 600, padding: "6px 8px", textAlign: "left" };
+  const cell = { padding: "8px", fontSize: 13, color: t.text, borderTop: "1px solid " + t.border, verticalAlign: "top" };
+  return (<Crd t={t} style={{ marginBottom: 16 }}><div data-site-shifts={list ? String(list.length) : ""}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("This site's shifts")}</div>
+      {canEdit && list && !draft ? <Btn t={t} v="ghost" data-site-shifts-edit="" onClick={edit} style={{ minHeight: 44, padding: "0 14px" }}>{list.length ? tr("Change the shifts") : tr("Add shifts")}</Btn> : null}
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10 }}>{tr("Each shift keeps its own daily checklist from its start to its end, past midnight too. A daily item checked on one shift is due again on the next.")}</div>
+    {failed ? <LoadFailed t={t} onRetry={read} text={failed} /> : list === null ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+      : !draft ? (list.length === 0 ? <div data-site-shifts-none="" style={{ fontSize: 13, color: t.textMut }}>{tr("This site has no named shifts. Its checklist is one list a day, as before.")}</div>
+        : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr><th style={head}>{tr("Shift")}</th><th style={head}>{tr("Starts")}</th><th style={head}>{tr("Ends")}</th><th style={head}>{tr("Days")}</th><th style={head}>{tr("In Spanish")}</th><th style={head}>{tr("In French")}</th></tr></thead>
+          <tbody>{list.map(s => <tr key={s.id} data-site-shift={s.label}>
+            <td style={cell}><div style={{ fontWeight: 600 }}>{siteShiftName(s)}</div>{s.updatedBy && s.updatedBy.name ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Changed by {0} on {1}", s.updatedBy.name, irWhen(s.updatedAt))}</div> : null}</td>
+            <td style={cell}>{shiftTimeText(s.startTime)}</td>
+            <td style={cell}>{shiftTimeText(s.endTime)}{s.crossesMidnight ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("the next day")}</div> : null}</td>
+            <td style={cell}>{shiftDaysText(s.daysOfWeek)}</td>
+            <td style={cell}>{(s.translations && s.translations.es) || <span style={{ color: t.textMut }}>{tr("Same as English")}</span>}</td>
+            <td style={cell}>{(s.translations && s.translations.fr) || <span style={{ color: t.textMut }}>{tr("Same as English")}</span>}</td>
+          </tr>)}</tbody>
+        </table></div>)
+      : <div data-site-shifts-draft="">
+        {draft.map((r, i) => (<div key={r.id || "new" + i} data-site-shift-row={i} style={{ border: "1px solid " + t.border, borderRadius: R.sm, padding: 10, marginBottom: 8, opacity: r.active === false ? 0.6 : 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
+            <div><Lbl>{tr("Shift name")}</Lbl><Inp t={t} data-site-shift-field={i + ".label"} aria-label={tr("Shift name")} maxLength={40} value={r.label} onChange={e => setRow(i, "label", e.target.value)} style={red(bad(i, "label"))} /></div>
+            <div><Lbl>{tr("Starts")}</Lbl><Inp t={t} type="time" data-site-shift-field={i + ".startTime"} aria-label={tr("Starts")} value={r.startTime} onChange={e => setRow(i, "startTime", e.target.value)} style={red(bad(i, "startTime"))} /></div>
+            <div><Lbl>{tr("Ends")}</Lbl><Inp t={t} type="time" data-site-shift-field={i + ".endTime"} aria-label={tr("Ends")} value={r.endTime} onChange={e => setRow(i, "endTime", e.target.value)} style={red(bad(i, "endTime"))} /></div>
+            <div><Lbl>{tr("In Spanish")}</Lbl><Inp t={t} data-site-shift-field={i + ".es"} aria-label={tr("In Spanish")} maxLength={40} value={r.es} onChange={e => setRow(i, "es", e.target.value)} style={red(bad(i, "translations"))} /></div>
+            <div><Lbl>{tr("In French")}</Lbl><Inp t={t} data-site-shift-field={i + ".fr"} aria-label={tr("In French")} maxLength={40} value={r.fr} onChange={e => setRow(i, "fr", e.target.value)} style={red(bad(i, "translations"))} /></div>
+          </div>
+          <div style={{ marginTop: 8 }}><Lbl>{tr("Days it starts on")}</Lbl>
+            <div data-site-shift-days={i} style={{ display: "flex", gap: 6, flexWrap: "wrap", ...(bad(i, "daysOfWeek") ? { outline: "1px solid " + RD, borderRadius: 6 } : {}) }}>
+              {SHIFT_DAYS.map(x => { const on = r.days.indexOf(x) >= 0; return <button key={x} type="button" aria-pressed={on} data-site-shift-day={x} onClick={() => setRow(i, "days", on ? r.days.filter(y => y !== x) : r.days.concat([x]))} style={crPill(t, on)}>{tr(SHIFT_DAY_WORDS[x])}</button>; })}
+            </div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("No day picked means every day.")}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+            <Btn t={t} v="ghost" aria-label={tr("Move up")} onClick={() => move(i, -1)} disabled={i === 0} style={{ minHeight: 44, padding: "0 12px" }}>{"\u2191"}</Btn>
+            <Btn t={t} v="ghost" aria-label={tr("Move down")} onClick={() => move(i, 1)} disabled={i === draft.length - 1} style={{ minHeight: 44, padding: "0 12px" }}>{"\u2193"}</Btn>
+            {r.id ? <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: t.text, minHeight: 44 }}><input type="checkbox" data-site-shift-active={i} checked={r.active !== false} onChange={e => setRow(i, "active", e.target.checked)} style={{ width: 20, height: 20 }} />{tr("In use")}</label>
+              : <Btn t={t} v="ghost" onClick={() => setDraft(d => d.filter((_, j) => j !== i))} style={{ minHeight: 44, padding: "0 12px", color: RD }}>{tr("Remove")}</Btn>}
+          </div>
+        </div>))}
+        <Btn t={t} v="ghost" data-site-shift-add="" onClick={() => setDraft(d => d.concat([{ label: "", startTime: "", endTime: "", days: [], es: "", fr: "", active: true }]))} disabled={draft.length >= 12} style={{ minHeight: 44 }}>{tr("Add a shift")}</Btn>
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("A shift that ends at or before it starts runs past midnight. A shift taken out of use is kept, with its runs and check-offs.")}</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}><Btn t={t} data-site-shifts-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save the shifts")}</Btn><Btn t={t} v="ghost" onClick={() => { setDraft(null); setSaid(null); }}>{tr("Cancel")}</Btn></div>
+      </div>}
+    {said ? <div data-site-shifts-said={said.ok ? "saved" : "refused"} role={said.ok ? "status" : "alert"} style={{ fontSize: 12, color: said.ok ? GR : RD, marginTop: 8, lineHeight: 1.5 }}>{said.text}</div> : null}
+  </div></Crd>);
+}
+// Which shifts a daily item is done on (the task's shiftLabels), for Add Task and Edit Task at a site with
+// named shifts: every shift by default, sent as null; the ones ticked otherwise. An item in a block follows
+// its block's shift.
+function TaskShiftsPick({ t, shifts = [], value, onChange, inBlock = false }) {
+  if (!shifts.length) return null;
+  if (inBlock) return <div data-task-shifts="block" style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("This item is in a shift block, so it follows the block's shift.")}</div>;
+  const all = !Array.isArray(value) || value.length === 0;
+  const on = (l) => all || value.indexOf(l) >= 0;
+  const flip = (l) => {
+    const cur = all ? shifts.map(s => s.label) : value.slice();
+    const next = cur.indexOf(l) >= 0 ? cur.filter(x => x !== l) : cur.concat([l]);
+    onChange(next.length === 0 || next.length === shifts.length ? null : shifts.map(s => s.label).filter(x => next.indexOf(x) >= 0));
+  };
+  return (<div data-task-shifts={all ? "all" : value.join(",")} style={{ marginBottom: 12 }}>
+    <Lbl>{tr("Shifts that do it each day")}</Lbl>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{shifts.map(s => <button key={s.label} type="button" aria-pressed={on(s.label)} data-task-shift={s.label} onClick={() => flip(s.label)} style={crPill(t, on(s.label))}>{siteShiftName(s)}</button>)}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{all ? tr("Every shift does it.") : tr("Only the shifts picked do it. Weekly and longer work stays the site's for its period.")}</div>
+  </div>);
+}
+
 // ===== SHIFT NAMES (Step 196) =====
 // A site's shift blocks, the named blocks within each shift that its checklist is grouped under,
 // read from GET /api/sites/:siteId/shift-blocks by anyone who can read the site. A holder of
@@ -3896,6 +4006,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const [addSite, setAddSite] = useState(null);
   const [addTask, setAddTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
+  // The site's named shifts (part 379), read with the site, for Add Task and Edit Task and the Shifts tab.
+  const [siteShifts, setSiteShifts] = useState([]);
   // Shown in Spanish as (Step 185): the Spanish the portal draws today for the item being edited,
   // read from the same list with locale=es so each display field carries it, editable, and saved
   // through PATCH /api/sites/:siteId/tasks/:taskId/translations as { locale, field, text }, one
@@ -4014,6 +4126,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     setTimeline([]);
     setTlNext("");
     setTlCat("all");
+    setSiteShifts([]);
+    af("/api/sites/" + encodeURIComponent(siteId) + "/shifts").then(d => setSiteShifts(d && Array.isArray(d.shifts) ? d.shifts : [])).catch(() => setSiteShifts([]));
     try {
       const p = await af("/api/sites/profile/" + siteId);
       gotProfile(p);
@@ -4175,7 +4289,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const submitTask = onceTask(async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
-      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, serviceCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, serviceCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}), ...(siteShifts.length ? { shiftLabels: addTask.shifts || null } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
@@ -4193,7 +4307,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   };
   const submitEditTask = async () => {
     try {
-      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, serviceCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, serviceCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}), ...(siteShifts.length && !editTask.inBlock ? { shiftLabels: editTask.shifts || null } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
@@ -4536,12 +4650,13 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })}>
+            <div data-site-task={tk.id} style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true, shifts: Array.isArray(tk.shiftLabels) && tk.shiftLabels.length ? tk.shiftLabels : null, inBlock: !!tk.site_shift_block_id })}>
               <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}{tk.critical === true && <Bdg l={tr("Critical|touchpoint")} c={RD} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(catOf(tk), cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
+              {siteShifts.length > 0 && Array.isArray(tk.shiftLabels) && tk.shiftLabels.length > 0 && <div data-site-task-shifts={tk.shiftLabels.join(",")} style={{ fontSize: 10, color: t.textSec, marginTop: 2 }}>{tr("Shifts: {0}", tk.shiftLabels.map(l => siteShiftName(siteShifts.find(x => x.label === l) || { label: l })).join(", "))}</div>}
             </div>
             {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: catOf(tk), desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true, shifts: Array.isArray(tk.shiftLabels) && tk.shiftLabels.length ? tk.shiftLabels : null, inBlock: !!tk.site_shift_block_id })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
             </div>}
           </div>
@@ -4551,6 +4666,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
 
       {/* SHIFTS & SCHEDULE TAB */}
       {siteTab === "shifts" && <div>
+        <SiteShiftsPanel key={selectedSite} af={af} t={t} siteId={selectedSite} canEdit={canManageSites} onRead={setSiteShifts} />
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Marketplace Coverage (Last 30 Days)")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -4800,6 +4916,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
         {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v, crit: v ? addTask.crit : false })} />}
         {critLive && addTask.touch && <CriticalToggle t={t} on={addTask.crit} onChange={v => setAddTask({ ...addTask, crit: v })} />}
+        <TaskShiftsPick t={t} shifts={siteShifts} value={addTask.shifts} onChange={v => setAddTask({ ...addTask, shifts: v })} />
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><PersonPick t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask} disabled={taskBusy}>{tr("Create")}</Btn></div></div></Mdl>}
 
@@ -4824,6 +4941,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         </div>}
         {touchLive && <TouchpointToggle t={t} on={editTask.touch} onChange={v => setEditTask({ ...editTask, touch: v, crit: v ? editTask.crit : false })} />}
         {critLive && editTask.touch && <CriticalToggle t={t} on={editTask.crit} onChange={v => setEditTask({ ...editTask, crit: v })} />}
+        <TaskShiftsPick t={t} shifts={siteShifts} value={editTask.shifts} inBlock={editTask.inBlock} onChange={v => setEditTask({ ...editTask, shifts: v })} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
@@ -5102,7 +5220,13 @@ function crWhoWorked(g, people, multi) {
 // order, then any other the record names, and an item with no shift under Any shift.
 async function crReadSite(af, siteId, from, to, today) {
   const sid = encodeURIComponent(siteId);
-  const sched = await af("/api/sites/" + sid + "/shift-blocks/schedule?date=" + to).catch(() => null);
+  const [sched, named] = await Promise.all([
+    af("/api/sites/" + sid + "/shift-blocks/schedule?date=" + to).catch(() => null),
+    af("/api/sites/" + sid + "/shifts").then(d => (d && Array.isArray(d.shifts) ? d.shifts : [])).catch(() => []),
+  ]);
+  // Part 379: a site with named shifts (the API's Round 9) reads each shift's run of a day on its own.
+  const runs = named.filter(s => s && s.label && s.active !== false && s.startTime);
+  if (runs.length) return crReadRuns(af, siteId, from, to, today, runs);
   const shifts = (sched && Array.isArray(sched.shifts) ? sched.shifts : []).filter(s => s && s.label);
   const multi = shifts.length >= 2;
   const oneDay = from === to;
@@ -5131,6 +5255,72 @@ async function crReadSite(af, siteId, from, to, today) {
   const people = (mine && Array.isArray(mine.people) ? mine.people : []).filter(p => !p.sessionDate || p.sessionDate === from);
   return { notTracked: false, site: rec.site || null, shifts, days, multi, people, periodic };
 }
+// A site with named shifts (part 379, the API's Round 9, part 374): GET /api/sites/:siteId/shifts names them,
+// each with its start and end on the company's clock, the end on the next day when crossesMidnight, and the
+// days a run may start on. A shift's run of a day is its own group, with its own ring: the per visit, daily
+// and every other day items on the shift's list (an item in a block is its block's shift's; else the
+// task's shiftLabels from GET /api/sites/:siteId/tasks, none meaning every shift), each done when it was
+// checked inside the run's window, and the ring's count the record's days[].shifts answers for the run.
+// A daily item an earlier run of the day checked, and this run has not, carries earlier: who checked it,
+// when and on which shift, drawn as a grey line; it counts for that shift. Weekly to seasonal and as
+// needed work stays the site's for its period, under Whole site. An overnight run's checks after the
+// checklist day's start fall on the next day's record, so the day after is read too, inside the 31 days.
+const crWeekday = (day) => SHIFT_DAYS[new Date(day + "T12:00:00Z").getUTCDay()];
+const crRunsOn = (s, day) => { const d = shiftDaysOf(s.daysOfWeek); return d.length === 0 || d.indexOf(crWeekday(day)) >= 0; };
+async function crReadRuns(af, siteId, from, to, today, named) {
+  const sid = encodeURIComponent(siteId);
+  const oneDay = from === to;
+  const shifts = named.map(s => ({ label: s.label, displayLabel: siteShiftName(s), startTime: String(s.startTime).slice(0, 5), endTime: String(s.endTime || "").slice(0, 5), crossesMidnight: s.crossesMidnight === true, daysOfWeek: s.daysOfWeek || null }));
+  const upTo = shifts.some(s => s.crossesMidnight) && crDaysIn(from, to).length < 31 ? crAddDays(to, 1) : to;
+  const [rec, tasks, board, periodic] = await Promise.all([
+    af("/api/sites/" + sid + "/checklist-record?from=" + from + "&to=" + upTo),
+    af("/api/sites/" + sid + "/tasks" + EVERY_ITEM).catch(() => []),
+    oneDay ? af("/api/shift-sessions/by-site" + (from === today ? "?date=" + from : "?start_date=" + from + "&end_date=" + from)).catch(() => null) : null,
+    oneDay ? af("/api/periodic-work?siteId=" + sid + "&on=" + from).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
+  ]);
+  if (!rec || typeof rec !== "object") throw new Error(tr("This did not load."));
+  if (rec.notTracked === true) return { notTracked: true, shifts, days: [], people: [], periodic: null, multi: true, runs: true };
+  if (!Array.isArray(rec.days)) throw new Error(tr("This did not load."));
+  const labelsOf = {};
+  (Array.isArray(tasks) ? tasks : []).forEach(tk => { if (tk && tk.id != null) labelsOf[String(tk.id)] = Array.isArray(tk.shiftLabels) ? tk.shiftLabels : []; });
+  const onList = (i, l) => (i.shift ? i.shift === l : !(labelsOf[String(i.taskId)] || []).length || labelsOf[String(i.taskId)].indexOf(l) >= 0);
+  // Every check of each item over the days read, oldest first.
+  const every = {};
+  rec.days.forEach(d => (d && Array.isArray(d.items) ? d.items : []).forEach(i => {
+    const k = String(i.taskId);
+    keptChecks(i).forEach(c => { const at = Date.parse(c.completedAt); if (Number.isFinite(at) && !(every[k] || []).some(x => x.at === at)) (every[k] = every[k] || []).push(Object.assign({}, c, { at })); });
+  }));
+  Object.keys(every).forEach(k => every[k].sort((a, b) => a.at - b.at));
+  const days = crDaysIn(from, to).map(date => {
+    const d0 = rec.days.find(x => x && x.date === date);
+    const items = d0 && Array.isArray(d0.items) ? d0.items : [];
+    const counts = d0 && Array.isArray(d0.shifts) ? d0.shifts : [];
+    const on = shifts.filter(s => crRunsOn(s, date)).map(s => ({ s, win: crShiftWindow(s, date) }));
+    const groups = on.map(({ s, win }) => {
+      const before = on.filter(x => x.s !== s && x.win && x.win.start < win.start);
+      const mine = items.filter(i => crKind(i) === "today" && onList(i, s.label)).map(i => {
+        const all = every[String(i.taskId)] || [];
+        const inRun = all.filter(c => c.at >= win.start && (!win.end || c.at < win.end));
+        let earlier = null;
+        if (!inRun.length && i.frequency === "daily") before.forEach(x => {
+          const hit = all.filter(c => c.at >= x.win.start && c.at < Math.min(x.win.end || win.start, win.start)).pop();
+          if (hit && (!earlier || hit.at > earlier.at)) earlier = { at: hit.at, who: (hit.completedBy && hit.completedBy.name) || "", shift: x.s.displayLabel };
+        });
+        return Object.assign({}, i, { done: inRun.length > 0, checks: inRun.map(c => ({ completedAt: c.completedAt, completedBy: c.completedBy, notes: c.notes || null })),
+          completedAt: inRun.length ? inRun[0].completedAt : null, completedBy: inRun.length ? inRun[0].completedBy : null, earlier });
+      });
+      const c = counts.find(x => x && x.label === s.label);
+      return { key: s.label, name: s.displayLabel, items: mine, run: true, counted: c ? { due: Number(c.due) || 0, done: Number(c.done) || 0 } : null };
+    });
+    const rest = items.filter(i => crKind(i) !== "today");
+    return { date, groups: groups.concat(rest.length ? [{ key: "*", name: tr("Whole site"), items: rest }] : []) };
+  });
+  const mine = board && Array.isArray(board.sites) ? board.sites.find(x => x && String(x.siteId) === String(siteId)) : null;
+  const people = (mine && Array.isArray(mine.people) ? mine.people : []).filter(p => !p.sessionDate || p.sessionDate === from);
+  return { notTracked: false, site: rec.site || null, shifts, days, multi: true, runs: true, people, periodic };
+}
+// A group's numbers for its ring: a run's count is the record's own for that run when it answers one.
+const crGroupStats = (g) => { const st = crStats(g.items); if (g && g.counted) { st.due = g.counted.due; st.done = g.counted.done; st.pct = crPct(st.done, st.due); } return st; };
 // Every site's count for the period in one read, GET /api/reports/checklist-summary (the API's part 363);
 // one day is read with the six days before it, so its card can draw a week's trend. { span, bySite: { id:
 // { notTracked, days: [{ date, due, done, checks, counted: { due, done } }] } } }, or the API's refusal,
@@ -5550,7 +5740,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
       .concat([{ header: tr("Checks|check-offs"), tdStyle: { color: t.textSec }, render: d => crStats([].concat(...d.groups.map(g => g.items))).checks.length }]);
     return (<div data-checklist-results="" data-cr-view="range">{pickers}{status}{actions}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12, marginBottom: 14 }}>
-        {groupKeys.map(k => { const st = crStats([].concat(...days.map(d => { const g = d.groups.find(x => x.key === k); return g ? g.items : []; }))); return (<Crd key={k} t={t} style={{ padding: 14 }}>
+        {groupKeys.map(k => { const parts = days.map(d => d.groups.find(x => x.key === k)).filter(Boolean); const st = crStats([].concat(...parts.map(g => g.items))); if (parts.length && parts.every(g => g.counted)) { st.due = parts.reduce((a, g) => a + g.counted.due, 0); st.done = parts.reduce((a, g) => a + g.counted.done, 0); st.pct = crPct(st.done, st.due); } return (<Crd key={k} t={t} style={{ padding: 14 }}>
           <div data-cr-group={k} data-cr-due={st.due} data-cr-done={st.done} data-cr-checks={st.checks.length}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{nameOfKey(k)}</div>
             <RadialW t={t} value={st.pct || 0} valueText={crPctText(st.pct)} label={tr("{0} of {1} steps", st.done, st.due)} height={190} />
@@ -5586,8 +5776,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
   ];
   const listRows = groups.map(g => ({ g, zones: crByZone(g.items.filter(keep)) })).filter(x => x.zones.length > 0);
   return (<div data-checklist-results="" data-cr-view="day">{pickers}{status}{actions}
-    {groups.map(g => {
-      const st = crStats(g.items);
+    {groups.filter(g => !(data.runs && g.key === "*")).map(g => {
+      const st = crGroupStats(g);
       const win = windowOf(g, day.date);
       // Work tied to no shift has no window of its own, so it draws no timeline.
       const timed = !(data.multi && g.key === "*");
@@ -5597,7 +5787,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
       const per = st.checks.map(c => c.who).filter((w, i, a) => a.indexOf(w) === i).map(w => ({ who: w, n: st.checks.filter(c => c.who === w).length }));
       const hours = new Set(buckets.filter(b => crHourMark(b, buckets.length, window.innerWidth < PHONE_PX)).map(b => crTime(b.start)));
       return (<Crd key={g.key} t={t} style={{ marginBottom: 14 }}>
-        <div data-cr-group={g.key} data-cr-due={st.due} data-cr-done={st.done} data-cr-checks={st.checks.length} data-cr-first={st.first != null ? new Date(st.first).toISOString() : undefined} data-cr-last={st.last != null ? new Date(st.last).toISOString() : undefined}>
+        <div data-cr-group={g.key} data-cr-run={g.run ? "1" : undefined} data-cr-due={st.due} data-cr-done={st.done} data-cr-checks={st.checks.length} data-cr-first={st.first != null ? new Date(st.first).toISOString() : undefined} data-cr-last={st.last != null ? new Date(st.last).toISOString() : undefined}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{g.name}</div>
             {win ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("{0} to {1}", crTime(win.start), win.end ? crTime(win.end) : "--")}</div> : null}
@@ -5652,7 +5842,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
             const cks = crChecksOf(i);
             const kind = crKind(i);
             return (<tr key={String(i.taskId)} data-cr-task={String(i.taskId)} data-cr-task-done={i.done === true ? "1" : "0"} style={{ borderTop: "1px solid " + t.border }}>
-              <td style={{ padding: "10px 12px", color: t.text, minWidth: 180 }}>{shownLabel(i)}{kind === "repeating" ? <span style={{ marginLeft: 8 }}><Bdg l={periodicFrequencyWord(i.frequency)} c={BL} /></span> : kind === "as_needed" ? <span style={{ marginLeft: 8 }}><Bdg l={tr("As needed")} c={t.textMut} /></span> : null}</td>
+              <td style={{ padding: "10px 12px", color: t.text, minWidth: 180 }}>{shownLabel(i)}{kind === "repeating" ? <span style={{ marginLeft: 8 }}><Bdg l={periodicFrequencyWord(i.frequency)} c={BL} /></span> : kind === "as_needed" ? <span style={{ marginLeft: 8 }}><Bdg l={tr("As needed")} c={t.textMut} /></span> : null}
+                {i.earlier ? <div data-cr-earlier={String(i.taskId)} style={{ fontSize: 12, color: t.textMut, marginTop: 4, lineHeight: 1.4 }}>{tr("Done by {0} on the {1} shift at {2}. It is due again on this shift.", i.earlier.who || "--", i.earlier.shift, crTime(i.earlier.at))}</div> : null}</td>
               <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{i.done === true ? <Bdg l={tr("Done")} c={GR} /> : <Bdg l={tr("Not done")} c={i.due === true ? RD : t.textMut} />}</td>
               <td style={{ padding: "10px 12px", color: t.textSec }}>{cks.length ? cks.map((c, ci) => <div key={ci}>{c.who || "--"}</div>) : "--"}</td>
               <td style={{ padding: "10px 12px", color: t.textSec, whiteSpace: "nowrap" }}>{cks.length ? cks.map((c, ci) => <div key={ci}>{crTime(c.at)}</div>) : "--"}</td>

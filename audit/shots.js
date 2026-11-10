@@ -1869,6 +1869,15 @@ const SHOTS = [
     open: "health/reports", ready: "[data-health-report]" },
   { name: "health-settings", entry: "Choose who gets the health alerts", as: "superAdmin",
     open: "health/settings", ready: "[data-health-threshold]" },
+  // Part 379, section 2: Lakeside Medical Plaza with its two shifts (audit/part379-stub.js, shifts): the
+  // site's shifts, Edit Task on an item the Second shift does, and Checklist Results with a ring per run.
+  { name: "site-shifts", entry: "Set a site's shifts", arm: (stubs, on) => stubs.setScene379({ shifts: on }),
+    open: "sites/s-2/shifts", ready: "[data-site-shift]" },
+  { name: "task-shifts", entry: "Set a site's shifts", arm: (stubs, on) => stubs.setScene379({ shifts: on }),
+    open: "sites/s-2/tasks", ready: "[data-site-task='t379-2']",
+    act: async (c) => { await click(c, "[data-site-task='t379-2']"); await until(c, "[data-task-shifts]"); await c.page.locator("[data-task-shifts]").first().scrollIntoViewIfNeeded(); await wait(300); } },
+  { name: "checklist-results-runs", entry: "Read a site's checklist by shift", arm: (stubs, on) => stubs.setScene379({ shifts: on }),
+    open: "checklist/s-2/" + seed.TODAY, ready: "[data-cr-run] .apexcharts-canvas", act: async () => { await wait(900); } },
 ];
 
 

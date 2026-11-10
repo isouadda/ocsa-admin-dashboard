@@ -325,11 +325,142 @@ async function healthCases(ctx, lang) {
   });
 }
 
+// ---- Section 2: shifts per site ----------------------------------------------------------------------------
+const S2 = seed.SITES[1].id;
+const SHIFTS_ON = (s) => s.setScene379({ shifts: true });
+async function shiftsCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/shifts/" + x;
+  const ES = lang === "es";
+
+  // 1. A site's shifts read in the screen's language, changed and added, and saved whole as the API takes them.
+  await withDriver(ctx, { name: "site-shifts", lang, arm: SHIFTS_ON }, async (d) => {
+    await goHash(d, "sites/" + S2 + "/shifts");
+    await until(d, "[data-site-shift]", 8000);
+    const names = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-site-shift]")).map((r) => r.querySelector("td").innerText.split("\n")[0].trim()));
+    await d.page.locator("[data-site-shifts-edit]").first().click().catch(() => {});
+    await until(d, "[data-site-shifts-draft]", 4000);
+    await d.page.locator("[data-site-shift-field='1.endTime']").first().fill("23:00").catch(() => {});
+    await d.page.locator("[data-site-shift-field='1.fr']").first().fill("Deuxieme quart").catch(() => {});
+    await d.page.locator("[data-site-shift-add]").first().click().catch(() => {});
+    await d.page.locator("[data-site-shift-field='2.label']").first().fill("Night").catch(() => {});
+    await d.page.locator("[data-site-shift-field='2.startTime']").first().fill("23:00").catch(() => {});
+    await d.page.locator("[data-site-shift-field='2.endTime']").first().fill("06:00").catch(() => {});
+    await d.page.locator("[data-site-shift-field='2.es']").first().fill("Noche").catch(() => {});
+    for (const x of ["mon", "tue", "wed", "thu", "fri"]) await d.page.locator("[data-site-shift-row='2'] [data-site-shift-day='" + x + "']").first().click().catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-site-shifts-save]").first().click().catch(() => {});
+    await d.settle(900);
+    const put = writes(d, mark, "PUT", new RegExp("^/api/sites/" + S2 + "/shifts$")).pop();
+    const want = { shifts: [
+      { id: "00000000-0000-4000-8000-000000000301", label: "First", startTime: "06:00", endTime: "14:00", daysOfWeek: null, sortOrder: 0, active: true, translations: { es: "Primer turno", fr: "Premier quart" } },
+      { id: "00000000-0000-4000-8000-000000000302", label: "Second", startTime: "14:00", endTime: "23:00", daysOfWeek: null, sortOrder: 1, active: true, translations: { es: "Segundo turno", fr: "Deuxieme quart" } },
+      { label: "Night", startTime: "23:00", endTime: "06:00", daysOfWeek: "mon,tue,wed,thu,fri", sortOrder: 2, active: true, translations: { es: "Noche", fr: null } } ] };
+    const after = await d.page.locator("[data-site-shift]").count();
+    const night = await textOf(d, "[data-site-shift='Night']");
+    results.check(KIND, id("a-site-s-shifts-read-and-saved-whole"), say(names) === say(ES ? ["Primer turno", "Segundo turno"] : ["First", "Second"]) && !!put && put.status === 200 && say(put.body) === say(want) && after === 3 && night.indexOf(d.say("the next day")) >= 0,
+      "the shifts read " + say(names) + "; the save sent " + say(put && put.body) + " (" + (put && put.status) + ") and the list then held " + after + ", Night reading " + say(night));
+  });
+
+  // 2. A name used twice is refused in the API's words, under the field, and nothing is written.
+  await withDriver(ctx, { name: "site-shifts-refused", lang, arm: SHIFTS_ON }, async (d) => {
+    await goHash(d, "sites/" + S2 + "/shifts");
+    await until(d, "[data-site-shift]", 8000);
+    await d.page.locator("[data-site-shifts-edit]").first().click().catch(() => {});
+    await d.page.locator("[data-site-shift-add]").first().click().catch(() => {});
+    await d.page.locator("[data-site-shift-field='2.label']").first().fill("first").catch(() => {});
+    await d.page.locator("[data-site-shift-field='2.startTime']").first().fill("22:00").catch(() => {});
+    await d.page.locator("[data-site-shift-field='2.endTime']").first().fill("06:00").catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-site-shifts-save]").first().click().catch(() => {});
+    await d.settle(800);
+    const put = writes(d, mark, "PUT", new RegExp("^/api/sites/" + S2 + "/shifts$")).pop();
+    const said = await textOf(d, "[data-site-shifts-said]");
+    const border = await d.page.evaluate(() => { const el = document.querySelector("[data-site-shift-field='2.label']"); return el ? getComputedStyle(el).borderTopColor : ""; });
+    const words = ES ? "Faltan algunos datos del turno o no son v\u00e1lidos. Cada turno necesita un nombre que no se repita, una hora de inicio y una de fin distintas, y d\u00edas de sun a sat." : "Some shift details are missing or not valid. Each shift needs a name used once, a start and an end time that differ, and days as sun to sat.";
+    results.check(KIND, id("a-name-used-twice-is-refused-under-its-field"), !!put && put.status === 400 && say(put.json && put.json.keys) === say(["shifts.2.label"]) && said === words && /rgb\(2\d\d, \d+, \d+\)/.test(border) && (await has(d, "[data-site-shifts-draft]")),
+      "the save was answered " + (put && put.status) + " " + say(put && put.json) + " and the panel said " + say(said) + " with the box " + border);
+  });
+
+  // 3. A site with no shifts says so, and works as before.
+  await withDriver(ctx, { name: "site-shifts-none", lang }, async (d) => {
+    await goHash(d, "sites/" + seed.SITES[0].id + "/shifts");
+    await until(d, "[data-site-shifts-none]", 8000);
+    const said = await textOf(d, "[data-site-shifts-none]");
+    results.check(KIND, id("a-site-with-no-shifts-says-so"), said === d.say("This site has no named shifts. Its checklist is one list a day, as before."), "the panel said " + say(said));
+  });
+
+  // 4. Add Task offers the site's shifts, every one by default, and sends the ones picked.
+  await withDriver(ctx, { name: "add-task", lang, arm: SHIFTS_ON }, async (d) => {
+    await goHash(d, "sites/" + S2 + "/tasks");
+    await until(d, "[data-site-task]", 8000);
+    await d.clickText(d.say("Add Task"), { exact: true });
+    await until(d, "[data-task-shifts]", 5000);
+    const first = await attr(d, "[data-task-shifts]", "data-task-shifts");
+    await d.modal().locator("input[placeholder='" + d.say("e.g. Vacuum carpets") + "']").first().fill("Wipe the reception desk").catch(() => {});
+    await d.modal().locator("input[placeholder='" + d.say("e.g. Restrooms") + "']").first().fill("Lobby").catch(() => {});
+    await d.page.locator("[data-task-shift='First']").first().click().catch(() => {});
+    const picked = await attr(d, "[data-task-shifts]", "data-task-shifts");
+    const mark = d.mark();
+    await d.modal().getByRole("button", { name: d.say("Create"), exact: true }).first().click().catch(() => {});
+    await d.settle(900);
+    const post = writes(d, mark, "POST", new RegExp("^/api/sites/" + S2 + "/tasks$")).pop();
+    results.check(KIND, id("add-task-offers-the-shifts-every-one-by-default"), first === "all" && picked === "Second" && !!post && say(post.body && post.body.shiftLabels) === say(["Second"]),
+      "the picker read " + say(first) + " then " + say(picked) + "; Create sent " + say(post && post.body));
+  });
+
+  // 5. Edit Task opens on the task's own shifts and sends the change.
+  await withDriver(ctx, { name: "edit-task", lang, arm: SHIFTS_ON }, async (d) => {
+    await goHash(d, "sites/" + S2 + "/tasks");
+    await until(d, "[data-site-task='t379-2']", 8000);
+    const line = await attr(d, "[data-site-task-shifts]", "data-site-task-shifts");
+    await d.page.locator("[data-site-task='t379-2']").first().click().catch(() => {});
+    await until(d, "[data-task-shifts]", 5000);
+    const opened = await attr(d, "[data-task-shifts]", "data-task-shifts");
+    await d.page.locator("[data-task-shift='First']").first().click().catch(() => {});
+    const now = await attr(d, "[data-task-shifts]", "data-task-shifts");
+    const mark = d.mark();
+    await d.modal().getByRole("button", { name: d.say("Save Changes"), exact: true }).first().click().catch(() => {});
+    await d.settle(900);
+    const patch = writes(d, mark, "PATCH", new RegExp("^/api/sites/" + S2 + "/tasks/t379-2$")).pop();
+    results.check(KIND, id("edit-task-opens-on-its-shifts-and-sends-the-change"), line === "Second" && opened === "Second" && now === "all" && !!patch && patch.body && patch.body.shiftLabels === null,
+      "the row read " + say(line) + ", the window opened on " + say(opened) + " and read " + say(now) + "; the save sent " + say(patch && patch.body && patch.body.shiftLabels));
+  });
+
+  // 6. Checklist Results by shift: each run with its own ring, who was on it and what they did, and the grey
+  //    line for a daily item an earlier shift did.
+  await withDriver(ctx, { name: "checklist-by-run", lang, arm: SHIFTS_ON }, async (d) => {
+    await goHash(d, "checklist/" + S2 + "/today");
+    await until(d, "[data-cr-run]", 10000);
+    await d.settle(500);
+    const groups = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-group]")).map((g) => ({ key: g.getAttribute("data-cr-group"), run: g.getAttribute("data-cr-run"), due: g.getAttribute("data-cr-due"), done: g.getAttribute("data-cr-done"),
+      who: (g.querySelector("[data-cr-who]") || {}).innerText || "", head: (g.querySelector("div") || {}).innerText || "" })));
+    const second = await d.page.evaluate(() => { const box = document.querySelector("[data-cr-list-group='Second']"); if (!box) return null; const card = box.parentElement; return Array.from(card.querySelectorAll("[data-cr-task]")).map((r) => [r.getAttribute("data-cr-task"), r.getAttribute("data-cr-task-done")]); });
+    const grey = await textOf(d, "[data-cr-list-group='Second'] ~ div [data-cr-earlier='t379-1']");
+    const g1 = groups.find((g) => g.key === "First") || {}, g2 = groups.find((g) => g.key === "Second") || {}, rest = groups.find((g) => g.key === "*");
+    const clock = await d.page.evaluate((tag) => new Date("2026-03-17T13:10:00.000Z").toLocaleTimeString(tag, { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }), ES ? "es-US" : "en-US");
+    const greyWant = d.say("Done by {0} on the {1} shift at {2}. It is due again on this shift.").replace("{0}", "Elena Barbosa").replace("{1}", ES ? "Primer turno" : "First").replace("{2}", clock);
+    results.check(KIND, id("each-run-with-its-own-ring-who-and-the-grey-line"), g1.run === "1" && g1.due === "3" && g1.done === "3" && g2.run === "1" && g2.due === "3" && g2.done === "2" && g1.who.indexOf("Elena Barbosa") >= 0 && g2.who.indexOf("Tomasz Wisniewski") >= 0 && g2.who.indexOf("Elena") < 0
+      && !!rest && say(second) === say([["t379-1", "0"], ["t379-2", "1"], ["t379-4", "1"]].sort()) && grey.replace(/\s+/g, " ") === greyWant.replace(/\s+/g, " "),
+      "the groups read " + say(groups) + "; the Second shift's tasks " + say(second) + " and its grey line " + say(grey) + " where it is " + say(greyWant));
+  });
+
+  // 7. A guard: a site whose checklist is set out by its blocks' shifts, with no named shifts, reads as before.
+  await withDriver(ctx, { name: "checklist-blocks", lang, arm: (s) => s.setChecklist358(true) }, async (d) => {
+    await goHash(d, "checklist/" + seed.SITES[0].id + "/yesterday");
+    await until(d, "[data-cr-group]", 10000);
+    await d.settle(500);
+    const keys = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-cr-group]")).map((g) => g.getAttribute("data-cr-group") + (g.getAttribute("data-cr-run") ? ":run" : "")));
+    results.check(KIND, id("a-site-with-no-named-shifts-reads-as-before-guard"), keys.indexOf("Day") >= 0 && keys.indexOf("Night") >= 0 && keys.every((k) => k.indexOf(":run") < 0), "the groups read " + say(keys));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("health")) await healthCases(ctx, lang);
+    if (want("shifts")) await shiftsCases(ctx, lang);
   }
 }
 
