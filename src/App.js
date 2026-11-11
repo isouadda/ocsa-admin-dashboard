@@ -1838,7 +1838,7 @@ export default function AdminDashboard() {
         {page === "maintenance" && (canOpenPage("maintenance") ? <MaintenancePage af={af} t={t} token={token} sites={sites} showToast={showToast} route={route} onRoute={replaceRoute} maintenance={maintenance} canManageSites={hasCap("manage_sites")} /> : !probesIn ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Maintenance requests open for the people who file them. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} sites={sites} user={user} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} route={route} onRoute={replaceRoute} />}
-        {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
+        {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} canDecideFindings={hasCap("manage_inspections") || !!(user && user.role === "supervisor")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} canDecideTimeOff={hasCap("approve_time_off")} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -6322,6 +6322,59 @@ const findingsIn = (d) => !!d && Array.isArray(d.findings);
 const FINDING_STATE_WORDS = { open: "open|issue", in_progress: "in progress", escalated: "escalated|issue", resolved: "resolved|issue", closed: "closed|issue" };
 const findingStateWord = (st) => (FINDING_STATE_WORDS[st] ? tr(FINDING_STATE_WORDS[st]) : String(st || "").replace(/_/g, " "));
 const findingStateColor = (st, t) => ({ open: RD, in_progress: OR, escalated: PU, resolved: GR, closed: t.textMut })[st] || t.textMut;
+// Part 389: a finding's follow-up, training or a conversation (the API's part 382, helpers/findingFollowUps.js).
+// The owner decided on Nov 11, 2026 that an inspection finding is not a to-do item: what it calls for is
+// training, or a conversation with the person whose work it was. A read carries the follow-up whole ({ id, kind,
+// topic, dueOn, state, chosenAt, chosenBy, doneAt, training, conversation }); the records (the inspection's read,
+// its PDF and CSV, the corrective action) carry it short ({ id, kind, topicId, dueOn, doneAt, state }), its topic
+// named from the inspection's followUpTopics where they are read.
+const FOLLOW_UP_KIND_WORDS = { training: "Training|follow-up", conversation: "A conversation|follow-up" };
+const followUpKindWord = (k) => (FOLLOW_UP_KIND_WORDS[k] ? tr(FOLLOW_UP_KIND_WORDS[k]) : String(k || ""));
+const followUpTopicName = (fu, topics) => {
+  if (!fu) return "";
+  if (fu.topic && fu.topic.name) return String(fu.topic.name);
+  const id = fu.topic && fu.topic.id ? fu.topic.id : fu.topicId;
+  const hit = id && Array.isArray(topics) ? topics.find(x => x && String(x.id) === String(id)) : null;
+  return hit && hit.name ? String(hit.name) : "";
+};
+const followUpWhat = (fu, topics) => {
+  if (!fu) return tr("No follow-up yet");
+  const name = fu.kind === "training" ? followUpTopicName(fu, topics) : "";
+  return name ? tr("Training: {0}", name) : followUpKindWord(fu.kind);
+};
+const followUpDone = (fu) => !!fu && (fu.state === "done" || !!fu.doneAt);
+// When it is due, or the day it was done, in words.
+const followUpWhen = (fu) => (!fu ? "" : followUpDone(fu) ? (fu.doneAt ? tr("Done on {0}", fdLong(fu.doneAt)) : tr("Done|follow-up")) : !fu.dueOn ? "" : fu.state === "overdue" ? tr("Late, due {0}", fdLong(fu.dueOn)) : tr("Due {0}", fdLong(fu.dueOn)));
+// A finding's own state on the findings list (needsFollowUp, open, overdue, done, resolved).
+const FINDING_FOLLOW_STATE_WORDS = { needsFollowUp: "Needs a follow-up", open: "Open|follow-up", overdue: "Late|follow-up", done: "Done|follow-up", resolved: "Resolved without a follow-up" };
+const findingFollowStateWord = (s) => (FINDING_FOLLOW_STATE_WORDS[s] ? tr(FINDING_FOLLOW_STATE_WORDS[s]) : String(s || ""));
+const findingFollowStateColor = (s, t) => ({ needsFollowUp: OR, open: BL, overdue: RD, done: GR, resolved: t.textMut })[s] || t.textMut;
+// #inspections/findings/<id>: the finding's own window on Inspections' Findings tab, where its follow-up is chosen.
+const openFindingFollowUp = (id) => { window.location.hash = "inspections/findings/" + encodeURIComponent(String(id)); };
+// One finding's follow-up in a line: what it is and when it is due, or the day it was done. None reads No
+// follow-up yet.
+function FollowUpSummary({ t, fu, topics, at = "" }) {
+  if (!fu) return <span data-follow-up={at} data-follow-up-kind="none" style={{ fontSize: 12, color: t.textMut }}>{tr("No follow-up yet")}</span>;
+  const done = followUpDone(fu);
+  const late = !done && fu.state === "overdue";
+  return (<span data-follow-up={at} data-follow-up-kind={fu.kind || ""} data-follow-up-state={done ? "done" : fu.state || ""} style={{ display: "inline-flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", fontSize: 12, lineHeight: 1.4 }}>
+    <span style={{ color: t.text, fontWeight: 600 }}>{followUpWhat(fu, topics)}</span>
+    <span data-follow-up-when="" style={{ color: done ? GR : late ? RD : t.textSec, fontWeight: done || late ? 600 : 400 }}>{followUpWhen(fu)}</span>
+  </span>);
+}
+// A recorded conversation: when it was held and by whom, what was covered and who else was there, and whether the
+// person has confirmed it. What was covered is answered only to whoever reads HR records, the person and whoever
+// recorded it; anyone else reads that it is kept for them.
+function ConversationRecord({ t, c }) {
+  if (!c || !c.recordedAt) return null;
+  return (<div data-conversation-record="" style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
+    <div style={{ color: t.text }}>{tr("Held {0} by {1}.", irWhen(c.heldAt), nameOf(c.heldBy) || "--")}</div>
+    {c.covered ? <div data-conversation-covered="" style={{ color: t.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{c.covered}</div>
+      : <div data-conversation-covered-kept="" style={{ color: t.textMut }}>{tr("What was covered is read only by those who read HR records, the person and whoever recorded it.")}</div>}
+    {c.othersPresent ? <div data-conversation-others="">{tr("Also there: {0}", c.othersPresent)}</div> : null}
+    <div data-conversation-confirmed={c.confirmedAt ? "yes" : "no"} style={{ color: c.confirmedAt ? GR : OR, fontWeight: 600 }}>{c.confirmedAt ? tr("The person confirmed it on {0}.", fdLong(c.confirmedAt)) : tr("Waiting for the person to confirm it.")}</div>
+  </div>);
+}
 const openFiledReport = (id) => { window.location.hash = "forms/reports/" + encodeURIComponent(String(id)); };
 // The single read's camelCase view laid over the list's snake_case row, so the window draws one shape.
 const issueOfView = (v) => ({
@@ -6484,7 +6537,9 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
   // A photo whose address the guard took away (finding API-68) is not drawn at all.
   const photos = (view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos).filter(p => p && p.photo_url);
   const timed = (iss) => isFinding(iss) || iss.minutes_to_first_response != null || iss.minutes_to_fixed != null;
-  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(true); } catch (e) { setAssignTask(a => (a ? { ...a, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : a)); } });
+  // Part 389: a finding takes no task (409 issues.findingNoTask); the window says so in the API's words and
+  // offers the way to its follow-up.
+  const submitAssignTask = onceAssign(async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(true); } catch (e) { setAssignTask(a => (a ? { ...a, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "", followUp: !!(e && e.code === "issues.findingNoTask") } : a)); } });
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
     {onRequests && <ClientRequestsTab af={af} t={t} sites={sites} canViewReports={canViewReports} route={route} onRoute={onRoute} onWaiting={setWaiting} />}
@@ -6525,6 +6580,14 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: t.textSec, marginTop: 4 }}><span>{tr("Scored {0} percent", view.inspection.scorePct == null ? "--" : String(view.inspection.scorePct))}</span>{(view.inspection.band || bandOf(view.inspection.scorePct)) && <Bdg l={bandWord(view.inspection.band || bandOf(view.inspection.scorePct))} c={bandColor(view.inspection.band || bandOf(view.inspection.scorePct)) || t.textMut} />}</div>
         {view.inspection.itemLabel && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Item: {0}, scored {1} of {2}", view.inspection.itemLabel, view.inspection.itemScore == null ? "--" : String(view.inspection.itemScore), view.inspection.itemMaxScore == null ? "--" : String(view.inspection.itemMaxScore))}</div>}
       </div>}
+      {/* Part 389: a finding's follow-up, training or a conversation, and the way to choose or open it. */}
+      {view && isFinding(shown) && issueHas(view, "followUp") && <div data-issue-follow-up={view.followUp ? view.followUp.kind || "" : "none"} style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (view.followUp && view.followUp.state === "overdue" ? t.orangeBorder : t.border) }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Follow-up")}</div>
+        <FollowUpSummary t={t} fu={view.followUp} at="issue" />
+        {view.followUp && view.followUp.conversation ? <div style={{ marginTop: 6 }}><ConversationRecord t={t} c={view.followUp.conversation} /></div> : null}
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.5 }}>{tr("A finding is followed up with training or a conversation with the person whose work it was. It takes no task.")}</div>
+        <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-issue-open-follow-up="" onClick={() => { const id = shown.id; closeSel(); openFindingFollowUp(id); }} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{view.followUp && !followUpDone(view.followUp) ? tr("Open the follow-up") : view.followUp ? tr("Open the finding") : tr("Choose a follow-up")}</Btn></div>
+      </div>}
       {view && issueHas(view, "correctiveAction") && isFinding(shown) && <div data-finding-corrective="" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
         <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Corrective action")}</div>
         {view.correctiveAction ? <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -6559,7 +6622,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
         {shown.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "in_progress")}>{tr("Start Work")}</Btn>}
         {shown.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "resolved")}>{tr("Resolve")}</Btn>}
         {shown.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "resolved")}>{tr("Resolve")}</Btn>}
-        {(shown.status === "open" || shown.status === "in_progress" || shown.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: shown.id, userId: "", note: "", isReassign: !!shown.assigned_to }); closeSel(); }}>{shown.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
+        {(shown.status === "open" || shown.status === "in_progress" || shown.status === "escalated") && !(isFinding(shown) && view && (issueHas(view, "followUp") || view.canAssign === false)) && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: shown.id, userId: "", note: "", isReassign: !!shown.assigned_to }); closeSel(); }}>{shown.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
         {isClientIssue(shown) && requestsOn && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { closeSel(); openRequest(shown.id); }}>{tr("Open in Client requests")}</Btn>}
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => closeSel()}>{tr("Close")}</Btn>
       </div>
@@ -6574,7 +6637,8 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
-      {assignTask.said && !assignTask.saidAt && <div data-issue-assign-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{assignTask.said}</div>}
+      {assignTask.said && !assignTask.saidAt && <div data-issue-assign-refusal={assignTask.followUp ? "issues.findingNoTask" : ""} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{assignTask.said}
+        {assignTask.followUp ? <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-issue-assign-follow-up="" onClick={() => { const id = assignTask.issueId; setAssignTask(null); openFindingFollowUp(id); }} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Choose its follow-up")}</Btn></div> : null}</div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value, said: "", saidAt: "" })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={assignTask.saidAt === "userId" ? { borderColor: RD } : undefined} />
         {assignTask.said && assignTask.saidAt === "userId" && <div data-issue-assign-refusal="userId" role="alert" style={{ fontSize: 12, color: RD, marginTop: 4, lineHeight: 1.5 }}>{assignTask.said}</div>}</div>
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
@@ -13732,6 +13796,13 @@ function inspectionPageHtml(d, words, sigs) {
       + '<td style="padding:10px 8px;text-align:center">' + (many ? photoImgs(inspectionPhotosOf(sr), [80, 60]) : (sr && sr.photo_url ? '<img src="' + esc(sr.photo_url) + '" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />' : "")) + "</td></tr>";
   }).join("");
   const box = (label, value) => '<div style="padding:12px;border:1px solid #e0e0e0;border-radius:8px"><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">' + esc(label) + "</div>" + value + "</div>";
+  // Part 389: the findings the inspection opened, once the read carries each one's follow-up: the owner, the
+  // follow-up (training or a conversation), and when it is due or the day it was done.
+  const fuRows = Array.isArray(d.findings) && d.findings.some(f => f && Object.prototype.hasOwnProperty.call(f, "followUp")) ? d.findings : [];
+  const findingsHtml = fuRows.length ? '<div data-print-findings="" style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:' + NAVY_DARK + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">' + esc(tr("Findings")) + "</div>"
+    + "<table><thead><tr><th>" + esc(tr("Finding")) + "</th><th>" + esc(tr("Zone")) + "</th><th>" + esc(tr("Owner|finding")) + "</th><th>" + esc(tr("Follow-up")) + "</th><th>" + esc(tr("Due or done")) + "</th></tr></thead><tbody>"
+    + fuRows.map(f => '<tr data-print-finding="' + esc(f.issueId || "") + '" style="border-bottom:1px solid #eee"><td style="padding:8px;font-size:12px;font-weight:600">' + esc(f.label || "--") + '</td><td style="padding:8px;font-size:12px;color:#666">' + esc(f.zone || "--") + '</td><td style="padding:8px;font-size:12px">' + esc(f.owner && f.owner.name ? f.owner.name : tr("Unassigned")) + '</td><td style="padding:8px;font-size:12px">' + esc(followUpWhat(f.followUp || null, d.followUpTopics)) + '</td><td style="padding:8px;font-size:12px;color:#555">' + esc(f.followUp ? followUpWhen(f.followUp) : "--") + "</td></tr>").join("")
+    + "</tbody></table></div>" : "";
   return '<div class="insp">'
     + '<div style="font-size:14px;color:#555;margin-bottom:14px">' + [d.kind ? inspectionKindWord(d.kind) : "", d.template_name].filter(Boolean).map(esc).join(" &middot; ") + "</div>"
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">'
@@ -13743,6 +13814,7 @@ function inspectionPageHtml(d, words, sigs) {
     + (d.result.overall_notes ? box(tr("Notes"), '<div style="font-size:13px;color:#333">' + esc(d.result.overall_notes) + "</div>") : "")
     + "</div>"
     + "<table><thead><tr><th>" + esc(tr("Item")) + "</th><th>" + esc(tr("Zone")) + "</th><th>" + esc(tr("Category")) + "</th><th>" + esc(tr("Score")) + "</th><th>" + esc(tr("Notes")) + "</th><th>" + esc(tr("Photo")) + "</th></tr></thead><tbody>" + itemRows + "</tbody></table>"
+    + findingsHtml
     + (overall.length ? '<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;color:' + NAVY_DARK + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">' + esc(tr("Photos of the whole inspection")) + "</div>" + photoImgs(overall, [160, 120]) + "</div>" : "")
     + (many ? '<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:' + NAVY_DARK + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">' + esc(tr("Signature")) + "</div>"
       + (sigs.length ? sigs.map(sg => '<div style="margin-bottom:10px">' + (sg.label ? '<div style="font-size:11px;font-weight:700;color:#333;margin-bottom:4px">' + esc(sg.label) + "</div>" : "") + (sg.url ? '<img src="' + esc(sg.url) + '" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />' : "") + '<div style="font-size:12px;color:#333">' + esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--")) + "</div></div>").join("") : '<div style="font-size:12px;color:#888">' + esc(tr("Not signed")) + "</div>")
@@ -17853,7 +17925,212 @@ function SiteSafetyWalk({ af, t, siteId }) {
   return <LastSafetyWalk t={t} walk={walks[String(siteId)]} siteId={String(siteId)} onOpen={(id) => { window.location.hash = "inspections/" + encodeURIComponent(id); }} />;
 }
 
-function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
+// ===== FINDINGS AS TRAINING OR A CONVERSATION (part 389; the API's part 382, Round 12 section 2) =====
+// Inspections' Findings tab lists the findings from GET /api/inspections/findings (status, siteId, ownerId, kind),
+// open and closed: each with its inspection, card, notes and photos, owner, follow-up and due, the ones with no
+// follow-up and the late ones first. A finding's window chooses its follow-up (POST
+// /api/inspections/findings/:id/follow-up { kind, topicId?, ownerId? }): Training, the suggested topic first from
+// the inspection's followUpTopics, or a conversation, naming or changing the owner from the inspection's owners;
+// and records the conversation held (POST /api/inspections/findings/:id/conversation { heldAt?, covered,
+// othersPresent? }). Every refusal is drawn in the API's words, under the field its keys name.
+// #inspections/findings opens the tab and #inspections/findings/<id> the finding.
+const FINDING_ORDER = { needsFollowUp: 0, overdue: 1, open: 2, done: 3, resolved: 4 };
+const findingsInOrder = (rows) => (rows || []).map((f, i) => ({ f, i })).sort((a, b) => {
+  const ra = FINDING_ORDER[a.f.state] === undefined ? 5 : FINDING_ORDER[a.f.state];
+  const rb = FINDING_ORDER[b.f.state] === undefined ? 5 : FINDING_ORDER[b.f.state];
+  if (ra !== rb) return ra - rb;
+  const da = a.f.due ? String(a.f.due) : "9999-12-31";
+  const db = b.f.due ? String(b.f.due) : "9999-12-31";
+  if (da !== db) return da < db ? -1 : 1;
+  return a.i - b.i;
+}).map(x => x.f);
+const FINDING_STATE_FILTERS = [["", "Not done yet"], ["needsFollowUp", "Needs a follow-up"], ["overdue", "Late|follow-up"], ["open", "Open|follow-up"], ["done", "Done|follow-up"], ["resolved", "Resolved without a follow-up"]];
+const FINDING_KIND_FILTERS = [["", "Any follow-up"], ["training", "Training|follow-up"], ["conversation", "A conversation|follow-up"], ["none", "No follow-up yet"]];
+const FINDING_FIELDS = ["kind", "topicId", "ownerId", "heldAt", "covered", "othersPresent"];
+const localNowInput = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes()); };
+const findingFoundLine = (f) => [f.foundAt ? tr("Found {0}", fdLong(f.foundAt)) : "", f.inspection && f.inspection.templateName ? f.inspection.templateName : "", f.inspection && f.inspection.inspector && f.inspection.inspector.name ? tr("by {0}", f.inspection.inspector.name) : ""].filter(Boolean).join(", ");
+function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "", onOpen, onClose, onOpenInspection, onCount }) {
+  const [filters, setFilters] = useState({ status: "", siteId: "", ownerId: "", kind: "" });
+  const [list, setList] = useState(null);
+  const [asOf, setAsOf] = useState("");
+  const [failed, setFailed] = useState("");
+  const [owners, setOwners] = useState({});
+  const [shown, setShown] = useState(null);
+  const query = ["status", "siteId", "ownerId", "kind"].filter(k => filters[k]).map(k => k + "=" + encodeURIComponent(filters[k])).join("&");
+  const read = useCallback(() => af("/api/inspections/findings" + (query ? "?" + query : "")).then(d => {
+    const rows = d && Array.isArray(d.findings) ? d.findings : [];
+    setList(rows); setAsOf(d && d.asOf ? String(d.asOf) : ""); setFailed("");
+    setOwners(o => { const n = { ...o }; rows.forEach(f => { if (f && f.owner && f.owner.id) n[String(f.owner.id)] = f.owner.name || String(f.owner.id); }); return n; });
+    if (!query && onCount) onCount(rows.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length);
+  }).catch(e => { setList(null); setFailed((e && e.message) || tr("This did not load.")); }), [af, query, onCount]);
+  useEffect(() => { read(); }, [read]);
+  // The finding the address names: the list's row when it holds it, else its own read.
+  useEffect(() => {
+    if (!openId) { setShown(null); return undefined; }
+    const have = (list || []).find(f => f && String(f.id) === String(openId));
+    if (have) { setShown(have); return undefined; }
+    let alive = true;
+    af("/api/inspections/findings/" + encodeURIComponent(openId)).then(d => { if (alive && d && d.finding) setShown(d.finding); })
+      .catch(e => { if (alive) setShown({ id: openId, refused: (e && e.message) || tr("Request failed") }); });
+    return () => { alive = false; };
+  }, [af, openId, list]);
+  const changed = (f) => { setShown(f); setList(l => (Array.isArray(l) ? l.map(x => (x && String(x.id) === String(f.id) ? f : x)) : l)); read(); };
+  const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+  const today = asOf || companyDayOf(new Date());
+  const rows = findingsInOrder(list);
+  const ownerOpts = Object.keys(owners).map(id => ({ v: id, l: owners[id] })).sort((a, b) => a.l.localeCompare(b.l));
+  return (<div data-findings-tab="">
+    <SecT t={t}>{tr("Findings")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A finding calls for training or a conversation with the person whose work it was. The ones with no follow-up and the late ones come first.")}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10, marginBottom: 14 }}>
+      <div><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} data-findings-filter="status" value={filters.status} onChange={e => setF("status", e.target.value)} options={FINDING_STATE_FILTERS.map(([v, l]) => ({ v, l: tr(l) }))} /></div>
+      <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-findings-filter="siteId" value={filters.siteId} onChange={e => setF("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })))} /></div>
+      <div><Lbl>{tr("Owner|finding")}</Lbl><Sel t={t} aria-label={tr("Owner|finding")} data-findings-filter="ownerId" value={filters.ownerId} onChange={e => setF("ownerId", e.target.value)} options={[{ v: "", l: tr("Everyone") }].concat(ownerOpts)} /></div>
+      <div><Lbl>{tr("Follow-up")}</Lbl><Sel t={t} aria-label={tr("Follow-up")} data-findings-filter="kind" value={filters.kind} onChange={e => setF("kind", e.target.value)} options={FINDING_KIND_FILTERS.map(([v, l]) => ({ v, l: tr(l) }))} /></div>
+    </div>
+    {failed && <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>}
+    {!failed && list === null && <div style={{ fontSize: 13, color: t.textMut, padding: 20 }}>{tr("Loading...")}</div>}
+    {!failed && list && rows.length === 0 && <div data-findings-none="" style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No finding here.")}</div>}
+    {rows.map(f => (<Crd key={f.id} t={t} onClick={() => onOpen && onOpen(f.id)} style={{ marginBottom: 8, padding: 14, cursor: "pointer", borderLeft: "3px solid " + findingFollowStateColor(f.state, t) }}>
+      <div data-finding-row={f.id} data-finding-state={f.state || ""} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(f.card && f.card.label) || "--"}</div>
+          <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{[f.site && f.site.name, f.card && f.card.zone].filter(Boolean).join(" | ")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{findingFoundLine(f)}</div>
+          {f.notes ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.4, overflowWrap: "anywhere" }}>{f.notes}</div> : null}
+          {Array.isArray(f.photos) && f.photos.length > 0 ? <div style={{ fontSize: 11, color: BL, marginTop: 4 }}>{tr("Photos ({0})", f.photos.length)}</div> : null}
+        </div>
+        <div style={{ flex: "0 1 260px", minWidth: 0, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+          <span data-finding-state-word=""><Bdg l={findingFollowStateWord(f.state)} c={findingFollowStateColor(f.state, t)} /></span>
+          <FollowUpSummary t={t} fu={f.followUp || null} at={"row-" + f.id} />
+          {!f.followUp && f.due ? <span data-finding-choose-by="" style={{ fontSize: 12, color: String(f.due) < today ? RD : t.textSec, fontWeight: String(f.due) < today ? 600 : 400 }}>{tr("Choose it by {0}", fdLong(f.due))}</span> : null}
+          <span data-finding-owner={f.owner && f.owner.id ? String(f.owner.id) : ""} style={{ fontSize: 12, color: f.owner ? t.text : t.textMut }}>{f.owner && f.owner.name ? tr("Owner: {0}", f.owner.name) : tr("No owner yet")}</span>
+        </div>
+      </div>
+    </Crd>))}
+    {shown && <FindingWindow key={shown.id} af={af} t={t} finding={shown} canDecide={canDecide} onChanged={changed} onClose={() => onClose && onClose()} onOpenInspection={onOpenInspection} />}
+  </div>);
+}
+function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, onOpenInspection }) {
+  const f = finding || {};
+  const fu = f.followUp || null;
+  const [insp, setInsp] = useState(null);
+  const [inspFailed, setInspFailed] = useState("");
+  const [choose, setChoose] = useState(null);
+  const [record, setRecord] = useState(null);
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const sid = f.inspection && f.inspection.scheduledInspectionId ? String(f.inspection.scheduledInspectionId) : "";
+  const closed = f.status === "closed" || f.status === "declined";
+  const canChoose = canDecide && !f.refused && !closed && !followUpDone(fu);
+  const canRecord = canDecide && !f.refused && !!fu && fu.kind === "conversation" && !followUpDone(fu) && !(fu.conversation && fu.conversation.recordedAt);
+  // The inspection's lesson topics and the site's people, which a follow-up chooses from.
+  const readInsp = useCallback(() => {
+    if (!sid) { setInsp({ topics: [], owners: [] }); return Promise.resolve(); }
+    return af("/api/inspections/scheduled/" + encodeURIComponent(sid)).then(d => { setInsp({ topics: d && Array.isArray(d.followUpTopics) ? d.followUpTopics : [], owners: d && Array.isArray(d.owners) ? d.owners : [] }); setInspFailed(""); })
+      .catch(e => { setInsp(null); setInspFailed((e && e.message) || tr("This did not load.")); });
+  }, [af, sid]);
+  useEffect(() => { if (canChoose) readInsp(); }, [readInsp, canChoose]);
+  const topicsInOrder = () => {
+    const all = insp ? insp.topics : [];
+    const sug = all.find(x => x && String(x.id) === String(f.suggestedTopicId || ""));
+    return sug ? [sug].concat(all.filter(x => x !== sug)) : all;
+  };
+  const photosAgain = async () => { const d = await af("/api/inspections/findings/" + encodeURIComponent(f.id)); if (d && d.finding && onChanged) onChanged(d.finding); };
+  const startChoose = () => { setSaid(null); setRecord(null); setChoose({ kind: fu ? fu.kind : "training", topicId: fu && fu.kind === "training" && fu.topic ? String(fu.topic.id) : String(f.suggestedTopicId || ""), ownerId: "" }); };
+  const startRecord = () => { setSaid(null); setChoose(null); setRecord({ heldAt: localNowInput(), covered: "", othersPresent: "" }); };
+  const refused = (e) => setSaid({ ok: false, code: String((e && e.code) || ""), keys: refusalKeys(e), text: (e && e.message) || tr("Request failed") });
+  const saveChoose = once(async () => {
+    const body = { kind: choose.kind };
+    if (choose.kind === "training" && choose.topicId) body.topicId = choose.topicId;
+    if (choose.ownerId) body.ownerId = choose.ownerId;
+    setSaid(null);
+    try {
+      const d = await af("/api/inspections/findings/" + encodeURIComponent(f.id) + "/follow-up", { method: "POST", body });
+      const next = d && d.finding ? d.finding : null;
+      const nf = next ? next.followUp : null;
+      setChoose(null);
+      setSaid({ ok: true, text: nf && nf.dueOn ? (nf.kind === "training" ? tr("Saved. The training is due {0}.", fdLong(nf.dueOn)) : tr("Saved. The conversation is due {0}.", fdLong(nf.dueOn))) : tr("Saved") });
+      if (next && onChanged) onChanged(next);
+    } catch (e) { refused(e); }
+  });
+  const saveRecord = once(async () => {
+    const body = { covered: record.covered };
+    if (record.heldAt) { const at = new Date(record.heldAt); body.heldAt = Number.isFinite(at.getTime()) ? at.toISOString() : record.heldAt; }
+    if (record.othersPresent.trim()) body.othersPresent = record.othersPresent;
+    setSaid(null);
+    try {
+      const d = await af("/api/inspections/findings/" + encodeURIComponent(f.id) + "/conversation", { method: "POST", body });
+      setRecord(null);
+      setSaid({ ok: true, text: tr("Recorded. The person is asked to confirm it.") });
+      if (d && d.finding && onChanged) onChanged(d.finding);
+    } catch (e) { refused(e); }
+  });
+  const bad = (k) => !!(said && !said.ok && (said.keys || []).indexOf(k) >= 0);
+  const under = (k) => (bad(k) ? <div data-finding-refusal={k} role="alert" style={{ fontSize: 12, color: RD, marginTop: 4, lineHeight: 1.5 }}>{said.text}</div> : null);
+  const atTop = said && !said.ok && !FINDING_FIELDS.some(bad);
+  const red = (k) => (bad(k) ? { borderColor: RD } : undefined);
+  const cap = (text) => <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{text}</div>;
+  const panel = { marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border };
+  const owner = f.owner && f.owner.name ? f.owner : null;
+  const ownersList = insp ? insp.owners : [];
+  return (<Mdl t={t} onClose={onClose}><div data-finding-window={f.id} data-finding-window-state={f.state || ""} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Finding")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {f.refused ? <div data-finding-refusal="read" role="alert" style={{ fontSize: 13, color: RD }}>{f.refused}</div> : <>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(f.card && f.card.label) || "--"}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "6px 0 10px" }}><Bdg l={findingFollowStateWord(f.state)} c={findingFollowStateColor(f.state, t)} />{f.severity ? <Bdg l={({ high: tr("high"), medium: tr("medium"), low: tr("low") })[f.severity] || f.severity} c={f.severity === "high" ? RD : f.severity === "medium" ? OR : BL} /> : null}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 12, fontSize: 11, color: t.textMut }}>
+        <div>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(f.site && f.site.name) || "--"}</div></div>
+        <div>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(f.card && f.card.zone) || "--"}</div></div>
+        <div>{tr("Score")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{f.card && f.card.score != null ? tr("{0} of {1}", f.card.score, f.card.maxScore == null ? "--" : f.card.maxScore) : "--"}</div></div>
+        <div>{tr("Owner|finding")}<div data-finding-window-owner={owner && owner.id ? String(owner.id) : ""} style={{ color: owner ? t.text : t.textMut, fontWeight: 500, marginTop: 2 }}>{owner ? owner.name : tr("No owner yet")}</div></div>
+      </div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{findingFoundLine(f)}</div>
+      {f.notes ? <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, padding: "8px 12px", background: t.cardAlt, borderRadius: 8, overflowWrap: "anywhere" }}>{f.notes}</div></div> : null}
+      {Array.isArray(f.photos) && f.photos.length > 0 ? <div style={{ marginBottom: 12 }}><Lbl>{tr("Photos ({0})", f.photos.length)}</Lbl><InspectionThumbs t={t} urls={f.photos.map(p => p && p.url).filter(Boolean)} mark={"finding-" + f.id} readKey={"finding:" + f.id} onStale={photosAgain} /></div> : null}
+      <div data-finding-follow-up={fu ? fu.kind || "" : "none"} style={{ ...panel, border: "1px solid " + (f.state === "overdue" || f.state === "needsFollowUp" ? t.orangeBorder : t.border) }}>
+        {cap(tr("Follow-up"))}
+        <FollowUpSummary t={t} fu={fu} at="window" />
+        {!fu && f.due ? <div data-finding-choose-by="" style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Choose it by {0}", fdLong(f.due))}</div> : null}
+        {fu && fu.chosenAt ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{fu.chosenBy && fu.chosenBy.name ? tr("Chosen by {0} on {1}.", fu.chosenBy.name, fdLong(fu.chosenAt)) : tr("Chosen on {0}.", fdLong(fu.chosenAt))}</div> : null}
+        {fu && fu.training && fu.training.completedDate ? <div data-finding-passed="" style={{ fontSize: 12, color: GR, marginTop: 4 }}>{tr("Passed on {0}.", fdLong(fu.training.completedDate))}</div> : null}
+        {fu && fu.kind === "training" && !followUpDone(fu) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The person finds it on My training in the staff app. It is done once they pass it.")}</div> : null}
+        {fu && fu.conversation ? <div style={{ marginTop: 6 }}><ConversationRecord t={t} c={fu.conversation} /></div> : null}
+        {fu && fu.kind === "conversation" && !(fu.conversation && fu.conversation.recordedAt) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("Hold it with the person, then record it here. It is coaching on their record, never a warning.")}</div> : null}
+      </div>
+      {said && said.ok ? <div data-finding-said="saved" role="status" style={{ fontSize: 12, color: GR, marginBottom: 10 }}>{said.text}</div> : null}
+      {atTop ? <div data-finding-refusal={said.code || "refused"} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{said.text}</div> : null}
+      {choose && <div data-finding-choose="" style={panel}>
+        {cap(fu ? tr("Change the follow-up") : tr("Choose a follow-up"))}
+        <div role="radiogroup" aria-label={tr("Follow-up")} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+          {["training", "conversation"].map(k => <button key={k} type="button" role="radio" aria-checked={choose.kind === k} data-finding-kind={k} onClick={() => { setChoose({ ...choose, kind: k }); setSaid(null); }} style={{ flex: "1 1 140px", minHeight: 44, padding: "8px 12px", borderRadius: R.sm, border: "1.5px solid " + (choose.kind === k ? GO : t.border), background: choose.kind === k ? t.goldBg : "transparent", color: choose.kind === k ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{followUpKindWord(k)}</button>)}
+        </div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{choose.kind === "training" ? tr("A lesson given to the person, due in 7 days. They find it on My training.") : tr("A conversation held with the person, due in 3 days. Whoever holds it records it here.")}</div>
+        {under("kind")}
+        {inspFailed ? <LoadFailed t={t} onRetry={readInsp} text={inspFailed} style={{ padding: 8 }} /> : null}
+        {choose.kind === "training" && <div style={{ marginBottom: 10 }}><Lbl>{tr("Lesson topic")}</Lbl><Sel t={t} aria-label={tr("Lesson topic")} data-finding-field="topicId" value={choose.topicId} onChange={e => { setChoose({ ...choose, topicId: e.target.value }); setSaid(null); }} options={[{ v: "", l: insp ? tr("Choose a lesson topic") : tr("Loading...") }].concat(topicsInOrder().map(x => ({ v: String(x.id), l: String(x.id) === String(f.suggestedTopicId || "") ? tr("{0} (suggested)", x.name) : x.name })))} style={red("topicId")} />{under("topicId")}</div>}
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Owner|finding")}</Lbl><Sel t={t} aria-label={tr("Owner|finding")} data-finding-field="ownerId" value={choose.ownerId} onChange={e => { setChoose({ ...choose, ownerId: e.target.value }); setSaid(null); }} options={[{ v: "", l: owner ? tr("Keep {0}", owner.name) : tr("Choose the person whose work it was") }].concat(ownersList.filter(o => o && o.id != null && !(owner && String(owner.id) === String(o.id))).map(o => ({ v: String(o.id), l: o.name || String(o.id) })))} style={red("ownerId")} />{under("ownerId")}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}><Btn t={t} v="ghost" onClick={() => { setChoose(null); setSaid(null); }}>{tr("Cancel")}</Btn><Btn t={t} data-finding-choose-save="" onClick={saveChoose} disabled={busy}>{busy ? tr("Saving...") : tr("Save the follow-up")}</Btn></div>
+      </div>}
+      {record && <div data-finding-record="" style={panel}>
+        {cap(tr("Record the conversation"))}
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("When it was held")}</Lbl><Inp t={t} type="datetime-local" aria-label={tr("When it was held")} data-finding-field="heldAt" value={record.heldAt} onChange={e => { setRecord({ ...record, heldAt: e.target.value }); setSaid(null); }} style={red("heldAt")} />{under("heldAt")}</div>
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("What was covered")}</Lbl><TArea t={t} rows={4} maxLength={2000} aria-label={tr("What was covered")} data-finding-field="covered" value={record.covered} onChange={e => { setRecord({ ...record, covered: e.target.value }); setSaid(null); }} style={red("covered")} />{under("covered")}</div>
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Who else was there (optional)")}</Lbl><Inp t={t} maxLength={500} aria-label={tr("Who else was there (optional)")} data-finding-field="othersPresent" value={record.othersPresent} onChange={e => { setRecord({ ...record, othersPresent: e.target.value }); setSaid(null); }} style={red("othersPresent")} />{under("othersPresent")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("It is kept as coaching on the person's record, apart from warnings. The person is asked to confirm it.")}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}><Btn t={t} v="ghost" onClick={() => { setRecord(null); setSaid(null); }}>{tr("Cancel")}</Btn><Btn t={t} data-finding-record-save="" onClick={saveRecord} disabled={busy}>{busy ? tr("Saving...") : tr("Record it|conversation")}</Btn></div>
+      </div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {canChoose && !choose && !record && <Btn t={t} data-finding-choose-open="" onClick={startChoose} style={{ flex: "1 1 160px" }}>{fu ? tr("Change the follow-up") : tr("Choose a follow-up")}</Btn>}
+        {canRecord && !choose && !record && <Btn t={t} data-finding-record-open="" onClick={startRecord} style={{ flex: "1 1 160px" }}>{tr("Record the conversation")}</Btn>}
+        {sid && onOpenInspection && <Btn t={t} v="ghost" data-finding-open-inspection="" onClick={() => onOpenInspection(sid)} style={{ flex: "1 1 160px" }}>{tr("Open the inspection")}</Btn>}
+        <Btn t={t} v="ghost" data-finding-open-issue="" onClick={() => { openFinding(f.id); }} style={{ flex: "1 1 160px" }}>{tr("Open in Issues")}</Btn>
+      </div>
+      {!canDecide && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr("A follow-up is chosen by whoever manages inspections, or a supervisor at the site.")}</div>}
+    </>}
+  </div></Mdl>);
+}
+function InspectionsPage({ af, token, showToast, canManageInspections = false, canDecideFindings = false, t, sites, allStaff, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   const lkCimsLabels = lkMap("cims_categories");
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
   const ZONES = INSPECTION_ZONES;
@@ -18113,8 +18390,16 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   };
   // Step 314: #inspections/<id> opens that inspection, which is where a safety inspection record's
   // Open the inspection lands; Back goes to #inspections.
-  const routeId = route[0] ? decodeURIComponent(route[0]) : "";
+  // Part 389: #inspections/findings is the Findings tab and #inspections/findings/<id> a finding's window, so
+  // "findings" never names an inspection.
+  const onFindings = route[0] === "findings";
+  const routeId = route[0] && !onFindings ? decodeURIComponent(route[0]) : "";
+  const findingId = onFindings && route[1] ? decodeURIComponent(route[1]) : "";
   useEffect(() => { if (routeId) openDetail(routeId); }, [routeId]);
+  useEffect(() => { if (onFindings) { setTab("findings"); setDetailView(null); } }, [onFindings]);
+  const [findingsCount, setFindingsCount] = useState(null);
+  useEffect(() => { af("/api/inspections/findings").then(d => { if (d && Array.isArray(d.findings)) setFindingsCount(d.findings.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length); }).catch(() => {}); }, [af]);
+  const pickTab = (tb) => { setTab(tb); if (onRoute && (tb === "findings" || onFindings)) onRoute(tb === "findings" ? ["findings"] : []); };
   // Part 386: the last safety walk of every site the list holds.
   const listedSites = Array.from(new Set((scheduled || []).map(si => String(si.site_id || "")).filter(Boolean))).sort().join(",");
   useEffect(() => { listedSites.split(",").filter(Boolean).forEach(wantWalk); }, [listedSites, wantWalk]);
@@ -18151,11 +18436,16 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     // photo on the card, since Step 218). Their links stop working an hour after they are read, so none is
     // written into the file; the photos stay on the inspection.
     const many = !!d.capture;
-    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", "Photos"];
+    // Part 389: once the read carries each finding's follow-up, a card with a finding says what it is, when it
+    // is due and when it was done, in the English the API holds.
+    const fuOn = findingsIn(d) && d.findings.some(f => issueHas(f, "followUp"));
+    const findingOf = (item) => (fuOn ? d.findings.find(f => f && String(f.templateItemId || "") === String(item.id)) || null : null);
+    const fuCells = (item) => { if (!fuOn) return []; const f = findingOf(item); const fu = f ? f.followUp : null; return [f ? "Yes" : "", fu ? (fu.kind === "training" ? "Training" : fu.kind === "conversation" ? "Conversation" : String(fu.kind || "")) : f ? "None yet" : "", fu && fu.dueOn ? String(fu.dueOn).slice(0, 10) : "", fu && fu.doneAt ? companyDayOf(fu.doneAt) : ""]; };
+    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", "Photos"].concat(fuOn ? ["Finding", "Follow-up", "Follow-up due", "Follow-up done"] : []);
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, serviceCategoryLabel(catOf(item), cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", String(many ? inspectionPhotosOf(sr).length : (sr && sr.photo_url ? 1 : 0))];
+      return [item.label, item.zone, serviceCategoryLabel(catOf(item), cimsLabels), sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", String(many ? inspectionPhotosOf(sr).length : (sr && sr.photo_url ? 1 : 0))].concat(fuCells(item));
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
@@ -18179,8 +18469,12 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     const q = "?start_date=" + analyticsRange.start + "&end_date=" + analyticsRange.end + (analyticsSite ? "&site_id=" + analyticsSite : "");
     af("/api/inspections/analytics/export" + q).then(rows => {
       if (!rows.length) { showToast(tr("No data to export"), "error"); return; }
-      const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(catOf(r), cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+      // Part 389: each card's finding and its follow-up, once the rows carry them (finding_follow_up and the rest).
+      const fuOn = rows.some(r => r && Object.prototype.hasOwnProperty.call(r, "finding_follow_up"));
+      const fuKind = (k) => (k === "training" ? "Training" : k === "conversation" ? "Conversation" : String(k || ""));
+      const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"].concat(fuOn ? ["Finding ID", "Follow-up", "Follow-up due", "Follow-up done"] : []);
+      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(catOf(r), cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]
+        .concat(fuOn ? [r.finding_id || "", r.finding_follow_up ? fuKind(r.finding_follow_up) : r.finding_id ? "None yet" : "", r.finding_follow_up_due_on ? String(r.finding_follow_up_due_on).slice(0, 10) : "", r.finding_follow_up_done_at ? companyDayOf(r.finding_follow_up_done_at) : ""] : []));
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));
@@ -18205,6 +18499,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     const scoreColor = pct === null ? t.textMut : pct >= 80 ? GR : pct >= 60 ? OR : RD;
     // The band by QMS-014 5.2, from the exact percent, as the API judges it at completion.
     const band = isComplete && d.result.max_possible_score > 0 ? bandOf((d.result.total_score / d.result.max_possible_score) * 100) : "";
+    // Part 389: each finding's follow-up, once the read carries it.
+    const fuOn = findingsIn(d) && d.findings.some(f => issueHas(f, "followUp"));
 
     return (
       <div>
@@ -18275,18 +18571,19 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Findings")}</div>
           {d.findings.length === 0 && <div data-inspection-findings="" style={{ fontSize: 13, color: t.textMut }}>{tr("No deficient item. No finding was opened.")}</div>}
           {d.findings.length > 0 && <div data-inspection-findings="" style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead><tr>{[tr("Finding"), tr("Zone"), tr("Owner|finding"), tr("Due"), tr("Fixed|finding"), tr("Checked|finding"), tr("Status")].map((h, i) => <th key={i} style={{ textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, padding: "6px 8px", borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr>{[tr("Finding"), tr("Zone"), tr("Owner|finding")].concat(fuOn ? [tr("Follow-up")] : [], [tr("Due"), tr("Fixed|finding"), tr("Checked|finding"), tr("Status")]).map((h, i) => <th key={i} style={{ textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, padding: "6px 8px", borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>{d.findings.map((f, i) => <tr key={f.issueId || i} data-inspection-finding={f.issueId || ""} onClick={() => { if (f.issueId != null) openFinding(f.issueId); }} style={{ cursor: f.issueId != null ? "pointer" : "default" }}>
               <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.text, fontWeight: 600 }}>{f.label || "--"}</td>
               <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec }}>{f.zone || "--"}</td>
               <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: f.owner && f.owner.name ? t.text : t.textMut }}>{f.owner && f.owner.name ? f.owner.name : tr("Unassigned")}</td>
+              {fuOn && <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, minWidth: 160 }}><FollowUpSummary t={t} fu={f.followUp || null} topics={d.followUpTopics} at={"inspection-" + (f.issueId || i)} /></td>}
               <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" }}><ClockCell t={t} cell={requestClock(f.dueState, f.dueAt, tr("Fixed|finding"))} name="finding-due" /></td>
               <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec, whiteSpace: "nowrap" }}>{f.resolvedAt ? fmtDT(f.resolvedAt) : "--"}</td>
               <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec, whiteSpace: "nowrap" }}>{f.verifiedAt ? fmtDT(f.verifiedAt) : "--"}</td>
               <td style={{ padding: "8px", borderBottom: "1px solid " + t.border }}><Bdg l={findingStateWord(f.status)} c={findingStateColor(f.status, t)} /></td>
             </tr>)}</tbody>
           </table></div>}
-          <div style={{ fontSize: 11, color: t.textMut, marginTop: 8 }}>{tr("A finding opens in the Issue Tracker, where it is verified.")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 8 }}>{tr("A finding opens in the Issue Tracker, where it is verified.")}{fuOn ? " " + tr("Its follow-up, training or a conversation, is chosen on the Findings tab.") : ""}</div>
         </Crd>}
         {isComplete && findingsIn(d) && Object.prototype.hasOwnProperty.call(d, "correctiveAction") && (d.correctiveAction || pct < 80) && <Crd t={t} style={{ marginBottom: 16, border: "1px solid " + (d.correctiveAction ? t.border : t.orangeBorder) }}>
           <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Corrective action")}</div>
@@ -18424,10 +18721,13 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     <div>
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
-        {[["templates", tr("Templates")], ["scheduled", tr("Scheduled|inspections")], ["completed", tr("Completed|inspections")]].concat(awaiting ? [["awaiting", tr("Awaiting review")]] : [], [["reports", tr("Reports")]]).map(([tb, lbl]) => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}{tb === "awaiting" && awaiting && awaiting.length > 0 ? " (" + awaiting.length + ")" : ""}</button>
+        {[["templates", tr("Templates")], ["scheduled", tr("Scheduled|inspections")], ["completed", tr("Completed|inspections")]].concat(awaiting ? [["awaiting", tr("Awaiting review")]] : [], [["findings", tr("Findings")], ["reports", tr("Reports")]]).map(([tb, lbl]) => (
+          <button key={tb} data-inspections-tab={tb} onClick={() => pickTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}{tb === "awaiting" && awaiting && awaiting.length > 0 ? " (" + awaiting.length + ")" : ""}{tb === "findings" && findingsCount > 0 ? " (" + findingsCount + ")" : ""}</button>
         ))}
       </div>
+      {tab === "findings" && <InspectionFindings af={af} t={t} sites={sites} canDecide={canDecideFindings} openId={findingId} onCount={setFindingsCount}
+        onOpen={(id) => { if (onRoute) onRoute(["findings", String(id)]); }} onClose={() => { if (onRoute) onRoute(["findings"]); }}
+        onOpenInspection={(id) => { if (onRoute) onRoute([String(id)]); }} />}
 
       {renameTpl && <Mdl t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Rename")}</div><button onClick={() => setRenameTpl(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
@@ -23012,6 +23312,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
           <div style={{ flex: "1 1 200px", minWidth: 0 }}>
             <div style={{ fontSize: 13, color: t.text, fontWeight: 600, wordBreak: "break-word" }}>{f.title || "--"}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11, color: t.textSec, marginTop: 2 }}>{f.zone ? <span>{f.zone}</span> : null}<Bdg l={findingStateWord(f.status)} c={findingStateColor(f.status, t)} /><span>{tr("Due")}: <ClockCell t={t} cell={requestClock(f.dueState, f.dueAt, tr("Fixed|finding"))} name="linked-due" /></span>{f.verifiedAt ? <span style={{ color: GR, fontWeight: 600 }}>{tr("Verified {0}", irDay(f.verifiedAt))}</span> : null}</div>
+            {/* Part 389: the finding's follow-up and the day it was done (linkedIssues[].followUp). */}
+            {issueHas(f, "followUp") ? <div style={{ marginTop: 4 }}><FollowUpSummary t={t} fu={f.followUp} at={"linked-" + f.id} /></div> : null}
           </div>
           {!isVoid && <Btn t={t} v="ghost" onClick={() => unlink(f.id)} disabled={!!unlinking} data-unlink-finding={f.id} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{unlinking === String(f.id) ? tr("Saving...") : tr("Unlink")}</Btn>}
         </div>))}
@@ -28169,6 +28471,35 @@ function FolderCertifications({ af, t, userId, getOpts, showToast }) {
     </div></Mdl>}
   </Crd></div>);
 }
+// Part 389: the follow-ups of the person's inspection findings, from the folder's findingFollowUps (the API's
+// part 382): their conversations under Coaching, kept apart from warnings and never discipline, and the training
+// given them from a finding. Drawn once the folder answers the list and it holds one.
+function FolderFindingFollowUps({ t, list }) {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  const talks = list.filter(x => x && (x.recordKind === "coaching" || x.kind === "conversation"));
+  const lessons = list.filter(x => x && x.kind === "training");
+  const head = (text) => <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{text}</div>;
+  const about = (x) => [x.finding && x.finding.title, x.finding && x.finding.siteName, x.finding && x.finding.foundAt ? tr("Found {0}", fdLong(x.finding.foundAt)) : ""].filter(Boolean).join(" | ");
+  return (<>
+    {talks.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}><div data-folder-coaching="">
+      {head(tr("Coaching"))}
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Conversations held about an inspection finding. Coaching is kept apart from warnings and is never discipline.")}</div>
+      {talks.map(x => <div key={x.id} data-folder-coaching-row={x.id} data-folder-coaching-state={followUpDone(x) ? "done" : x.state || ""} style={{ padding: "8px 0", borderTop: "1px solid " + t.border }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{about(x) || "--"}</div>
+        <div style={{ marginTop: 4 }}>{x.conversation && x.conversation.recordedAt ? <ConversationRecord t={t} c={x.conversation} /> : <FollowUpSummary t={t} fu={x} at={"folder-" + x.id} />}</div>
+      </div>)}
+    </div></Crd>}
+    {lessons.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}><div data-folder-finding-training="">
+      {head(tr("Training from findings"))}
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("A lesson given to the person after an inspection finding. It is done once they pass it.")}</div>
+      {lessons.map(x => <div key={x.id} data-folder-finding-training-row={x.id} data-folder-finding-training-state={followUpDone(x) ? "done" : x.state || ""} style={{ padding: "8px 0", borderTop: "1px solid " + t.border }}>
+        <FollowUpSummary t={t} fu={x} at={"folder-" + x.id} />
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflowWrap: "anywhere" }}>{about(x)}</div>
+        {x.training && x.training.completedDate ? <div style={{ fontSize: 12, color: GR, marginTop: 2 }}>{tr("Passed on {0}.", fdLong(x.training.completedDate))}</div> : null}
+      </div>)}
+    </div></Crd>}
+  </>);
+}
 function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, sites = [], focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
@@ -28340,6 +28671,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       <PersonLeave af={af} t={t} userId={userId} showToast={showToast} canOpenStaff={canOpenStaff} />
       <PersonClearances af={af} token={token} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
+      <FolderFindingFollowUps t={t} list={data && data.findingFollowUps} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
       <PersonProperty af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
       <FolderTrainingItems af={af} t={t} userId={userId} sites={sites} isAdmin={isAdmin} showToast={showToast} />

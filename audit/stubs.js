@@ -6177,6 +6177,10 @@ function createStubs() {
   // What the API's Round 11 answers for the dashboard (part 386), in audit/part386-stub.js: the API as built at
   // ocsa-api 292d2a9, over part 379's and every layer under it but the pictures, in every run.
   const part386 = require("./part386-stub")({ seed, state, ok, clone, person });
+  // What the API's Round 12 answers for the dashboard (part 389), in audit/part389-stub.js: the API as built at
+  // ocsa-api e4f2048, over part 386's and every layer under it but the pictures, in every run. Its findings are
+  // the Step 253 layer's, there once that layer is armed.
+  const part389 = require("./part389-stub")({ seed, state, ok, clone, person, items: INSPECTION_ITEMS, findings: () => (step253 ? findings() : []) });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7361,7 +7365,8 @@ function createStubs() {
     const under372p = () => part372.route(method, path, u.searchParams, body, record.language, under372);
     const under379 = () => part379.route(method, path, u.searchParams, body, record.language, under372p);
     const under386 = () => part386.route(method, path, u.searchParams, body, record.language, under379);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under386);
+    const under389 = () => part389.route(method, path, u.searchParams, body, record.language, under386);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under389);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7482,6 +7487,11 @@ function createStubs() {
     setScene379: (o) => { part379.setScene(o || {}); },
     // Part 386: the API's Round 11 (audit/part386-stub.js), what a run sent it, and its scenes.
     setScene386: (o) => { part386.setScene(o || {}); },
+    // Part 389: the API's Round 12 (audit/part389-stub.js), what a run sent it, and its scenes.
+    setScene389: (o) => { part389.setScene(o || {}); },
+    sent389: () => part389.sent(),
+    model389: () => part389.model(),
+    followUps389: () => part389.followUps(),
     sent386: () => part386.sent(),
     model386: () => part386.model(),
     sent379: () => part379.sent(),
@@ -7648,6 +7658,7 @@ function createStubs() {
       part372.reset();
       part379.reset();
       part386.reset();
+      part389.reset();
       pictures372.reset();
     },
     fixtures: {
