@@ -58,6 +58,26 @@
 //                                         a photo bucket, as sent when it is an outside address, and answered as
 //                                         the GET answers it
 //
+//   Section 4, the safety walk once a month (routes/inspections.js, helpers/inspectionSafety.js lastWalk and
+//   dropFromInspection):
+//     GET /api/inspections/safety-walks?siteId=
+//                                         { siteId, lastWalk: { at, day, scheduledInspectionId, responseId,
+//                                         thisMonth } | null }: Fairhaven's first site (s-1) walked on insp-4 on the
+//                                         10th of this month, the stub's completed walk (Step 312's fr-safety-1);
+//                                         the second (s-2) last walked in February, filed on its own; the third
+//                                         (s-3) never. 400 inspections.badDetails keys ["siteId"] for a site the
+//                                         stub does not hold. The scene walks replaces them.
+//     GET /api/inspections/scheduled/:id lastSafetyWalk, the inspection's site's, beside the rest; a dropped
+//                                         inspection answers with_safety false, here and in the list
+//     POST /api/inspections/scheduled/:id/drop-safety
+//                                         the inspector or manage_inspections, else 403
+//                                         access.insufficientPermissions; 404 inspections.notFound; 409
+//                                         inspections.completedLocked (not scheduled), inspections.noSafetyPart
+//                                         (already without it), inspections.safetyWalkNotDone with lastWalk (no
+//                                         walk this month at the site on another inspection, or the scene
+//                                         walkGone); else 200 { inspection: { id, withSafety: false },
+//                                         voidedDrafts: 1, lastWalk }
+//
 // Every value is invented: the test accounts, the devices and the days.
 "use strict";
 
@@ -74,7 +94,7 @@ module.exports = (ctx) => {
 
   let model = null;
   const m = () => {
-    if (!model) model = { scene: {}, sent: [], robot: null, robotLines: null, outside: { "tp-4": true }, personCerts: { "ht-5": true }, saved: {}, started: {}, logoReads: 0 };
+    if (!model) model = { scene: {}, sent: [], robot: null, robotLines: null, outside: { "tp-4": true }, personCerts: { "ht-5": true }, saved: {}, started: {}, logoReads: 0, walks: null, dropped: {} };
     return model;
   };
   const sent = (what, body) => { m().sent.push({ what, body: clone(body === undefined ? null : body) }); };
@@ -332,7 +352,69 @@ module.exports = (ctx) => {
     return Object.assign({}, a, { json: { checklistDayStartsAt: row.checklistDayStartsAt } });
   }
 
+  // ---- Section 4: the safety walk once a month -------------------------------------------------------------
+  const MONTH = TODAY.slice(0, 7);
+  const walkOf = (siteId) => {
+    if (!m().walks) m().walks = {
+      "s-1": { at: TODAY.slice(0, 8) + "10T18:00:00.000Z", day: TODAY.slice(0, 8) + "10", scheduledInspectionId: "insp-4", responseId: "fr-safety-1" },
+      "s-2": { at: "2026-02-12T16:20:00.000Z", day: "2026-02-12", scheduledInspectionId: null, responseId: "fr-safety-0" },
+      "s-3": null,
+    };
+    const w = m().walks[String(siteId)];
+    return w ? Object.assign({}, w, { thisMonth: String(w.day).slice(0, 7) === MONTH }) : null;
+  };
+  const INSP_WORDS = {
+    "inspections.notFound": ["Inspection not found", "No se encontr\u00f3 la inspecci\u00f3n"],
+    "inspections.completedLocked": ["This inspection is completed. Its status and its safety walk cannot be changed.", "Esta inspecci\u00f3n est\u00e1 completada. Su estado y su recorrido de seguridad no se pueden cambiar."],
+    "inspections.noSafetyPart": ["This inspection does not include the safety walk.", "Esta inspecci\u00f3n no incluye el recorrido de seguridad."],
+    "inspections.safetyWalkNotDone": ["This site's safety walk is not done this month on another inspection, so this inspection keeps its own.", "El recorrido de seguridad de este sitio no se ha hecho este mes en otra inspecci\u00f3n, as\u00ed que esta inspecci\u00f3n conserva el suyo."],
+    "access.insufficientPermissions": ["Insufficient permissions", "No tiene permiso para hacer esto"],
+    "inspections.badDetails": ["Some details are missing or not valid.", "Faltan algunos datos o no son v\u00e1lidos."],
+  };
+  const inspRefuse = (lang, status, code, extra) => bad(status, code, T(lang, INSP_WORDS[code][0], INSP_WORDS[code][1]), extra);
+  function walksRoute(method, path, query, body, lang, base) {
+    if (path === "/api/inspections/safety-walks" && method === "GET") {
+      const siteId = String(query.get("siteId") || "");
+      if (!seed.SITES.some((x) => x.id === siteId)) return inspRefuse(lang, 400, "inspections.badDetails", { keys: ["siteId"] });
+      sent("walk", { siteId });
+      return ok({ siteId, lastWalk: walkOf(siteId) });
+    }
+    if (path === "/api/inspections/scheduled" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((r) => (m().dropped[String(r.id)] ? Object.assign({}, r, { with_safety: false }) : r));
+      return a;
+    }
+    const one = /^\/api\/inspections\/scheduled\/([^/]+)$/.exec(path);
+    if (one && method === "GET") {
+      const a = base();
+      if (!a || a.status !== 200 || !a.json || typeof a.json !== "object") return a;
+      const extra = { lastSafetyWalk: walkOf(a.json.site_id) };
+      if (m().dropped[String(a.json.id)]) extra.with_safety = false;
+      return Object.assign({}, a, { json: Object.assign({}, a.json, extra) });
+    }
+    const drop = /^\/api\/inspections\/scheduled\/([^/]+)\/drop-safety$/.exec(path);
+    if (drop && method === "POST") {
+      const id = decodeURIComponent(drop[1]);
+      sent("drop-safety", { id });
+      const p = me();
+      const rows = (ctx.state && ctx.state.inspections) || [];
+      const fallback = seed.SITES && rows.length === 0;
+      const row = rows.find((r) => String(r.id) === id) || (fallback && id === "si-1" ? { id: "si-1", site_id: seed.SITES[0].id, status: "scheduled", assigned_to: "u-sup-1" } : null);
+      if (!row) return inspRefuse(lang, 404, "inspections.notFound");
+      const holds = p && (p.role === "admin" || p.role === "supervisor" || p.isSuperAdmin === true);
+      if (!holds && String(row.assigned_to) !== String(p && p.id)) return inspRefuse(lang, 403, "access.insufficientPermissions");
+      if (row.status !== "scheduled") return inspRefuse(lang, 409, "inspections.completedLocked");
+      if (m().dropped[id] || row.with_safety === false) return inspRefuse(lang, 409, "inspections.noSafetyPart");
+      const walk = walkOf(row.site_id);
+      if (m().scene.walkGone || !walk || !walk.thisMonth || walk.scheduledInspectionId === id) return inspRefuse(lang, 409, "inspections.safetyWalkNotDone", { lastWalk: m().scene.walkGone ? null : walk });
+      m().dropped[id] = true;
+      return ok({ inspection: { id, withSafety: false }, voidedDrafts: 1, lastWalk: walk });
+    }
+    return null;
+  }
+
   function route(method, path, query, body, lang, base) {
+    if (/^\/api\/inspections\/(safety-walks|scheduled)/.test(path)) { const w = walksRoute(method, path, query, body, lang, base); if (w) return w; }
     if (/^\/api\/discipline(\/|$)/.test(path) && path !== "/api/discipline/steps") return disciplineRoute(method, path, query, body, lang, base);
     if (path === "/api/settings" && (method === "GET" || method === "PATCH")) return settingsRoute(method, path, query, body, lang, base);
     const h = /^\/api\/health\//.test(path) ? healthRoute(method, path, query, body, lang, base) : null;
@@ -349,6 +431,7 @@ module.exports = (ctx) => {
       if (x.personCerts) { m().personCerts = x.personCerts; delete x.personCerts; }
       if (x.outside) { m().outside = x.outside; delete x.outside; }
       if (Object.prototype.hasOwnProperty.call(x, "logo")) m().logoStored = undefined;
+      if (x.walks) { walkOf("s-1"); Object.assign(m().walks, x.walks); delete x.walks; }
       Object.assign(m().scene, x);
     },
     sent: () => m().sent,

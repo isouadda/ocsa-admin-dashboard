@@ -369,15 +369,15 @@ Last checked: 2026-10-05
 ## Schedule an inspection (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Inspections**.
-2. Click the **Scheduled** tab. The list shows the newest 50 inspections; **Show more** (**Mostrar más**) shows the next ones.
+2. Click the **Scheduled** tab. The list shows the newest 50 inspections; **Show more** (**Mostrar más**) shows the next ones. Under each site's name, the line says its last safety walk, such as **Last safety walk {0}** (**Último recorrido de seguridad: {0}**), and whether this month's is done: **Safety walk done this month on {0}** (**Recorrido de seguridad hecho este mes el {0}**) or **Safety walk due this month** (**Recorrido de seguridad pendiente este mes**). **Open the inspection** (**Abrir la inspección**) opens the inspection it was walked on.
 3. Click **Schedule Inspection**.
 4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date. Only active supervisors are listed.
-5. **Include the safety walk** (**Incluir el recorrido de seguridad**) is ticked to start: the inspector fills in the safety inspection (OCSA-FRM-015) in the same walk, signs once, and both records are kept. Untick it for an inspection with no safety part, such as one at a site whose safety inspection is done another way this month.
+5. The full safety walk is done once a month at each site. Once the site is picked, **Include the safety walk** (**Incluir el recorrido de seguridad**) is ticked only when the site has had no safety walk this month, and the line under it says **Safety walk due this month** (**Recorrido de seguridad pendiente este mes**) or **Safety walk done this month on {0}** (**Recorrido de seguridad hecho este mes el {0}**). With it ticked, the inspector fills in the safety inspection (OCSA-FRM-015) in the same walk, signs once, and both records are kept. You can still tick it or untick it.
 6. Click **Schedule**.
 If it does not work: a supervisor who has left is not listed. An inspection already held by someone who left shows them with their status until you pick someone else.
 Words people use for this: schedule an inspection, monthly inspection, site inspection, safety walk, one walk, inspection and safety inspection together, programar una inspección.
 Picture: inspections-schedule
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 ## Create an inspection template (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Inspections** (**Inspecciones**).
@@ -2998,4 +2998,15 @@ Who can do this: admins, and anyone who holds the settings permission
 If it does not work: a file that is not an image, or one over 10 MB, is refused before it is sent. A supervisor reads the company's name, address, colors and logo on prints, and never opens this tab.
 Words people use for this: company logo, change the logo, upload logo, branding, letterhead, logo missing on the pdf, logotipo.
 Picture: settings-company-logo
+Last checked: 2026-11-11
+
+## Drop the safety walk from an inspection (admin dashboard)
+Who can do this: admins and supervisors, who schedule inspections
+1. Click **Inspections**, then the **Scheduled** tab, and open an inspection that is not done yet.
+2. **This site's last safety walk** (**El último recorrido de seguridad de este sitio**) says when the site was last walked and whether this month's walk is done. A site's own page under **Sites** (**Sitios**) says the same under its numbers.
+3. The full safety walk is done once a month at each site. When this month's walk was done on another inspection and this one still carries its own, the page says so: click **Drop the safety walk** (**Quitar el recorrido de seguridad**) and confirm.
+4. The inspection's **Safety walk** (**Recorrido de seguridad**) then reads **Not included** (**No incluido**), and any unfinished safety walk on it is set aside. The inspector walks the cards alone.
+If it does not work: **This site's safety walk is not done this month on another inspection, so this inspection keeps its own.** (**El recorrido de seguridad de este sitio no se ha hecho este mes en otra inspección, así que esta inspección conserva el suyo.**) means this month's walk is not on record on another inspection, so this one keeps it. A completed inspection keeps what it held, and **Drop the safety walk** (**Quitar el recorrido de seguridad**) is not offered there.
+Words people use for this: drop the safety walk, skip the safety walk, safety walk already done this month, monthly safety walk, one safety walk a month, frm-015 once a month, quitar el recorrido de seguridad.
+Picture: inspection-drop-safety
 Last checked: 2026-11-11

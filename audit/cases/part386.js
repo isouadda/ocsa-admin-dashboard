@@ -13,6 +13,11 @@
 //             draft reads the last save (a guard: main reads updatedAt already); a report's PDF made an hour after
 //             the settings were read reads them again and draws the new logo link; the Settings logo that no
 //             longer loads reads the settings again; a supervisor's print draws the display keys alone (a guard)
+//   walk      Schedule Inspection's Include the safety walk starts on only when the site has no walk this month,
+//             with the staff app's line under it, and can still be turned either way; a site's last walk on the
+//             Inspections list and the site's page, with the inspection it was walked on; Drop the safety walk on
+//             an open inspection whose site's walk is done this month, refused in the API's words; none offered
+//             at a site with no walk this month (a guard)
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -319,6 +324,109 @@ async function warningsCases(ctx, lang) {
   });
 }
 
+// ---- Section 4: the safety walk once a month ----------------------------------------------------------------
+async function walkCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/walk/" + x;
+  const armed = (s) => { s.setStep312(true); };
+
+  // 1. Include the safety walk starts off at a site whose walk is done this month and on at one with none, says
+  //    which under it, and is still sent as the person turns it.
+  await withDriver(ctx, { name: "schedule", lang, arm: armed }, async (d) => {
+    await d.goto("inspections");
+    await d.settle(600);
+    await d.clickText(d.say("Scheduled|inspections"), { exact: true });
+    await d.settle(400);
+    await d.clickText(d.say("Schedule Inspection"), { exact: true });
+    await until(d, "[data-schedule-with-safety]", 5000);
+    const siteSel = d.page.locator("select").filter({ has: d.page.locator("option[value='" + seed.SITES[0].id + "']") }).last();
+    const box = d.page.locator("[data-schedule-with-safety] input[type=checkbox]").first();
+    await siteSel.selectOption(seed.SITES[0].id);
+    await until(d, "[data-schedule-walk-line='done']", 5000);
+    const doneLine = await textOf(d, "[data-schedule-walk-line]");
+    const offAtDone = !(await box.isChecked());
+    await siteSel.selectOption(seed.SITES[2].id);
+    await until(d, "[data-schedule-walk-line='due']", 5000);
+    const dueLine = await textOf(d, "[data-schedule-walk-line]");
+    const onAtDue = await box.isChecked();
+    // Back at the first site, turned on by hand, and sent as turned.
+    await siteSel.selectOption(seed.SITES[0].id);
+    await until(d, "[data-schedule-walk-line='done']", 5000);
+    await box.check();
+    const tplSel = d.page.locator("select").filter({ has: d.page.locator("option", { hasText: d.say("Select template...") }) }).last();
+    await tplSel.selectOption({ index: 1 }).catch(() => {});
+    await d.page.locator("input[type=date]").last().fill(seed.shift(3)).catch(() => {});
+    const mark = d.mark();
+    await d.clickText(d.say("Schedule|verb"), { exact: true }).catch(() => {});
+    await d.settle(800);
+    const post = writes(d, mark, "POST", /^\/api\/inspections\/scheduled$/).pop();
+    const wantDone = d.say("Safety walk done this month on {0}").split("{0}")[0];
+    results.check(KIND, id("include-the-safety-walk-follows-the-month-s-walk"), offAtDone && doneLine.indexOf(wantDone) === 0 && /\b10\b/.test(doneLine) && onAtDue && dueLine === d.say("Safety walk due this month") && !!post && post.body && post.body.withSafety === true,
+      "at the first site the box is " + (offAtDone ? "off" : "on") + " with " + say(doneLine) + " (want " + say(wantDone) + "); at the third " + (onAtDue ? "on" : "off") + " with " + say(dueLine) + "; turned on by hand it sent " + say(post && post.body ? post.body.withSafety : null));
+  });
+
+  // 2. The Inspections list says each listed site's last walk with the inspection it was walked on, which opens
+  //    it; a site's page says it too.
+  await withDriver(ctx, { name: "last-walk", lang, arm: armed }, async (d) => {
+    await d.goto("inspections");
+    await d.settle(600);
+    await d.clickText(d.say("Scheduled|inspections"), { exact: true });
+    await until(d, "[data-last-safety-walk='" + seed.SITES[0].id + "']", 8000);
+    const month = await attr(d, "[data-last-safety-walk='" + seed.SITES[0].id + "']", "data-last-safety-walk-month");
+    const line = await textOf(d, "[data-last-safety-walk='" + seed.SITES[0].id + "']");
+    const opens = await attr(d, "[data-last-safety-walk='" + seed.SITES[0].id + "'] [data-last-safety-walk-open]", "data-last-safety-walk-open");
+    await d.page.locator("[data-last-safety-walk='" + seed.SITES[0].id + "'] [data-last-safety-walk-open]").first().click().catch(() => {});
+    await d.settle(800);
+    const opened = reads(d, 0, /^\/api\/inspections\/scheduled\/insp-4$/).length > 0;
+    await goHash(d, "sites/" + seed.SITES[1].id);
+    await until(d, "[data-last-safety-walk='" + seed.SITES[1].id + "']", 8000);
+    const siteMonth = await attr(d, "[data-last-safety-walk='" + seed.SITES[1].id + "']", "data-last-safety-walk-month");
+    const siteLine = await textOf(d, "[data-last-safety-walk='" + seed.SITES[1].id + "']");
+    const feb = d.say("Last safety walk {0}").split("{0}")[0];
+    results.check(KIND, id("a-site-s-last-walk-on-the-list-and-its-page"), month === "done" && line.indexOf(d.say("Open the inspection")) > 0 && opens === "insp-4" && opened && siteMonth === "due" && siteLine.indexOf(feb) === 0 && /\b12\b/.test(siteLine) && siteLine.indexOf(d.say("Safety walk due this month")) > 0,
+      "the list reads " + say([month, line, opens]) + (opened ? "" : ", and Open the inspection read nothing") + "; the second site's page reads " + say([siteMonth, siteLine]) + " (want it to start " + say(feb) + ")");
+  });
+
+  // 3. An open inspection that still carries the walk at a site whose walk is done this month offers Drop the
+  //    safety walk, which posts and reads the inspection again without it.
+  await withDriver(ctx, { name: "drop", lang, arm: armed }, async (d, stubs) => {
+    await goHash(d, "inspections/si-1");
+    await until(d, "[data-drop-safety='si-1']", 8000);
+    const mark = d.mark();
+    await d.page.locator("[data-drop-safety='si-1']").first().click().catch(() => {});
+    await until(d, "[data-drop-safety-said]", 6000);
+    await d.settle(500);
+    const post = writes(d, mark, "POST", /^\/api\/inspections\/scheduled\/si-1\/drop-safety$/);
+    const said = await attr(d, "[data-drop-safety-said]", "data-drop-safety-said");
+    const now = await attr(d, "[data-inspection-with-safety]", "data-inspection-with-safety");
+    const left = await has(d, "[data-drop-safety]");
+    results.check(KIND, id("drop-the-safety-walk-posts-and-reads-again"), post.length === 1 && post[0].status === 200 && said === "dropped" && now === "false" && !left && stubs.model386().dropped["si-1"] === true,
+      "Drop posted " + post.length + " time(s)" + (post[0] ? " answered " + post[0].status : "") + ", said " + say(said) + ", the card reads " + say(now) + (left ? " and still offers Drop" : ""));
+  });
+
+  // 4. A drop the API refuses reads in its words.
+  await withDriver(ctx, { name: "drop-refused", lang, arm: (s) => { armed(s); s.setScene386({ walkGone: true }); } }, async (d) => {
+    await goHash(d, "inspections/si-1");
+    await until(d, "[data-drop-safety='si-1']", 8000);
+    await d.page.locator("[data-drop-safety='si-1']").first().click().catch(() => {});
+    await until(d, "[data-drop-safety-said]", 6000);
+    const said = await attr(d, "[data-drop-safety-said]", "data-drop-safety-said");
+    const text = await textOf(d, "[data-drop-safety-said]");
+    const want = d.say("This site's safety walk is not done this month on another inspection, so this inspection keeps its own.");
+    results.check(KIND, id("a-refused-drop-reads-the-api-s-words"), said === "inspections.safetyWalkNotDone" && text === want,
+      "the page said " + say([said, text]) + " (want " + say(want) + ")");
+  });
+
+  // 5. A guard: an open inspection at a site with no walk this month offers no drop.
+  await withDriver(ctx, { name: "no-drop", lang, arm: armed }, async (d) => {
+    await goHash(d, "inspections/si-2");
+    await until(d, "[data-inspection-with-safety]", 8000);
+    await d.settle(400);
+    const offered = await has(d, "[data-drop-safety]");
+    results.check(KIND, id("guard-no-drop-at-a-site-with-no-walk-this-month"), !offered, "si-2 at a site never walked offers Drop the safety walk");
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
@@ -326,6 +434,7 @@ async function run(ctx) {
     if (want("robot")) await robotCases(ctx, lang);
     if (want("training")) await trainingCases(ctx, lang);
     if (want("warnings")) await warningsCases(ctx, lang);
+    if (want("walk")) await walkCases(ctx, lang);
   }
 }
 

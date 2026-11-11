@@ -4570,6 +4570,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: TL }}>{sp.inspectionSummary?.avg_score || tr("N/A")}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Avg Score (30d)")}</div></div>
           <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: RD }}>{parseInt(sp.issueSummary?.open_count || 0) + parseInt(sp.issueSummary?.in_progress_count || 0)}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Open Issues")}</div></div>
         </div>
+        {/* Part 386: the site's last safety walk, when and on which inspection, and whether this month's is done. */}
+        <div style={{ marginTop: 12 }}><SiteSafetyWalk af={af} t={t} siteId={s.id} /></div>
       </Crd>
 
       {/* Each tab keeps its words whole and the strip wraps onto a second row, so a long Spanish tab
@@ -17767,6 +17769,49 @@ function InspectionSafetyPart({ af, t, id }) {
   </Crd>);
 }
 
+// ===== THE SAFETY WALK ONCE A MONTH (part 386, the API's Round 11 section 8) =====
+// The owner decided on Nov 10, 2026 that the full safety walk (OCSA-FRM-015) is done once a month per site
+// (OCSA-QMS-015). GET /api/inspections/safety-walks?siteId= answers the site's last completed walk: { lastWalk:
+// { at, day, scheduledInspectionId, responseId, thisMonth } | null }, thisMonth on the company's clock. A read
+// that fails, or an API without the route, answers nothing here, and every screen reads as it did before.
+const safetyWalkDueWords = (lw) => (lw && lw.thisMonth ? tr("Safety walk done this month on {0}", fdLong(lw.day)) : tr("Safety walk due this month"));
+const DROP_SAFETY_WORDS = {
+  "inspections.safetyWalkNotDone": "This site's safety walk is not done this month on another inspection, so this inspection keeps its own.",
+  "inspections.noSafetyPart": "This inspection does not include the safety walk.",
+  "inspections.completedLocked": "This inspection is completed. Its status and its safety walk cannot be changed.",
+};
+// Each site's last walk, read once a page and again after a change; walks[siteId] is { lastWalk } once read,
+// { failed: true } when the read failed.
+function useSafetyWalks(af) {
+  const [walks, setWalks] = useState({});
+  const asked = useRef({});
+  const want = useCallback((siteId) => {
+    const k = String(siteId || "");
+    if (!k || asked.current[k]) return;
+    asked.current[k] = true;
+    af("/api/inspections/safety-walks?siteId=" + encodeURIComponent(k))
+      .then(d => setWalks(w => ({ ...w, [k]: { lastWalk: d && d.lastWalk ? d.lastWalk : null } })))
+      .catch(() => setWalks(w => ({ ...w, [k]: { failed: true } })));
+  }, [af]);
+  const again = useCallback((siteId) => { asked.current[String(siteId || "")] = false; want(siteId); }, [want]);
+  return [walks, want, again];
+}
+// A site's last walk in a line: when, whether this month's is done, and the inspection it was walked on.
+function LastSafetyWalk({ t, walk, onOpen, compact = false, siteId = "" }) {
+  if (!walk || walk.failed) return null;
+  const lw = walk.lastWalk;
+  return (<div data-last-safety-walk={siteId} data-last-safety-walk-month={lw ? (lw.thisMonth ? "done" : "due") : "none"} style={{ fontSize: compact ? 11 : 12, color: lw && lw.thisMonth ? GR : t.textSec, marginTop: compact ? 2 : 0, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+    <span>{lw && lw.thisMonth ? safetyWalkDueWords(lw) : (lw ? tr("Last safety walk {0}", fdLong(lw.day)) : tr("No safety walk on record yet")) + " . " + safetyWalkDueWords(lw)}</span>
+    {lw && lw.scheduledInspectionId && onOpen ? <button data-last-safety-walk-open={lw.scheduledInspectionId} onClick={e => { e.stopPropagation(); onOpen(lw.scheduledInspectionId); }} style={{ minHeight: compact ? 28 : 44, padding: 0, background: "none", border: "none", color: t.goldText, fontSize: compact ? 11 : 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the inspection")}</button> : null}
+  </div>);
+}
+// The same line where it is read on its own, as a site's page reads it.
+function SiteSafetyWalk({ af, t, siteId }) {
+  const [walks, want] = useSafetyWalks(af);
+  useEffect(() => { want(siteId); }, [want, siteId]);
+  return <LastSafetyWalk t={t} walk={walks[String(siteId)]} siteId={String(siteId)} onOpen={(id) => { window.location.hash = "inspections/" + encodeURIComponent(id); }} />;
+}
+
 function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   const lkCimsLabels = lkMap("cims_categories");
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
@@ -17837,6 +17882,18 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const [scheduleModal, setScheduleModal] = useState(false);
   // Step 314: Include the safety walk, on by default, goes as withSafety.
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true });
+  // Part 386: Include the safety walk starts on only when the site has no walk this month, until the person
+  // turns it either way themselves; each site's last walk is read once for the list and the form.
+  const [walks, wantWalk, walkAgain] = useSafetyWalks(af);
+  const [safetyTouched, setSafetyTouched] = useState(false);
+  const [dropSaid, setDropSaid] = useState(null);
+  const formWalk = scheduleForm.site_id ? walks[String(scheduleForm.site_id)] : null;
+  useEffect(() => { if (scheduleForm.site_id) wantWalk(scheduleForm.site_id); }, [scheduleForm.site_id, wantWalk]);
+  useEffect(() => {
+    if (safetyTouched || !formWalk || formWalk.failed) return;
+    const on = !(formWalk.lastWalk && formWalk.lastWalk.thisMonth);
+    setScheduleForm(f => (f.withSafety === on ? f : { ...f, withSafety: on }));
+  }, [formWalk, safetyTouched]);
   const [detailView, setDetailView] = useState(null);
   const [expandedItems, setExpandedItems] = useState(new Set());
   // Step 254: a completed inspection under 80 percent with no corrective action offers to start one
@@ -17983,12 +18040,28 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!scheduleForm.template_id || !scheduleForm.site_id || !scheduleForm.scheduled_date) { showToast(tr("Template, site, and date are required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled", { method: "POST", body: scheduleForm });
-      showToast(tr("Inspection scheduled")); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true }); loadScheduled();
+      showToast(tr("Inspection scheduled")); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true }); setSafetyTouched(false); loadScheduled();
     } catch (e) { showToast(e.message, "error"); }
   };
 
   const openDetail = async (id) => {
     try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
+  };
+  // Part 386: an open inspection gives up its safety walk once its site's walk this month is done on another.
+  // The API's refusals are drawn in its words, and the page reads the inspection, the list and the walk again.
+  const dropSafety = async (d) => {
+    if (!window.confirm(tr("Drop the safety walk from this inspection? Its unfinished safety walk is set aside, and the inspection is the cards alone."))) return;
+    setDropSaid(null);
+    try {
+      const r = await af("/api/inspections/scheduled/" + encodeURIComponent(d.id) + "/drop-safety", { method: "POST", body: {} });
+      const n = r && Number(r.voidedDrafts) > 0 ? Number(r.voidedDrafts) : 0;
+      setDropSaid({ id: d.id, ok: true, text: n ? trn("The safety walk was dropped. {0} unfinished walk was set aside.|count", n) : tr("The safety walk was dropped. This inspection is the cards alone.") });
+      walkAgain(d.site_id);
+      await openDetail(d.id);
+      loadScheduled();
+    } catch (e) {
+      setDropSaid({ id: d.id, ok: false, code: String((e && e.code) || ""), text: (e && e.message) || tr(DROP_SAFETY_WORDS[e && e.code] || "Request failed") });
+    }
   };
   // The inspection read again for its photos' fresh links, what is expanded kept (part 372).
   const detailPhotosAgain = async () => {
@@ -18001,6 +18074,9 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   // Open the inspection lands; Back goes to #inspections.
   const routeId = route[0] ? decodeURIComponent(route[0]) : "";
   useEffect(() => { if (routeId) openDetail(routeId); }, [routeId]);
+  // Part 386: the last safety walk of every site the list holds.
+  const listedSites = Array.from(new Set((scheduled || []).map(si => String(si.site_id || "")).filter(Boolean))).sort().join(",");
+  useEffect(() => { listedSites.split(",").filter(Boolean).forEach(wantWalk); }, [listedSites, wantWalk]);
 
 
   const openEditInspection = (si) => {
@@ -18133,6 +18209,18 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             {findingsIn(d) && band && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Band")}</div><div data-inspection-band={band} style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: bandColor(band) || t.text, lineHeight: 1.3 }}>{bandWord(band)}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("OCSA-QMS-014 5.2")}</div></Crd>}
           </>}
         </div>
+        {/* Part 386: the site's last safety walk, and an open inspection that still carries the walk at a site
+            whose walk is done this month on another inspection offers to drop it, to a holder of
+            manage_inspections (POST /api/inspections/scheduled/:id/drop-safety). */}
+        {d.lastSafetyWalk !== undefined && <Crd t={t} style={{ marginBottom: 20 }}><div data-inspection-last-walk="">
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>{tr("This site's last safety walk")}</div>
+          <LastSafetyWalk t={t} walk={{ lastWalk: d.lastSafetyWalk || null }} siteId={String(d.site_id || "")} onOpen={String((d.lastSafetyWalk && d.lastSafetyWalk.scheduledInspectionId) || "") === String(d.id) ? null : (id) => openDetail(id)} />
+          {canManageInspections && d.status === "scheduled" && d.with_safety === true && d.lastSafetyWalk && d.lastSafetyWalk.thisMonth && String(d.lastSafetyWalk.scheduledInspectionId || "") !== String(d.id) && <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 260px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("This month's walk is done on another inspection, so this one can go without its own.")}</div>
+            <Btn t={t} v="ghost" data-drop-safety={d.id} onClick={() => dropSafety(d)} style={{ minHeight: 44 }}>{tr("Drop the safety walk")}</Btn>
+          </div>}
+          {dropSaid && String(dropSaid.id) === String(d.id) ? <div data-drop-safety-said={dropSaid.ok ? "dropped" : dropSaid.code || "refused"} role={dropSaid.ok ? "status" : "alert"} style={{ fontSize: 12, color: dropSaid.ok ? GR : RD, marginTop: 8, lineHeight: 1.5 }}>{dropSaid.text}</div> : null}
+        </div></Crd>}
 
         {isComplete && d.result.overall_notes && (
           <Crd t={t} style={{ marginBottom: 16 }}>
@@ -18408,7 +18496,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             const cur = Math.min(schedPage, totalPages);
             const items = searched.slice((cur - 1) * inspPerPage, cur * inspPerPage);
             const columns = [
-              { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+              { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div><LastSafetyWalk t={t} compact walk={walks[String(si.site_id || "")]} siteId={String(si.site_id || "")} onOpen={(id) => openDetail(id)} /></div> },
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>{tr("Unassigned")}</span> },
               { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
@@ -18662,9 +18750,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, scheduleForm.assigned_to)} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <label data-schedule-with-safety="" style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 20, cursor: "pointer" }}>
-          <span style={chkWrap}><input type="checkbox" aria-label={tr("Include the safety walk")} checked={scheduleForm.withSafety !== false} onChange={e => setScheduleForm({ ...scheduleForm, withSafety: e.target.checked })} /></span>
+          <span style={chkWrap}><input type="checkbox" aria-label={tr("Include the safety walk")} checked={scheduleForm.withSafety !== false} onChange={e => { setSafetyTouched(true); setScheduleForm({ ...scheduleForm, withSafety: e.target.checked }); }} /></span>
           <span style={{ paddingTop: 11 }}><span style={{ display: "block", fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Include the safety walk")}</span><span style={{ display: "block", fontSize: 12, color: t.textSec, marginTop: 2, lineHeight: 1.5 }}>{tr("The inspector fills in the safety inspection (OCSA-FRM-015) in the same walk and signs both once. Each is kept as its own record.")}</span></span>
         </label>
+        {formWalk && !formWalk.failed ? <div data-schedule-walk-line={formWalk.lastWalk && formWalk.lastWalk.thisMonth ? "done" : "due"} style={{ fontSize: 12, color: formWalk.lastWalk && formWalk.lastWalk.thisMonth ? GR : t.textSec, margin: "-12px 0 20px 50px", lineHeight: 1.5 }}>{safetyWalkDueWords(formWalk.lastWalk)}</div> : null}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={scheduleInspection}>{tr("Schedule|verb")}</Btn></div>
       </div></Mdl>}
     </div>

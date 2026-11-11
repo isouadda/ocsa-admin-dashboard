@@ -667,14 +667,15 @@ const SHOTS = [
       await wait(400); await press(c, "Add Supply"); await until(c, MODAL);
       await inModal(c).locator("input").first().fill(c.lang === "es" ? "Limpiador de acero inoxidable" : "Stainless steel cleaner");
     } },
-  { name: "inspections-schedule", entry: "Schedule an inspection",
+  { name: "inspections-schedule", entry: "Schedule an inspection", arm: (stubs, on) => stubs.setStep312(on),
     open: "inspections", ready: SHELL,
     act: async (c) => {
       await wait(400); await press(c, "Scheduled|inspections"); await press(c, "Schedule Inspection"); await until(c, MODAL);
       await choose(c, "Monthly quality walk"); await choose(c, seed.SITES[1].name); await choose(c, "Marcus Ferreira");
       await inModal(c).locator("input[type=date]").first().fill(seed.shift(7));
+      await until(c, "[data-schedule-walk-line]");
       await blur(c);
-      await show(c, "[data-schedule-with-safety]");
+      await show(c, "[data-schedule-walk-line]");
     } },
   { name: "inspections-new-template", entry: "Create an inspection template",
     open: "inspections", ready: SHELL,
@@ -1897,6 +1898,11 @@ const SHOTS = [
   { name: "settings-company-logo", entry: "Change the company logo", arm: (stubs, on) => stubs.setScene386({ logo: on }),
     open: "settings", ready: SHELL,
     act: async (c) => { await click(c, '[data-settings-tab="company"]'); await until(c, "[data-settings-logo]"); await show(c, "[data-settings-logo]"); await wait(300); } },
+  // Part 386, section 4: an open inspection at the first site, whose walk this month was done on insp-4, with
+  // Drop the safety walk (audit/part386-stub.js over Step 312's walk).
+  { name: "inspection-drop-safety", entry: "Drop the safety walk from an inspection", arm: (stubs, on) => stubs.setStep312(on),
+    open: "inspections/si-1", ready: "[data-drop-safety]",
+    act: async (c) => { await show(c, "[data-inspection-last-walk]"); await wait(300); } },
   // Part 386, section 1: the robot's sign-in on the Run-throughs tab, as the super admin, against
   // audit/part386-stub.js: Test Supervisor's device with 4 days left and Renew.
   { name: "health-robot-sign-in", entry: "Renew the robot's sign-in", as: "superAdmin",

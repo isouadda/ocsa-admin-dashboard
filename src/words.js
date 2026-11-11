@@ -5719,6 +5719,23 @@ export const WORDS = {
   "Outside course": { es: "Curso externo", fr: "Cours externe" },
   "Started {0}|warning": { es: "Iniciada el {0}", fr: "Commenc\u00e9 le {0}" },
   "Last saved {0}": { es: "Guardada por \u00faltima vez el {0}", fr: "Enregistr\u00e9 pour la derni\u00e8re fois le {0}" },
+  "Safety walk done this month on {0}": { es: "Recorrido de seguridad hecho este mes el {0}", fr: "Tourn\u00e9e de s\u00e9curit\u00e9 faite ce mois-ci le {0}" },
+  "Safety walk due this month": { es: "Recorrido de seguridad pendiente este mes", fr: "Tourn\u00e9e de s\u00e9curit\u00e9 \u00e0 faire ce mois-ci" },
+  "Last safety walk {0}": { es: "\u00daltimo recorrido de seguridad: {0}", fr: "Derni\u00e8re tourn\u00e9e de s\u00e9curit\u00e9 : {0}" },
+  "No safety walk on record yet": { es: "Todav\u00eda no hay ning\u00fan recorrido de seguridad registrado", fr: "Aucune tourn\u00e9e de s\u00e9curit\u00e9 enregistr\u00e9e pour l'instant" },
+  "This site's last safety walk": { es: "El \u00faltimo recorrido de seguridad de este sitio", fr: "La derni\u00e8re tourn\u00e9e de s\u00e9curit\u00e9 de ce site" },
+  "This month's walk is done on another inspection, so this one can go without its own.": { es: "El recorrido de este mes ya se hizo en otra inspecci\u00f3n, as\u00ed que esta puede hacerse sin el suyo.", fr: "La tourn\u00e9e de ce mois-ci est faite lors d'une autre inspection, donc celle-ci peut se faire sans la sienne." },
+  "Drop the safety walk": { es: "Quitar el recorrido de seguridad", fr: "Retirer la tourn\u00e9e de s\u00e9curit\u00e9" },
+  "Drop the safety walk from this inspection? Its unfinished safety walk is set aside, and the inspection is the cards alone.": { es: "\u00bfQuitar el recorrido de seguridad de esta inspecci\u00f3n? Su recorrido de seguridad sin terminar se deja de lado, y la inspecci\u00f3n queda solo con las tarjetas.", fr: "Retirer la tourn\u00e9e de s\u00e9curit\u00e9 de cette inspection ? Sa tourn\u00e9e de s\u00e9curit\u00e9 inachev\u00e9e est mise de c\u00f4t\u00e9, et l'inspection ne comprend que les fiches." },
+  "The safety walk was dropped. {0} unfinished walk was set aside.|count": {
+    en: { one: "The safety walk was dropped. {0} unfinished walk was set aside.", other: "The safety walk was dropped. {0} unfinished walks were set aside." },
+    es: { one: "Se quit\u00f3 el recorrido de seguridad. Se dej\u00f3 de lado {0} recorrido sin terminar.", other: "Se quit\u00f3 el recorrido de seguridad. Se dejaron de lado {0} recorridos sin terminar." },
+    fr: { one: "La tourn\u00e9e de s\u00e9curit\u00e9 a \u00e9t\u00e9 retir\u00e9e. {0} tourn\u00e9e inachev\u00e9e a \u00e9t\u00e9 mise de c\u00f4t\u00e9.", other: "La tourn\u00e9e de s\u00e9curit\u00e9 a \u00e9t\u00e9 retir\u00e9e. {0} tourn\u00e9es inachev\u00e9es ont \u00e9t\u00e9 mises de c\u00f4t\u00e9." },
+  },
+  "The safety walk was dropped. This inspection is the cards alone.": { es: "Se quit\u00f3 el recorrido de seguridad. Esta inspecci\u00f3n queda solo con las tarjetas.", fr: "La tourn\u00e9e de s\u00e9curit\u00e9 a \u00e9t\u00e9 retir\u00e9e. Cette inspection ne comprend que les fiches." },
+  "This site's safety walk is not done this month on another inspection, so this inspection keeps its own.": { es: "El recorrido de seguridad de este sitio no se ha hecho este mes en otra inspecci\u00f3n, as\u00ed que esta inspecci\u00f3n conserva el suyo.", fr: "La tourn\u00e9e de s\u00e9curit\u00e9 de ce site n'a pas \u00e9t\u00e9 faite ce mois-ci lors d'une autre inspection, donc cette inspection garde la sienne." },
+  "This inspection does not include the safety walk.": { es: "Esta inspecci\u00f3n no incluye el recorrido de seguridad.", fr: "Cette inspection ne comprend pas la tourn\u00e9e de s\u00e9curit\u00e9." },
+  "This inspection is completed. Its status and its safety walk cannot be changed.": { es: "Esta inspecci\u00f3n est\u00e1 completada. Su estado y su recorrido de seguridad no se pueden cambiar.", fr: "Cette inspection est termin\u00e9e. Son statut et sa tourn\u00e9e de s\u00e9curit\u00e9 ne peuvent pas \u00eatre modifi\u00e9s." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
