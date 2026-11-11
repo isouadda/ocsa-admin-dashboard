@@ -29439,7 +29439,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           const items = searched.slice((cur - 1) * hrPerPage, cur * hrPerPage);
           const columns = [
             { header: tr("Employee"), render: r => <span style={{ color: t.text }}>{r.user_name}</span> },
-            { header: tr("Training Name"), tdStyle: { color: t.text, fontWeight: 500 }, render: r => r.training_name },
+            { header: tr("Training Name"), tdStyle: { color: t.text, fontWeight: 500 }, render: r => <span data-training-record={r.id}>{r.training_name}{certificateByOf(r) ? <><br /><CertificateBy t={t} by={certificateByOf(r)} /></> : null}</span> },
             { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => trainingTypeMap[r.training_type] || r.training_type },
             { header: tr("Completed"), tdStyle: { fontSize: 12, whiteSpace: "nowrap" }, render: r => r.completed_date ? <span style={{ color: t.textSec }}>{fmtDate(r.completed_date)}</span> : <span style={{ color: OR }}>{tr("Pending")}</span> },
             { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
@@ -30331,7 +30331,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
     setMoving(false);
   };
   const columns = [
-    { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
+    { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.outsideCourse === true && <span data-topic-outside-row={tp.id} style={{ marginLeft: 8 }}><Bdg l={tr("Outside course")} c={BL} /></span>}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
     { header: tr("Document"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: tp => topicDocLine(tp) },
     { header: tr("How often"), tdStyle: { color: t.textSec }, render: tp => trainingFrequencyWord(tp.frequency) },
     { header: tr("When due"), tdStyle: { color: t.textSec }, render: tp => (firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule)) },
@@ -30377,7 +30377,11 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
 }
 
 // The fields a topic's form edits, by the key a refusal names them with.
-const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId", "firstDueAfterTopicId"];
+const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "outsideCourse", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId", "firstDueAfterTopicId"];
+// Part 386 (the API's Round 11 section 3): a topic From an outside course is one whose people upload their own
+// certificate in the staff app. Every Topic answers outsideCourse once the API holds it, and the form sends it
+// then, as it does First due after (Step 273).
+const hasOutsideKey = (tp) => !!tp && Object.prototype.hasOwnProperty.call(tp, "outsideCourse");
 const topicFieldOf = (k) => (k === "names" ? "names.en" : TOPIC_FIELDS.indexOf(k) >= 0 ? k : "");
 const topicFormOf = (tp) => ({
   key: (tp && tp.key) || "", en: (tp && tp.names && tp.names.en) || "", es: (tp && tp.names && tp.names.es) || "", fr: (tp && tp.names && tp.names.fr) || "",
@@ -30389,6 +30393,7 @@ const topicFormOf = (tp) => ({
   category: (tp && tp.category) || "", sortOrder: tp && tp.sortOrder != null ? String(tp.sortOrder) : "100", signoffTopicId: tp && tp.signoffTopicId != null ? String(tp.signoffTopicId) : "",
   // Step 273: the topic this one is first due after, or none.
   firstDueAfterTopicId: tp && tp.firstDueAfter && tp.firstDueAfter.topicId != null ? String(tp.firstDueAfter.topicId) : "",
+  outsideCourse: !!(tp && tp.outsideCourse === true),
 });
 
 // One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
@@ -30420,7 +30425,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{tp ? tp.name : tr("Add a topic")}</div>
             {tp && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[topicDocLine(tp), trainingFrequencyWord(tp.frequency)].filter(Boolean).join(" . ")}</div>}
-            {tp && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{tp.safetyCritical && <Bdg l={tr("Safety critical")} c={RD} />}{tp.active === false && <Bdg l={tr("Retired|topic")} c={t.textMut} />}</div>}
+            {tp && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{tp.safetyCritical && <Bdg l={tr("Safety critical")} c={RD} />}{tp.outsideCourse === true && <span data-topic-outside-badge=""><Bdg l={tr("Outside course")} c={BL} /></span>}{tp.active === false && <Bdg l={tr("Retired|topic")} c={t.textMut} />}</div>}
           </div>
           <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
         </div>
@@ -30459,6 +30464,7 @@ function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, 
     {row(tr("When due"), firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule))}
     {row(tr("Per site"), tp.perSite ? tr("Yes") : tr("No"))}
     {row(tr("Safety critical"), tp.safetyCritical ? tr("Yes") : tr("No"))}
+    {hasOutsideKey(tp) && row(tr("From an outside course"), <span data-topic-outside={tp.outsideCourse === true ? "yes" : "no"}>{tp.outsideCourse === true ? tr("Yes. Staff upload their own certificate in the staff app.") : tr("No")}</span>)}
     {courseLinkOf(tp.linkUrl) && row(tr("Course link"), <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 600 }}>{courseLinkOf(tp.linkUrl)}</a>)}
     {tp.evidenceForm && row(tr("Evidence form"), tp.evidenceForm)}
     {(tp.recordNames || []).length > 0 && row(tr("Names on older records"), tp.recordNames.join("\n"))}
@@ -30488,6 +30494,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
   // one any of the catalog's. Its choice is every active topic but this one, read on its own, since
   // the catalog may be showing the retired ones.
   const firstDueOn = topic ? hasFirstDueKey(topic) : (topics || []).some(hasFirstDueKey);
+  const outsideOn = topic ? hasOutsideKey(topic) : (topics || []).some(hasOutsideKey);
   const [actives, setActives] = useState(null);
   useEffect(() => {
     if (!firstDueOn) return undefined;
@@ -30508,6 +30515,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
       evidenceForm: f.evidenceForm.trim() || null, recordNames: f.recordNames.split("\n").map(x => x.trim()).filter(Boolean),
       ...(categories ? { category: f.category || null, sortOrder: order, signoffTopicId: f.signoffTopicId || null } : {}),
       ...(firstDueOn ? { firstDueAfterTopicId: f.firstDueAfterTopicId || null } : {}),
+      ...(outsideOn ? { outsideCourse: !!f.outsideCourse } : {}),
     };
     try {
       const d = topic
@@ -30552,6 +30560,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
     {firstDueOn && field("firstDueAfterTopicId", tr("First due after"), <Sel t={t} aria-label={tr("First due after")} value={f.firstDueAfterTopicId} onChange={set("firstDueAfterTopicId")} options={[{ v: "", l: tr("None|first due") }].concat(anchorNow.concat(anchors).map(x => ({ v: String(x.id), l: x.name })))} />, tr("With a topic chosen, this one is first due its renewal months after the person first completes that topic, and nobody is asked for it before."))}
     {tick("perSite", tr("Per site"), tr("One record for each site the person works at."))}
     {tick("safetyCritical", tr("Safety critical"), tr("A lesson on this topic needs a trainer to watch a demonstration."))}
+    {outsideOn && tick("outsideCourse", tr("From an outside course"), tr("Staff take this course outside the app and upload their own certificate in the staff app. The record is written at once."))}
     {field("linkUrl", tr("Course link"), <Inp t={t} type="url" value={f.linkUrl} onChange={set("linkUrl")} placeholder="https://" />, tr("An https address for a course taken outside the app. It opens in a new tab."))}
     {field("evidenceForm", tr("Evidence form"), <Inp t={t} value={f.evidenceForm} onChange={set("evidenceForm")} placeholder={tr("e.g. OCSA-FRM-033")} />, tr("A form filed about the person at the site that counts as a record."))}
     {field("recordNames", tr("Names on older records"), <TArea t={t} rows={3} value={f.recordNames} onChange={set("recordNames")} />, tr("One name a line. A record under one of these names counts for this topic."))}
@@ -30827,7 +30836,7 @@ function useTrainingItems(af, userId, on = true) {
 // prints one.
 // Since Step 263 an item whose record carries a certificate opens it: certificateOf gives the record's
 // id, onCertificate opens it.
-function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null }) {
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null, certificateByOf: byOf = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
@@ -30835,6 +30844,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
       <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn && !it.firstDue ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
       {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
+      {certificateOf && byOf && certificateOf(it) && byOf(it) ? <CertificateBy t={t} by={byOf(it)} style={{ marginLeft: 12 }} /> : null}
       {certificateOf && whoOpenedOf && certificateOf(it) && whoOpenedOf(certificateOf(it))}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
       {signoffByOf(it) && <div data-item-covered={signoffByOf(it).topicId || ""} style={{ marginTop: 4 }}>{coveredBy(it)}</div>}
@@ -30866,6 +30876,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
   const step262 = useTrainingLive(af, "sessions");
   const [uploading, setUploading] = useState(false);
   const certificateOf = (it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return rec && recordHasCertificate(rec) ? String(rec.id) : ""; };
+  const certificateByOfItem = (it) => certificateByOf(records.find(r => String(r.id) === String(it.recordId)));
   const openCertificate = (recordId) => openCertificateOf(token, recordId, showToast);
   const idsFor = useCallback((it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return [it.attemptId, rec && rec.attempt_id].filter(Boolean).map(String).filter((x, i, all) => all.indexOf(x) === i); }, [records]);
   const wanted = ((d && d.items) || []).reduce((all, it) => all.concat(idsFor(it)), []).filter((x, i, all) => all.indexOf(x) === i);
@@ -30891,7 +30902,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
         {step262 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}><Btn t={t} v="ghost" data-certificate-upload="" onClick={() => setUploading(true)}>{tr("Upload a certificate")}</Btn></div>}
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} certificateByOf={certificateByOfItem} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
       </div>
     </div>
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
@@ -31122,6 +31133,19 @@ const HR_DOC_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png",
 const HR_DOC_MAX_BYTES = 25 * 1024 * 1024;
 const hrDocFileWhy = (f) => (!f ? "" : HR_DOC_TYPES.indexOf(f.type) < 0 && !/\.(pdf|jpe?g|png|heic|heif|docx?)$/i.test(f.name || "") ? tr("{0} is not a PDF, a JPEG, PNG or HEIC photo, or a Word file.", f.name) : f.size > HR_DOC_MAX_BYTES ? tr("{0} is over 25 MB.", f.name) : "");
 const recordHasCertificate = (r) => !!(r && (r.certificate_path || r.certificatePath || r.certificate === true));
+// Who filed a record's certificate (part 386, the API's Round 11 section 3): "person" when the staff member
+// uploaded it from an outside course in the staff app, "office" when the office filed it, read from a record
+// view's certificateBy or a training_records row's uploaded_by_person. A row from an API that does not say
+// answers "", so nothing is guessed.
+const certificateByOf = (r) => {
+  if (!r || !recordHasCertificate(r)) return "";
+  if (r.certificateBy === "person" || r.certificateBy === "office") return r.certificateBy;
+  if (r.uploaded_by_person === true) return "person";
+  if (r.uploaded_by_person === false) return "office";
+  return "";
+};
+const CERTIFICATE_BY_WORDS = { person: "Certificate uploaded by the person", office: "Certificate filed by the office" };
+const CertificateBy = ({ t, by, style }) => (by ? <span data-certificate-by={by} style={{ display: "inline-block", fontSize: 11, color: by === "person" ? BL : t.textMut, fontWeight: 600, ...(style || {}) }}>{tr(CERTIFICATE_BY_WORDS[by])}</span> : null);
 const CERTIFICATE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
 // A record's certificate, read with the token and opened in a new tab.

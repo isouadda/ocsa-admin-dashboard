@@ -1887,6 +1887,11 @@ const SHOTS = [
   // testSite).
   { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
     open: "sites", ready: "[data-site-test]" },
+  // Part 386, section 2: HR Records' training records, the certificate on ht-5 uploaded by the person from an
+  // outside course (audit/part386-stub.js).
+  { name: "training-certificate-by", entry: "Upload a training certificate from an outside course",
+    open: "hr/training", ready: "[data-training-record='ht-5'] [data-certificate-by]",
+    act: async (c) => { await show(c, "[data-training-record='ht-5']"); await wait(300); } },
   // Part 386, section 1: the robot's sign-in on the Run-throughs tab, as the super admin, against
   // audit/part386-stub.js: Test Supervisor's device with 4 days left and Renew.
   { name: "health-robot-sign-in", entry: "Renew the robot's sign-in", as: "superAdmin",

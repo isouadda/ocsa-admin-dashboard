@@ -260,7 +260,7 @@ const WINDOWS = [
   // Part 361: Send welcome emails on Staff Management, which sends the welcome email to everyone who has
   // not signed in. The welcome-all suite drives it on the stub's people of audit/welcome-all-stub.js
   // (drivenBy), and the windows suite leaves it.
-  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [33256], drivenBy: "welcome-all" },
+  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [33280], drivenBy: "welcome-all" },
   // Part 368: maintenance requests. New maintenance request, a request's window with Record a response and
   // Send a follow-up, and a site's maintenance contact. The part368 suite drives each on the stub as the API
   // is built at ca4aafa (drivenBy), and the windows suite leaves them.

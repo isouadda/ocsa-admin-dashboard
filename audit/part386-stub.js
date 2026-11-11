@@ -31,6 +31,17 @@
 //                                         health.badDetails keys thresholds.robot_trust_days_left.red) and hands
 //                                         the rest to the layer under
 //
+//   Section 2, certificates from an outside course (helpers/training.js, routes/hr.js, routes/training.js):
+//     GET /api/training/topics            every topic answers outsideCourse, false unless marked; Reporting a
+//                                         concern about a child (tp-4) is marked, as the API's PR says the office
+//                                         marks the mandated reporter topic
+//     POST /api/training/topics, PATCH /api/training/topics/:id
+//                                         outsideCourse a boolean, else 400 training.badDetails keys
+//                                         ["outsideCourse"]; kept, and every Topic answer carries it
+//     GET /api/hr/training                every row carries uploaded_by and uploaded_by_person: the certificate on
+//                                         ht-5 was uploaded by the person, from an outside course; any other is
+//                                         the office's
+//
 // Every value is invented: the test accounts, the devices and the days.
 "use strict";
 
@@ -46,7 +57,7 @@ module.exports = (ctx) => {
 
   let model = null;
   const m = () => {
-    if (!model) model = { scene: {}, sent: [], robot: null, robotLines: null };
+    if (!model) model = { scene: {}, sent: [], robot: null, robotLines: null, outside: { "tp-4": true }, personCerts: { "ht-5": true } };
     return model;
   };
   const sent = (what, body) => { m().sent.push({ what, body: clone(body === undefined ? null : body) }); };
@@ -191,15 +202,61 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 2: certificates from an outside course ------------------------------------------------------
+  const withOutside = (tp) => (tp && typeof tp === "object" && tp.id !== undefined ? Object.assign({}, tp, { outsideCourse: m().outside[String(tp.id)] === true }) : tp);
+  const TRAINING_BAD = (lang, keys) => bad(400, "training.badDetails", T(lang, "Check the fields marked.", "Revise los campos marcados."), { keys });
+  function trainingRoute(method, path, query, body, lang, base) {
+    if (path === "/api/training/topics" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.topics)) a.json = Object.assign({}, a.json, { topics: a.json.topics.map(withOutside) });
+      return a;
+    }
+    const one = /^\/api\/training\/topics\/([^/]+)$/.exec(path);
+    if ((path === "/api/training/topics" && method === "POST") || (one && method === "PATCH")) {
+      const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+      const has = Object.prototype.hasOwnProperty.call(b, "outsideCourse");
+      if (has) sent("topic", b);
+      if (has && typeof b.outsideCourse !== "boolean") return TRAINING_BAD(lang, ["outsideCourse"]);
+      const held = b.outsideCourse;
+      if (has) delete b.outsideCourse;
+      let a;
+      try { a = base(); } finally { if (has) b.outsideCourse = held; }
+      if (a && (a.status === 200 || a.status === 201) && a.json && a.json.topic) {
+        if (has) m().outside[String(a.json.topic.id)] = held === true;
+        a.json = Object.assign({}, a.json, { topic: withOutside(a.json.topic) });
+      }
+      return a;
+    }
+    if (path === "/api/hr/training" && method === "GET") {
+      const a = base();
+      // A paged call answers { records, nextCursor } (part 365), a call without paging the bare array.
+      const stamp = (r) => {
+        const byPerson = !!(r && r.certificate_path && m().personCerts[String(r.id)] === true);
+        return Object.assign({}, r, { uploaded_by: r && r.certificate_path ? (byPerson ? r.user_id : seed.PEOPLE.admin.id) : null, uploaded_by_person: byPerson });
+      };
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map(stamp);
+      else if (a && a.status === 200 && a.json && Array.isArray(a.json.records)) a.json = Object.assign({}, a.json, { records: a.json.records.map(stamp) });
+      return a;
+    }
+    return null;
+  }
+
   function route(method, path, query, body, lang, base) {
     const h = /^\/api\/health\//.test(path) ? healthRoute(method, path, query, body, lang, base) : null;
     if (h) return h;
+    const tr = /^\/api\/(training\/topics|hr\/training$)/.test(path) ? trainingRoute(method, path, query, body, lang, base) : null;
+    if (tr) return tr;
     return base();
   }
 
   return {
     route,
-    setScene: (o) => { Object.assign(m().scene, o || {}); },
+    setScene: (o) => {
+      const x = Object.assign({}, o || {});
+      if (x.personCerts) { m().personCerts = x.personCerts; delete x.personCerts; }
+      if (x.outside) { m().outside = x.outside; delete x.outside; }
+      Object.assign(m().scene, x);
+    },
     sent: () => m().sent,
     model: () => m(),
     reset: () => { model = null; },

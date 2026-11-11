@@ -7,6 +7,8 @@
 //             left, colored by its number's lines; Renew for the super admin alone, sending this browser's own
 //             device id, and its refusals in the API's words; the number in days with its below lines in
 //             words, its list, and the lines editor that holds red at or under yellow
+//   training  who filed each certificate on HR Records' training records, the person or the office; From an
+//             outside course on a topic's form, sent as outsideCourse, and on the topic's page and the catalog
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -164,11 +166,72 @@ async function robotCases(ctx, lang) {
   });
 }
 
+// ---- Section 2: certificates from an outside course ------------------------------------------------------
+async function trainingCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/training/" + x;
+
+  // 1. HR Records' training records say who filed each certificate: the person's own upload from an outside
+  //    course, and once the API says the office filed it, the office.
+  await withDriver(ctx, { name: "certificate-by", lang, arm: (s) => s.setStep262(true) }, async (d, stubs) => {
+    await goHash(d, "hr/training");
+    await until(d, "[data-training-record='ht-5']", 8000);
+    const person = await textOf(d, "[data-training-record='ht-5'] [data-certificate-by]");
+    const personKind = await attr(d, "[data-training-record='ht-5'] [data-certificate-by]", "data-certificate-by");
+    const others = await d.page.locator("[data-certificate-by]").count();
+    stubs.setScene386({ personCerts: {} });
+    await goHash(d, "hr/training");
+    await until(d, "[data-training-record='ht-5']", 8000);
+    await d.settle(400);
+    const office = await textOf(d, "[data-training-record='ht-5'] [data-certificate-by]");
+    const officeKind = await attr(d, "[data-training-record='ht-5'] [data-certificate-by]", "data-certificate-by");
+    results.check(KIND, id("training-records-say-who-filed-each-certificate"), personKind === "person" && person === d.say("Certificate uploaded by the person") && others === 1 && officeKind === "office" && office === d.say("Certificate filed by the office"),
+      "ht-5 reads " + say([personKind, person]) + " with " + others + " record(s) marked, then " + say([officeKind, office]));
+  });
+
+  // 2. The topic's form takes From an outside course and sends it as outsideCourse; the topic's page then says so.
+  await withDriver(ctx, { name: "outside-form", lang, arm: (s) => { s.setStep262(true); s.setStep266(true); } }, async (d, stubs) => {
+    await goHash(d, "hr/training/catalog");
+    await until(d, "[data-training-catalog] table tbody tr", 8000);
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: lang === "es" ? "Orientaci\u00f3n en el sitio" : "Site orientation" }).first().click().catch(() => {});
+    await until(d, "[data-topic-details]", 6000);
+    const before = await attr(d, "[data-topic-outside]", "data-topic-outside");
+    await d.page.locator("[data-topic-edit]").first().click().catch(() => {});
+    await until(d, "[data-topic-field='outsideCourse'] input", 5000);
+    const label = await textOf(d, "[data-topic-field='outsideCourse'] label");
+    await d.page.locator("[data-topic-field='outsideCourse'] input").first().check().catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-topic-save]").first().click().catch(() => {});
+    await until(d, "[data-topic-details]", 6000);
+    await d.settle(300);
+    const patch = writes(d, mark, "PATCH", /^\/api\/training\/topics\/tp-2$/).pop();
+    const after = await attr(d, "[data-topic-outside]", "data-topic-outside");
+    const words = await textOf(d, "[data-topic-outside]");
+    results.check(KIND, id("a-topic-s-form-sends-from-an-outside-course"), before === "no" && label === d.say("From an outside course") && !!patch && patch.body && patch.body.outsideCourse === true && patch.status === 200 && after === "yes" && words === d.say("Yes. Staff upload their own certificate in the staff app.") && stubs.model386().outside["tp-2"] === true,
+      "before " + say(before) + ", the box reads " + say(label) + ", the PATCH sent " + say(patch && patch.body ? patch.body.outsideCourse : null) + (patch ? " answered " + patch.status : "") + ", after " + say([after, words]));
+  });
+
+  // 3. A topic marked as an outside course says so on its page and in the catalog.
+  await withDriver(ctx, { name: "outside-page", lang, arm: (s) => { s.setStep262(true); s.setStep266(true); } }, async (d) => {
+    await goHash(d, "hr/training/catalog");
+    await until(d, "[data-training-catalog] table tbody tr", 8000);
+    const row = await has(d, "[data-topic-outside-row='tp-4']");
+    const rows = await d.page.locator("[data-topic-outside-row]").count();
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ has: d.page.locator("[data-topic-outside-row='tp-4']") }).first().click().catch(() => {});
+    await until(d, "[data-topic-details]", 6000);
+    const badge = await has(d, "[data-topic-outside-badge]");
+    const value = await attr(d, "[data-topic-outside]", "data-topic-outside");
+    results.check(KIND, id("an-outside-course-says-so-on-its-page-and-in-the-catalog"), row && rows === 1 && badge && value === "yes",
+      "the catalog marks " + rows + " topic(s)" + (row ? "" : ", not tp-4") + "; the page " + (badge ? "has" : "has no") + " badge and reads " + say(value));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("robot")) await robotCases(ctx, lang);
+    if (want("training")) await trainingCases(ctx, lang);
   }
 }
 
