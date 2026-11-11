@@ -1,0 +1,26 @@
+# Starts the robot's merge run (isouadda/ocsa-journeys, journeys.yml) on every push to main, so the robot walks
+# the dashboard as merged (part 389). It needs one secret, ROBOT_DISPATCH_TOKEN, a token that may start a workflow
+# on ocsa-journeys. Until the robot's setup gives it, the job says so in one line and succeeds, so a merge before
+# then never fails. The run's own token is given no permission.
+name: Robot merge run
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Start the robot's merge run
+        env:
+          GH_TOKEN: ${{ secrets.ROBOT_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ROBOT_DISPATCH_TOKEN is not set, so the robot's merge run was not started."
+            exit 0
+          fi
+          gh workflow run journeys.yml --repo isouadda/ocsa-journeys --ref main -f trigger=merge -f app=dashboard -f commit="$GITHUB_SHA"
