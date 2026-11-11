@@ -84,6 +84,9 @@
 //                                         due: 0, done: 0 }, so every day's percent is null
 //     GET /api/sites/:id/checklist-record that site's days with every item listed, none due and none checked
 //
+//   Section 6, the audit's findings: the scene manyDrafts answers GET /api/forms/responses?status=draft with a full
+//   first page, 50 unfinished filings and a nextCursor, as a company with more than 50 answers.
+//
 // Every value is invented: the test accounts, the devices and the days.
 "use strict";
 
@@ -439,7 +442,18 @@ module.exports = (ctx) => {
     return null;
   }
 
+  function draftsRoute(method, path, query, body, lang, base) {
+    if (!m().scene.manyDrafts || method !== "GET" || path !== "/api/forms/responses" || query.get("status") !== "draft") return null;
+    const a = base();
+    if (!a || a.status !== 200 || !a.json || !Array.isArray(a.json.responses) || !a.json.responses.length) return a;
+    const first = a.json.responses[0];
+    const page = [];
+    for (let i = 0; i < 50; i += 1) page.push(Object.assign({}, a.json.responses[i] || first, { id: (a.json.responses[i] || first).id + (i < a.json.responses.length ? "" : "-" + i) }));
+    return Object.assign({}, a, { json: Object.assign({}, a.json, { responses: page, nextCursor: "more-drafts" }) });
+  }
+
   function route(method, path, query, body, lang, base) {
+    { const dr = draftsRoute(method, path, query, body, lang, base); if (dr) return dr; }
     { const n = noStepsRoute(method, path, query, body, lang, base); if (n) return n; }
     if (/^\/api\/inspections\/(safety-walks|scheduled)/.test(path)) { const w = walksRoute(method, path, query, body, lang, base); if (w) return w; }
     if (/^\/api\/discipline(\/|$)/.test(path) && path !== "/api/discipline/steps") return disciplineRoute(method, path, query, body, lang, base);

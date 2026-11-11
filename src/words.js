@@ -5738,6 +5738,7 @@ export const WORDS = {
   "This inspection is completed. Its status and its safety walk cannot be changed.": { es: "Esta inspecci\u00f3n est\u00e1 completada. Su estado y su recorrido de seguridad no se pueden cambiar.", fr: "Cette inspection est termin\u00e9e. Son statut et sa tourn\u00e9e de s\u00e9curit\u00e9 ne peuvent pas \u00eatre modifi\u00e9s." },
   "No steps due these days": { es: "No hay pasos pendientes en estos d\u00edas", fr: "Aucune \u00e9tape \u00e0 faire ces jours-l\u00e0" },
   "Too few months with a response to draw a line yet.": { es: "Todav\u00eda hay muy pocos meses con respuestas para trazar una l\u00ednea.", fr: "Trop peu de mois avec une r\u00e9ponse pour tracer une ligne pour l'instant." },
+  "The board did not load again, so it shows the last one read.": { es: "El tablero no se volvi\u00f3 a cargar, as\u00ed que muestra el \u00faltimo que se ley\u00f3.", fr: "Le tableau ne s'est pas recharg\u00e9, il montre donc le dernier lu." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

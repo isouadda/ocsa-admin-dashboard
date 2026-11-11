@@ -398,8 +398,10 @@ Who can do this: admins and supervisors
 3. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), with no count of tasks, since nothing is checked off there.
 4. Change the date to look at another day.
 5. Click **See the checklist** (**Ver la lista de verificación**) under a site to open what was done there on that day, on **Checklist Results** (**Resultados de la lista**).
+6. Today's board is read again every 30 seconds while the page is in view, and on the next read after you come back to its tab.
+If it does not work: a board that cannot be read says so with **Try again** (**Intentar de nuevo**). When a later read fails, **The board did not load again, so it shows the last one read.** (**El tablero no se volvió a cargar, así que muestra el último que se leyó.**) sits above the last board read.
 Picture: live-ops
-Last checked: 2026-10-19
+Last checked: 2026-11-11
 
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -749,11 +751,11 @@ Last checked: 2026-09-30
 ## Continue an unfinished form (admin dashboard)
 Who can do this: the person who started it
 1. Closing a form window part way asks whether to leave. **Keep filling** (**Seguir llenando**) stays; **Leave** (**Salir**) saves first and closes.
-2. To pick it up again, click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), **Unfinished** (**Sin terminar**), and **Continue** (**Continuar**) on the row.
+2. To pick it up again, click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), **Unfinished** (**Sin terminar**), and **Continue** (**Continuar**) on the row. The tab counts the unfinished forms, such as **Filed forms ({0})** (**Formularios presentados ({0})**); it reads 50+ when there may be more than the 50 it read, and **Show more** (**Mostrar más**) under the list shows the next ones.
 3. The window opens with every saved answer in place.
 Words people use for this: finish a form later, resume a draft, continue a form, unfinished form, draft.
 Picture: unfinished-forms
-Last checked: 2026-09-28
+Last checked: 2026-11-11
 
 ## Make a customer link and print its QR code (admin dashboard)
 Who can do this: admins who can change settings. Supervisors do not see Customer links.
@@ -1501,10 +1503,11 @@ Who can do this: admins, and supervisors given Cases
 7. Click **Open a case** (**Abrir un caso**).
 8. To warn the person later, open the case and click **Issue a warning** (**Emitir una advertencia**).
 9. To start a case from a filed report or an incident report, open the report under **Forms** (**Formularios**) and click **Open a case** (**Abrir un caso**) in it. **What happened** (**Qué pasó**) starts with a line naming the report, the window says **The filed report is linked to this case.** (**El reporte presentado queda vinculado a este caso.**), and the report then says **Case opened.** (**Caso abierto.**) When the report cannot go with the case, the window says so in red under that line, with **Open it without the report** (**Abrirlo sin el reporte**). Click it: the line then reads **The case will be opened without the report.** (**El caso se abrirá sin el reporte.**), and **Open a case** (**Abrir un caso**) opens it with the rest of what you filled in.
+If it does not work: a list of cases that cannot be read says **This did not load.** (**Esto no se cargó.**), or the system's own words, with **Try again** (**Intentar de nuevo**), never an empty list. A list the system refuses you shows its reason in the list's place.
 Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, case from an incident report, abrir un caso.
 Picture: case-open-window
 Picture: case-from-report
-Last checked: 2026-10-19
+Last checked: 2026-11-11
 
 ## Add an old form's warning to the record (admin dashboard)
 Who can do this: admins
@@ -2540,14 +2543,14 @@ Who can do this: anyone signed in
 1. Click your name at the top right, then **My alerts** (**Mis alertas**). On a phone, it is under **More** (**Más**).
 2. Under **Alerts on this computer** (**Alertas en esta computadora**), click **Turn on alerts on this computer** (**Activar las alertas en esta computadora**).
 3. The browser asks once whether the dashboard may show alerts. Allow it.
-4. Each notice now shows as an alert on this computer, even when the dashboard is closed. Click an alert to open the dashboard on what it is about, the place the bell opens.
+4. Each notice now shows as an alert on this computer, even when the dashboard is closed. Click an alert to open the dashboard on what it is about, the place the bell opens. Clicking it marks its notice read on the bell, as clicking the notice there does.
 5. To stop them, open **My alerts** (**Mis alertas**) again and click **Turn off** (**Desactivar**).
 6. Signing out turns this computer's alerts off, so the next person at a shared computer never gets yours. So does a session that ends by itself, and a sign-in that cannot move this computer's alerts to the person signing in. Turn them on again here.
 7. An alert clicked while you are signed out opens what it is about once you sign in.
 If it does not work: **This browser blocks alerts from the dashboard. Allow them in the browser's site settings, then try again.** (**Este navegador bloquea las alertas del panel. Permítalas en la configuración del sitio del navegador y vuelva a intentarlo.**) means the browser was told no; allow notifications for the dashboard in the browser's site settings. **This browser cannot show alerts.** (**Este navegador no puede mostrar alertas.**) means the browser has no alerts at all. The switches in My alerts decide which notices alert, here and on your phone.
 Words people use for this: desktop notifications, computer alerts, push notifications, alerts on my laptop, browser notifications, alertas en la computadora.
 Picture: computer-alerts
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 
 ## Cover a shift when someone is off (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off

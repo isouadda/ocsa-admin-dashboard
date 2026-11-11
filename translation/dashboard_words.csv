@@ -5453,3 +5453,4 @@ This inspection does not include the safety walk.,Esta inspección no incluye el
 This inspection is completed. Its status and its safety walk cannot be changed.,Esta inspección está completada. Su estado y su recorrido de seguridad no se pueden cambiar.,"Inspections, Drop the safety walk refused (inspections.completedLocked)"
 No steps due these days,No hay pasos pendientes en estos días,"Checklist Results, a site's card and a site over several days, when no day has steps due"
 Too few months with a response to draw a line yet.,Todavía hay muy pocos meses con respuestas para trazar una línea.,"Reports, client ratings, overall by month"
+"The board did not load again, so it shows the last one read.","El tablero no se volvió a cargar, así que muestra el último que se leyó.","Live Ops, when a later read of the board fails"

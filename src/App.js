@@ -755,6 +755,9 @@ const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.
 const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
 // A read that failed says so where its rows would have been, with a way to try again, so nothing is
 // blank and nothing spins on. The line is the sheet's for the place when it names one.
+// A page's timer reads again only while its tab is seen (part 386, DASH-58): a hidden tab skips the tick,
+// and the page reads again on the next one after it is seen.
+const whenSeen = (fn) => () => { if (typeof document === "undefined" || !document.hidden) fn(); };
 const LoadFailed = ({ t, onRetry, text, style }) => <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec, ...(style || {}) }}>{text || tr("This did not load.")}{onRetry ? <button onClick={onRetry} style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button> : null}</div>;
 // A page that waits on this person's capabilities (DASH-20) says Loading until the API has answered them,
 // and only then opens or says it is for admins.
@@ -1285,7 +1288,7 @@ export default function AdminDashboard() {
       const d = e && e.data;
       if (!d || typeof d !== "object") return;
       if (d.type === "ocsa-notice") loadUnread();
-      else if (d.type === "ocsa-open") setOpenAsk({ subjectType: d.subjectType == null ? null : String(d.subjectType), subjectId: d.subjectId == null ? null : String(d.subjectId), place: typeof d.place === "string" ? d.place : "" });
+      else if (d.type === "ocsa-open") setOpenAsk({ subjectType: d.subjectType == null ? null : String(d.subjectType), subjectId: d.subjectId == null ? null : String(d.subjectId), place: typeof d.place === "string" ? d.place : "", notificationId: d.notificationId == null ? "" : String(d.notificationId) });
     };
     sw.addEventListener("message", onMsg);
     return () => sw.removeEventListener("message", onMsg);
@@ -1294,10 +1297,35 @@ export default function AdminDashboard() {
   // capabilities and the page probes have answered (DASH-27), so Cases, Forms, Equipment and Waiting for
   // signatures are not refused in the moment before they arrive.
   const sessionKnown = !capsPending && probesIn && signaturesIn && filedFormsIn;
+  // A window the worker opened for a tapped alert names its notice as ?notice=<id>: read once, taken off the
+  // address, and handled as the message an open window is sent (part 386, DASH-80).
+  const noticeInAddress = useRef(null);
+  if (noticeInAddress.current === null) {
+    noticeInAddress.current = "";
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const n = q.get("notice");
+      if (n && /^[A-Za-z0-9_-]{1,80}$/.test(n)) {
+        noticeInAddress.current = n;
+        q.delete("notice");
+        const rest = q.toString();
+        window.history.replaceState(null, "", window.location.pathname + (rest ? "?" + rest : "") + window.location.hash);
+      }
+    } catch (e) { /* an address the browser will not rewrite keeps it */ }
+  }
+  useEffect(() => {
+    if (!token || !noticeInAddress.current) return;
+    const id = noticeInAddress.current;
+    noticeInAddress.current = "-";
+    af("/api/notifications/" + encodeURIComponent(id) + "/read", { method: "POST" }).then(() => loadUnread(), e => console.warn("Mark read:", e.message));
+  }, [token, af, loadUnread]);
   useEffect(() => {
     if (!openAsk || !token || !sessionKnown) return;
     const ask = openAsk;
     setOpenAsk(null);
+    // The alert's own notice is read once it is tapped, as a notice clicked on the bell is (DASH-80): the
+    // API's pushes name it since its part 370.
+    if (ask.notificationId) af("/api/notifications/" + encodeURIComponent(ask.notificationId) + "/read", { method: "POST" }).then(() => loadUnread(), e => console.warn("Mark read:", e.message));
     const n = { subjectType: ask.subjectType, subjectId: ask.subjectId };
     if (!noticePlace(n)) { if (ask.place) window.location.hash = ask.place; return; }
     goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error"), nothing: () => showToast(tr("This notice has nothing to open on the dashboard.")) });
@@ -2169,7 +2197,7 @@ function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t 
     af("/api/shift-sessions/by-site").then(d => { setStarted(flattenSessions(d)); mark("started", false); }).catch(e => { mark("started", true); console.warn(e.message); });
     af("/api/inspections/analytics/dashboard-summary").then(d => { setInspSummary(d); mark("insp", false); }).catch(e => { mark("insp", true); console.warn(e.message); });
   };
-  useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
+  useEffect(() => { loadDash(); const iv = setInterval(whenSeen(loadDash), 45000); return () => clearInterval(iv); }, []);
   if (!stats) return failed.stats ? <Crd t={t}><LoadFailed t={t} onRetry={loadDash} /></Crd> : <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
   return (<div>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, marginBottom: 2, color: t.text }}>{tr("Welcome back, {0}", user?.firstName || tr("Admin"))}</div>
@@ -5061,13 +5089,17 @@ function OpsPage({ af, t, allStaff }) {
   // midnight, so a night shift stays on today's board. Any other day asks start_date and end_date, both
   // that day (part 351): the date form answers each person's latest open session whatever the day, so a
   // past day read as today.
+  // A board that does not load says so with Try again (part 386, DASH-50), in place of the board when none was
+  // read for the day, and above the last one read when a later read fails.
+  const [opsFailed, setOpsFailed] = useState("");
   const loadOps = () => {
     const day = date;
     const q = day === toISO(new Date()) ? "?date=" + day : "?start_date=" + day + "&end_date=" + day;
-    af("/api/shift-sessions/by-site" + q).then(d => { if (day === dateNow.current) setBoard({ day, sites: d.sites || [] }); }).catch(e => console.warn("Load shift sessions:", e.message));
+    af("/api/shift-sessions/by-site" + q).then(d => { if (day === dateNow.current) { setBoard({ day, sites: d.sites || [] }); setOpsFailed(""); } })
+      .catch(e => { console.warn("Load shift sessions:", e.message); if (day === dateNow.current) setOpsFailed(e.message || tr("This did not load.")); });
   };
   // Today is read again every 30 seconds; a past day does not change, so it is read once.
-  useEffect(() => { loadOps(); if (date !== toISO(new Date())) return undefined; const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
+  useEffect(() => { loadOps(); if (date !== toISO(new Date())) return undefined; const iv = setInterval(whenSeen(loadOps), 30000); return () => clearInterval(iv); }, [date]);
   const isToday = date === toISO(new Date());
   const ready = board.day === date;
   const sites = ready ? board.sites : [];
@@ -5082,7 +5114,8 @@ function OpsPage({ af, t, allStaff }) {
       <div style={{ width: 170 }}><Inp t={t} type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} /></div>
       <span style={{ fontSize: 12, color: t.textSec }}>{isToday ? trn("{0} started today|count", startedIds.size) : trn("{0} started on {1}|count", startedIds.size, dayText)}</span>
     </div>
-    {ready && sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
+    {opsFailed && <Crd t={t} style={{ marginBottom: 20 }}><div data-ops-failed={ready ? "kept" : "none"}><LoadFailed t={t} onRetry={loadOps} text={ready ? tr("The board did not load again, so it shows the last one read.") : opsFailed} /></div></Crd>}
+    {ready && sites.length === 0 && !opsFailed && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
       <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
       {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div>}
@@ -9539,7 +9572,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   };
   useEffect(() => { const id = route[0]; if (id && id !== sel) open(id); }, [route[0]]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
-  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(sel, list); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
+  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { if (document.hidden) return; try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(sel, list); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
   const activeChannel = channels.find(c => c.id === sel);
   const activeDm = dms.find(dm => dm.channelId === sel);
   const activeDirect = (direct || []).find(dm => dm.channelId === sel);
@@ -16348,7 +16381,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   useEffect(() => {
     loadPeople(af, "?role=supervisor").then(setSchedSupervisors).catch(e => console.warn("Load supervisors:", e.message));
   }, []);
-  useEffect(() => { loadCalendar(); const iv = setInterval(() => loadCalendar(), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
+  useEffect(() => { loadCalendar(); const iv = setInterval(whenSeen(() => loadCalendar()), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
 
   const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
   const getMonthDays = () => { const start = new Date(dateRange.start + "T00:00:00"); const year = start.getFullYear(); const month = start.getMonth(); const firstDay = new Date(year, month, 1); const lastDay = new Date(year, month + 1, 0); const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; const days = []; for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) { const d = new Date(year, month, i + 1); days.push(toISO(d)); } return days; };
@@ -17036,7 +17069,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     setLoading(false);
   };
 
-  useEffect(() => { setPkPage(1); load(); const iv = setInterval(() => load(), 45000); return () => clearInterval(iv); }, [dateRange, tab, siteFilter, originFilter]);
+  useEffect(() => { setPkPage(1); load(); const iv = setInterval(whenSeen(() => load()), 45000); return () => clearInterval(iv); }, [dateRange, tab, siteFilter, originFilter]);
 
   const loadSiteLocations = async (siteId) => {
     if (siteLocations[siteId]) return;
@@ -22090,6 +22123,9 @@ function JotformPickerField({ af, form, setForm, t }) {
 // Every read of a report writes an audit row, so a report is fetched only when a person opens one,
 // once per opening. Nothing here prefetches, refetches on a re-render, or polls.
 const IR_PAGE_SIZE = 50;
+// The count on the Filed forms tab is read off the first page of unfinished filings, so a full page reads
+// 50+, which says there may be more (part 386, DASH-59); none reads nothing.
+const unfinishedShown = (n) => (n >= IR_PAGE_SIZE ? IR_PAGE_SIZE + "+" : n > 0 ? String(n) : "");
 // The line the window says once a report is sent again, built from the answer: how many emails, how
 // many app notices, and what the email carried. Read when it is said, so it is in the screen's
 // language, the way every other line of the window is.
@@ -25205,7 +25241,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       setError(null);
       // The count on the tab: how many filings are unfinished, read off the unfinished list itself
       // whenever it is loaded whole and unfiltered.
-      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(list.length);
+      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(unfinishedShown(list.length));
     } catch (e) {
       if (!before) setRows([]);
       setError({ status: e && e.status, message: e.message || tr("Request failed") });
@@ -25219,7 +25255,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const recount = useCallback(() => {
     if (!onUnfinished) return;
     af("/api/forms/responses?status=draft&limit=" + IR_PAGE_SIZE)
-      .then(d => onUnfinished(d && Array.isArray(d.responses) ? d.responses.length : 0))
+      .then(d => onUnfinished(unfinishedShown(d && Array.isArray(d.responses) ? d.responses.length : 0)))
       .catch(e => { console.warn("Unfinished count:", e.message); });
   }, [af, onUnfinished]);
   useEffect(() => {
@@ -26125,7 +26161,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // and the PDF access log, which reads both kinds since the API's Step 163. Step 243 adds Customer
   // links, for holders of manage_settings, whether or not they hold the Jotform tabs.
   const TABS = [
-    { id: "incident_reports", l: unfinishedCount > 0 ? tr("Filed forms ({0})", unfinishedCount) : tr("Filed forms"), adminOnly: false },
+    { id: "incident_reports", l: unfinishedCount ? tr("Filed forms ({0})", unfinishedCount) : tr("Filed forms"), adminOnly: false },
     { id: "jotform", l: tr("Jotform"), adminOnly: true },
     { id: "pdf_access", l: tr("PDF access log"), adminOnly: true },
     { id: "links", l: tr("Customer links"), settingsOnly: true },
@@ -28927,16 +28963,18 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
   const [holdError, setHoldError] = useState("");
   const actionLabel = { hr_case_read: tr("Read the case"), hr_case_list: tr("Saw it in the list"), hr_case_updated: tr("Updated the case"), hr_case_access_log_read: tr("Read this log"), hr_case_escalation_mail: tr("Escalation email"), hr_case_created: tr("Raised the case"), hr_case_filed_mail: tr("Filing email to the team"), hr_case_assignment_mail: tr("Assignment email"), hr_case_due_soon_mail: tr("48 hour reminder to the team"), hr_case_overdue_mail: tr("72 hour reminder to the team") };
 
-  // Step 332: a refused list is drawn in the API's words, in one line, in the table's place.
+  // Step 332: a refused list is drawn in the API's words, in one line, in the table's place. A list that did
+  // not load says so with Try again in the table's place (part 386, DASH-50), never an empty No cases.
   const [refused, setRefused] = useState("");
+  const [listFailed, setListFailed] = useState("");
   const [next, setNext] = useState("");
   const [moreBusy, setMoreBusy] = useState(false);
   const caseFilters = (status) => ({ status: status && status !== "needs_response" ? status : "" });
   // The first page of a status, or, read again after a change, as many cases as are shown.
   const load = async (status, keep) => {
     setLoading(true);
-    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(status), "", keep ? cases.length : 0)); setCases(d && Array.isArray(d.cases) ? d.cases : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); setRefused(""); }
-    catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
+    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(status), "", keep ? cases.length : 0)); setCases(d && Array.isArray(d.cases) ? d.cases : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); setRefused(""); setListFailed(""); }
+    catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else { setListFailed(e.message || tr("This did not load.")); showToast(e.message, "error"); } }
     setLoading(false);
   };
   const more = async () => {
@@ -29074,7 +29112,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
     {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => { if (detail && caseLogUpdates(detail)) refreshLog(detail.id); }} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
-    {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
+    {refused ? <Crd t={t}><div data-cases-refused="" role="alert" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{refused}</div></Crd>
+      : listFailed ? <Crd t={t}><div data-cases-failed=""><LoadFailed t={t} onRetry={() => load(statusFilter)} text={listFailed} /></div></Crd>
+      : !loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
     {!loading && <ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="cases" />}
 
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>

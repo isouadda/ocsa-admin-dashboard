@@ -21,7 +21,14 @@
 //   chart     Checklist Results at a site whose days have no steps due draws no chart on its card or over several
 //             days, says "No steps due these days" in its place, and the page throws no error; a site with steps
 //             due still draws its line (a guard)
+//   findings  the October audit's findings the office meets first on its daily pages that need nothing new from
+//             the API: DASH-80, a tapped alert marks its own notice read (the worker keeps notificationId, an
+//             open window marks it, a window opened for it reads ?notice= and takes it off the address); DASH-58,
+//             Live Ops, Schedule and Shift Pickup skip their timed reads while the tab is hidden; DASH-50, Live
+//             Ops and Cases say a list did not load with Try again, and Cases draws the API's refusal; DASH-59,
+//             the Filed forms tab reads 50+ for a full first page of unfinished filings
 "use strict";
+const vm = require("vm");
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
 
@@ -472,6 +479,154 @@ async function chartCases(ctx, lang) {
   });
 }
 
+// ---- Section 6: the audit's findings ---------------------------------------------------------------------
+// The service worker, run in Node on a stand-in for the browser's worker scope: what it shows for a push and
+// what it does with a click when no dashboard window is open.
+async function workerOf(origin, payload) {
+  const handlers = {};
+  const shown = [];
+  const opened = [];
+  const scope = {
+    addEventListener: (k, f) => { handlers[k] = f; },
+    skipWaiting: () => {},
+    location: { origin: "https://dashboard.example.invalid" },
+    clients: { claim: () => Promise.resolve(), matchAll: () => Promise.resolve([]), openWindow: (u) => { opened.push(u); return Promise.resolve(); } },
+    registration: { showNotification: (title, o) => { shown.push({ title, o }); return Promise.resolve(); } },
+  };
+  scope.self = scope;
+  // The worker the build serves, read from the served address, as the browser reads it.
+  const res = await fetch(origin + "/sw.js");
+  vm.runInNewContext(await res.text(), scope);
+  let waiting = null;
+  handlers.push({ data: { json: () => payload }, waitUntil: (p) => { waiting = p; } });
+  await waiting;
+  const data = shown.length ? shown[0].o.data : null;
+  handlers.notificationclick({ notification: { data, close: () => {} }, waitUntil: (p) => { waiting = p; } });
+  await waiting;
+  return { data, opened };
+}
+async function findingsCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/findings/" + x;
+
+  // DASH-80, 1. The worker keeps the notice's id from the push and names it in the address of a window it opens.
+  try {
+    const w = await workerOf(ctx.origin, { title: "Issue reported", body: "Lobby floor scuffed.", tag: "issue:i-1", subjectType: "issue", subjectId: "i-1", notificationId: "n-3", locale: lang });
+    results.check(KIND, id("dash80-the-worker-keeps-the-notice-id"), !!w.data && w.data.notificationId === "n-3" && w.opened.length === 1 && w.opened[0] === "/?notice=n-3#issues/i-1",
+      "the alert holds " + say(w.data) + " and opened " + say(w.opened));
+  } catch (e) { results.fail(KIND, id("dash80-the-worker-keeps-the-notice-id"), threw(e)); }
+
+  // DASH-80, 2. An open window told of a tapped alert marks its notice read and reads the count again.
+  await withDriver(ctx, { name: "dash80-open", lang }, async (d) => {
+    await d.goto("overview");
+    await d.settle(800);
+    const mark = d.mark();
+    await d.page.evaluate((m) => { navigator.serviceWorker.dispatchEvent(new MessageEvent("message", { data: m })); }, { type: "ocsa-open", subjectType: "issue", subjectId: "i-1", place: "issues/i-1", notificationId: "n-3" });
+    await d.settle(1500);
+    const read = writes(d, mark, "POST", /^\/api\/notifications\/n-3\/read$/);
+    const count = reads(d, mark, /^\/api\/notifications\/unread-count$/).length;
+    const hash = await d.page.evaluate(() => window.location.hash);
+    results.check(KIND, id("dash80-a-tapped-alert-marks-its-notice-read"), read.length === 1 && count >= 1 && hash.indexOf("#issues") === 0,
+      "the alert marked " + read.length + " notice(s) read, read the count " + count + " time(s) and opened " + say(hash));
+  });
+
+  // DASH-80, 3. A window the worker opened for the alert reads ?notice=, marks it read, and takes it off the address.
+  await withDriver(ctx, { name: "dash80-address", lang }, async (d) => {
+    await d.settle(600);
+    const mark = d.mark();
+    await d.page.goto(ctx.origin + "/?notice=n-3#issues/i-1").catch(() => {});
+    await d.settle(2500);
+    const read = writes(d, mark, "POST", /^\/api\/notifications\/n-3\/read$/);
+    const search = await d.page.evaluate(() => window.location.search);
+    results.check(KIND, id("dash80-a-window-opened-for-an-alert-marks-it-read"), read.length === 1 && search.indexOf("notice=") < 0,
+      "the window marked " + read.length + " notice(s) read and its address keeps " + say(search));
+  });
+}
+
+// DASH-58: every timer a page sets is kept as it is set, so a case can tick it by hand with the tab hidden.
+const TIMERS = () => {
+  const real = window.setInterval.bind(window);
+  window.__timers = [];
+  window.setInterval = function (fn, ms) { window.__timers.push({ fn, ms }); return real.apply(window, arguments); };
+};
+async function moreFindingsCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/findings/" + x;
+
+  // DASH-58. Live Ops, Schedule and Shift Pickup skip a timed read while the tab is hidden, and read on the
+  // next tick once it is seen.
+  await withDriver(ctx, { name: "dash58", lang }, async (d) => {
+    await d.context.addInitScript(TIMERS);
+    await d.page.reload({ waitUntil: "domcontentloaded" });
+    await d.settle(1500);
+    const pages = [["operations", 30000, /^\/api\/shift-sessions\/by-site$/], ["schedule", 45000, /^\/api\/schedule\/calendar$/], ["marketplace", 45000, /^\/api\/pickups/]];
+    const out = [];
+    for (const [page, ms, re] of pages) {
+      const before = await d.page.evaluate(() => (window.__timers || []).length);
+      await goHash(d, page);
+      await d.settle(1200);
+      const tick = async (hidden) => {
+        await d.page.evaluate((h) => { Object.defineProperty(document, "hidden", { configurable: true, get: () => h }); }, hidden);
+        const mark = d.mark();
+        await d.page.evaluate((x) => { (window.__timers || []).slice(x.from).filter((t0) => t0.ms === x.ms).forEach((t0) => { try { t0.fn(); } catch (e) { /* the page's own */ } }); }, { from: before, ms });
+        await d.settle(800);
+        return reads(d, mark, re).length;
+      };
+      const hiddenReads = await tick(true);
+      const seenReads = await tick(false);
+      out.push({ page, hiddenReads, seenReads });
+    }
+    results.check(KIND, id("dash58-a-hidden-tab-skips-its-timed-reads"), out.length === 3 && out.every((x) => x.hiddenReads === 0 && x.seenReads >= 1),
+      "each page's timer read, hidden and then seen: " + say(out));
+  });
+
+  // DASH-50. Live Ops' board that does not load says so with Try again, which reads it again.
+  await withDriver(ctx, { name: "dash50-ops", lang, arm: (s) => s.setRefusal([{ method: "GET", path: "/api/shift-sessions/by-site", status: 503, error: lang === "es" ? "El servicio no est\u00e1 disponible." : "The service is not available.", code: "common.unavailable" }]) }, async (d, stubs) => {
+    await goHash(d, "operations");
+    await until(d, "[data-ops-failed]", 8000);
+    const failed = await attr(d, "[data-ops-failed]", "data-ops-failed");
+    const text = await textOf(d, "[data-ops-failed]");
+    stubs.clearRefusals();
+    const mark = d.mark();
+    await d.page.locator("[data-ops-failed] button").first().click().catch(() => {});
+    await d.settle(1200);
+    const again = reads(d, mark, /^\/api\/shift-sessions\/by-site$/).length;
+    const gone = !(await has(d, "[data-ops-failed]"));
+    results.check(KIND, id("dash50-live-ops-says-its-board-did-not-load"), failed === "none" && text.indexOf(lang === "es" ? "El servicio no est\u00e1 disponible." : "The service is not available.") === 0 && text.indexOf(d.say("Try again")) > 0 && again === 1 && gone,
+      "the board said " + say([failed, text]) + "; Try again read it " + again + " time(s)" + (gone ? "" : " and the line stayed"));
+  });
+
+  // DASH-50. Cases says its list did not load with Try again, never No cases, and draws the API's refusal.
+  await withDriver(ctx, { name: "dash50-cases", lang, arm: (s) => s.setRefusal([{ method: "GET", path: "/api/hr-cases", status: 500, error: lang === "es" ? "Algo sali\u00f3 mal." : "Something went wrong.", code: "common.serverError" }]) }, async (d, stubs) => {
+    await goHash(d, "cases");
+    await until(d, "[data-cases-failed]", 8000);
+    const text = await textOf(d, "[data-cases-failed]");
+    const noCases = await d.page.getByText(d.say("No cases."), { exact: true }).count();
+    stubs.clearRefusals();
+    await d.page.locator("[data-cases-failed] button").first().click().catch(() => {});
+    await d.settle(1200);
+    const gone = !(await has(d, "[data-cases-failed]"));
+    results.check(KIND, id("dash50-cases-says-its-list-did-not-load"), text.indexOf(lang === "es" ? "Algo sali\u00f3 mal." : "Something went wrong.") === 0 && noCases === 0 && gone,
+      "Cases said " + say(text) + (noCases ? " beside No cases." : "") + (gone ? "" : ", and Try again left the line"));
+  });
+  await withDriver(ctx, { name: "dash50-cases-refused", lang, arm: (s) => s.setRefusal([{ method: "GET", path: "/api/hr-cases", status: 403, error: lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions", code: "access.insufficientPermissions" }]) }, async (d) => {
+    await goHash(d, "cases");
+    await until(d, "[data-cases-refused]", 8000);
+    const text = await textOf(d, "[data-cases-refused]");
+    results.check(KIND, id("dash50-cases-draws-the-api-s-refusal"), text === (lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions"), "Cases drew " + say(text));
+  });
+
+  // DASH-59. A full first page of unfinished filings reads 50+ on the Filed forms tab.
+  await withDriver(ctx, { name: "dash59", lang, arm: (s) => s.setScene386({ manyDrafts: true }) }, async (d) => {
+    await goHash(d, "forms");
+    await d.settle(2000);
+    const want = fill(d.say("Filed forms ({0})"), "50+");
+    const tab = await d.page.getByText(want, { exact: true }).count();
+    const fifty = await d.page.getByText(fill(d.say("Filed forms ({0})"), "50"), { exact: true }).count();
+    results.check(KIND, id("dash59-a-full-page-of-unfinished-filings-reads-50-plus"), tab >= 1 && fifty === 0, "the tab reads " + (tab ? say(want) : fifty ? "50, with nothing saying there may be more" : "neither 50 nor 50+"));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
@@ -481,6 +636,7 @@ async function run(ctx) {
     if (want("warnings")) await warningsCases(ctx, lang);
     if (want("walk")) await walkCases(ctx, lang);
     if (want("chart")) await chartCases(ctx, lang);
+    if (want("findings")) { await findingsCases(ctx, lang); await moreFindingsCases(ctx, lang); }
   }
 }
 
