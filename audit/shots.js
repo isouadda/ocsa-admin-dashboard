@@ -1887,6 +1887,10 @@ const SHOTS = [
   // testSite).
   { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
     open: "sites", ready: "[data-site-test]" },
+  // Part 386, section 1: the robot's sign-in on the Run-throughs tab, as the super admin, against
+  // audit/part386-stub.js: Test Supervisor's device with 4 days left and Renew.
+  { name: "health-robot-sign-in", entry: "Renew the robot's sign-in", as: "superAdmin",
+    open: "health/runs", ready: "[data-health-robot-device]" },
 ];
 
 

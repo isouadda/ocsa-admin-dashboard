@@ -2895,17 +2895,17 @@ Last checked: 2026-11-09
 ## Read the Health page (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
-2. **Numbers** (**Indicadores**) shows the 20 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
+2. **Numbers** (**Indicadores**) shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
 3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors.
 4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
-5. **Run-throughs** (**Recorridos de prueba**) lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
+5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
 6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
 7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
 If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
 Words people use for this: health page, platform health, is the app working, status page, run-throughs, the robot, incidents, red alert, daily numbers, salud.
 Picture: health-numbers
 Picture: health-run
-Last checked: 2026-11-10
+Last checked: 2026-11-11
 
 ## Make a health report (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
@@ -2924,10 +2924,11 @@ Who can do this: the super admin, and anyone the super admin has given the Healt
 2. Under **Who gets the morning email and the red alerts** (**Quién recibe el correo de la mañana y las alertas en rojo**), the list says who gets them. With nobody set it reads **Nobody is set, so the super admins get them.** (**No hay nadie indicado, así que los reciben los superadministradores.**)
 3. Pick someone in **Add a person** (**Agregar una persona**) and click **Add** (**Agregar**), or type an address in **Add an email address** (**Agregar un correo**) and click **Add** (**Agregar**). **Remove** (**Quitar**) takes one off. Click **Save the list** (**Guardar la lista**).
 4. Under **Each number's yellow and red lines** (**Las líneas amarilla y roja de cada indicador**), each number shows its **Yellow at** (**Amarillo en**) and **Red at** (**Rojo en**) lines, with its **Default** (**Predeterminado**) beside them. Type a new line, or leave a box empty for a line that is never crossed, and click **Save the lines** (**Guardar las líneas**). Check-offs and shifts started are typed as a percent of the week before.
-If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line.
+5. The days left on the robot's sign-in count down, so its row says **Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.** (**Menos es peor. Pasa a amarillo en la línea amarilla o por debajo y a rojo en la línea roja o por debajo, que va en la amarilla o por debajo.**) Its lines are typed in days, 5 and 1 by default.
+If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line, except for the robot's sign-in, where it is at or under it: **For {0}, fewer is worse, so the red line is at or under the yellow line.** (**En {0}, menos es peor, así que la línea roja va en la amarilla o por debajo.**)
 Words people use for this: health alerts, morning email, who gets the alerts, red alert, thresholds, alert lines, change the limits, alertas de salud.
 Picture: health-settings
-Last checked: 2026-11-10
+Last checked: 2026-11-11
 
 ## Set a site's shifts (admin dashboard)
 Who can do this: people who manage sites change them; anyone who can see the site can read them
@@ -2974,3 +2975,14 @@ Who can do this: anyone who can see the sites
 Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
 Picture: sites-test-site
 Last checked: 2026-11-10
+
+## Renew the robot's sign-in (admin dashboard)
+Who can do this: the super admin renews it; anyone given the Health page can read it
+1. Click **Health** (**Salud**), then **Run-throughs** (**Recorridos de prueba**).
+2. **The robot's sign-in** (**El inicio de sesión del robot**) lists each test account the robot signs in as, in plain words, such as **{0}'s sign-in on the robot ends in {1} days** (**El inicio de sesión de {0} en el robot termina en {1} días**), with the day it is **Trusted until {0}** (**De confianza hasta el {0}**). It turns yellow at 5 days left or fewer and red at 1 day or fewer, the lines of its number on **Numbers** (**Indicadores**).
+3. As the super admin, on a computer where you signed in with your own sign-in code, click **Renew** (**Renovar**) beside the account. Its device is trusted for another 30 days, and the line says **Renewed. {0}'s sign-in on the robot now ends on {1}.** (**Renovado. El inicio de sesión de {0} en el robot ahora termina el {1}.**)
+4. The people who get the health alerts are emailed 5 days before it ends, 1 day before, and on the day it ends. When it ends, the run-throughs that sign in as that account stop at the sign-in code and fail.
+If it does not work: **Sign in with your own sign-in code on this device first, then try again.** (**Primero inicie sesión con su propio código de inicio de sesión en este dispositivo y vuelva a intentarlo.**) means this computer is not trusted for your own account: sign out, sign in again and type the code that is emailed to you. Anyone but the super admin reads **Only the super admin can renew it.** (**Solo el superadministrador puede renovarlo.**)
+Words people use for this: robot sign-in, robot code, trusted device, renew the robot, run-throughs fail at sign-in, test supervisor sign-in, days left, renovar.
+Picture: health-robot-sign-in
+Last checked: 2026-11-11

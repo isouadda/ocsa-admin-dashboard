@@ -19699,21 +19699,25 @@ const HEALTH_FINAL_MAIL = { sending: "Being emailed", sent: "Emailed", failed: "
 const healthLength = (ms) => { const n = Number(ms); if (!Number.isFinite(n) || n < 0) return "--"; if (n < 60000) return tr("{0} s", Math.round(n / 1000)); const m = Math.round(n / 60000); return m < 60 ? tr("{0} min", m) : tr("{0} h {1} min", Math.floor(m / 60), m % 60); };
 const healthSpan = (a, b) => (a && b ? healthLength(Date.parse(b) - Date.parse(a)) : "--");
 const healthNum = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
-const healthValueText = (v, unit) => { const n = healthNum(v); if (n === null) return tr("Not measured yet"); const s = Math.round(n * 10) / 10; return unit === "ms" ? tr("{0} ms", s.toLocaleString(localeTag())) : s.toLocaleString(localeTag()); };
+const healthValueText = (v, unit) => { const n = healthNum(v); if (n === null) return tr("Not measured yet"); const s = Math.round(n * 10) / 10; return unit === "ms" ? tr("{0} ms", s.toLocaleString(localeTag())) : unit === "days" ? trn("{0} days|count", s) : s.toLocaleString(localeTag()); };
 // A number's lines in words: above, yellow at one value and red at another; belowShare, a share of the
-// week before's average. null is a line never crossed.
+// week before's average; below (part 386, the API's Round 11), fewer is worse, so each line is crossed at
+// or under its value and red sits at or under yellow. null is a line never crossed.
 const healthLineText = (lines, unit) => {
   if (!lines) return "";
   const one = (x) => (x === null || x === undefined ? tr("never|line") : lines.kind === "belowShare" ? tr("under {0}% of the week", Math.round(Number(x) * 100)) : healthValueText(x, unit));
+  if (lines.kind === "below") return tr("Yellow at or under {0}, red at or under {1}", one(lines.yellow), one(lines.red));
   return tr("Yellow at {0}, red at {1}", one(lines.yellow), one(lines.red));
 };
 // The state a value would have on a number's own lines, for a value the API does not color itself (the
-// week's average). A share of the week cannot be judged against itself, so it reads unknown.
+// week's average). A share of the week cannot be judged against itself, so it reads unknown. A below
+// number is red at or under red and yellow at or under yellow, as helpers/healthNumbers.js stateOf has it.
 const healthStateOf = (lines, v) => {
   const n = healthNum(v);
-  if (!lines || n === null || lines.kind !== "above") return "unknown";
-  if (lines.red !== null && lines.red !== undefined && n >= lines.red) return "red";
-  if (lines.yellow !== null && lines.yellow !== undefined && n >= lines.yellow) return "yellow";
+  if (!lines || n === null || (lines.kind !== "above" && lines.kind !== "below")) return "unknown";
+  const at = (x) => x !== null && x !== undefined && (lines.kind === "below" ? n <= x : n >= x);
+  if (at(lines.red)) return "red";
+  if (at(lines.yellow)) return "yellow";
   return "green";
 };
 const healthCommits = (c) => [["api", "API|app"], ["dashboard", "Dashboard|app"], ["staffApp", "Staff app"]].filter(([k]) => c && c[k]).map(([k, l]) => tr(l) + " " + String(c[k]).slice(0, 7)).join(", ") || "--";
@@ -19791,6 +19795,7 @@ const HEALTH_LIST_COLS = {
   no_email: [["name", "Person"], ["role", "Role", "role"], ["office", "Office account", "yesno"]],
   runs_failed: [["journey", "Journey"], ["outcome", "Outcome", "outcome"], ["durationMs", "Length", "ms"]],
   monitors_down: [["name", "Monitor"], ["state", "State"], ["down", "Down", "yesno"]],
+  robot_trust_days_left: [["account", "Test account"], ["device", "Device"], ["endsAt", "Ends", "when"], ["daysLeft", "Days left"]],
 };
 function HealthListWindow({ af, t, number, day, onClose }) {
   const [items, setItems] = useState(null);
@@ -19883,6 +19888,63 @@ function HealthRunWindow({ af, t, runId, onClose }) {
       {!(d.journeys || []).length ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("This run reported no journeys.")}</div> : null}
     </>}
   </div></Mdl>);
+}
+// The robot's sign-in (part 386, the API's Round 11 section 1). The robot signs in each night as the test
+// accounts, and an office test account passes the second sign-in step on one trusted device, which stops
+// being trusted 30 days after its code. GET /api/health/robot-devices (view_health) answers each device with
+// its company days left, fewest first, and canRenew, true for the super admin alone. Renew posts
+// /api/health/robot-devices/:id/renew with this browser's own device id, the one its sign-in sends, since
+// the API renews only for the super admin signed in with their own second step here. Its refusals are drawn
+// in the API's words: health.superAdminOnly, health.ownSecondStep, health.notTestAccount and
+// health.deviceNotFound. A device is colored by robot_trust_days_left's own lines when the numbers have them.
+const HEALTH_RENEW_WORDS = { "health.superAdminOnly": "Only the super admin can do this.", "health.ownSecondStep": "Sign in with your own sign-in code on this device first, then try again.", "health.notTestAccount": "Only a test account's device can be renewed here.", "health.deviceNotFound": "That trusted device was not found." };
+const robotSignInWords = (dv) => {
+  const who = dv.name || tr("A test account");
+  const n = Number(dv.daysLeft);
+  if (n <= 0) return tr("{0}'s sign-in on the robot ends today", who);
+  if (n === 1) return tr("{0}'s sign-in on the robot ends tomorrow", who);
+  return tr("{0}'s sign-in on the robot ends in {1} days", who, n);
+};
+function HealthRobotSignIn({ af, t, lines }) {
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const read = useCallback(() => af("/api/health/robot-devices").then(x => { setD({ devices: x && Array.isArray(x.devices) ? x.devices : [], canRenew: !!(x && x.canRenew === true) }); setFailed(""); }).catch(e => { setD(null); setFailed(e.message || tr("This did not load.")); }), [af]);
+  useEffect(() => { read(); }, [read]);
+  const renew = (dv) => once(async () => {
+    setSaid(null);
+    try {
+      const r = await af("/api/health/robot-devices/" + encodeURIComponent(dv.id) + "/renew", { method: "POST", body: { deviceId: signInDeviceId() } });
+      const after = r && r.device ? r.device : null;
+      setSaid({ ok: true, id: dv.id, text: after && after.endDay ? tr("Renewed. {0}'s sign-in on the robot now ends on {1}.", after.name || dv.name || tr("A test account"), healthDay(after.endDay)) : tr("Renewed for another 30 days.") });
+      await read();
+    } catch (e) { setSaid({ ok: false, id: dv.id, code: String((e && e.code) || ""), text: (e && e.message) || tr(HEALTH_RENEW_WORDS[e && e.code] || "Request failed") }); }
+  })();
+  const list = d ? d.devices : [];
+  return (<Crd t={t} style={{ marginBottom: 14 }}><div data-health-robot="" data-health-robot-can-renew={d && d.canRenew ? "yes" : "no"}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("The robot's sign-in")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The robot signs in each night as the test accounts. An office test account passes the sign-in code on one trusted device, which stops being trusted 30 days after its code. When it does, the run-throughs that sign in as that account stop at the code and fail. The super admin renews it here for another 30 days.")}</div>
+    {failed ? <LoadFailed t={t} onRetry={read} text={failed} />
+      : !d ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+      : !list.length ? <div data-health-robot-none="" style={{ fontSize: 13, color: t.textMut }}>{tr("No test account has a trusted device for the robot.")}</div>
+      : list.map(dv => {
+        const st = healthStateOf(lines || { kind: "below", yellow: 5, red: 1 }, dv.daysLeft);
+        const mine = said && said.id === dv.id ? said : null;
+        return (<div key={dv.id} data-health-robot-device={dv.id} data-health-robot-days={String(dv.daysLeft)} data-health-robot-state={st} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <HealthDot state={st} t={t} sz={10} />
+            <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+              <div data-health-robot-words="" style={{ fontSize: 14, fontWeight: 600, color: st === "red" ? RD : st === "yellow" ? t.goldText : t.text }}>{robotSignInWords(dv)}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[dv.role ? roleWord(dv.role) : "", dv.browser || "", dv.endDay ? tr("Trusted until {0}", healthDay(dv.endDay)) : ""].filter(Boolean).join(" . ")}</div>
+            </div>
+            {d.canRenew ? <Btn t={t} v="ghost" data-health-robot-renew={dv.id} onClick={() => renew(dv)} disabled={busy} style={{ minHeight: 44 }}>{busy ? tr("Renewing...") : tr("Renew|trust")}</Btn> : null}
+          </div>
+          {mine ? <div data-health-robot-said={mine.ok ? "renewed" : mine.code || "refused"} role={mine.ok ? "status" : "alert"} style={{ fontSize: 12, color: mine.ok ? GR : RD, marginTop: 6, lineHeight: 1.5 }}>{mine.text}</div> : null}
+        </div>);
+      })}
+    {d && !d.canRenew && list.length ? <div data-health-robot-only-super="" style={{ fontSize: 12, color: t.textMut, marginTop: 8 }}>{tr("Only the super admin can renew it.")}</div> : null}
+  </div></Crd>);
 }
 function HealthRuns({ af, t, onAsked }) {
   const [rows, setRows] = useState(null);
@@ -20033,6 +20095,7 @@ function HealthThresholds({ af, t }) {
   if (failed) return <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>;
   if (!rows) return <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
   const share = (r) => r.kind === "belowShare";
+  const below = (r) => r.kind === "below";
   const shown = (r, v) => (v === null || v === undefined ? "" : share(r) ? String(Math.round(Number(v) * 1000) / 10) : String(v));
   const valueOf = (r, line) => (edits[r.key] && Object.prototype.hasOwnProperty.call(edits[r.key], line) ? edits[r.key][line] : shown(r, r[line]));
   const sent = (r, text) => { const s = String(text).trim(); if (s === "") return null; const n = Number(s); if (!Number.isFinite(n)) return NaN; return share(r) ? n / 100 : n; };
@@ -20042,6 +20105,10 @@ function HealthThresholds({ af, t }) {
     const body = {};
     for (const k of changed) { const r = rows.find(x => x.key === k); body[k] = { yellow: sent(r, valueOf(r, "yellow")), red: sent(r, valueOf(r, "red")) }; }
     if (Object.keys(body).some(k => Number.isNaN(body[k].yellow) || Number.isNaN(body[k].red))) { setSaid({ ok: false, keys: [], text: tr("Type a number, or leave the box empty for never.") }); return; }
+    // A below number is red at or under its yellow line (helpers/healthPage.js readThresholds), so a red
+    // line over yellow is held here in words before the API refuses it.
+    const over = Object.keys(body).filter(k => { const r = rows.find(x => x.key === k); return below(r) && body[k].yellow !== null && body[k].red !== null && body[k].red > body[k].yellow; });
+    if (over.length) { const r = rows.find(x => x.key === over[0]); setSaid({ ok: false, keys: over.map(k => "thresholds." + k + ".red"), text: tr("For {0}, fewer is worse, so the red line is at or under the yellow line.", r.label || r.key) }); return; }
     try { const d = await af("/api/health/thresholds", { method: "PUT", body: { thresholds: body } }); setRows(d && Array.isArray(d.thresholds) ? d.thresholds : rows); setEdits({}); setSaid({ ok: true, text: tr("Saved. The numbers are colored by the new lines from their next check.") }); }
     catch (e) { setSaid({ ok: false, keys: refusalKeys(e), text: e.message || tr("Request failed") }); }
   });
@@ -20050,11 +20117,11 @@ function HealthThresholds({ af, t }) {
   const box = (r, line) => <Inp t={t} type="number" min="0" step="any" data-health-line={r.key + "." + line} aria-label={tr(line === "yellow" ? "{0}, yellow at" : "{0}, red at", r.label || r.key)} placeholder={tr("Never|line")} value={valueOf(r, line)} onChange={e => setLine(r.key, line, e.target.value)} style={{ width: 110, ...(bad(r.key, line) ? { borderColor: RD } : {}) }} />;
   return (<Crd t={t}><div data-health-thresholds="">
     <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Each number's yellow and red lines")}</div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("A number turns yellow at its yellow line and red at its red line. Leave a box empty for a line that is never crossed. Check-offs and shifts started are judged against the week before, as a percent of its average.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("A number turns yellow at its yellow line and red at its red line. Leave a box empty for a line that is never crossed. Check-offs and shifts started are judged against the week before, as a percent of its average. The days left on the robot's sign-in count down, so it turns yellow and red at or under its lines.")}</div>
     <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead><tr><th style={crHead(t)}>{tr("Number|health")}</th><th style={crHead(t)}>{tr("Yellow at")}</th><th style={crHead(t)}>{tr("Red at")}</th><th style={crHead(t)}>{tr("Default")}</th></tr></thead>
       <tbody>{rows.map(r => (<tr key={r.key} data-health-threshold={r.key} style={{ borderTop: "1px solid " + t.border }}>
-        <td style={{ padding: "8px 10px", color: t.text, minWidth: 180 }}>{r.label || r.key}{share(r) ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Percent of the week before")}</div> : r.unit === "ms" ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Milliseconds")}</div> : null}</td>
+        <td style={{ padding: "8px 10px", color: t.text, minWidth: 180 }}>{r.label || r.key}{share(r) ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Percent of the week before")}</div> : below(r) ? <div data-health-below="" style={{ fontSize: 11, color: t.textMut, lineHeight: 1.4 }}>{tr("Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.")}{r.unit === "days" ? " " + tr("In days.") : ""}</div> : r.unit === "ms" ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Milliseconds")}</div> : null}</td>
         <td style={{ padding: "8px 10px" }}>{box(r, "yellow")}</td>
         <td style={{ padding: "8px 10px" }}>{box(r, "red")}</td>
         <td data-health-default="" style={{ padding: "8px 10px", fontSize: 12, color: t.textSec, minWidth: 160 }}>{dflt(r)}</td>
@@ -20133,7 +20200,7 @@ function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
       {HEALTH_TABS.map(([k, l]) => <button key={k} data-health-tab={k} aria-pressed={tab === k} onClick={() => pick(k)} style={{ flexShrink: 0, minHeight: 44, padding: "7px 14px", borderRadius: 8, border: tab === k ? "1px solid " + GO : "1px solid transparent", background: tab === k ? t.goldBg : "transparent", color: tab === k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: FONT_BODY }}>{tr(l)}</button>)}
     </div>
     {tab === "numbers" && <HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} />}
-    {tab === "runs" && <HealthRuns af={af} t={t} onAsked={readSummary} />}
+    {tab === "runs" && <><HealthRobotSignIn af={af} t={t} lines={((numbers && Array.isArray(numbers.numbers) ? numbers.numbers : []).find(n => n.key === "robot_trust_days_left") || {}).lines} /><HealthRuns af={af} t={t} onAsked={readSummary} /></>}
     {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} />}
     {tab === "settings" && <><HealthRecipients af={af} t={t} allStaff={allStaff} /><HealthThresholds af={af} t={t} /></>}
     {tab === "reports" && <HealthReports af={af} t={t} token={token} />}
