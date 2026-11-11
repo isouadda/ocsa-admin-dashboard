@@ -1909,6 +1909,43 @@ const SHOTS = [
   // audit/part386-stub.js: Test Supervisor's device with 4 days left and Renew.
   { name: "health-robot-sign-in", entry: "Renew the robot's sign-in", as: "superAdmin",
     open: "health/runs", ready: "[data-health-robot-device]" },
+  // Part 389, section 1: findings as training or a conversation, against audit/part389-stub.js over the Step 253
+  // findings: the Findings tab, a finding's issue window with its follow-up, the choice of a training for a
+  // finding with no owner, the conversation of the late finding being recorded, and the supervisor's coaching.
+  { name: "inspection-findings", entry: "See inspection findings and their follow-ups",
+    open: "inspections/findings", ready: "[data-finding-row]" },
+  { name: "issue-finding-follow-up", entry: "See inspection findings and their follow-ups",
+    open: "issues", ready: "[data-issue-source]",
+    act: async (c) => {
+      await c.page.locator('[data-issue-source] option[value="inspection"]').waitFor({ state: "attached" });
+      await c.page.evaluate(() => { window.location.hash = "issues/f-2"; });
+      await until(c, "[data-issue-follow-up]");
+      await show(c, "[data-issue-follow-up]");
+    } },
+  { name: "finding-follow-up-choose", entry: "Choose a finding's follow-up: training or a conversation",
+    open: "inspections/findings/f-1", ready: "[data-finding-choose-open]",
+    act: async (c) => {
+      await click(c, "[data-finding-choose-open]");
+      await offered(c, "select[data-finding-field='topicId'] option[value='tp-3']");
+      await c.page.locator("select[data-finding-field='ownerId']").selectOption("u-staff-6");
+      await show(c, "[data-finding-choose-save]");
+    } },
+  { name: "finding-conversation-record", entry: "Record a conversation about a finding",
+    open: "inspections/findings/f-6", ready: "[data-finding-record-open]",
+    act: async (c) => {
+      await click(c, "[data-finding-record-open]");
+      await until(c, "[data-finding-record]");
+      await typeIn(c, "textarea[data-finding-field='covered']", "Walked the third landing together and agreed on a dusting round each week.", "Recorrimos juntos el tercer descanso y acordamos quitar el polvo cada semana.");
+      await typeIn(c, "input[data-finding-field='othersPresent']", "The site's lead", "El encargado del sitio");
+      await show(c, "[data-finding-record-save]");
+    } },
+  // Part 389, section 2: the slowest route's floor beside its lines, as the super admin (audit/part389-stub.js).
+  { name: "health-route-floor", entry: "Choose who gets the health alerts", as: "superAdmin",
+    open: "health/settings", ready: "[data-health-floor]",
+    act: async (c) => { await toTop(c, "[data-health-threshold='server_errors']", 140); } },
+  { name: "hr-coaching", entry: "Read a person's coaching and training from findings",
+    open: "hr/" + seed.PEOPLE.supervisor.id, ready: "[data-folder-coaching]",
+    act: async (c) => { await toTop(c, "[data-folder-coaching]", 110); } },
 ];
 
 

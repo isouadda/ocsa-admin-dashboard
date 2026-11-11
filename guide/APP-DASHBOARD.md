@@ -223,13 +223,14 @@ Who can do this: admins and supervisors
 3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words.
 4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person under **Assign To *** (**Asignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and click **Assign Task** (**Asignar la tarea**). It appears on their **Assigned** tab in the portal.
 5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
-6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
+6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It takes no task: its window shows its **Follow-up** (**Seguimiento**), training or a conversation, and offers no **Assign as Task** (**Asignar como tarea**). **Choose a follow-up** (**Elegir un seguimiento**) or **Open the follow-up** (**Abrir el seguimiento**) opens it under **Inspections** (**Inspecciones**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
 7. When the building has to fix it, click **Send to building maintenance** (**Enviar a mantenimiento del edificio**) under **Building maintenance** (**Mantenimiento del edificio**). Once sent, the issue shows **Sent as {0}** (**Enviado como {0}**) with the request's reference and **Open the request** (**Abrir la solicitud**). See Send an issue to building maintenance.
 If it does not work: When the issue cannot be assigned, the Assign window says why in red: **This issue is closed, declined or waiting for approval, so it cannot be assigned. Reopen it, or approve the request first.** (**Este problema está cerrado, rechazado o espera aprobación, así que no se puede asignar. Vuelva a abrirlo, o apruebe la solicitud primero.**), or, under the person, **Choose an active staff member. A client contact or someone who has left cannot take an issue.** (**Elija a un miembro activo del personal. Un contacto de cliente o alguien que ya se fue no puede tomar un problema.**)
+If a finding's window offers **Assign as Task** (**Asignar como tarea**) anyway, the system refuses it in its own words, and **Choose its follow-up** (**Elegir su seguimiento**) opens the finding's follow-up instead.
 Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, building maintenance, incidencias.
 Picture: issues-issue-window
 Picture: issues-assign-task
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 
 ## Create a task for a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -238,8 +239,9 @@ Who can do this: admins and supervisors
 3. Choose the site, describe the task, set the zone, and choose who it is assigned to under **Assign To *** (**Asignar a ***): type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them.
 4. Add instructions, a photo or video, and a due date if needed.
 5. Click **Create and Assign**.
+If it does not work: a **Priority** (**Prioridad**) the system does not take is refused in its own words under the box. Pick another and click **Create and Assign** (**Crear y asignar**) again.
 Picture: tasks-create
-Last checked: 2026-10-07
+Last checked: 2026-11-11
 
 ## Reassign a task (admin dashboard)
 Who can do this: admins and supervisors
@@ -1292,14 +1294,14 @@ Who can do this: anyone who can open Inspections
 3. **Photos of the whole inspection** (**Fotos de toda la inspección**) holds the photos taken of the inspection as a whole.
 4. **Signature** (**Firma**) shows the inspector's signature with **Signed by {0}, {1}** (**Firmado por {0}, {1}**) under it: their name, then the day and time. An inspection with no signature says **Not signed** (**Sin firmar**).
 5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
-6. **Export PDF** (**Exportar PDF**) reads the inspection again first, so its photos print from fresh links, and prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with how many photos each item has in its Photos column. A photo's address stops working an hour after it is read, so none is written into the file; the photos stay on the inspection.
+6. **Export PDF** (**Exportar PDF**) reads the inspection again first, so its photos print from fresh links, and prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. It also lists the findings the inspection opened, each with its owner, its follow-up and when it is due or the day it was done. **CSV** (**CSV**) saves the scores, with how many photos each item has in its Photos column, and, for an item with a finding, its follow-up, its due day and the day it was done. A photo's address stops working an hour after it is read, so none is written into the file; the photos stay on the inspection.
 7. Beside the score, **Band** (**Banda**) reads the inspection's band under OCSA-QMS-014 5.2, and **Findings** (**Hallazgos**) lists the tickets the inspection opened; see the entry on reading an inspection's findings and band.
 8. An inspection that held the safety walk shows **Safety walk** (**Recorrido de seguridad**) with its safety part above the items; see Read an inspection's safety walk.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
 Picture: inspection-completed-photos
 Picture: inspection-completed-signature
-Last checked: 2026-11-10
+Last checked: 2026-11-11
 
 ## Check who is still working with the roster check (admin dashboard)
 Who can do this: admins who manage staff
@@ -1801,9 +1803,10 @@ Who can do this: anyone who can change a site's tasks
 3. Tick **Touchpoint** (**Punto de contacto frecuente**): a high-touch surface disinfected on schedule, such as a door handle or a rail.
 4. For a surface touched most, tick **Critical** (**Crítico**) under it. A critical touchpoint is treated twice a day at Level 2 and on every round at Level 3. Unticking **Touchpoint** (**Punto de contacto frecuente**) unticks **Critical** (**Crítico**) too.
 5. Click **Save Changes** (**Guardar los cambios**), or **Create** (**Crear**) for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and **Critical** (**Crítico**) beside it when ticked. It prints on the disinfection coverage log, a critical one under Critical Touchpoints.
+If it does not work: a **Service Category** (**Categoría de servicio**), **Priority** (**Prioridad**) or **Task Type** (**Tipo de tarea**) the system does not take is refused in its own words under that box, and nothing is saved. Pick another and save again.
 Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, critical touchpoint, critical surfaces, punto de contacto frecuente, punto de contacto crítico.
 Picture: touchpoint-task-window
-Last checked: 2026-10-07
+Last checked: 2026-11-11
 
 ## Make a site's concern link, so a client can report a problem (admin dashboard)
 Who can do this: admins who can change settings
@@ -1977,37 +1980,37 @@ Last checked: 2026-10-05
 
 ## Verify a finding someone else fixed (admin dashboard)
 Who can do this: admins. The person who fixed the finding cannot verify it.
-Every deficient item of a completed inspection opens a ticket with an owner and a due date. The owner marks it fixed; a second person checks the fix in person and closes it, as OCSA-QMS-014 8 requires.
+Every deficient item of a completed inspection opens a ticket with an owner and a due date. A finding is followed up with training or a conversation with the person whose work it was, and that follow-up done marks it fixed; a second person checks the fix in person and closes it, as OCSA-QMS-014 8 requires.
 1. Click **Issues** (**Incidencias**). Pick **Inspection** (**Inspección**) at the right of the filters to see the findings alone. Each row shows its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**).
-2. Click the finding. **From an inspection** (**De una inspección**) names the inspection, its score and band, and the item with its score. **Corrective action** (**Acción correctiva**) says whether it is linked to one; **Open the corrective action** (**Abrir la acción correctiva**) opens that report.
+2. Click the finding. **From an inspection** (**De una inspección**) names the inspection, its score and band, and the item with its score. **Follow-up** (**Seguimiento**) shows its training or conversation and when it is due or was done; a finding takes no task, so it offers no **Assign as Task** (**Asignar como tarea**). **Corrective action** (**Acción correctiva**) says whether it is linked to one; **Open the corrective action** (**Abrir la acción correctiva**) opens that report.
 3. On a finding marked fixed by someone else, **Verify** (**Verificar**) is offered. Check the fix in person, write a **Note** (**Nota**) if you like, and click **Verify** (**Verificar**). The finding closes and the window says who verified it and when.
 4. A finding's notice in the bell, or its address, opens the finding here, with **Verify** (**Verificar**) when it is offered.
 If it does not work: a finding that is not fixed yet, or one you fixed yourself, is refused with the reason under the button: **Someone other than the person who fixed it checks it.** (**Alguien distinto de quien lo corrigió lo revisa.**). An inspection finding cannot be closed from the status picker; only **Verify** (**Verificar**) closes it.
 Words people use for this: verify a finding, check a fix, close a finding, inspection ticket, second person check, verificar un hallazgo.
 Picture: findings-list
 Picture: finding-verify
-Last checked: 2026-10-07
+Last checked: 2026-11-11
 
 ## Read an inspection's findings and band (admin dashboard)
 Who can do this: anyone who can open Inspections
 1. Click **Inspections** (**Inspecciones**), then the **Completed** (**Completadas**) tab, and click the inspection.
 2. Beside the score, **Band** (**Banda**) reads **Meets standard** (**Cumple el estándar**) at 90 percent and above, **Below standard** (**Por debajo del estándar**) from 80, **Failed** (**Reprobada**) from 70, or **Serious failure** (**Falla grave**) under 70, the bands of OCSA-QMS-014 5.2.
-3. **Findings** (**Hallazgos**) lists each deficient item as the ticket the inspection opened: the finding, its **Zone** (**Zona**), its **Owner** (**Responsable**), its **Due** (**Vence**) time, when it was **Fixed** (**Corregido**) and **Checked** (**Verificado**), and its **Status** (**Estado**). Click a row to open it in **Issues** (**Incidencias**).
+3. **Findings** (**Hallazgos**) lists each deficient item as the ticket the inspection opened: the finding, its **Zone** (**Zona**), its **Owner** (**Responsable**), its **Follow-up** (**Seguimiento**), training or a conversation with when it is due or the day it was done, or **No follow-up yet** (**Sin seguimiento todavía**), its **Due** (**Vence**) time, when it was **Fixed** (**Corregido**) and **Checked** (**Verificado**), and its **Status** (**Estado**). Click a row to open it in **Issues** (**Incidencias**). A follow-up is chosen on the **Findings** (**Hallazgos**) tab.
 4. **Corrective action** (**Acción correctiva**) names the corrective action the inspection's findings are linked to; **Open the corrective action** (**Abrir la acción correctiva**) opens it. An inspection under 80 percent with none reads **A corrective action (OCSA-FRM-010) is required** (**Se requiere una acción correctiva (OCSA-FRM-010)**); click **Start a corrective action** (**Iniciar una acción correctiva**) to start one for the site, which opens the form the way **Forms** (**Formularios**) starts one.
 If it does not work: the band and the findings show once the system answers them for the inspection; an inspection completed before then shows neither. A refusal to start the corrective action is shown under the button.
 Words people use for this: inspection findings, inspection band, failed inspection, below standard, corrective action required, hallazgos de la inspección.
 Picture: inspection-band-findings
-Last checked: 2026-10-05
+Last checked: 2026-11-11
 
 ## Link findings to a corrective action (admin dashboard)
 Who can do this: anyone who can read reports
 1. Click **Forms** (**Formularios**), then the **Filed forms** (**Formularios presentados**) tab, set **Form** (**Formulario**) to **Corrective Action Report** (**Reporte de acción correctiva**) and click the action.
-2. **Linked findings** (**Hallazgos vinculados**) lists the findings this action already covers, each with its state and its **Due** (**Vence**) time. **Unlink** (**Desvincular**) takes one off the action; the finding itself stays.
+2. **Linked findings** (**Hallazgos vinculados**) lists the findings this action already covers, each with its state, its **Due** (**Vence**) time and its **Follow-up** (**Seguimiento**): training or a conversation, with when it is due or the day it was done. **Unlink** (**Desvincular**) takes one off the action; the finding itself stays.
 3. Click **Link findings** (**Vincular hallazgos**). The open findings at the report's site are listed, every one ticked. Untick any this action does not cover and click **Link** (**Vincular**).
 If it does not work: a finding at another site, or one already linked to a corrective action, is refused in the system's own words under the list. The list shows once the system answers the report with its findings.
 Words people use for this: link a finding, attach findings, corrective action findings, unlink a finding, vincular hallazgos.
 Picture: corrective-link-findings
-Last checked: 2026-10-05
+Last checked: 2026-11-11
 
 ## Tell the client what was done (admin dashboard)
 Who can do this: anyone who can read the corrective action, once its verification is answered and before it is closed
@@ -2332,12 +2335,12 @@ Last checked: 2026-10-07
 Who can do this: admins, and anyone given **Read HR records** (**Leer los expedientes de personal**) under **Roles and Permissions** (**Roles y permisos**)
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. Click **Open HR file** (**Abrir el expediente de personal**) in the banner.
-3. The person's folder opens in **HR Records** (**Expedientes de personal**): their employment, clearances, warnings, PPE and company property, **Required training ({0})** (**Capacitación requerida ({0})**) with **Assign training** (**Asignar capacitación**), **Certifications** (**Certificaciones**) with **Add Certification** (**Agregar certificación**), and every document, training record, onboarding step and filed form, each with its actions.
+3. The person's folder opens in **HR Records** (**Expedientes de personal**): their employment, clearances, warnings, **Coaching** (**Orientación**) and **Training from findings** (**Capacitación por hallazgos**), PPE and company property, **Required training ({0})** (**Capacitación requerida ({0})**) with **Assign training** (**Asignar capacitación**), **Certifications** (**Certificaciones**) with **Add Certification** (**Agregar certificación**), and every document, training record, onboarding step and filed form, each with its actions.
 4. **Back to Employees** (**Volver al personal**) goes back to everyone's folders.
 If it does not work: **Open HR file** (**Abrir el expediente de personal**) shows only for someone who can open HR Records. A supervisor without it reads a person's training on **Training** (**Capacitación**) in the menu, and their profile shows no **Employment** (**Empleo**) card. The profile holds **Profile** (**Perfil**), **Assignments** (**Asignaciones**) and **Timeline** (**Historial**) only. What its HR Files and Certifications tabs held is in the folder.
 Words people use for this: hr file, personnel file, employee file, hr files tab, certifications tab, where did hr files go, expediente de personal.
 Picture: staff-open-hr-file
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 
 ## Read and answer app support tickets (admin dashboard)
 Who can do this: admins, and the app support contact
@@ -2929,10 +2932,12 @@ Who can do this: the super admin, and anyone the super admin has given the Healt
 2. Under **Who gets the morning email and the red alerts** (**Quién recibe el correo de la mañana y las alertas en rojo**), the list says who gets them. With nobody set it reads **Nobody is set, so the super admins get them.** (**No hay nadie indicado, así que los reciben los superadministradores.**)
 3. Pick someone in **Add a person** (**Agregar una persona**) and click **Add** (**Agregar**), or type an address in **Add an email address** (**Agregar un correo**) and click **Add** (**Agregar**). **Remove** (**Quitar**) takes one off. Click **Save the list** (**Guardar la lista**).
 4. Under **Each number's yellow and red lines** (**Las líneas amarilla y roja de cada indicador**), each number shows its **Yellow at** (**Amarillo en**) and **Red at** (**Rojo en**) lines, with its **Default** (**Predeterminado**) beside them. Type a new line, or leave a box empty for a line that is never crossed, and click **Save the lines** (**Guardar las líneas**). Check-offs and shifts started are typed as a percent of the week before.
-5. The days left on the robot's sign-in count down, so its row says **Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.** (**Menos es peor. Pasa a amarillo en la línea amarilla o por debajo y a rojo en la línea roja o por debajo, que va en la amarilla o por debajo.**) Its lines are typed in days, 5 and 1 by default.
-If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line, except for the robot's sign-in, where it is at or under it: **For {0}, fewer is worse, so the red line is at or under the yellow line.** (**En {0}, menos es peor, así que la línea roja va en la amarilla o por debajo.**)
+5. The slowest route counts a route only once it served enough requests in the day, so one slow request on a quiet route never sets it. Type how many in its box, a whole number from 1 to 10,000; beside it, its default reads **A route counts from {0} requests a day by default.** (**De forma predeterminada, una ruta cuenta a partir de {0} solicitudes al día.**), 20 requests. Click **Save the lines** (**Guardar las líneas**).
+6. The days left on the robot's sign-in count down, so its row says **Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.** (**Menos es peor. Pasa a amarillo en la línea amarilla o por debajo y a rojo en la línea roja o por debajo, que va en la amarilla o por debajo.**) Its lines are typed in days, 5 and 1 by default.
+If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line, except for the robot's sign-in, where it is at or under it: **For {0}, fewer is worse, so the red line is at or under the yellow line.** (**En {0}, menos es peor, así que la línea roja va en la amarilla o por debajo.**) A number of requests outside 1 to 10,000 is held before it is sent: **Type a whole number of requests from 1 to 10,000.** (**Escriba un número entero de solicitudes, de 1 a 10,000.**)
 Words people use for this: health alerts, morning email, who gets the alerts, red alert, thresholds, alert lines, change the limits, alertas de salud.
 Picture: health-settings
+Picture: health-route-floor
 Last checked: 2026-11-11
 
 ## Set a site's shifts (admin dashboard)
@@ -3012,4 +3017,56 @@ Who can do this: admins and supervisors, who schedule inspections
 If it does not work: **This site's safety walk is not done this month on another inspection, so this inspection keeps its own.** (**El recorrido de seguridad de este sitio no se ha hecho este mes en otra inspección, así que esta inspección conserva el suyo.**) means this month's walk is not on record on another inspection, so this one keeps it. A completed inspection keeps what it held, and **Drop the safety walk** (**Quitar el recorrido de seguridad**) is not offered there.
 Words people use for this: drop the safety walk, skip the safety walk, safety walk already done this month, monthly safety walk, one safety walk a month, frm-015 once a month, quitar el recorrido de seguridad.
 Picture: inspection-drop-safety
+Last checked: 2026-11-11
+
+## See inspection findings and their follow-ups (admin dashboard)
+Who can do this: admins and supervisors
+An inspection finding is not a to-do item. It calls for training, or a conversation with the person whose work it was.
+1. Click **Inspections** (**Inspecciones**), then the **Findings** (**Hallazgos**) tab. The tab counts the findings that need a follow-up or are late.
+2. Each row shows the card the inspection found deficient, its site and zone, when it was found and on which inspection, its notes, its **Follow-up** (**Seguimiento**) and its owner.
+3. The findings with no follow-up come first, then the late ones, then the open ones. **Needs a follow-up** (**Necesita seguimiento**) says the day to choose one by, two days after it was found. **Late** (**Atrasado**) says the day it was due.
+4. Narrow the list with **Status** (**Estado**), **Site** (**Sitio**), **Owner** (**Responsable**) and **Follow-up** (**Seguimiento**). **Not done yet** (**Aún sin hacer**) is where it starts; **Done** (**Hecho**) and **Resolved without a follow-up** (**Resuelto sin seguimiento**) show the closed ones.
+5. Click a finding to open it, with its photos, notes, owner and follow-up. See the entries on choosing a finding's follow-up and recording a conversation.
+6. A finding's window under **Issues** (**Incidencias**) shows its **Follow-up** (**Seguimiento**) and offers no **Assign as Task** (**Asignar como tarea**). **Open the follow-up** (**Abrir el seguimiento**) or **Choose a follow-up** (**Elegir un seguimiento**) opens it here.
+7. The **Reports** (**Informes**) tab's **Export CSV** (**Exportar CSV**) adds each card's finding and its follow-up, its due day and the day it was done.
+If it does not work: the list says it did not load, with **Try again** (**Intentar de nuevo**). A finding that is not found, or a list someone may not read, is refused in the system's own words.
+Words people use for this: inspection findings, finding follow-up, late findings, findings with no follow-up, training after an inspection, coaching, hallazgos.
+Picture: inspection-findings
+Picture: issue-finding-follow-up
+Last checked: 2026-11-11
+
+## Choose a finding's follow-up: training or a conversation (admin dashboard)
+Who can do this: admins, anyone who manages inspections, and a supervisor at the finding's site
+1. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding.
+2. Click **Choose a follow-up** (**Elegir un seguimiento**), or **Change the follow-up** (**Cambiar el seguimiento**) for one that is not done yet.
+3. Pick **Training** (**Capacitación**) or **A conversation** (**Una conversación**). Training is a lesson given to the person, due in 7 days, which they find on My training in the staff app; it is done once they pass it. A conversation is due in 3 days.
+4. For training, pick the **Lesson topic** (**Tema de la lección**). The topic the card's category suggests comes first, marked **{0} (suggested)** (**{0} (sugerido)**), and is picked already.
+5. Under **Owner** (**Responsable**), pick the person whose work it was. A finding that has an owner keeps them unless you pick someone else.
+6. Click **Save the follow-up** (**Guardar el seguimiento**). The window says the day it is due.
+If it does not work: a refusal is shown in the system's own words under the field it names, such as a training with no topic, or a finding with no owner. A follow-up that is done cannot be changed, and a closed finding takes none. Someone who may not choose at the site reads the system's refusal above the form.
+Words people use for this: choose a follow-up, training for a finding, a conversation about a finding, retrain someone, coaching, elegir un seguimiento.
+Picture: finding-follow-up-choose
+Last checked: 2026-11-11
+
+## Record a conversation about a finding (admin dashboard)
+Who can do this: whoever held it: admins, anyone who manages inspections, and a supervisor at the finding's site
+1. Hold the conversation with the person whose work it was.
+2. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding. Its **Follow-up** (**Seguimiento**) reads **A conversation** (**Una conversación**) with its due day.
+3. Click **Record the conversation** (**Registrar la conversación**).
+4. Set **When it was held** (**Cuándo se tuvo**), type **What was covered** (**Qué se trató**), and, when anyone else was there, **Who else was there (optional)** (**Quién más estuvo (opcional)**).
+5. Click **Record it** (**Registrarla**). The follow-up is done, the finding is marked fixed, and the person is asked to confirm it on their phone. Until they do, it reads **Waiting for the person to confirm it.** (**Esperando que la persona la confirme.**)
+6. It is kept as coaching on the person's record, apart from warnings, and never as discipline. What was covered is read only by those who read HR records, the person and whoever recorded it.
+If it does not work: what is missing is named in the system's own words under its field: when it was held, which cannot be ahead of now, or what was covered, up to 2,000 characters. A conversation already recorded cannot be recorded again.
+Words people use for this: record a conversation, coaching conversation, talked to the cleaner, conversation about a finding, registrar la conversación.
+Picture: finding-conversation-record
+Last checked: 2026-11-11
+
+## Read a person's coaching and training from findings (admin dashboard)
+Who can do this: admins, and anyone given **Read HR records** (**Leer los expedientes de personal**) under **Roles and Permissions** (**Roles y permisos**)
+1. Click **HR Records** (**Expedientes de personal**) and open the person's folder.
+2. **Coaching** (**Orientación**) lists the conversations held with them about an inspection finding, kept apart from warnings and never discipline: the finding, its site and the day it was found, when the conversation was held and by whom, what was covered, who else was there, and whether they have confirmed it. A conversation not held yet shows its due day.
+3. **Training from findings** (**Capacitación por hallazgos**) lists the lessons given them after a finding, each with its due day and the day they passed it.
+If it does not work: both show once the person has a follow-up from a finding. A person with none shows neither.
+Words people use for this: coaching, coaching record, conversations, retraining after an inspection, training from findings, orientación.
+Picture: hr-coaching
 Last checked: 2026-11-11
