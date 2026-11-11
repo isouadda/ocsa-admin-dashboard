@@ -433,14 +433,14 @@ Last checked: 2026-10-07
 Who can do this: admins and supervisors
 1. Click **Reports**.
 2. Find the report and click **Run** (**Ejecutar**). The issue report sits under **Issues** (**Problemas**).
-3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**). In every spreadsheet file the dashboard makes, a cell that would start a formula, one beginning with =, +, - or @, is written with an apostrophe in front, so it opens as the words that were typed.
+3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it with the company's name, address and logo from **Settings** (**Configuración**). A PDF made more than 50 minutes after the report was opened reads the company settings again first, so the logo still shows. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**). In every spreadsheet file the dashboard makes, a cell that would start a formula, one beginning with =, +, - or @, is written with an apostrophe in front, so it opens as the words that were typed.
 4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A built-in report reads **Template** (**Plantilla**) and is changed by duplicating it. To take a report off the list, see Remove a report you no longer need.
 5. **Supply Usage and Cost** (**Uso y costo de suministros**) shows the estimated cost, and puts the supplies in order of cost, for admins only. Anyone else reads the quantities and the events, with the supplies in name order, on screen and in the PDF.
 If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again.
 Words people use for this: hours worked, labor report, payroll numbers, export data, who worked when, csv, spreadsheet.
 Picture: reports-library
 Picture: reports-issue-report
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
@@ -2885,14 +2885,14 @@ Who can do this: admins and supervisors, for the warnings they may issue
 1. A warning saved with **Save as draft** (**Guardar como borrador**) is not issued yet. On **Discipline** (**Disciplina**) it reads **Draft, not issued** (**Borrador, no emitida**).
 2. To carry it on, click **Issue a warning** (**Emitir una advertencia**) on **Discipline** (**Disciplina**), pick the person and click **Next** (**Siguiente**). For someone with a draft, the window says so and offers **Continue the draft from {0}** (**Continuar el borrador del {0}**), with the draft's day, beside **Start a new warning** (**Empezar una advertencia nueva**).
 3. On the person's **Disciplinary** (**Disciplinario**) card in **HR Records** (**Expedientes de personal**), **Continue the draft from {0}** (**Continuar el borrador del {0}**) sits beside **Issue a warning** (**Emitir una advertencia**). Clicking the draft's row on either list opens it too.
-4. The window reads **Loading...** (**Cargando...**) until the draft is read, then shows it as it was saved. When it cannot be read, it says **This draft did not load. Close it and open it again.** (**Este borrador no se cargó. Ciérrelo y ábralo de nuevo.**) and **Save as draft** (**Guardar como borrador**) stays off, so nothing can be saved over the draft.
+4. The window reads **Loading...** (**Cargando...**) until the draft is read, then shows it as it was saved. Under the person's name it says when the warning was **Started {0}** (**Iniciada el {0}**) and **Last saved {0}** (**Guardada por última vez el {0}**); **Continue the draft from {0}** (**Continuar el borrador del {0}**) names the day it was last saved. An issued warning's window says when it was started too. When it cannot be read, it says **This draft did not load. Close it and open it again.** (**Este borrador no se cargó. Ciérrelo y ábralo de nuevo.**) and **Save as draft** (**Guardar como borrador**) stays off, so nothing can be saved over the draft.
 5. A grey **Save as draft** (**Guardar como borrador**) lists under it what is still needed after **Still needed: {0}** (**Todavía falta: {0}**). A grey **Issue** (**Emitir**) says **Sign as the issuer first.** (**Primero firme como quien emite la advertencia.**)
 6. Closing the window with typing not saved asks **Close without saving?** (**¿Cerrar sin guardar?**). **Keep editing** (**Seguir editando**) goes back to it; **Close** (**Cerrar**) closes it, and the draft stays as it was last saved.
 If it does not work: a draft that did not load opens again from its row once the connection is back. To keep what you typed, click **Save as draft** (**Guardar como borrador**) before closing.
 Words people use for this: continue a draft, finish a warning, saved warning, draft warning, warning not issued, unsaved warning, close without saving, borrador.
 Picture: warning-continue-draft
 Picture: warning-still-needed
-Last checked: 2026-11-09
+Last checked: 2026-11-11
 
 ## Read the Health page (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
@@ -2987,4 +2987,15 @@ Who can do this: the super admin renews it; anyone given the Health page can rea
 If it does not work: **Sign in with your own sign-in code on this device first, then try again.** (**Primero inicie sesión con su propio código de inicio de sesión en este dispositivo y vuelva a intentarlo.**) means this computer is not trusted for your own account: sign out, sign in again and type the code that is emailed to you. Anyone but the super admin reads **Only the super admin can renew it.** (**Solo el superadministrador puede renovarlo.**)
 Words people use for this: robot sign-in, robot code, trusted device, renew the robot, run-throughs fail at sign-in, test supervisor sign-in, days left, renovar.
 Picture: health-robot-sign-in
+Last checked: 2026-11-11
+
+## Change the company logo (admin dashboard)
+Who can do this: admins, and anyone who holds the settings permission
+1. Click **Settings** (**Configuración**), then **Company** (**Empresa**).
+2. Under **Branding** (**Marca**), the **Logo** (**Logotipo**) shows the one on file. Click **Upload Logo** (**Subir logotipo**) and pick an image under 10 MB. The page says **Logo uploaded. Click Save to keep it.** (**Logotipo subido. Haga clic en Guardar para conservarlo.**)
+3. Click **Save Company Settings** (**Guardar la configuración de la empresa**). The logo prints on report PDFs, warnings and the health reports.
+4. The logo is kept privately and handed out as a link that works for an hour. When the page has been open longer and the logo no longer shows, the page reads the settings again and shows it. A report PDF made after that reads them again first.
+If it does not work: a file that is not an image, or one over 10 MB, is refused before it is sent. A supervisor reads the company's name, address, colors and logo on prints, and never opens this tab.
+Words people use for this: company logo, change the logo, upload logo, branding, letterhead, logo missing on the pdf, logotipo.
+Picture: settings-company-logo
 Last checked: 2026-11-11

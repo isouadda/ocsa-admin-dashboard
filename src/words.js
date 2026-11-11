@@ -5717,6 +5717,8 @@ export const WORDS = {
   "Staff take this course outside the app and upload their own certificate in the staff app. The record is written at once.": { es: "El personal toma este curso fuera de la aplicaci\u00f3n y sube su propio certificado en la aplicaci\u00f3n del personal. El registro se crea de inmediato.", fr: "Le personnel suit ce cours en dehors de l'application et t\u00e9l\u00e9verse son propre certificat dans l'application du personnel. L'enregistrement est cr\u00e9\u00e9 tout de suite." },
   "Yes. Staff upload their own certificate in the staff app.": { es: "S\u00ed. El personal sube su propio certificado en la aplicaci\u00f3n del personal.", fr: "Oui. Le personnel t\u00e9l\u00e9verse son propre certificat dans l'application du personnel." },
   "Outside course": { es: "Curso externo", fr: "Cours externe" },
+  "Started {0}|warning": { es: "Iniciada el {0}", fr: "Commenc\u00e9 le {0}" },
+  "Last saved {0}": { es: "Guardada por \u00faltima vez el {0}", fr: "Enregistr\u00e9 pour la derni\u00e8re fois le {0}" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

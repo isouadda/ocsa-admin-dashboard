@@ -1892,6 +1892,11 @@ const SHOTS = [
   { name: "training-certificate-by", entry: "Upload a training certificate from an outside course",
     open: "hr/training", ready: "[data-training-record='ht-5'] [data-certificate-by]",
     act: async (c) => { await show(c, "[data-training-record='ht-5']"); await wait(300); } },
+  // Part 386, section 3: Settings, Company, with a logo stored and answered as a link signed for an hour
+  // (audit/part386-stub.js, logo).
+  { name: "settings-company-logo", entry: "Change the company logo", arm: (stubs, on) => stubs.setScene386({ logo: on }),
+    open: "settings", ready: SHELL,
+    act: async (c) => { await click(c, '[data-settings-tab="company"]'); await until(c, "[data-settings-logo]"); await show(c, "[data-settings-logo]"); await wait(300); } },
   // Part 386, section 1: the robot's sign-in on the Run-throughs tab, as the super admin, against
   // audit/part386-stub.js: Test Supervisor's device with 4 days left and Renew.
   { name: "health-robot-sign-in", entry: "Renew the robot's sign-in", as: "superAdmin",

@@ -5113,6 +5113,8 @@ function OpsPage({ af, t, allStaff }) {
 // screen; a past day is read once. The view lives in the address, #checklist/<site or all>/<period>
 // [/<shift>], the period today, yesterday, last7, month, one day, or two days joined by "..".
 const CR_TZ = clientConfig.company.timeZone;
+// How long the settings a print reads are taken as fresh: the logo is a link signed for 60 minutes (part 386).
+const SETTINGS_FRESH_MS = 50 * 60000;
 // The checklist day starts at 4:00 AM on the company's clock, the API's default for it, until the
 // company's own time is read from GET /api/settings, once a session (part 368).
 const CR_DAY_STARTS = 4 * 60;
@@ -11961,7 +11963,7 @@ const SlaBySiteWidget = ({ timing, t }) => {
 
 // Composite run view for the issue source. Seeds its controls from the saved
 // definition config, applies the saved SLA targets, and renders the widgets.
-function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
+function IssueTimingReport({ af, t, sites, settings, freshSettings = null, config, showToast }) {
   const cfg = readIssueConfig(config);
   const [dateRange, setDateRange] = useState(() => (cfg.date_range.start && cfg.date_range.end) ? { start: cfg.date_range.start, end: cfg.date_range.end } : resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -12034,6 +12036,12 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
 
   const exportPdf = () => {
     if (!sm) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -12103,8 +12111,6 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
       + targetsLine + trendTable + siteTable + sevTable + slaTable + judgedTable
       + '<div class="footer">' + esc(cName) + (addr ? (' &middot; ' + esc(addr)) : "") + einLine + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -12202,7 +12208,7 @@ const SupplyGreenShareWidget = ({ data, t }) => {
   );
 };
 
-function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap }) {
+function SupplyUsageReport({ af, t, sites, settings, freshSettings = null, config, showToast, lkMap }) {
   // Decision 1: the estimated cost, and the order by cost, are a holder of manage_employment's. Anyone
   // else reads the counts and quantities, on screen and in the PDF, with the supplies in name order.
   const seesPay = useContext(PayCtx);
@@ -12249,6 +12255,12 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
 
   const exportPdf = () => {
     if (!sm) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -12283,8 +12295,6 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
       + greenLine + trendTable + siteTable + supTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -12375,7 +12385,7 @@ const InspectionLowestItemsWidget = ({ rows, t }) => {
   );
 };
 
-function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) {
+function InspectionReport({ af, t, sites, settings, freshSettings = null, config, showToast, lkMap }) {
   const cfg = readInspectionConfig(config);
   const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -12420,6 +12430,12 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
 
   const exportPdf = () => {
     if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -12448,8 +12464,6 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
       + siteTable + lowTable + inspListTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -12503,7 +12517,7 @@ const ratingQuietMonths = (s) => {
 };
 const ratingWho = (c) => [c && c.name, c && c.role].filter(Boolean).join(", ") || tr("Customer");
 
-function ClientRatingsReport({ af, t, sites, settings, showToast }) {
+function ClientRatingsReport({ af, t, sites, settings, freshSettings = null, showToast }) {
   const [dateRange, setDateRange] = useState(() => PRESETS.last90());
   const [siteFilter, setSiteFilter] = useState("");
   const [data, setData] = useState(null);
@@ -12546,6 +12560,12 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
 
   const exportPdf = () => {
     if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = !!settings && settings.use_company_settings !== false;
     const navy = (useBrand && settings.primary_color) || NAVY;
     const gold = (useBrand && settings.secondary_color) || GOLD;
@@ -12578,8 +12598,6 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
       + rows.map(siteBlock).join("")
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -14644,7 +14662,12 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
   };
 
   useEffect(() => { loadDefs(); }, []);
-  useEffect(() => { af("/api/settings").then(setSettings).catch(() => {}); }, []);
+  // The settings carry the logo as a link signed for 60 minutes since the API's Round 11 (part 386), so a
+  // print made later than SETTINGS_FRESH_MS after the read reads them again first and draws the new link.
+  const settingsAt = useRef(0);
+  useEffect(() => { af("/api/settings").then(d => { settingsAt.current = Date.now(); setSettings(d); }).catch(() => {}); }, []);
+  const freshSettings = useCallback(() => (settings && Date.now() - settingsAt.current < SETTINGS_FRESH_MS ? Promise.resolve(settings)
+    : af("/api/settings").then(d => { settingsAt.current = Date.now(); setSettings(d); return d; }).catch(() => settings)), [af, settings]);
   useEffect(() => { loadSnapshots(); }, [dateRange]);
   // The client reports (Step 196) are offered once their routes answer: one quiet read each when the
   // page opens, and a 404, a refusal or a failure leaves the report off the page.
@@ -14720,11 +14743,11 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
         </div>
       </div>
       {isIssueSource(active.source) ?
-        <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
+        <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} config={active.config} showToast={showToast} /> :
        isSupplySource(active.source) ?
-        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
+        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
        isInspectionSource(active.source) ?
-        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
+        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("This report's data source arrives with the report templates workstream. It will run here once that ships.")}</div></Crd>}
     </div>);
   }
@@ -14735,7 +14758,7 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
         <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Client ratings")}</div>
       </div>
-      <ClientRatingsReport af={af} t={t} sites={sites} settings={settings} showToast={showToast} />
+      <ClientRatingsReport af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} showToast={showToast} />
     </div>);
   }
 
@@ -20706,6 +20729,9 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   useEffect(() => { load(); }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // The logo is a link signed for 60 minutes (part 386, the API's Round 11): a preview whose link no longer
+  // loads reads the settings again and takes the new link, unless another logo was picked meanwhile.
+  const readLogoAgain = () => af("/api/settings").then(d => { const was = readRef.current && readRef.current.logo_url; if (readRef.current) readRef.current = { ...readRef.current, logo_url: d && d.logo_url }; setForm(f => (f && f.logo_url === was ? { ...f, logo_url: d && d.logo_url } : f)); });
   // A refusal of one of the 300A's fields, drawn under it when its keys name it.
   const [oshaRefusal, setOshaRefusal] = useState({ text: "", keys: [] });
 
@@ -20824,7 +20850,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           <label style={lbl}>{tr("Logo")}</label>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 84, height: 84, borderRadius: 8, border: "1px solid " + t.border, background: t.inputBg, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-              {form.logo_url ? <img src={form.logo_url} alt={tr("logo")} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>}
+              {form.logo_url ? <FreshImg src={form.logo_url} readKey="settings-logo" onStale={readLogoAgain} data-settings-logo="" alt={tr("logo")} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} fallback={<span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>} /> : <span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>}
             </div>
             <div>
               <input ref={logoInput} type="file" accept="image/*" onChange={onLogoPick} style={{ display: "none" }} />
@@ -27517,6 +27543,10 @@ const warningListStatus = (s) => (s === "draft" ? tr("Draft, not issued") : warn
 const openDraftOf = (history) => (Array.isArray(history) ? history : []).find(x => x && x.id != null && x.status === "draft" && !warningRescinded(x)) || null;
 const draftDayOf = (w) => { const v = w && (w.updatedAt || w.updated_at || w.createdAt || w.created_at || w.incidentDate || w.incident_date || w.actionDate || w.action_date); return !v ? "" : String(v).length > 10 ? irDay(v) : fdLong(String(v).slice(0, 10)); };
 const warningOf = (d) => (d && d.warning && typeof d.warning === "object" ? d.warning : d);
+// When a warning was started and last saved (part 386, the API's Round 11 section 5): createdAt and updatedAt
+// on every summary and full view, instants kept by the database. "" from a row that carries neither.
+const warningStartedOf = (w) => String((w && (w.createdAt || w.created_at)) || "");
+const warningSavedOf = (w) => String((w && (w.updatedAt || w.updated_at)) || "");
 // A warning's fields as the API may name them, read the same way wherever a row comes from.
 const warningIssued = (w) => !!(w && (w.issuedAt || w.issued_at || (w.status && w.status !== "draft")));
 const warningRescinded = (w) => !!(w && (w.status === "rescinded" || w.rescindedAt || w.rescinded_at));
@@ -27698,6 +27728,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{personName || ""}{w && w.status ? ", " + warningStatusWord(w.status) : ""}</div>
+        {warningStartedOf(w) ? <div data-warning-started={warningStartedOf(w)} style={{ fontSize: 12, color: t.textMut, marginTop: 2 }}>{tr("Started {0}|warning", irWhen(warningStartedOf(w)))}{isDraft && warningSavedOf(w) && warningSavedOf(w) !== warningStartedOf(w) ? <span data-warning-saved={warningSavedOf(w)}>{" . " + tr("Last saved {0}", irWhen(warningSavedOf(w)))}</span> : null}</div> : null}
       </div>
       <button onClick={tryClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
     </div>

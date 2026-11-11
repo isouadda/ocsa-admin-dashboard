@@ -42,11 +42,28 @@
 //                                         ht-5 was uploaded by the person, from an outside course; any other is
 //                                         the office's
 //
+//   Section 3, warnings and the logo (helpers/discipline.js, routes/settings.js, helpers/photoLinks.js):
+//     every answer under /api/discipline  each warning, summary or full, carries createdAt and updatedAt, ISO
+//                                         instants: a warning that holds neither is started at 2:30 PM UTC on its
+//                                         incident's day and last saved when it was issued, else as it holds; a
+//                                         PUT moves updatedAt to now and a POST starts one now
+//     GET /api/settings                   by tier (tierOf): the whole row to an admin by role or a holder of
+//                                         manage_settings; DASHBOARD_KEYS and checklistDayStartsAt to any other
+//                                         office account (a supervisor); checklistDayStartsAt alone to anyone
+//                                         else. logo_url, once a logo is stored (the scene logo stores one), is
+//                                         answered as a link signed for 60 minutes that names the read that
+//                                         handed it out (?read=<n>); a logo held as a plain outside address is
+//                                         answered as stored
+//     PATCH /api/settings                 logo_url stored as <bucket>/<path> when it is a signed link or a path of
+//                                         a photo bucket, as sent when it is an outside address, and answered as
+//                                         the GET answers it
+//
 // Every value is invented: the test accounts, the devices and the days.
 "use strict";
 
 module.exports = (ctx) => {
   const { seed, ok, clone, person } = ctx;
+  // ctx.state is the stub's own state, read for a person's capability overrides.
   const T = (lang, en, es) => (lang === "es" ? es : en);
   const bad = (status, code, error, extra) => ({ status, json: Object.assign({ error, code }, extra || {}) });
   const TODAY = seed.TODAY;
@@ -57,7 +74,7 @@ module.exports = (ctx) => {
 
   let model = null;
   const m = () => {
-    if (!model) model = { scene: {}, sent: [], robot: null, robotLines: null, outside: { "tp-4": true }, personCerts: { "ht-5": true } };
+    if (!model) model = { scene: {}, sent: [], robot: null, robotLines: null, outside: { "tp-4": true }, personCerts: { "ht-5": true }, saved: {}, started: {}, logoReads: 0 };
     return model;
   };
   const sent = (what, body) => { m().sent.push({ what, body: clone(body === undefined ? null : body) }); };
@@ -241,7 +258,83 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 3: warnings and the logo -----------------------------------------------------------------------
+  const isWarning = (x) => x && typeof x === "object" && !Array.isArray(x) && x.id !== undefined && typeof x.status === "string" && typeof x.type === "string"
+    && (Object.prototype.hasOwnProperty.call(x, "incidentDate") || Object.prototype.hasOwnProperty.call(x, "incident_date"));
+  const stampWarning = (x) => {
+    const id = String(x.id);
+    const day = String(x.incidentDate || x.incident_date || x.actionDate || TODAY).slice(0, 10);
+    const createdAt = m().started[id] || x.createdAt || x.recordedAt || (day + "T14:30:00.000Z");
+    const updatedAt = m().saved[id] || x.updatedAt || x.issuedAt || createdAt;
+    return Object.assign({}, x, { createdAt, updatedAt });
+  };
+  const walk = (v) => (Array.isArray(v) ? v.map(walk) : v && typeof v === "object" ? (isWarning(v) ? stampWarning(Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]))) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]))) : v);
+  function disciplineRoute(method, path, query, body, lang, base) {
+    const a = base();
+    if (!a || !(a.status >= 200 && a.status < 300) || !a.json || typeof a.json !== "object") return a;
+    const one = /^\/api\/discipline\/([^/]+)$/.exec(path);
+    if (method === "PUT" && one) m().saved[decodeURIComponent(one[1])] = seed.NOW_ISO;
+    if (method === "POST" && path === "/api/discipline" && a.json.warning && a.json.warning.id !== undefined) { m().started[String(a.json.warning.id)] = seed.NOW_ISO; m().saved[String(a.json.warning.id)] = seed.NOW_ISO; }
+    return Object.assign({}, a, { json: walk(a.json) });
+  }
+  const STORAGE = "https://storage.example.invalid/storage/v1/object/sign/";
+  const PHOTO_BUCKETS = ["profile-photos", "issue-photos", "task-media"];
+  // What a logo_url is stored as: <bucket>/<path> for a signed link or a path of a photo bucket, else as sent.
+  const storedLogo = (v) => {
+    if (v === undefined) return undefined;
+    if (v === null || v === "") return v;
+    const s0 = String(v);
+    if (s0.indexOf(STORAGE) === 0) return s0.slice(STORAGE.length).split("?")[0];
+    const bucket = s0.split("/")[0];
+    if (PHOTO_BUCKETS.indexOf(bucket) >= 0 && s0.indexOf("://") < 0) return s0;
+    return s0;
+  };
+  const signedLogo = (stored) => {
+    if (!stored) return stored === "" ? "" : stored;
+    const bucket = String(stored).split("/")[0];
+    if (PHOTO_BUCKETS.indexOf(bucket) < 0 || String(stored).indexOf("://") >= 0) return stored;
+    m().logoReads += 1;
+    // The token says when the link stops working, the way storage reads it (audit/part372-pictures.js). The scene
+    // logoExpired hands out a first link already past its hour, as a read made more than an hour ago holds.
+    const exp = Date.parse(seed.NOW_ISO) + (m().scene.logoExpired && m().logoReads === 1 ? -60000 : 3600000);
+    const token = Buffer.from(JSON.stringify({ exp })).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return STORAGE + stored + "?token=" + token + "&read=" + m().logoReads;
+  };
+  const DASHBOARD_KEYS = ["display_name", "legal_name", "logo_url", "primary_color", "secondary_color", "address", "show_ein_on_reports", "updated_at"];
+  const tierOf = () => {
+    const p = me();
+    if (!p) return "staff";
+    const ov = (ctx.state && ctx.state.overrides && ctx.state.overrides[p.id]) || {};
+    if (p.role === "admin" || p.isSuperAdmin === true || ov.manage_settings === true) return "all";
+    if (p.role === "supervisor" || p.role === "super_admin") return "office";
+    return "staff";
+  };
+  function settingsRoute(method, path, query, body, lang, base) {
+    if (method === "PATCH" && body && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "logo_url")) {
+      sent("settings", body);
+      const held = body.logo_url;
+      body.logo_url = storedLogo(held);
+      m().logoStored = body.logo_url;
+      let a;
+      try { a = base(); } finally { body.logo_url = held; }
+      return answerSettings(a);
+    }
+    return answerSettings(base());
+  }
+  function answerSettings(a) {
+    if (!a || a.status !== 200 || !a.json || typeof a.json !== "object" || Array.isArray(a.json)) return a;
+    const row = Object.assign({ checklistDayStartsAt: "04:00" }, a.json);
+    const stored = m().logoStored !== undefined ? m().logoStored : m().scene.logo ? "profile-photos/company/logo-1.png" : storedLogo(row.logo_url);
+    if (stored !== undefined) row.logo_url = signedLogo(stored);
+    const tier = tierOf();
+    if (tier === "all") return Object.assign({}, a, { json: row });
+    if (tier === "office") { const out = { checklistDayStartsAt: row.checklistDayStartsAt }; DASHBOARD_KEYS.forEach((k) => { if (Object.prototype.hasOwnProperty.call(row, k)) out[k] = row[k]; }); return Object.assign({}, a, { json: out }); }
+    return Object.assign({}, a, { json: { checklistDayStartsAt: row.checklistDayStartsAt } });
+  }
+
   function route(method, path, query, body, lang, base) {
+    if (/^\/api\/discipline(\/|$)/.test(path) && path !== "/api/discipline/steps") return disciplineRoute(method, path, query, body, lang, base);
+    if (path === "/api/settings" && (method === "GET" || method === "PATCH")) return settingsRoute(method, path, query, body, lang, base);
     const h = /^\/api\/health\//.test(path) ? healthRoute(method, path, query, body, lang, base) : null;
     if (h) return h;
     const tr = /^\/api\/(training\/topics|hr\/training$)/.test(path) ? trainingRoute(method, path, query, body, lang, base) : null;
@@ -255,6 +348,7 @@ module.exports = (ctx) => {
       const x = Object.assign({}, o || {});
       if (x.personCerts) { m().personCerts = x.personCerts; delete x.personCerts; }
       if (x.outside) { m().outside = x.outside; delete x.outside; }
+      if (Object.prototype.hasOwnProperty.call(x, "logo")) m().logoStored = undefined;
       Object.assign(m().scene, x);
     },
     sent: () => m().sent,

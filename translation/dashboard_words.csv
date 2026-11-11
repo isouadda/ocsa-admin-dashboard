@@ -5435,3 +5435,5 @@ From an outside course,De un curso externo,"Training, a topic's details and its 
 Staff take this course outside the app and upload their own certificate in the staff app. The record is written at once.,El personal toma este curso fuera de la aplicación y sube su propio certificado en la aplicación del personal. El registro se crea de inmediato.,"Training, a topic's form, under From an outside course"
 Yes. Staff upload their own certificate in the staff app.,Sí. El personal sube su propio certificado en la aplicación del personal.,"Training, a topic's details, From an outside course"
 Outside course,Curso externo,"Training, the catalog and a topic's window, a topic from an outside course"
+Started {0},Iniciada el {0},"Discipline, a warning's window, when it was started"
+Last saved {0},Guardada por última vez el {0},"Discipline, a warning's window, a draft's last save"

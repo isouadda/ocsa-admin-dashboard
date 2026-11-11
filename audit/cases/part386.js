@@ -9,6 +9,10 @@
 //             words, its list, and the lines editor that holds red at or under yellow
 //   training  who filed each certificate on HR Records' training records, the person or the office; From an
 //             outside course on a topic's form, sent as outsideCourse, and on the topic's page and the catalog
+//   warnings  a warning's window says when it was started and, for a draft, when it was last saved; Continue the
+//             draft reads the last save (a guard: main reads updatedAt already); a report's PDF made an hour after
+//             the settings were read reads them again and draws the new logo link; the Settings logo that no
+//             longer loads reads the settings again; a supervisor's print draws the display keys alone (a guard)
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -226,12 +230,102 @@ async function trainingCases(ctx, lang) {
   });
 }
 
+// ---- Section 3: warnings and the logo ---------------------------------------------------------------------
+async function warningsCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/warnings/" + x;
+  const prefix = (d, key) => d.say(key).split("{0}")[0].trim();
+
+  // 1. A draft's window says when it was started and when it was last saved, from createdAt and updatedAt.
+  await withDriver(ctx, { name: "started", lang, arm: (s) => s.setScene372({ discipline: { byId: true } }) }, async (d) => {
+    await goHash(d, "discipline");
+    await until(d, '[data-warning-list-status="draft"]', 8000);
+    await d.page.locator('[data-warning-list-status="draft"]').first().click().catch(() => {});
+    await until(d, "[data-warning-started]", 6000);
+    const started = await attr(d, "[data-warning-started]", "data-warning-started");
+    const saved = await attr(d, "[data-warning-saved]", "data-warning-saved");
+    const text = await textOf(d, "[data-warning-started]");
+    results.check(KIND, id("a-warning-says-when-it-was-started-and-last-saved"), started === seed.shift(-3) + "T14:30:00.000Z" && saved === seed.shift(-2) + "T15:10:00Z" && text.indexOf(prefix(d, "Started {0}|warning")) === 0 && text.indexOf(prefix(d, "Last saved {0}")) > 0,
+      "the window reads " + say([started, saved, text]));
+  });
+
+  // 2. A guard: Continue the draft names the day it was last saved (updatedAt), as main already reads it.
+  await withDriver(ctx, { name: "continue", lang, arm: (s) => s.setScene372({ discipline: { byId: true } }) }, async (d) => {
+    await goHash(d, "discipline");
+    await until(d, "[data-discipline-page] table tbody tr", 8000);
+    await d.clickText(d.say("Issue a warning"), { exact: true });
+    await until(d, "[data-discipline-issue-for]", 5000);
+    await d.page.locator("[data-discipline-issue-for] [data-person-pick-field]").first().click().catch(() => {});
+    await until(d, "[data-person-pick-box]", 4000);
+    await d.page.locator("[data-person-pick-box] [data-person-pick-search]").fill("Ngozi").catch(() => {});
+    await d.page.locator("[data-person-pick-box] [data-person-pick-option]", { hasText: "Ngozi Okonkwo" }).first().click().catch(() => {});
+    await d.page.locator("[data-discipline-issue-next]").first().click().catch(() => {});
+    await until(d, '[data-discipline-issue-for] [data-warning-continue="dd-1"]', 6000);
+    const text = await textOf(d, '[data-discipline-issue-for] [data-warning-continue="dd-1"]');
+    const day = await d.page.evaluate((x) => new Intl.DateTimeFormat(x.tag, { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" }).format(new Date(x.at)), { tag: lang === "es" ? "es-US" : "en-US", at: seed.shift(-2) + "T15:10:00Z" });
+    results.check(KIND, id("guard-continue-the-draft-reads-its-last-save"), text.indexOf(prefix(d, "Continue the draft from {0}")) === 0 && text.replace(/\./g, "").indexOf(day.replace(/\./g, "")) > 0,
+      "the button reads " + say(text) + " (want the day " + say(day) + ")");
+  });
+
+  // 3. A report's PDF reads the settings again when they were read more than 50 minutes before, and draws the
+  //    logo link the new read handed out.
+  await withDriver(ctx, { name: "logo-print", lang, arm: (s) => s.setScene386({ logo: true }) }, async (d) => {
+    await d.goto("reports");
+    await d.clickRunFor("Issue response and resolution");
+    await d.settle(800);
+    let mark = d.mark();
+    await d.clickText(d.say("Export PDF"), { exact: false });
+    await d.settle(900);
+    const first = (await d.prints()).pop() || {};
+    const readsFirst = reads(d, mark, /^\/api\/settings$/).length;
+    const linkOf = (html) => { const m0 = /<img src="([^"]+)"/.exec(String(html || "")); return m0 ? m0[1].replace(/&amp;/g, "&") : ""; };
+    await d.page.evaluate(() => { const real = Date.now.bind(Date); Date.now = () => real() + 51 * 60000; });
+    mark = d.mark();
+    await d.clickText(d.say("Export PDF"), { exact: false });
+    await d.settle(1200);
+    const second = (await d.prints()).pop() || {};
+    const readsSecond = reads(d, mark, /^\/api\/settings$/);
+    const answered = readsSecond.length ? String((readsSecond[readsSecond.length - 1].json || {}).logo_url || "") : "";
+    const a = linkOf(first.html), b = linkOf(second.html);
+    results.check(KIND, id("a-print-an-hour-later-reads-the-settings-again"), /read=\d+/.test(a) && readsFirst === 0 && readsSecond.length === 1 && !!b && b !== a && b === answered,
+      "the first print drew " + say(a) + " after " + readsFirst + " read(s); an hour later the print read the settings " + readsSecond.length + " time(s) and drew " + say(b) + " (the read answered " + say(answered) + ")");
+  });
+
+  // 4. The Settings logo whose link no longer loads reads the settings again for a new link.
+  await withDriver(ctx, { name: "logo-preview", lang, arm: (s) => s.setScene386({ logo: true, logoExpired: true }) }, async (d) => {
+    const mark = d.mark();
+    await d.goto("settings");
+    await d.settle(2500);
+    const got = reads(d, mark, /^\/api\/settings$/);
+    const links = got.map((c) => String((c.json || {}).logo_url || "")).filter(Boolean);
+    results.check(KIND, id("a-logo-that-no-longer-loads-is-read-again"), got.length >= 2 && links.length >= 2 && links[links.length - 1] !== links[0],
+      "Settings read the settings " + got.length + " time(s), answering " + say(links));
+  });
+
+  // 5. A guard: a supervisor's print draws the display keys the API answers them, the logo among them, and
+  //    no EIN, which the supervisor's answer does not carry.
+  await withDriver(ctx, { name: "supervisor", lang, persona: "supervisor", arm: (s) => s.setScene386({ logo: true }) }, async (d) => {
+    const mark = d.mark();
+    await d.goto("reports");
+    await d.clickRunFor("Issue response and resolution");
+    await d.settle(800);
+    await d.clickText(d.say("Export PDF"), { exact: false });
+    await d.settle(900);
+    const html = String(((await d.prints()).pop() || {}).html || "");
+    const answers = reads(d, mark, /^\/api\/settings$/).map((c) => Object.keys(c.json || {}).sort().join(","));
+    const want = ["address", "checklistDayStartsAt", "display_name", "legal_name", "logo_url", "primary_color", "secondary_color", "show_ein_on_reports", "updated_at"].join(",");
+    results.check(KIND, id("guard-a-supervisor-s-print-draws-the-display-keys-alone"), answers.length >= 1 && answers.every((k) => k === want) && html.indexOf("Orchard Cove") >= 0 && /<img src="[^"]*read=\d+/.test(html) && html.indexOf("00-0000000") < 0,
+      "the supervisor's settings answers held " + say(answers) + "; the print " + (html ? (html.indexOf("00-0000000") >= 0 ? "holds the EIN" : "holds no EIN") + (/<img src="[^"]*read=\d+/.test(html) ? " and the logo" : " and no logo") : "was not made"));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("robot")) await robotCases(ctx, lang);
     if (want("training")) await trainingCases(ctx, lang);
+    if (want("warnings")) await warningsCases(ctx, lang);
   }
 }
 
