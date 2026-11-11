@@ -1,0 +1,643 @@
+// What the API's Round 11 gave the dashboard (part 386), against the stub as the API is built at ocsa-api main
+// 292d2a9 (audit/part386-stub.js, over audit/part379-stub.js), armed as the API is built (setApiAsBuilt) with
+// Round 2's file log (setStep353) and part 364's answers (setStep364). Each case runs in English and in Spanish,
+// and each fails on main as it stood at 2e539b3 unless its name says it is a guard.
+//
+//   robot     the robot's sign-in on the Health page: each test account's device in plain words with its days
+//             left, colored by its number's lines; Renew for the super admin alone, sending this browser's own
+//             device id, and its refusals in the API's words; the number in days with its below lines in
+//             words, its list, and the lines editor that holds red at or under yellow
+//   training  who filed each certificate on HR Records' training records, the person or the office; From an
+//             outside course on a topic's form, sent as outsideCourse, and on the topic's page and the catalog
+//   warnings  a warning's window says when it was started and, for a draft, when it was last saved; Continue the
+//             draft reads the last save (a guard: main reads updatedAt already); a report's PDF made an hour after
+//             the settings were read reads them again and draws the new logo link; the Settings logo that no
+//             longer loads reads the settings again; a supervisor's print draws the display keys alone (a guard)
+//   walk      Schedule Inspection's Include the safety walk starts on only when the site has no walk this month,
+//             with the staff app's line under it, and can still be turned either way; a site's last walk on the
+//             Inspections list and the site's page, with the inspection it was walked on; Drop the safety walk on
+//             an open inspection whose site's walk is done this month, refused in the API's words; none offered
+//             at a site with no walk this month (a guard)
+//   chart     Checklist Results at a site whose days have no steps due draws no chart on its card or over several
+//             days, says "No steps due these days" in its place, and the page throws no error; a site with steps
+//             due still draws its line (a guard)
+//   findings  the October audit's findings the office meets first on its daily pages that need nothing new from
+//             the API: DASH-80, a tapped alert marks its own notice read (the worker keeps notificationId, an
+//             open window marks it, a window opened for it reads ?notice= and takes it off the address); DASH-58,
+//             Live Ops, Schedule and Shift Pickup skip their timed reads while the tab is hidden; DASH-50, Live
+//             Ops and Cases say a list did not load with Try again, and Cases draws the API's refusal; DASH-59,
+//             the Filed forms tab reads 50+ for a full first page of unfinished filings
+"use strict";
+const vm = require("vm");
+const seed = require("../seed");
+const { createStubs } = require("../stubs");
+
+const KIND = "part386";
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const threw = (e) => "threw: " + String(e && e.message ? e.message : e).split("\n")[0];
+const LANGS = ["en", "es"];
+const say = (x) => JSON.stringify(x);
+const fill = (s, ...v) => String(s).replace(/\{(\d+)\}/g, (m, n) => (v[Number(n)] !== undefined ? String(v[Number(n)]) : m));
+
+async function goHash(d, h) {
+  await d.page.evaluate(() => { window.location.hash = "overview"; });
+  await wait(150);
+  await d.page.evaluate((x) => { window.location.hash = x; }, h);
+  await d.settle(700);
+}
+const has = async (d, sel) => (await d.page.locator(sel).count()) > 0;
+const until = async (d, sel, ms) => { await d.page.locator(sel).first().waitFor({ timeout: ms || 6000 }).catch(() => {}); return has(d, sel); };
+const attr = async (d, sel, name) => { const l = d.page.locator(sel).first(); return (await l.count()) > 0 ? l.getAttribute(name) : null; };
+const textOf = async (d, sel) => { const l = d.page.locator(sel).first(); return (await l.count()) > 0 ? (await l.innerText()).trim() : ""; };
+const writes = (d, mark, method, re) => d.callsSince(mark).filter((c) => c.method === method && re.test(c.path));
+const reads = (d, mark, re) => d.callsSince(mark).filter((c) => c.method === "GET" && re.test(c.path));
+
+// One driver on a stub of its own, armed with the API as built, Round 2's file log and part 364.
+async function withDriver(ctx, o, fn) {
+  const { browser, origin, createDriver, results } = ctx;
+  const stubs = createStubs();
+  stubs.setApiAsBuilt(true);
+  stubs.setStep353(true);
+  stubs.setStep364(true);
+  if (o.arm) o.arm(stubs);
+  const d = await createDriver({ browser, origin, stubs, viewport: o.viewport || "wide", lang: o.lang || "en" });
+  d.page.setDefaultTimeout(8000);
+  try {
+    if (o.persona !== null) await d.signIn(o.persona || "admin");
+    await fn(d, stubs);
+  } catch (e) {
+    results.fail(KIND, KIND + "/" + (o.lang || "en") + "/" + o.name + "/suite", threw(e));
+  } finally { await d.close(); }
+}
+
+// ---- Section 1: the robot's sign-in -----------------------------------------------------------------------
+const SUPERVISOR_DEVICE = "00000000-0000-4000-8000-000000004101";
+async function openRuns(d) {
+  await goHash(d, "health/runs");
+  await until(d, "[data-health-page='runs']", 8000);
+  await d.settle(500);
+}
+async function robotCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/robot/" + x;
+
+  // 1. The super admin reads each test account's device in plain words, fewest days first, yellow at 4 days
+  //    left on the number's own lines, with Renew beside it.
+  await withDriver(ctx, { name: "listed", lang, persona: "superAdmin" }, async (d) => {
+    const mark = d.mark();
+    await openRuns(d);
+    await until(d, "[data-health-robot-device]", 6000);
+    const read = reads(d, mark, /^\/api\/health\/robot-devices$/).length;
+    const ids = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-health-robot-device]")).map((x) => x.getAttribute("data-health-robot-device")));
+    const words = await textOf(d, "[data-health-robot-device='" + SUPERVISOR_DEVICE + "'] [data-health-robot-words]");
+    const want = fill(d.say("{0}'s sign-in on the robot ends in {1} days"), "Test Supervisor", 4);
+    const state = await attr(d, "[data-health-robot-device='" + SUPERVISOR_DEVICE + "']", "data-health-robot-state");
+    const renew = await has(d, "[data-health-robot-renew='" + SUPERVISOR_DEVICE + "']");
+    results.check(KIND, id("each-test-account-s-sign-in-in-plain-words"), read >= 1 && ids.length === 2 && ids[0] === SUPERVISOR_DEVICE && words === want && state === "yellow" && renew,
+      read < 1 ? "the page read no robot devices" : "the card lists " + say(ids) + ", reads " + say(words) + " (want " + say(want) + "), state " + say(state) + (renew ? "" : ", no Renew"));
+  });
+
+  // 2. Renew sends this browser's own device id, the one its sign-in sends, and reads the device's new day.
+  await withDriver(ctx, { name: "renew", lang, persona: "superAdmin" }, async (d, stubs) => {
+    await openRuns(d);
+    await until(d, "[data-health-robot-renew]", 6000);
+    const mine = await d.page.evaluate(() => { try { return localStorage.getItem("ocsa-device-id"); } catch (e) { return null; } });
+    const mark = d.mark();
+    await d.page.locator("[data-health-robot-renew='" + SUPERVISOR_DEVICE + "']").first().click().catch(() => {});
+    await until(d, "[data-health-robot-said]", 6000);
+    await d.settle(400);
+    const posts = writes(d, mark, "POST", /^\/api\/health\/robot-devices\/[^/]+\/renew$/);
+    const body = (stubs.sent386().filter((x) => x.what === "renew").pop() || {}).body || {};
+    const said = await attr(d, "[data-health-robot-said]", "data-health-robot-said");
+    const text = await textOf(d, "[data-health-robot-said]");
+    const days = await attr(d, "[data-health-robot-device='" + SUPERVISOR_DEVICE + "']", "data-health-robot-days");
+    results.check(KIND, id("renew-sends-this-device-and-reads-the-new-day"), posts.length === 1 && !!mine && body.body && body.body.deviceId === mine && said === "renewed" && text.indexOf(fill(d.say("Renewed. {0}'s sign-in on the robot now ends on {1}."), "Test Supervisor", "").split(" ").slice(0, 2).join(" ")) === 0 && days === "30",
+      "renew posted " + posts.length + " time(s) with " + say(body.body) + " (this browser's id " + say(mine) + "), said " + say([said, text]) + ", days now " + say(days));
+  });
+
+  // 3. A renew the API refuses says so in the API's words: the super admin's own second step is not here.
+  await withDriver(ctx, { name: "renew-refused", lang, persona: "superAdmin", arm: (s) => s.setScene386({ noOwnStep: true }) }, async (d) => {
+    await openRuns(d);
+    await until(d, "[data-health-robot-renew]", 6000);
+    await d.page.locator("[data-health-robot-renew='" + SUPERVISOR_DEVICE + "']").first().click().catch(() => {});
+    await until(d, "[data-health-robot-said]", 6000);
+    const said = await attr(d, "[data-health-robot-said]", "data-health-robot-said");
+    const text = await textOf(d, "[data-health-robot-said]");
+    const want = d.say("Sign in with your own sign-in code on this device first, then try again.");
+    const days = await attr(d, "[data-health-robot-device='" + SUPERVISOR_DEVICE + "']", "data-health-robot-days");
+    results.check(KIND, id("a-refused-renew-reads-the-api-s-words"), said === "health.ownSecondStep" && text === want && days === "4",
+      "the card said " + say([said, text]) + " (want " + say(want) + ") and the days read " + say(days));
+  });
+
+  // 4. Someone the super admin gave the Health page reads the devices and is offered no Renew.
+  await withDriver(ctx, { name: "no-renew", lang, persona: "admin", arm: (s) => s.setScene379({ grants: { [seed.PEOPLE.admin.id]: true } }) }, async (d) => {
+    await openRuns(d);
+    await until(d, "[data-health-robot-device]", 6000);
+    const renew = await has(d, "[data-health-robot-renew]");
+    const only = await textOf(d, "[data-health-robot-only-super]");
+    const words = await textOf(d, "[data-health-robot-device] [data-health-robot-words]");
+    results.check(KIND, id("someone-given-the-page-reads-it-with-no-renew"), !renew && only === d.say("Only the super admin can renew it.") && words !== "",
+      renew ? "the admin is offered Renew" : "the card reads " + say([words, only]));
+  });
+
+  // 5. The number reads in days, its lines in words that say fewer is worse, and its list names each device.
+  await withDriver(ctx, { name: "number", lang, persona: "superAdmin" }, async (d) => {
+    await goHash(d, "health");
+    await until(d, "[data-health-number='robot_trust_days_left']", 8000);
+    const card = "[data-health-number='robot_trust_days_left']";
+    const today = await textOf(d, card + " [data-health-today]");
+    const lines = await textOf(d, card + " [data-health-lines]");
+    const state = await attr(d, card, "data-health-number-state");
+    const wantToday = d.sayCount ? d.sayCount("{0} days|count", 4) : null;
+    const wantLines = fill(d.say("Yellow at or under {0}, red at or under {1}"), lang === "es" ? "5 días" : "5 days", lang === "es" ? "1 día" : "1 day");
+    await d.page.locator(card).first().click().catch(() => {});
+    await until(d, "[data-health-list='robot_trust_days_left'] td", 6000);
+    const list = await textOf(d, "[data-health-list='robot_trust_days_left']");
+    results.check(KIND, id("the-number-reads-in-days-with-its-below-lines"), today === (wantToday || (lang === "es" ? "4 días" : "4 days")) && lines === wantLines && state === "yellow" && list.indexOf("Test Supervisor") >= 0 && list.indexOf("Chrome on Linux") >= 0,
+      "the number reads " + say([today, lines, state]) + " (want " + say([wantToday, wantLines]) + "); its list " + (list.indexOf("Test Supervisor") >= 0 ? "names the device" : "reads " + say(list.slice(0, 160))));
+  });
+
+  // 6. The lines editor says the number's lines are crossed at or under, holds a red line over yellow in words
+  //    before sending, and sends a good pair.
+  await withDriver(ctx, { name: "lines", lang, persona: "superAdmin" }, async (d) => {
+    await goHash(d, "health/settings");
+    await until(d, "[data-health-threshold='robot_trust_days_left']", 8000);
+    const row = "[data-health-threshold='robot_trust_days_left']";
+    const below = await textOf(d, row + " [data-health-below]");
+    const box = (line) => d.page.locator("[data-health-line='robot_trust_days_left." + line + "']").first();
+    await box("yellow").fill("3");
+    await box("red").fill("6");
+    let mark = d.mark();
+    await d.page.locator("[data-health-thresholds-save]").first().click().catch(() => {});
+    await d.settle(500);
+    const heldPuts = writes(d, mark, "PUT", /^\/api\/health\/thresholds$/).length;
+    const heldText = await textOf(d, "[data-health-thresholds-said]");
+    const wantHeld = fill(d.say("For {0}, fewer is worse, so the red line is at or under the yellow line."), lang === "es" ? "Días restantes del inicio de sesión del robot" : "Days left on the robot's sign-in");
+    await box("yellow").fill("7");
+    await box("red").fill("2");
+    mark = d.mark();
+    await d.page.locator("[data-health-thresholds-save]").first().click().catch(() => {});
+    await until(d, "[data-health-thresholds-said='saved']", 6000);
+    const put = writes(d, mark, "PUT", /^\/api\/health\/thresholds$/).pop();
+    const sentLines = put && put.body && put.body.thresholds ? put.body.thresholds.robot_trust_days_left : null;
+    results.check(KIND, id("the-lines-editor-holds-red-at-or-under-yellow"), below.indexOf(d.say("Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.")) === 0 && heldPuts === 0 && heldText === wantHeld && !!sentLines && sentLines.yellow === 7 && sentLines.red === 2 && !!put && put.status === 200,
+      "the row says " + say(below.slice(0, 80)) + "; red over yellow sent " + heldPuts + " PUT(s) and said " + say(heldText) + "; the good pair sent " + say(sentLines) + (put ? " answered " + put.status : ""));
+  });
+}
+
+// ---- Section 2: certificates from an outside course ------------------------------------------------------
+async function trainingCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/training/" + x;
+
+  // 1. HR Records' training records say who filed each certificate: the person's own upload from an outside
+  //    course, and once the API says the office filed it, the office.
+  await withDriver(ctx, { name: "certificate-by", lang, arm: (s) => s.setStep262(true) }, async (d, stubs) => {
+    await goHash(d, "hr/training");
+    await until(d, "[data-training-record='ht-5']", 8000);
+    const person = await textOf(d, "[data-training-record='ht-5'] [data-certificate-by]");
+    const personKind = await attr(d, "[data-training-record='ht-5'] [data-certificate-by]", "data-certificate-by");
+    const others = await d.page.locator("[data-certificate-by]").count();
+    stubs.setScene386({ personCerts: {} });
+    await goHash(d, "hr/training");
+    await until(d, "[data-training-record='ht-5']", 8000);
+    await d.settle(400);
+    const office = await textOf(d, "[data-training-record='ht-5'] [data-certificate-by]");
+    const officeKind = await attr(d, "[data-training-record='ht-5'] [data-certificate-by]", "data-certificate-by");
+    results.check(KIND, id("training-records-say-who-filed-each-certificate"), personKind === "person" && person === d.say("Certificate uploaded by the person") && others === 1 && officeKind === "office" && office === d.say("Certificate filed by the office"),
+      "ht-5 reads " + say([personKind, person]) + " with " + others + " record(s) marked, then " + say([officeKind, office]));
+  });
+
+  // 2. The topic's form takes From an outside course and sends it as outsideCourse; the topic's page then says so.
+  await withDriver(ctx, { name: "outside-form", lang, arm: (s) => { s.setStep262(true); s.setStep266(true); } }, async (d, stubs) => {
+    await goHash(d, "hr/training/catalog");
+    await until(d, "[data-training-catalog] table tbody tr", 8000);
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: lang === "es" ? "Orientaci\u00f3n en el sitio" : "Site orientation" }).first().click().catch(() => {});
+    await until(d, "[data-topic-details]", 6000);
+    const before = await attr(d, "[data-topic-outside]", "data-topic-outside");
+    await d.page.locator("[data-topic-edit]").first().click().catch(() => {});
+    await until(d, "[data-topic-field='outsideCourse'] input", 5000);
+    const label = await textOf(d, "[data-topic-field='outsideCourse'] label");
+    await d.page.locator("[data-topic-field='outsideCourse'] input").first().check().catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-topic-save]").first().click().catch(() => {});
+    await until(d, "[data-topic-details]", 6000);
+    await d.settle(300);
+    const patch = writes(d, mark, "PATCH", /^\/api\/training\/topics\/tp-2$/).pop();
+    const after = await attr(d, "[data-topic-outside]", "data-topic-outside");
+    const words = await textOf(d, "[data-topic-outside]");
+    results.check(KIND, id("a-topic-s-form-sends-from-an-outside-course"), before === "no" && label === d.say("From an outside course") && !!patch && patch.body && patch.body.outsideCourse === true && patch.status === 200 && after === "yes" && words === d.say("Yes. Staff upload their own certificate in the staff app.") && stubs.model386().outside["tp-2"] === true,
+      "before " + say(before) + ", the box reads " + say(label) + ", the PATCH sent " + say(patch && patch.body ? patch.body.outsideCourse : null) + (patch ? " answered " + patch.status : "") + ", after " + say([after, words]));
+  });
+
+  // 3. A topic marked as an outside course says so on its page and in the catalog.
+  await withDriver(ctx, { name: "outside-page", lang, arm: (s) => { s.setStep262(true); s.setStep266(true); } }, async (d) => {
+    await goHash(d, "hr/training/catalog");
+    await until(d, "[data-training-catalog] table tbody tr", 8000);
+    const row = await has(d, "[data-topic-outside-row='tp-4']");
+    const rows = await d.page.locator("[data-topic-outside-row]").count();
+    await d.page.locator("[data-training-catalog] table tbody tr").filter({ has: d.page.locator("[data-topic-outside-row='tp-4']") }).first().click().catch(() => {});
+    await until(d, "[data-topic-details]", 6000);
+    const badge = await has(d, "[data-topic-outside-badge]");
+    const value = await attr(d, "[data-topic-outside]", "data-topic-outside");
+    results.check(KIND, id("an-outside-course-says-so-on-its-page-and-in-the-catalog"), row && rows === 1 && badge && value === "yes",
+      "the catalog marks " + rows + " topic(s)" + (row ? "" : ", not tp-4") + "; the page " + (badge ? "has" : "has no") + " badge and reads " + say(value));
+  });
+}
+
+// ---- Section 3: warnings and the logo ---------------------------------------------------------------------
+async function warningsCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/warnings/" + x;
+  const prefix = (d, key) => d.say(key).split("{0}")[0].trim();
+
+  // 1. A draft's window says when it was started and when it was last saved, from createdAt and updatedAt.
+  await withDriver(ctx, { name: "started", lang, arm: (s) => s.setScene372({ discipline: { byId: true } }) }, async (d) => {
+    await goHash(d, "discipline");
+    await until(d, '[data-warning-list-status="draft"]', 8000);
+    await d.page.locator('[data-warning-list-status="draft"]').first().click().catch(() => {});
+    await until(d, "[data-warning-started]", 6000);
+    const started = await attr(d, "[data-warning-started]", "data-warning-started");
+    const saved = await attr(d, "[data-warning-saved]", "data-warning-saved");
+    const text = await textOf(d, "[data-warning-started]");
+    results.check(KIND, id("a-warning-says-when-it-was-started-and-last-saved"), started === seed.shift(-3) + "T14:30:00.000Z" && saved === seed.shift(-2) + "T15:10:00Z" && text.indexOf(prefix(d, "Started {0}|warning")) === 0 && text.indexOf(prefix(d, "Last saved {0}")) > 0,
+      "the window reads " + say([started, saved, text]));
+  });
+
+  // 2. A guard: Continue the draft names the day it was last saved (updatedAt), as main already reads it.
+  await withDriver(ctx, { name: "continue", lang, arm: (s) => s.setScene372({ discipline: { byId: true } }) }, async (d) => {
+    await goHash(d, "discipline");
+    await until(d, "[data-discipline-page] table tbody tr", 8000);
+    await d.clickText(d.say("Issue a warning"), { exact: true });
+    await until(d, "[data-discipline-issue-for]", 5000);
+    await d.page.locator("[data-discipline-issue-for] [data-person-pick-field]").first().click().catch(() => {});
+    await until(d, "[data-person-pick-box]", 4000);
+    await d.page.locator("[data-person-pick-box] [data-person-pick-search]").fill("Ngozi").catch(() => {});
+    await d.page.locator("[data-person-pick-box] [data-person-pick-option]", { hasText: "Ngozi Okonkwo" }).first().click().catch(() => {});
+    await d.page.locator("[data-discipline-issue-next]").first().click().catch(() => {});
+    await until(d, '[data-discipline-issue-for] [data-warning-continue="dd-1"]', 6000);
+    const text = await textOf(d, '[data-discipline-issue-for] [data-warning-continue="dd-1"]');
+    const day = await d.page.evaluate((x) => new Intl.DateTimeFormat(x.tag, { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" }).format(new Date(x.at)), { tag: lang === "es" ? "es-US" : "en-US", at: seed.shift(-2) + "T15:10:00Z" });
+    results.check(KIND, id("guard-continue-the-draft-reads-its-last-save"), text.indexOf(prefix(d, "Continue the draft from {0}")) === 0 && text.replace(/\./g, "").indexOf(day.replace(/\./g, "")) > 0,
+      "the button reads " + say(text) + " (want the day " + say(day) + ")");
+  });
+
+  // 3. A report's PDF reads the settings again when they were read more than 50 minutes before, and draws the
+  //    logo link the new read handed out.
+  await withDriver(ctx, { name: "logo-print", lang, arm: (s) => s.setScene386({ logo: true }) }, async (d) => {
+    await d.goto("reports");
+    await d.clickRunFor("Issue response and resolution");
+    await d.settle(800);
+    let mark = d.mark();
+    await d.clickText(d.say("Export PDF"), { exact: false });
+    await d.settle(900);
+    const first = (await d.prints()).pop() || {};
+    const readsFirst = reads(d, mark, /^\/api\/settings$/).length;
+    const linkOf = (html) => { const m0 = /<img src="([^"]+)"/.exec(String(html || "")); return m0 ? m0[1].replace(/&amp;/g, "&") : ""; };
+    await d.page.evaluate(() => { const real = Date.now.bind(Date); Date.now = () => real() + 51 * 60000; });
+    mark = d.mark();
+    await d.clickText(d.say("Export PDF"), { exact: false });
+    await d.settle(1200);
+    const second = (await d.prints()).pop() || {};
+    const readsSecond = reads(d, mark, /^\/api\/settings$/);
+    const answered = readsSecond.length ? String((readsSecond[readsSecond.length - 1].json || {}).logo_url || "") : "";
+    const a = linkOf(first.html), b = linkOf(second.html);
+    results.check(KIND, id("a-print-an-hour-later-reads-the-settings-again"), /read=\d+/.test(a) && readsFirst === 0 && readsSecond.length === 1 && !!b && b !== a && b === answered,
+      "the first print drew " + say(a) + " after " + readsFirst + " read(s); an hour later the print read the settings " + readsSecond.length + " time(s) and drew " + say(b) + " (the read answered " + say(answered) + ")");
+  });
+
+  // 4. The Settings logo whose link no longer loads reads the settings again for a new link.
+  await withDriver(ctx, { name: "logo-preview", lang, arm: (s) => s.setScene386({ logo: true, logoExpired: true }) }, async (d) => {
+    const mark = d.mark();
+    await d.goto("settings");
+    await d.settle(2500);
+    const got = reads(d, mark, /^\/api\/settings$/);
+    const links = got.map((c) => String((c.json || {}).logo_url || "")).filter(Boolean);
+    results.check(KIND, id("a-logo-that-no-longer-loads-is-read-again"), got.length >= 2 && links.length >= 2 && links[links.length - 1] !== links[0],
+      "Settings read the settings " + got.length + " time(s), answering " + say(links));
+  });
+
+  // 5. A guard: a supervisor's print draws the display keys the API answers them, the logo among them, and
+  //    no EIN, which the supervisor's answer does not carry.
+  await withDriver(ctx, { name: "supervisor", lang, persona: "supervisor", arm: (s) => s.setScene386({ logo: true }) }, async (d) => {
+    const mark = d.mark();
+    await d.goto("reports");
+    await d.clickRunFor("Issue response and resolution");
+    await d.settle(800);
+    await d.clickText(d.say("Export PDF"), { exact: false });
+    await d.settle(900);
+    const html = String(((await d.prints()).pop() || {}).html || "");
+    const answers = reads(d, mark, /^\/api\/settings$/).map((c) => Object.keys(c.json || {}).sort().join(","));
+    const want = ["address", "checklistDayStartsAt", "display_name", "legal_name", "logo_url", "primary_color", "secondary_color", "show_ein_on_reports", "updated_at"].join(",");
+    results.check(KIND, id("guard-a-supervisor-s-print-draws-the-display-keys-alone"), answers.length >= 1 && answers.every((k) => k === want) && html.indexOf("Orchard Cove") >= 0 && /<img src="[^"]*read=\d+/.test(html) && html.indexOf("00-0000000") < 0,
+      "the supervisor's settings answers held " + say(answers) + "; the print " + (html ? (html.indexOf("00-0000000") >= 0 ? "holds the EIN" : "holds no EIN") + (/<img src="[^"]*read=\d+/.test(html) ? " and the logo" : " and no logo") : "was not made"));
+  });
+}
+
+// ---- Section 4: the safety walk once a month ----------------------------------------------------------------
+async function walkCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/walk/" + x;
+  const armed = (s) => { s.setStep312(true); };
+
+  // 1. Include the safety walk starts off at a site whose walk is done this month and on at one with none, says
+  //    which under it, and is still sent as the person turns it.
+  await withDriver(ctx, { name: "schedule", lang, arm: armed }, async (d) => {
+    await d.goto("inspections");
+    await d.settle(600);
+    await d.clickText(d.say("Scheduled|inspections"), { exact: true });
+    await d.settle(400);
+    await d.clickText(d.say("Schedule Inspection"), { exact: true });
+    await until(d, "[data-schedule-with-safety]", 5000);
+    const siteSel = d.page.locator("select").filter({ has: d.page.locator("option[value='" + seed.SITES[0].id + "']") }).last();
+    const box = d.page.locator("[data-schedule-with-safety] input[type=checkbox]").first();
+    await siteSel.selectOption(seed.SITES[0].id);
+    await until(d, "[data-schedule-walk-line='done']", 5000);
+    const doneLine = await textOf(d, "[data-schedule-walk-line]");
+    const offAtDone = !(await box.isChecked());
+    await siteSel.selectOption(seed.SITES[2].id);
+    await until(d, "[data-schedule-walk-line='due']", 5000);
+    const dueLine = await textOf(d, "[data-schedule-walk-line]");
+    const onAtDue = await box.isChecked();
+    // Back at the first site, turned on by hand, and sent as turned.
+    await siteSel.selectOption(seed.SITES[0].id);
+    await until(d, "[data-schedule-walk-line='done']", 5000);
+    await box.check();
+    const tplSel = d.page.locator("select").filter({ has: d.page.locator("option", { hasText: d.say("Select template...") }) }).last();
+    await tplSel.selectOption({ index: 1 }).catch(() => {});
+    await d.page.locator("input[type=date]").last().fill(seed.shift(3)).catch(() => {});
+    const mark = d.mark();
+    await d.clickText(d.say("Schedule|verb"), { exact: true }).catch(() => {});
+    await d.settle(800);
+    const post = writes(d, mark, "POST", /^\/api\/inspections\/scheduled$/).pop();
+    const wantDone = d.say("Safety walk done this month on {0}").split("{0}")[0];
+    results.check(KIND, id("include-the-safety-walk-follows-the-month-s-walk"), offAtDone && doneLine.indexOf(wantDone) === 0 && /\b10\b/.test(doneLine) && onAtDue && dueLine === d.say("Safety walk due this month") && !!post && post.body && post.body.withSafety === true,
+      "at the first site the box is " + (offAtDone ? "off" : "on") + " with " + say(doneLine) + " (want " + say(wantDone) + "); at the third " + (onAtDue ? "on" : "off") + " with " + say(dueLine) + "; turned on by hand it sent " + say(post && post.body ? post.body.withSafety : null));
+  });
+
+  // 2. The Inspections list says each listed site's last walk with the inspection it was walked on, which opens
+  //    it; a site's page says it too.
+  await withDriver(ctx, { name: "last-walk", lang, arm: armed }, async (d) => {
+    await d.goto("inspections");
+    await d.settle(600);
+    await d.clickText(d.say("Scheduled|inspections"), { exact: true });
+    await until(d, "[data-last-safety-walk='" + seed.SITES[0].id + "']", 8000);
+    const month = await attr(d, "[data-last-safety-walk='" + seed.SITES[0].id + "']", "data-last-safety-walk-month");
+    const line = await textOf(d, "[data-last-safety-walk='" + seed.SITES[0].id + "']");
+    const opens = await attr(d, "[data-last-safety-walk='" + seed.SITES[0].id + "'] [data-last-safety-walk-open]", "data-last-safety-walk-open");
+    await d.page.locator("[data-last-safety-walk='" + seed.SITES[0].id + "'] [data-last-safety-walk-open]").first().click().catch(() => {});
+    await d.settle(800);
+    const opened = reads(d, 0, /^\/api\/inspections\/scheduled\/insp-4$/).length > 0;
+    await goHash(d, "sites/" + seed.SITES[1].id);
+    await until(d, "[data-last-safety-walk='" + seed.SITES[1].id + "']", 8000);
+    const siteMonth = await attr(d, "[data-last-safety-walk='" + seed.SITES[1].id + "']", "data-last-safety-walk-month");
+    const siteLine = await textOf(d, "[data-last-safety-walk='" + seed.SITES[1].id + "']");
+    const feb = d.say("Last safety walk {0}").split("{0}")[0];
+    results.check(KIND, id("a-site-s-last-walk-on-the-list-and-its-page"), month === "done" && line.indexOf(d.say("Open the inspection")) > 0 && opens === "insp-4" && opened && siteMonth === "due" && siteLine.indexOf(feb) === 0 && /\b12\b/.test(siteLine) && siteLine.indexOf(d.say("Safety walk due this month")) > 0,
+      "the list reads " + say([month, line, opens]) + (opened ? "" : ", and Open the inspection read nothing") + "; the second site's page reads " + say([siteMonth, siteLine]) + " (want it to start " + say(feb) + ")");
+  });
+
+  // 3. An open inspection that still carries the walk at a site whose walk is done this month offers Drop the
+  //    safety walk, which posts and reads the inspection again without it.
+  await withDriver(ctx, { name: "drop", lang, arm: armed }, async (d, stubs) => {
+    await goHash(d, "inspections/si-1");
+    await until(d, "[data-drop-safety='si-1']", 8000);
+    const mark = d.mark();
+    await d.page.locator("[data-drop-safety='si-1']").first().click().catch(() => {});
+    await until(d, "[data-drop-safety-said]", 6000);
+    await d.settle(500);
+    const post = writes(d, mark, "POST", /^\/api\/inspections\/scheduled\/si-1\/drop-safety$/);
+    const said = await attr(d, "[data-drop-safety-said]", "data-drop-safety-said");
+    const now = await attr(d, "[data-inspection-with-safety]", "data-inspection-with-safety");
+    const left = await has(d, "[data-drop-safety]");
+    results.check(KIND, id("drop-the-safety-walk-posts-and-reads-again"), post.length === 1 && post[0].status === 200 && said === "dropped" && now === "false" && !left && stubs.model386().dropped["si-1"] === true,
+      "Drop posted " + post.length + " time(s)" + (post[0] ? " answered " + post[0].status : "") + ", said " + say(said) + ", the card reads " + say(now) + (left ? " and still offers Drop" : ""));
+  });
+
+  // 4. A drop the API refuses reads in its words.
+  await withDriver(ctx, { name: "drop-refused", lang, arm: (s) => { armed(s); s.setScene386({ walkGone: true }); } }, async (d) => {
+    await goHash(d, "inspections/si-1");
+    await until(d, "[data-drop-safety='si-1']", 8000);
+    await d.page.locator("[data-drop-safety='si-1']").first().click().catch(() => {});
+    await until(d, "[data-drop-safety-said]", 6000);
+    const said = await attr(d, "[data-drop-safety-said]", "data-drop-safety-said");
+    const text = await textOf(d, "[data-drop-safety-said]");
+    const want = d.say("This site's safety walk is not done this month on another inspection, so this inspection keeps its own.");
+    results.check(KIND, id("a-refused-drop-reads-the-api-s-words"), said === "inspections.safetyWalkNotDone" && text === want,
+      "the page said " + say([said, text]) + " (want " + say(want) + ")");
+  });
+
+  // 5. A guard: an open inspection at a site with no walk this month offers no drop.
+  await withDriver(ctx, { name: "no-drop", lang, arm: armed }, async (d) => {
+    await goHash(d, "inspections/si-2");
+    await until(d, "[data-inspection-with-safety]", 8000);
+    await d.settle(400);
+    const offered = await has(d, "[data-drop-safety]");
+    results.check(KIND, id("guard-no-drop-at-a-site-with-no-walk-this-month"), !offered, "si-2 at a site never walked offers Drop the safety walk");
+  });
+}
+
+// ---- Section 5: a chart that draws nothing --------------------------------------------------------------
+async function chartCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/chart/" + x;
+  const S2 = seed.SITES[1].id;
+  const armed = (s) => { s.setChecklist358(true); s.setScene386({ noSteps: S2 }); };
+
+  // 1. The card of a site whose week has no due steps says so in place of its line, and the page throws nothing.
+  await withDriver(ctx, { name: "card", lang, arm: armed }, async (d) => {
+    await goHash(d, "checklist/all/today");
+    await until(d, "[data-cr-site-card='" + S2 + "']", 8000);
+    await d.settle(1500);
+    const said = await textOf(d, "[data-cr-no-steps='" + S2 + "']");
+    const drawn = await d.page.locator("[data-cr-site-card='" + S2 + "'] .apexcharts-line, [data-cr-site-card='" + S2 + "'] .apexcharts-area-series").count();
+    const errors = d.pageErrors.filter((e) => /parser|apexcharts|Error/i.test(e));
+    results.check(KIND, id("a-site-with-no-steps-due-draws-no-line-and-says-so"), said === d.say("No steps due these days") && drawn === 0 && errors.length === 0,
+      "the card says " + say(said) + " with " + drawn + " line(s) drawn; page errors " + say(errors.slice(0, 3)));
+  });
+
+  // 2. The same site over several days says so in place of the line, and the page throws nothing.
+  await withDriver(ctx, { name: "range", lang, arm: armed }, async (d) => {
+    await goHash(d, "checklist/" + S2 + "/last7");
+    await until(d, "[data-checklist-results]", 8000);
+    await d.settle(1500);
+    const said = await textOf(d, "[data-cr-no-steps='" + S2 + "']");
+    const chart = await has(d, "[data-cr-range-chart]");
+    const errors = d.pageErrors.filter((e) => /parser|apexcharts|Error/i.test(e));
+    results.check(KIND, id("a-site-over-several-days-with-no-steps-due-says-so"), said === d.say("No steps due these days") && !chart && errors.length === 0,
+      "the page says " + say(said) + (chart ? " beside a chart" : "") + "; page errors " + say(errors.slice(0, 3)));
+  });
+
+  // 3. A guard: a site with steps due still draws its line on its card.
+  await withDriver(ctx, { name: "still-drawn", lang, arm: armed }, async (d) => {
+    await goHash(d, "checklist/all/today");
+    await until(d, "[data-cr-site-card='" + seed.SITES[0].id + "'] .apexcharts-canvas", 8000);
+    await d.settle(800);
+    const lines = await d.page.locator("[data-cr-site-card='" + seed.SITES[0].id + "'] .apexcharts-canvas").count();
+    const said = await has(d, "[data-cr-no-steps='" + seed.SITES[0].id + "']");
+    results.check(KIND, id("guard-a-site-with-steps-due-draws-its-line"), lines >= 2 && !said, "the first site's card holds " + lines + " chart(s)" + (said ? " and says no steps are due" : ""));
+  });
+}
+
+// ---- Section 6: the audit's findings ---------------------------------------------------------------------
+// The service worker, run in Node on a stand-in for the browser's worker scope: what it shows for a push and
+// what it does with a click when no dashboard window is open.
+async function workerOf(origin, payload) {
+  const handlers = {};
+  const shown = [];
+  const opened = [];
+  const scope = {
+    addEventListener: (k, f) => { handlers[k] = f; },
+    skipWaiting: () => {},
+    location: { origin: "https://dashboard.example.invalid" },
+    clients: { claim: () => Promise.resolve(), matchAll: () => Promise.resolve([]), openWindow: (u) => { opened.push(u); return Promise.resolve(); } },
+    registration: { showNotification: (title, o) => { shown.push({ title, o }); return Promise.resolve(); } },
+  };
+  scope.self = scope;
+  // The worker the build serves, read from the served address, as the browser reads it.
+  const res = await fetch(origin + "/sw.js");
+  vm.runInNewContext(await res.text(), scope);
+  let waiting = null;
+  handlers.push({ data: { json: () => payload }, waitUntil: (p) => { waiting = p; } });
+  await waiting;
+  const data = shown.length ? shown[0].o.data : null;
+  handlers.notificationclick({ notification: { data, close: () => {} }, waitUntil: (p) => { waiting = p; } });
+  await waiting;
+  return { data, opened };
+}
+async function findingsCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/findings/" + x;
+
+  // DASH-80, 1. The worker keeps the notice's id from the push and names it in the address of a window it opens.
+  try {
+    const w = await workerOf(ctx.origin, { title: "Issue reported", body: "Lobby floor scuffed.", tag: "issue:i-1", subjectType: "issue", subjectId: "i-1", notificationId: "n-3", locale: lang });
+    results.check(KIND, id("dash80-the-worker-keeps-the-notice-id"), !!w.data && w.data.notificationId === "n-3" && w.opened.length === 1 && w.opened[0] === "/?notice=n-3#issues/i-1",
+      "the alert holds " + say(w.data) + " and opened " + say(w.opened));
+  } catch (e) { results.fail(KIND, id("dash80-the-worker-keeps-the-notice-id"), threw(e)); }
+
+  // DASH-80, 2. An open window told of a tapped alert marks its notice read and reads the count again.
+  await withDriver(ctx, { name: "dash80-open", lang }, async (d) => {
+    await d.goto("overview");
+    await d.settle(800);
+    const mark = d.mark();
+    await d.page.evaluate((m) => { navigator.serviceWorker.dispatchEvent(new MessageEvent("message", { data: m })); }, { type: "ocsa-open", subjectType: "issue", subjectId: "i-1", place: "issues/i-1", notificationId: "n-3" });
+    await d.settle(1500);
+    const read = writes(d, mark, "POST", /^\/api\/notifications\/n-3\/read$/);
+    const count = reads(d, mark, /^\/api\/notifications\/unread-count$/).length;
+    const hash = await d.page.evaluate(() => window.location.hash);
+    results.check(KIND, id("dash80-a-tapped-alert-marks-its-notice-read"), read.length === 1 && count >= 1 && hash.indexOf("#issues") === 0,
+      "the alert marked " + read.length + " notice(s) read, read the count " + count + " time(s) and opened " + say(hash));
+  });
+
+  // DASH-80, 3. A window the worker opened for the alert reads ?notice=, marks it read, and takes it off the address.
+  await withDriver(ctx, { name: "dash80-address", lang }, async (d) => {
+    await d.settle(600);
+    const mark = d.mark();
+    await d.page.goto(ctx.origin + "/?notice=n-3#issues/i-1").catch(() => {});
+    await d.settle(2500);
+    const read = writes(d, mark, "POST", /^\/api\/notifications\/n-3\/read$/);
+    const search = await d.page.evaluate(() => window.location.search);
+    results.check(KIND, id("dash80-a-window-opened-for-an-alert-marks-it-read"), read.length === 1 && search.indexOf("notice=") < 0,
+      "the window marked " + read.length + " notice(s) read and its address keeps " + say(search));
+  });
+}
+
+// DASH-58: every timer a page sets is kept as it is set, so a case can tick it by hand with the tab hidden.
+const TIMERS = () => {
+  const real = window.setInterval.bind(window);
+  window.__timers = [];
+  window.setInterval = function (fn, ms) { window.__timers.push({ fn, ms }); return real.apply(window, arguments); };
+};
+async function moreFindingsCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/findings/" + x;
+
+  // DASH-58. Live Ops, Schedule and Shift Pickup skip a timed read while the tab is hidden, and read on the
+  // next tick once it is seen.
+  await withDriver(ctx, { name: "dash58", lang }, async (d) => {
+    await d.context.addInitScript(TIMERS);
+    await d.page.reload({ waitUntil: "domcontentloaded" });
+    await d.settle(1500);
+    const pages = [["operations", 30000, /^\/api\/shift-sessions\/by-site$/], ["schedule", 45000, /^\/api\/schedule\/calendar$/], ["marketplace", 45000, /^\/api\/pickups/]];
+    const out = [];
+    for (const [page, ms, re] of pages) {
+      const before = await d.page.evaluate(() => (window.__timers || []).length);
+      await goHash(d, page);
+      await d.settle(1200);
+      const tick = async (hidden) => {
+        await d.page.evaluate((h) => { Object.defineProperty(document, "hidden", { configurable: true, get: () => h }); }, hidden);
+        const mark = d.mark();
+        await d.page.evaluate((x) => { (window.__timers || []).slice(x.from).filter((t0) => t0.ms === x.ms).forEach((t0) => { try { t0.fn(); } catch (e) { /* the page's own */ } }); }, { from: before, ms });
+        await d.settle(800);
+        return reads(d, mark, re).length;
+      };
+      const hiddenReads = await tick(true);
+      const seenReads = await tick(false);
+      out.push({ page, hiddenReads, seenReads });
+    }
+    results.check(KIND, id("dash58-a-hidden-tab-skips-its-timed-reads"), out.length === 3 && out.every((x) => x.hiddenReads === 0 && x.seenReads >= 1),
+      "each page's timer read, hidden and then seen: " + say(out));
+  });
+
+  // DASH-50. Live Ops' board that does not load says so with Try again, which reads it again.
+  await withDriver(ctx, { name: "dash50-ops", lang, arm: (s) => s.setRefusal([{ method: "GET", path: "/api/shift-sessions/by-site", status: 503, error: lang === "es" ? "El servicio no est\u00e1 disponible." : "The service is not available.", code: "common.unavailable" }]) }, async (d, stubs) => {
+    await goHash(d, "operations");
+    await until(d, "[data-ops-failed]", 8000);
+    const failed = await attr(d, "[data-ops-failed]", "data-ops-failed");
+    const text = await textOf(d, "[data-ops-failed]");
+    stubs.clearRefusals();
+    const mark = d.mark();
+    await d.page.locator("[data-ops-failed] button").first().click().catch(() => {});
+    await d.settle(1200);
+    const again = reads(d, mark, /^\/api\/shift-sessions\/by-site$/).length;
+    const gone = !(await has(d, "[data-ops-failed]"));
+    results.check(KIND, id("dash50-live-ops-says-its-board-did-not-load"), failed === "none" && text.indexOf(lang === "es" ? "El servicio no est\u00e1 disponible." : "The service is not available.") === 0 && text.indexOf(d.say("Try again")) > 0 && again === 1 && gone,
+      "the board said " + say([failed, text]) + "; Try again read it " + again + " time(s)" + (gone ? "" : " and the line stayed"));
+  });
+
+  // DASH-50. Cases says its list did not load with Try again, never No cases, and draws the API's refusal.
+  await withDriver(ctx, { name: "dash50-cases", lang, arm: (s) => s.setRefusal([{ method: "GET", path: "/api/hr-cases", status: 500, error: lang === "es" ? "Algo sali\u00f3 mal." : "Something went wrong.", code: "common.serverError" }]) }, async (d, stubs) => {
+    await goHash(d, "cases");
+    await until(d, "[data-cases-failed]", 8000);
+    const text = await textOf(d, "[data-cases-failed]");
+    const noCases = await d.page.getByText(d.say("No cases."), { exact: true }).count();
+    stubs.clearRefusals();
+    await d.page.locator("[data-cases-failed] button").first().click().catch(() => {});
+    await d.settle(1200);
+    const gone = !(await has(d, "[data-cases-failed]"));
+    results.check(KIND, id("dash50-cases-says-its-list-did-not-load"), text.indexOf(lang === "es" ? "Algo sali\u00f3 mal." : "Something went wrong.") === 0 && noCases === 0 && gone,
+      "Cases said " + say(text) + (noCases ? " beside No cases." : "") + (gone ? "" : ", and Try again left the line"));
+  });
+  await withDriver(ctx, { name: "dash50-cases-refused", lang, arm: (s) => s.setRefusal([{ method: "GET", path: "/api/hr-cases", status: 403, error: lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions", code: "access.insufficientPermissions" }]) }, async (d) => {
+    await goHash(d, "cases");
+    await until(d, "[data-cases-refused]", 8000);
+    const text = await textOf(d, "[data-cases-refused]");
+    results.check(KIND, id("dash50-cases-draws-the-api-s-refusal"), text === (lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions"), "Cases drew " + say(text));
+  });
+
+  // DASH-59. A full first page of unfinished filings reads 50+ on the Filed forms tab.
+  await withDriver(ctx, { name: "dash59", lang, arm: (s) => s.setScene386({ manyDrafts: true }) }, async (d) => {
+    await goHash(d, "forms");
+    await d.settle(2000);
+    const want = fill(d.say("Filed forms ({0})"), "50+");
+    const tab = await d.page.getByText(want, { exact: true }).count();
+    const fifty = await d.page.getByText(fill(d.say("Filed forms ({0})"), "50"), { exact: true }).count();
+    results.check(KIND, id("dash59-a-full-page-of-unfinished-filings-reads-50-plus"), tab >= 1 && fifty === 0, "the tab reads " + (tab ? say(want) : fifty ? "50, with nothing saying there may be more" : "neither 50 nor 50+"));
+  });
+}
+
+// ctx.only, when a runner names sections, keeps the run to them.
+async function run(ctx) {
+  const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
+  for (const lang of LANGS) {
+    if (want("robot")) await robotCases(ctx, lang);
+    if (want("training")) await trainingCases(ctx, lang);
+    if (want("warnings")) await warningsCases(ctx, lang);
+    if (want("walk")) await walkCases(ctx, lang);
+    if (want("chart")) await chartCases(ctx, lang);
+    if (want("findings")) { await findingsCases(ctx, lang); await moreFindingsCases(ctx, lang); }
+  }
+}
+
+module.exports = { run };

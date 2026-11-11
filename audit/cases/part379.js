@@ -143,7 +143,7 @@ async function healthCases(ctx, lang) {
         : !put ? "Save changes sent no PUT" : put.status !== 200 ? "the PUT was answered " + put.status + " " + say(put.json) : !body || body.view_health !== true ? "the PUT sent " + say(put.body) : "the admin granted it has no Health item: " + say(ids));
   });
 
-  // 3. The numbers: all 20, today colored by its state, yesterday, the 7 days and 30 days as a line, the lines
+  // 3. The numbers: all 21 (20 until the API's Round 11), today colored by its state, yesterday, the 7 days and 30 days as a line, the lines
   //    in words, a number not measured saying so, and a number opening the list behind it.
   await withDriver(ctx, { name: "numbers", lang, persona: "superAdmin" }, async (d) => {
     await openHealth(d, "");
@@ -154,7 +154,8 @@ async function healthCases(ctx, lang) {
     const se = cards.find((c) => c.key === "server_errors") || {};
     const md = cards.find((c) => c.key === "monitors_down") || {};
     const points = String(se.trend || "").split(",").length;
-    const ok1 = cards.length === 20 && se.state === "red" && se.value === "31" && /31/.test(se.today || "") && String(se.yesterday || "").replace(/\s+/g, " ") === d.say("Yesterday") + ": 3" && points === 30
+    // 21 since the API's Round 11 (part 386): robot_trust_days_left, which audit/part386-stub.js answers.
+    const ok1 = cards.length === 21 && se.state === "red" && se.value === "31" && /31/.test(se.today || "") && String(se.yesterday || "").replace(/\s+/g, " ") === d.say("Yesterday") + ": 3" && points === 30
       && String(se.lines || "") === d.say("Yellow at {0}, red at {1}").replace("{0}", "5").replace("{1}", "25") && md.state === "unknown" && md.today === d.say("Not measured yet");
     results.check(KIND, id("twenty-numbers-each-with-its-day-yesterday-week-and-line"), ok1,
       cards.length !== 20 ? cards.length + " numbers drawn" : "server errors read " + say(se) + "; monitors down read " + say(md));

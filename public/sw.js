@@ -28,7 +28,9 @@ self.addEventListener("push", function (event) {
     body: typeof data.body === "string" ? data.body : "",
     icon: ICON,
     lang: data.locale === "es" ? "es" : "en",
-    data: { subjectType: data.subjectType || null, subjectId: data.subjectId || null },
+    // Since the API's part 370 every payload names the person's notice it tells of, notificationId, so a
+    // tapped alert can mark that notice read (part 386, DASH-80).
+    data: { subjectType: data.subjectType || null, subjectId: data.subjectId || null, notificationId: data.notificationId == null ? null : String(data.notificationId) },
   };
   // renotify is refused without a tag, so both go together.
   if (tag) { options.tag = tag; options.renotify = true; }
@@ -84,9 +86,12 @@ self.addEventListener("notificationclick", function (event) {
   var d = event.notification.data || {};
   var subjectType = d.subjectType ? String(d.subjectType) : null;
   var subjectId = d.subjectId ? String(d.subjectId) : null;
+  var notificationId = d.notificationId ? String(d.notificationId) : null;
   var place = placeOf(subjectType, subjectId);
-  var message = { type: "ocsa-open", subjectType: subjectType, subjectId: subjectId, place: place };
-  var address = "/" + (place ? "#" + place : "");
+  var message = { type: "ocsa-open", subjectType: subjectType, subjectId: subjectId, place: place, notificationId: notificationId };
+  // A window opened for the alert carries the notice's id as ?notice=, which the dashboard reads once and
+  // takes off the address.
+  var address = "/" + (notificationId ? "?notice=" + encodeURIComponent(notificationId) : "") + (place ? "#" + place : "");
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
     var win = null;
     for (var i = 0; i < list.length; i++) {

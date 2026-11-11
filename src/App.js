@@ -755,6 +755,9 @@ const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.
 const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
 // A read that failed says so where its rows would have been, with a way to try again, so nothing is
 // blank and nothing spins on. The line is the sheet's for the place when it names one.
+// A page's timer reads again only while its tab is seen (part 386, DASH-58): a hidden tab skips the tick,
+// and the page reads again on the next one after it is seen.
+const whenSeen = (fn) => () => { if (typeof document === "undefined" || !document.hidden) fn(); };
 const LoadFailed = ({ t, onRetry, text, style }) => <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec, ...(style || {}) }}>{text || tr("This did not load.")}{onRetry ? <button onClick={onRetry} style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button> : null}</div>;
 // A page that waits on this person's capabilities (DASH-20) says Loading until the API has answered them,
 // and only then opens or says it is for admins.
@@ -788,7 +791,14 @@ const BarChartW = ({ categories, values, colors, horizontal = false, height = 26
 // alone between two gaps still draws. A chart that passes neither is drawn as it always was.
 // Part 358: onPick(i) is called with the point a person clicks, which needs dots; spark draws a small
 // trend with no value axis and no grid.
+// A line has something to draw only when at least two of its points hold a value (part 386). ApexCharts throws an
+// uncaught "parser Error" on a line drawn from nulls alone, which the robot met on Checklist Results at a site
+// whose days had no steps due, and one point draws no line. Every caller whose points can be null (a percent of
+// nothing due, an average of nothing) asks this first and says why in words; the wrapper holds to it as well.
+const valuedPoints = (series) => Math.max(0, ...(series || []).map(x => (x && Array.isArray(x.data) ? x.data.filter(v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))).length : 0)));
+const lineDrawable = (series) => valuedPoints(series) >= 2;
 const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false, onPick, spark = false }) => {
+  if (!lineDrawable(series)) return <div data-chart-empty="" style={{ height: Math.min(height, 40) }} />;
   const o = chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, ...(dots ? { markers: { size: 4, strokeWidth: 0 } } : {}), xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: Object.assign({ labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } }, yMax ? { min: 0, max: yMax, tickAmount: 5 } : {}) });
   if (onPick) o.chart = Object.assign({}, o.chart, { events: { markerClick: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
   if (spark) { o.yaxis = Object.assign({}, o.yaxis, { labels: Object.assign({}, o.yaxis.labels, { show: false }) }); o.grid = Object.assign({}, o.grid, { show: false }); }
@@ -1278,7 +1288,7 @@ export default function AdminDashboard() {
       const d = e && e.data;
       if (!d || typeof d !== "object") return;
       if (d.type === "ocsa-notice") loadUnread();
-      else if (d.type === "ocsa-open") setOpenAsk({ subjectType: d.subjectType == null ? null : String(d.subjectType), subjectId: d.subjectId == null ? null : String(d.subjectId), place: typeof d.place === "string" ? d.place : "" });
+      else if (d.type === "ocsa-open") setOpenAsk({ subjectType: d.subjectType == null ? null : String(d.subjectType), subjectId: d.subjectId == null ? null : String(d.subjectId), place: typeof d.place === "string" ? d.place : "", notificationId: d.notificationId == null ? "" : String(d.notificationId) });
     };
     sw.addEventListener("message", onMsg);
     return () => sw.removeEventListener("message", onMsg);
@@ -1287,10 +1297,35 @@ export default function AdminDashboard() {
   // capabilities and the page probes have answered (DASH-27), so Cases, Forms, Equipment and Waiting for
   // signatures are not refused in the moment before they arrive.
   const sessionKnown = !capsPending && probesIn && signaturesIn && filedFormsIn;
+  // A window the worker opened for a tapped alert names its notice as ?notice=<id>: read once, taken off the
+  // address, and handled as the message an open window is sent (part 386, DASH-80).
+  const noticeInAddress = useRef(null);
+  if (noticeInAddress.current === null) {
+    noticeInAddress.current = "";
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const n = q.get("notice");
+      if (n && /^[A-Za-z0-9_-]{1,80}$/.test(n)) {
+        noticeInAddress.current = n;
+        q.delete("notice");
+        const rest = q.toString();
+        window.history.replaceState(null, "", window.location.pathname + (rest ? "?" + rest : "") + window.location.hash);
+      }
+    } catch (e) { /* an address the browser will not rewrite keeps it */ }
+  }
+  useEffect(() => {
+    if (!token || !noticeInAddress.current) return;
+    const id = noticeInAddress.current;
+    noticeInAddress.current = "-";
+    af("/api/notifications/" + encodeURIComponent(id) + "/read", { method: "POST" }).then(() => loadUnread(), e => console.warn("Mark read:", e.message));
+  }, [token, af, loadUnread]);
   useEffect(() => {
     if (!openAsk || !token || !sessionKnown) return;
     const ask = openAsk;
     setOpenAsk(null);
+    // The alert's own notice is read once it is tapped, as a notice clicked on the bell is (DASH-80): the
+    // API's pushes name it since its part 370.
+    if (ask.notificationId) af("/api/notifications/" + encodeURIComponent(ask.notificationId) + "/read", { method: "POST" }).then(() => loadUnread(), e => console.warn("Mark read:", e.message));
     const n = { subjectType: ask.subjectType, subjectId: ask.subjectId };
     if (!noticePlace(n)) { if (ask.place) window.location.hash = ask.place; return; }
     goToNotice(n, { canOpenPage, openHash: h => { window.location.hash = h; }, openPage: id => setPage(id), openAnnouncement: setAnnOpen, refuse: () => showToast(tr("That one is for admins. Ask an admin to take a look."), "error"), nothing: () => showToast(tr("This notice has nothing to open on the dashboard.")) });
@@ -2162,7 +2197,7 @@ function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t 
     af("/api/shift-sessions/by-site").then(d => { setStarted(flattenSessions(d)); mark("started", false); }).catch(e => { mark("started", true); console.warn(e.message); });
     af("/api/inspections/analytics/dashboard-summary").then(d => { setInspSummary(d); mark("insp", false); }).catch(e => { mark("insp", true); console.warn(e.message); });
   };
-  useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
+  useEffect(() => { loadDash(); const iv = setInterval(whenSeen(loadDash), 45000); return () => clearInterval(iv); }, []);
   if (!stats) return failed.stats ? <Crd t={t}><LoadFailed t={t} onRetry={loadDash} /></Crd> : <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
   return (<div>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, marginBottom: 2, color: t.text }}>{tr("Welcome back, {0}", user?.firstName || tr("Admin"))}</div>
@@ -4570,6 +4605,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
           <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: TL }}>{sp.inspectionSummary?.avg_score || tr("N/A")}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Avg Score (30d)")}</div></div>
           <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: RD }}>{parseInt(sp.issueSummary?.open_count || 0) + parseInt(sp.issueSummary?.in_progress_count || 0)}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Open Issues")}</div></div>
         </div>
+        {/* Part 386: the site's last safety walk, when and on which inspection, and whether this month's is done. */}
+        <div style={{ marginTop: 12 }}><SiteSafetyWalk af={af} t={t} siteId={s.id} /></div>
       </Crd>
 
       {/* Each tab keeps its words whole and the strip wraps onto a second row, so a long Spanish tab
@@ -5052,13 +5089,17 @@ function OpsPage({ af, t, allStaff }) {
   // midnight, so a night shift stays on today's board. Any other day asks start_date and end_date, both
   // that day (part 351): the date form answers each person's latest open session whatever the day, so a
   // past day read as today.
+  // A board that does not load says so with Try again (part 386, DASH-50), in place of the board when none was
+  // read for the day, and above the last one read when a later read fails.
+  const [opsFailed, setOpsFailed] = useState("");
   const loadOps = () => {
     const day = date;
     const q = day === toISO(new Date()) ? "?date=" + day : "?start_date=" + day + "&end_date=" + day;
-    af("/api/shift-sessions/by-site" + q).then(d => { if (day === dateNow.current) setBoard({ day, sites: d.sites || [] }); }).catch(e => console.warn("Load shift sessions:", e.message));
+    af("/api/shift-sessions/by-site" + q).then(d => { if (day === dateNow.current) { setBoard({ day, sites: d.sites || [] }); setOpsFailed(""); } })
+      .catch(e => { console.warn("Load shift sessions:", e.message); if (day === dateNow.current) setOpsFailed(e.message || tr("This did not load.")); });
   };
   // Today is read again every 30 seconds; a past day does not change, so it is read once.
-  useEffect(() => { loadOps(); if (date !== toISO(new Date())) return undefined; const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
+  useEffect(() => { loadOps(); if (date !== toISO(new Date())) return undefined; const iv = setInterval(whenSeen(loadOps), 30000); return () => clearInterval(iv); }, [date]);
   const isToday = date === toISO(new Date());
   const ready = board.day === date;
   const sites = ready ? board.sites : [];
@@ -5073,7 +5114,8 @@ function OpsPage({ af, t, allStaff }) {
       <div style={{ width: 170 }}><Inp t={t} type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} /></div>
       <span style={{ fontSize: 12, color: t.textSec }}>{isToday ? trn("{0} started today|count", startedIds.size) : trn("{0} started on {1}|count", startedIds.size, dayText)}</span>
     </div>
-    {ready && sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
+    {opsFailed && <Crd t={t} style={{ marginBottom: 20 }}><div data-ops-failed={ready ? "kept" : "none"}><LoadFailed t={t} onRetry={loadOps} text={ready ? tr("The board did not load again, so it shows the last one read.") : opsFailed} /></div></Crd>}
+    {ready && sites.length === 0 && !opsFailed && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
       <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
       {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div>}
@@ -5113,6 +5155,8 @@ function OpsPage({ af, t, allStaff }) {
 // screen; a past day is read once. The view lives in the address, #checklist/<site or all>/<period>
 // [/<shift>], the period today, yesterday, last7, month, one day, or two days joined by "..".
 const CR_TZ = clientConfig.company.timeZone;
+// How long the settings a print reads are taken as fresh: the logo is a link signed for 60 minutes (part 386).
+const SETTINGS_FRESH_MS = 50 * 60000;
 // The checklist day starts at 4:00 AM on the company's clock, the API's default for it, until the
 // company's own time is read from GET /api/settings, once a session (part 368).
 const CR_DAY_STARTS = 4 * 60;
@@ -5727,7 +5771,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
                 : <>
                   <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
                   <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks)}</div>
-                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div><LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /></div> : null}
+                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div>{lineDrawable([{ data: c.trend.map(p => p.pct) }]) ? <LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /> : <div data-cr-no-steps={String(c.s.id)} style={{ fontSize: 12, color: t.textMut, padding: "10px 0" }}>{tr("No steps due these days")}</div>}</div> : null}
                 </>}
             <div style={{ marginTop: "auto" }}><Btn t={t} v="ghost" data-cr-open-site={String(c.s.id)} onClick={e => { e.stopPropagation(); go(String(c.s.id), period.token, ""); }} style={{ width: "100%" }}>{tr("Open this site")}</Btn></div>
           </div>
@@ -5783,7 +5827,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
         </Crd>); })}
       </div>
       <ChartCard t={t} title={tr("Done each day")} sub={tr("Each shift's share of steps done. Click a day to open it.")}>
-        <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} /></div>
+        {lineDrawable(series) ? <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} /></div>
+          : <div data-cr-no-steps={String(siteId)} style={{ fontSize: 13, color: t.textMut, padding: "16px 2px" }}>{tr("No steps due these days")}</div>}
       </ChartCard>
       <div style={{ marginTop: 14 }}><DataTable t={t} columns={cols} rows={days} rowKey={d => d.date} onRowClick={d => go(siteId, d.date, pickOk ? shiftPick : "")} /></div>
     </div>);
@@ -9527,7 +9572,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   };
   useEffect(() => { const id = route[0]; if (id && id !== sel) open(id); }, [route[0]]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
-  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(sel, list); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
+  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { if (document.hidden) return; try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(sel, list); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
   const activeChannel = channels.find(c => c.id === sel);
   const activeDm = dms.find(dm => dm.channelId === sel);
   const activeDirect = (direct || []).find(dm => dm.channelId === sel);
@@ -11900,7 +11945,7 @@ const IssueTrendWidget = ({ timing, t }) => {
   const hasData = series.some(s => s.data.some(v => v !== null && v !== undefined));
   return (
     <ChartCard t={t} title={tr("Resolution and response trend")} sub={tr("Median hours per {0}", bucketWord(timing && timing.bucket))}>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO, BL]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GO, BL]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart a trend yet.")}</div>}
     </ChartCard>
   );
@@ -11943,7 +11988,7 @@ const SlaComplianceTrendWidget = ({ timing, t }) => {
         <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: totalBreaches > 0 ? RD : GR }}>{totalBreaches}</span>
         <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>{trn("SLA breaches in range|count", totalBreaches)}</span>
       </div>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart compliance yet.")}</div>}
     </ChartCard>
   );
@@ -11961,7 +12006,7 @@ const SlaBySiteWidget = ({ timing, t }) => {
 
 // Composite run view for the issue source. Seeds its controls from the saved
 // definition config, applies the saved SLA targets, and renders the widgets.
-function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
+function IssueTimingReport({ af, t, sites, settings, freshSettings = null, config, showToast }) {
   const cfg = readIssueConfig(config);
   const [dateRange, setDateRange] = useState(() => (cfg.date_range.start && cfg.date_range.end) ? { start: cfg.date_range.start, end: cfg.date_range.end } : resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -12034,6 +12079,12 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
 
   const exportPdf = () => {
     if (!sm) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -12103,8 +12154,6 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
       + targetsLine + trendTable + siteTable + sevTable + slaTable + judgedTable
       + '<div class="footer">' + esc(cName) + (addr ? (' &middot; ' + esc(addr)) : "") + einLine + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -12165,7 +12214,7 @@ const SupplyCostTrendWidget = ({ data, t }) => {
   const hasData = trend.some(b => b.estimated_cost > 0);
   return (
     <ChartCard t={t} title={tr("Estimated cost trend")} sub={tr("Estimated supply cost per {0}", bucketWord(data && data.bucket))}>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No supply usage in this range yet.")}</div>}
     </ChartCard>
   );
@@ -12202,7 +12251,7 @@ const SupplyGreenShareWidget = ({ data, t }) => {
   );
 };
 
-function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap }) {
+function SupplyUsageReport({ af, t, sites, settings, freshSettings = null, config, showToast, lkMap }) {
   // Decision 1: the estimated cost, and the order by cost, are a holder of manage_employment's. Anyone
   // else reads the counts and quantities, on screen and in the PDF, with the supplies in name order.
   const seesPay = useContext(PayCtx);
@@ -12249,6 +12298,12 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
 
   const exportPdf = () => {
     if (!sm) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -12283,8 +12338,6 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
       + greenLine + trendTable + siteTable + supTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -12349,7 +12402,7 @@ const InspectionScoreTrendWidget = ({ rows, t }) => {
   const hasData = series[0].data.some(v => v !== null);
   return (
     <ChartCard t={t} title={tr("Inspection score trend")} sub={tr("Average score percent over time")}>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No completed inspections in this range yet.")}</div>}
     </ChartCard>
   );
@@ -12375,7 +12428,7 @@ const InspectionLowestItemsWidget = ({ rows, t }) => {
   );
 };
 
-function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) {
+function InspectionReport({ af, t, sites, settings, freshSettings = null, config, showToast, lkMap }) {
   const cfg = readInspectionConfig(config);
   const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -12420,6 +12473,12 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
 
   const exportPdf = () => {
     if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -12448,8 +12507,6 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
       + siteTable + lowTable + inspListTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -12503,7 +12560,7 @@ const ratingQuietMonths = (s) => {
 };
 const ratingWho = (c) => [c && c.name, c && c.role].filter(Boolean).join(", ") || tr("Customer");
 
-function ClientRatingsReport({ af, t, sites, settings, showToast }) {
+function ClientRatingsReport({ af, t, sites, settings, freshSettings = null, showToast }) {
   const [dateRange, setDateRange] = useState(() => PRESETS.last90());
   const [siteFilter, setSiteFilter] = useState("");
   const [data, setData] = useState(null);
@@ -12546,6 +12603,12 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
 
   const exportPdf = () => {
     if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    (freshSettings ? freshSettings() : Promise.resolve(settings)).then(fresh => drawPdfIn(w, fresh), () => drawPdfIn(w, settings));
+  };
+  // The page drawn into the window opened in the click, with the settings as they were read last.
+  const drawPdfIn = (w, settings) => {
     const useBrand = !!settings && settings.use_company_settings !== false;
     const navy = (useBrand && settings.primary_color) || NAVY;
     const gold = (useBrand && settings.secondary_color) || GOLD;
@@ -12578,8 +12641,6 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
       + rows.map(siteBlock).join("")
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
-    const w = window.open("", "_blank");
-    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -12610,7 +12671,7 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
       </>}
       {months.length > 0 && <>
         <div style={smallHead}>{tr("Overall by month")}</div>
-        <LineChartW t={t} height={220} colors={[GO]} yMax={RATING_TOP} dots categories={months.map(m => ratingMonth(m.month))} series={[{ name: tr("Overall"), data: months.map(m => (Number(m.responses) > 0 ? ratingNumber(m.overall) : null)) }]} />
+        {lineDrawable([{ name: tr("Overall"), data: months.map(m => (Number(m.responses) > 0 ? ratingNumber(m.overall) : null)) }]) ? <LineChartW t={t} height={220} colors={[GO]} yMax={RATING_TOP} dots categories={months.map(m => ratingMonth(m.month))} series={[{ name: tr("Overall"), data: months.map(m => (Number(m.responses) > 0 ? ratingNumber(m.overall) : null)) }]} /> : <div data-ratings-no-line="" style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>{tr("Too few months with a response to draw a line yet.")}</div>}
       </>}
       <div style={smallHead}>{tr("Comments")}</div>
       {comments.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No comments in this range.")}</div>}
@@ -14644,7 +14705,12 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
   };
 
   useEffect(() => { loadDefs(); }, []);
-  useEffect(() => { af("/api/settings").then(setSettings).catch(() => {}); }, []);
+  // The settings carry the logo as a link signed for 60 minutes since the API's Round 11 (part 386), so a
+  // print made later than SETTINGS_FRESH_MS after the read reads them again first and draws the new link.
+  const settingsAt = useRef(0);
+  useEffect(() => { af("/api/settings").then(d => { settingsAt.current = Date.now(); setSettings(d); }).catch(() => {}); }, []);
+  const freshSettings = useCallback(() => (settings && Date.now() - settingsAt.current < SETTINGS_FRESH_MS ? Promise.resolve(settings)
+    : af("/api/settings").then(d => { settingsAt.current = Date.now(); setSettings(d); return d; }).catch(() => settings)), [af, settings]);
   useEffect(() => { loadSnapshots(); }, [dateRange]);
   // The client reports (Step 196) are offered once their routes answer: one quiet read each when the
   // page opens, and a 404, a refusal or a failure leaves the report off the page.
@@ -14720,11 +14786,11 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
         </div>
       </div>
       {isIssueSource(active.source) ?
-        <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
+        <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} config={active.config} showToast={showToast} /> :
        isSupplySource(active.source) ?
-        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
+        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
        isInspectionSource(active.source) ?
-        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
+        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("This report's data source arrives with the report templates workstream. It will run here once that ships.")}</div></Crd>}
     </div>);
   }
@@ -14735,7 +14801,7 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
         <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Client ratings")}</div>
       </div>
-      <ClientRatingsReport af={af} t={t} sites={sites} settings={settings} showToast={showToast} />
+      <ClientRatingsReport af={af} t={t} sites={sites} settings={settings} freshSettings={freshSettings} showToast={showToast} />
     </div>);
   }
 
@@ -16315,7 +16381,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   useEffect(() => {
     loadPeople(af, "?role=supervisor").then(setSchedSupervisors).catch(e => console.warn("Load supervisors:", e.message));
   }, []);
-  useEffect(() => { loadCalendar(); const iv = setInterval(() => loadCalendar(), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
+  useEffect(() => { loadCalendar(); const iv = setInterval(whenSeen(() => loadCalendar()), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
 
   const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
   const getMonthDays = () => { const start = new Date(dateRange.start + "T00:00:00"); const year = start.getFullYear(); const month = start.getMonth(); const firstDay = new Date(year, month, 1); const lastDay = new Date(year, month + 1, 0); const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; const days = []; for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) { const d = new Date(year, month, i + 1); days.push(toISO(d)); } return days; };
@@ -17003,7 +17069,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     setLoading(false);
   };
 
-  useEffect(() => { setPkPage(1); load(); const iv = setInterval(() => load(), 45000); return () => clearInterval(iv); }, [dateRange, tab, siteFilter, originFilter]);
+  useEffect(() => { setPkPage(1); load(); const iv = setInterval(whenSeen(() => load()), 45000); return () => clearInterval(iv); }, [dateRange, tab, siteFilter, originFilter]);
 
   const loadSiteLocations = async (siteId) => {
     if (siteLocations[siteId]) return;
@@ -17744,6 +17810,49 @@ function InspectionSafetyPart({ af, t, id }) {
   </Crd>);
 }
 
+// ===== THE SAFETY WALK ONCE A MONTH (part 386, the API's Round 11 section 8) =====
+// The owner decided on Nov 10, 2026 that the full safety walk (OCSA-FRM-015) is done once a month per site
+// (OCSA-QMS-015). GET /api/inspections/safety-walks?siteId= answers the site's last completed walk: { lastWalk:
+// { at, day, scheduledInspectionId, responseId, thisMonth } | null }, thisMonth on the company's clock. A read
+// that fails, or an API without the route, answers nothing here, and every screen reads as it did before.
+const safetyWalkDueWords = (lw) => (lw && lw.thisMonth ? tr("Safety walk done this month on {0}", fdLong(lw.day)) : tr("Safety walk due this month"));
+const DROP_SAFETY_WORDS = {
+  "inspections.safetyWalkNotDone": "This site's safety walk is not done this month on another inspection, so this inspection keeps its own.",
+  "inspections.noSafetyPart": "This inspection does not include the safety walk.",
+  "inspections.completedLocked": "This inspection is completed. Its status and its safety walk cannot be changed.",
+};
+// Each site's last walk, read once a page and again after a change; walks[siteId] is { lastWalk } once read,
+// { failed: true } when the read failed.
+function useSafetyWalks(af) {
+  const [walks, setWalks] = useState({});
+  const asked = useRef({});
+  const want = useCallback((siteId) => {
+    const k = String(siteId || "");
+    if (!k || asked.current[k]) return;
+    asked.current[k] = true;
+    af("/api/inspections/safety-walks?siteId=" + encodeURIComponent(k))
+      .then(d => setWalks(w => ({ ...w, [k]: { lastWalk: d && d.lastWalk ? d.lastWalk : null } })))
+      .catch(() => setWalks(w => ({ ...w, [k]: { failed: true } })));
+  }, [af]);
+  const again = useCallback((siteId) => { asked.current[String(siteId || "")] = false; want(siteId); }, [want]);
+  return [walks, want, again];
+}
+// A site's last walk in a line: when, whether this month's is done, and the inspection it was walked on.
+function LastSafetyWalk({ t, walk, onOpen, compact = false, siteId = "" }) {
+  if (!walk || walk.failed) return null;
+  const lw = walk.lastWalk;
+  return (<div data-last-safety-walk={siteId} data-last-safety-walk-month={lw ? (lw.thisMonth ? "done" : "due") : "none"} style={{ fontSize: compact ? 11 : 12, color: lw && lw.thisMonth ? GR : t.textSec, marginTop: compact ? 2 : 0, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+    <span>{lw && lw.thisMonth ? safetyWalkDueWords(lw) : (lw ? tr("Last safety walk {0}", fdLong(lw.day)) : tr("No safety walk on record yet")) + " . " + safetyWalkDueWords(lw)}</span>
+    {lw && lw.scheduledInspectionId && onOpen ? <button data-last-safety-walk-open={lw.scheduledInspectionId} onClick={e => { e.stopPropagation(); onOpen(lw.scheduledInspectionId); }} style={{ minHeight: compact ? 28 : 44, padding: 0, background: "none", border: "none", color: t.goldText, fontSize: compact ? 11 : 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the inspection")}</button> : null}
+  </div>);
+}
+// The same line where it is read on its own, as a site's page reads it.
+function SiteSafetyWalk({ af, t, siteId }) {
+  const [walks, want] = useSafetyWalks(af);
+  useEffect(() => { want(siteId); }, [want, siteId]);
+  return <LastSafetyWalk t={t} walk={walks[String(siteId)]} siteId={String(siteId)} onOpen={(id) => { window.location.hash = "inspections/" + encodeURIComponent(id); }} />;
+}
+
 function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   const lkCimsLabels = lkMap("cims_categories");
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
@@ -17814,6 +17923,18 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const [scheduleModal, setScheduleModal] = useState(false);
   // Step 314: Include the safety walk, on by default, goes as withSafety.
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true });
+  // Part 386: Include the safety walk starts on only when the site has no walk this month, until the person
+  // turns it either way themselves; each site's last walk is read once for the list and the form.
+  const [walks, wantWalk, walkAgain] = useSafetyWalks(af);
+  const [safetyTouched, setSafetyTouched] = useState(false);
+  const [dropSaid, setDropSaid] = useState(null);
+  const formWalk = scheduleForm.site_id ? walks[String(scheduleForm.site_id)] : null;
+  useEffect(() => { if (scheduleForm.site_id) wantWalk(scheduleForm.site_id); }, [scheduleForm.site_id, wantWalk]);
+  useEffect(() => {
+    if (safetyTouched || !formWalk || formWalk.failed) return;
+    const on = !(formWalk.lastWalk && formWalk.lastWalk.thisMonth);
+    setScheduleForm(f => (f.withSafety === on ? f : { ...f, withSafety: on }));
+  }, [formWalk, safetyTouched]);
   const [detailView, setDetailView] = useState(null);
   const [expandedItems, setExpandedItems] = useState(new Set());
   // Step 254: a completed inspection under 80 percent with no corrective action offers to start one
@@ -17960,12 +18081,28 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     if (!scheduleForm.template_id || !scheduleForm.site_id || !scheduleForm.scheduled_date) { showToast(tr("Template, site, and date are required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled", { method: "POST", body: scheduleForm });
-      showToast(tr("Inspection scheduled")); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true }); loadScheduled();
+      showToast(tr("Inspection scheduled")); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true }); setSafetyTouched(false); loadScheduled();
     } catch (e) { showToast(e.message, "error"); }
   };
 
   const openDetail = async (id) => {
     try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
+  };
+  // Part 386: an open inspection gives up its safety walk once its site's walk this month is done on another.
+  // The API's refusals are drawn in its words, and the page reads the inspection, the list and the walk again.
+  const dropSafety = async (d) => {
+    if (!window.confirm(tr("Drop the safety walk from this inspection? Its unfinished safety walk is set aside, and the inspection is the cards alone."))) return;
+    setDropSaid(null);
+    try {
+      const r = await af("/api/inspections/scheduled/" + encodeURIComponent(d.id) + "/drop-safety", { method: "POST", body: {} });
+      const n = r && Number(r.voidedDrafts) > 0 ? Number(r.voidedDrafts) : 0;
+      setDropSaid({ id: d.id, ok: true, text: n ? trn("The safety walk was dropped. {0} unfinished walk was set aside.|count", n) : tr("The safety walk was dropped. This inspection is the cards alone.") });
+      walkAgain(d.site_id);
+      await openDetail(d.id);
+      loadScheduled();
+    } catch (e) {
+      setDropSaid({ id: d.id, ok: false, code: String((e && e.code) || ""), text: (e && e.message) || tr(DROP_SAFETY_WORDS[e && e.code] || "Request failed") });
+    }
   };
   // The inspection read again for its photos' fresh links, what is expanded kept (part 372).
   const detailPhotosAgain = async () => {
@@ -17978,6 +18115,9 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   // Open the inspection lands; Back goes to #inspections.
   const routeId = route[0] ? decodeURIComponent(route[0]) : "";
   useEffect(() => { if (routeId) openDetail(routeId); }, [routeId]);
+  // Part 386: the last safety walk of every site the list holds.
+  const listedSites = Array.from(new Set((scheduled || []).map(si => String(si.site_id || "")).filter(Boolean))).sort().join(",");
+  useEffect(() => { listedSites.split(",").filter(Boolean).forEach(wantWalk); }, [listedSites, wantWalk]);
 
 
   const openEditInspection = (si) => {
@@ -18110,6 +18250,18 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             {findingsIn(d) && band && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Band")}</div><div data-inspection-band={band} style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: bandColor(band) || t.text, lineHeight: 1.3 }}>{bandWord(band)}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("OCSA-QMS-014 5.2")}</div></Crd>}
           </>}
         </div>
+        {/* Part 386: the site's last safety walk, and an open inspection that still carries the walk at a site
+            whose walk is done this month on another inspection offers to drop it, to a holder of
+            manage_inspections (POST /api/inspections/scheduled/:id/drop-safety). */}
+        {d.lastSafetyWalk !== undefined && <Crd t={t} style={{ marginBottom: 20 }}><div data-inspection-last-walk="">
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>{tr("This site's last safety walk")}</div>
+          <LastSafetyWalk t={t} walk={{ lastWalk: d.lastSafetyWalk || null }} siteId={String(d.site_id || "")} onOpen={String((d.lastSafetyWalk && d.lastSafetyWalk.scheduledInspectionId) || "") === String(d.id) ? null : (id) => openDetail(id)} />
+          {canManageInspections && d.status === "scheduled" && d.with_safety === true && d.lastSafetyWalk && d.lastSafetyWalk.thisMonth && String(d.lastSafetyWalk.scheduledInspectionId || "") !== String(d.id) && <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 260px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("This month's walk is done on another inspection, so this one can go without its own.")}</div>
+            <Btn t={t} v="ghost" data-drop-safety={d.id} onClick={() => dropSafety(d)} style={{ minHeight: 44 }}>{tr("Drop the safety walk")}</Btn>
+          </div>}
+          {dropSaid && String(dropSaid.id) === String(d.id) ? <div data-drop-safety-said={dropSaid.ok ? "dropped" : dropSaid.code || "refused"} role={dropSaid.ok ? "status" : "alert"} style={{ fontSize: 12, color: dropSaid.ok ? GR : RD, marginTop: 8, lineHeight: 1.5 }}>{dropSaid.text}</div> : null}
+        </div></Crd>}
 
         {isComplete && d.result.overall_notes && (
           <Crd t={t} style={{ marginBottom: 16 }}>
@@ -18385,7 +18537,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             const cur = Math.min(schedPage, totalPages);
             const items = searched.slice((cur - 1) * inspPerPage, cur * inspPerPage);
             const columns = [
-              { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+              { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div><LastSafetyWalk t={t} compact walk={walks[String(si.site_id || "")]} siteId={String(si.site_id || "")} onOpen={(id) => openDetail(id)} /></div> },
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>{tr("Unassigned")}</span> },
               { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
@@ -18639,9 +18791,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={supervisorOptions(supervisors, scheduleForm.assigned_to)} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <label data-schedule-with-safety="" style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 20, cursor: "pointer" }}>
-          <span style={chkWrap}><input type="checkbox" aria-label={tr("Include the safety walk")} checked={scheduleForm.withSafety !== false} onChange={e => setScheduleForm({ ...scheduleForm, withSafety: e.target.checked })} /></span>
+          <span style={chkWrap}><input type="checkbox" aria-label={tr("Include the safety walk")} checked={scheduleForm.withSafety !== false} onChange={e => { setSafetyTouched(true); setScheduleForm({ ...scheduleForm, withSafety: e.target.checked }); }} /></span>
           <span style={{ paddingTop: 11 }}><span style={{ display: "block", fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Include the safety walk")}</span><span style={{ display: "block", fontSize: 12, color: t.textSec, marginTop: 2, lineHeight: 1.5 }}>{tr("The inspector fills in the safety inspection (OCSA-FRM-015) in the same walk and signs both once. Each is kept as its own record.")}</span></span>
         </label>
+        {formWalk && !formWalk.failed ? <div data-schedule-walk-line={formWalk.lastWalk && formWalk.lastWalk.thisMonth ? "done" : "due"} style={{ fontSize: 12, color: formWalk.lastWalk && formWalk.lastWalk.thisMonth ? GR : t.textSec, margin: "-12px 0 20px 50px", lineHeight: 1.5 }}>{safetyWalkDueWords(formWalk.lastWalk)}</div> : null}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={scheduleInspection}>{tr("Schedule|verb")}</Btn></div>
       </div></Mdl>}
     </div>
@@ -19699,21 +19852,25 @@ const HEALTH_FINAL_MAIL = { sending: "Being emailed", sent: "Emailed", failed: "
 const healthLength = (ms) => { const n = Number(ms); if (!Number.isFinite(n) || n < 0) return "--"; if (n < 60000) return tr("{0} s", Math.round(n / 1000)); const m = Math.round(n / 60000); return m < 60 ? tr("{0} min", m) : tr("{0} h {1} min", Math.floor(m / 60), m % 60); };
 const healthSpan = (a, b) => (a && b ? healthLength(Date.parse(b) - Date.parse(a)) : "--");
 const healthNum = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
-const healthValueText = (v, unit) => { const n = healthNum(v); if (n === null) return tr("Not measured yet"); const s = Math.round(n * 10) / 10; return unit === "ms" ? tr("{0} ms", s.toLocaleString(localeTag())) : s.toLocaleString(localeTag()); };
+const healthValueText = (v, unit) => { const n = healthNum(v); if (n === null) return tr("Not measured yet"); const s = Math.round(n * 10) / 10; return unit === "ms" ? tr("{0} ms", s.toLocaleString(localeTag())) : unit === "days" ? trn("{0} days|count", s) : s.toLocaleString(localeTag()); };
 // A number's lines in words: above, yellow at one value and red at another; belowShare, a share of the
-// week before's average. null is a line never crossed.
+// week before's average; below (part 386, the API's Round 11), fewer is worse, so each line is crossed at
+// or under its value and red sits at or under yellow. null is a line never crossed.
 const healthLineText = (lines, unit) => {
   if (!lines) return "";
   const one = (x) => (x === null || x === undefined ? tr("never|line") : lines.kind === "belowShare" ? tr("under {0}% of the week", Math.round(Number(x) * 100)) : healthValueText(x, unit));
+  if (lines.kind === "below") return tr("Yellow at or under {0}, red at or under {1}", one(lines.yellow), one(lines.red));
   return tr("Yellow at {0}, red at {1}", one(lines.yellow), one(lines.red));
 };
 // The state a value would have on a number's own lines, for a value the API does not color itself (the
-// week's average). A share of the week cannot be judged against itself, so it reads unknown.
+// week's average). A share of the week cannot be judged against itself, so it reads unknown. A below
+// number is red at or under red and yellow at or under yellow, as helpers/healthNumbers.js stateOf has it.
 const healthStateOf = (lines, v) => {
   const n = healthNum(v);
-  if (!lines || n === null || lines.kind !== "above") return "unknown";
-  if (lines.red !== null && lines.red !== undefined && n >= lines.red) return "red";
-  if (lines.yellow !== null && lines.yellow !== undefined && n >= lines.yellow) return "yellow";
+  if (!lines || n === null || (lines.kind !== "above" && lines.kind !== "below")) return "unknown";
+  const at = (x) => x !== null && x !== undefined && (lines.kind === "below" ? n <= x : n >= x);
+  if (at(lines.red)) return "red";
+  if (at(lines.yellow)) return "yellow";
   return "green";
 };
 const healthCommits = (c) => [["api", "API|app"], ["dashboard", "Dashboard|app"], ["staffApp", "Staff app"]].filter(([k]) => c && c[k]).map(([k, l]) => tr(l) + " " + String(c[k]).slice(0, 7)).join(", ") || "--";
@@ -19791,6 +19948,7 @@ const HEALTH_LIST_COLS = {
   no_email: [["name", "Person"], ["role", "Role", "role"], ["office", "Office account", "yesno"]],
   runs_failed: [["journey", "Journey"], ["outcome", "Outcome", "outcome"], ["durationMs", "Length", "ms"]],
   monitors_down: [["name", "Monitor"], ["state", "State"], ["down", "Down", "yesno"]],
+  robot_trust_days_left: [["account", "Test account"], ["device", "Device"], ["endsAt", "Ends", "when"], ["daysLeft", "Days left"]],
 };
 function HealthListWindow({ af, t, number, day, onClose }) {
   const [items, setItems] = useState(null);
@@ -19883,6 +20041,63 @@ function HealthRunWindow({ af, t, runId, onClose }) {
       {!(d.journeys || []).length ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("This run reported no journeys.")}</div> : null}
     </>}
   </div></Mdl>);
+}
+// The robot's sign-in (part 386, the API's Round 11 section 1). The robot signs in each night as the test
+// accounts, and an office test account passes the second sign-in step on one trusted device, which stops
+// being trusted 30 days after its code. GET /api/health/robot-devices (view_health) answers each device with
+// its company days left, fewest first, and canRenew, true for the super admin alone. Renew posts
+// /api/health/robot-devices/:id/renew with this browser's own device id, the one its sign-in sends, since
+// the API renews only for the super admin signed in with their own second step here. Its refusals are drawn
+// in the API's words: health.superAdminOnly, health.ownSecondStep, health.notTestAccount and
+// health.deviceNotFound. A device is colored by robot_trust_days_left's own lines when the numbers have them.
+const HEALTH_RENEW_WORDS = { "health.superAdminOnly": "Only the super admin can do this.", "health.ownSecondStep": "Sign in with your own sign-in code on this device first, then try again.", "health.notTestAccount": "Only a test account's device can be renewed here.", "health.deviceNotFound": "That trusted device was not found." };
+const robotSignInWords = (dv) => {
+  const who = dv.name || tr("A test account");
+  const n = Number(dv.daysLeft);
+  if (n <= 0) return tr("{0}'s sign-in on the robot ends today", who);
+  if (n === 1) return tr("{0}'s sign-in on the robot ends tomorrow", who);
+  return tr("{0}'s sign-in on the robot ends in {1} days", who, n);
+};
+function HealthRobotSignIn({ af, t, lines }) {
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [said, setSaid] = useState(null);
+  const [once, busy] = useBusyGuard();
+  const read = useCallback(() => af("/api/health/robot-devices").then(x => { setD({ devices: x && Array.isArray(x.devices) ? x.devices : [], canRenew: !!(x && x.canRenew === true) }); setFailed(""); }).catch(e => { setD(null); setFailed(e.message || tr("This did not load.")); }), [af]);
+  useEffect(() => { read(); }, [read]);
+  const renew = (dv) => once(async () => {
+    setSaid(null);
+    try {
+      const r = await af("/api/health/robot-devices/" + encodeURIComponent(dv.id) + "/renew", { method: "POST", body: { deviceId: signInDeviceId() } });
+      const after = r && r.device ? r.device : null;
+      setSaid({ ok: true, id: dv.id, text: after && after.endDay ? tr("Renewed. {0}'s sign-in on the robot now ends on {1}.", after.name || dv.name || tr("A test account"), healthDay(after.endDay)) : tr("Renewed for another 30 days.") });
+      await read();
+    } catch (e) { setSaid({ ok: false, id: dv.id, code: String((e && e.code) || ""), text: (e && e.message) || tr(HEALTH_RENEW_WORDS[e && e.code] || "Request failed") }); }
+  })();
+  const list = d ? d.devices : [];
+  return (<Crd t={t} style={{ marginBottom: 14 }}><div data-health-robot="" data-health-robot-can-renew={d && d.canRenew ? "yes" : "no"}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("The robot's sign-in")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The robot signs in each night as the test accounts. An office test account passes the sign-in code on one trusted device, which stops being trusted 30 days after its code. When it does, the run-throughs that sign in as that account stop at the code and fail. The super admin renews it here for another 30 days.")}</div>
+    {failed ? <LoadFailed t={t} onRetry={read} text={failed} />
+      : !d ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+      : !list.length ? <div data-health-robot-none="" style={{ fontSize: 13, color: t.textMut }}>{tr("No test account has a trusted device for the robot.")}</div>
+      : list.map(dv => {
+        const st = healthStateOf(lines || { kind: "below", yellow: 5, red: 1 }, dv.daysLeft);
+        const mine = said && said.id === dv.id ? said : null;
+        return (<div key={dv.id} data-health-robot-device={dv.id} data-health-robot-days={String(dv.daysLeft)} data-health-robot-state={st} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <HealthDot state={st} t={t} sz={10} />
+            <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+              <div data-health-robot-words="" style={{ fontSize: 14, fontWeight: 600, color: st === "red" ? RD : st === "yellow" ? t.goldText : t.text }}>{robotSignInWords(dv)}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[dv.role ? roleWord(dv.role) : "", dv.browser || "", dv.endDay ? tr("Trusted until {0}", healthDay(dv.endDay)) : ""].filter(Boolean).join(" . ")}</div>
+            </div>
+            {d.canRenew ? <Btn t={t} v="ghost" data-health-robot-renew={dv.id} onClick={() => renew(dv)} disabled={busy} style={{ minHeight: 44 }}>{busy ? tr("Renewing...") : tr("Renew|trust")}</Btn> : null}
+          </div>
+          {mine ? <div data-health-robot-said={mine.ok ? "renewed" : mine.code || "refused"} role={mine.ok ? "status" : "alert"} style={{ fontSize: 12, color: mine.ok ? GR : RD, marginTop: 6, lineHeight: 1.5 }}>{mine.text}</div> : null}
+        </div>);
+      })}
+    {d && !d.canRenew && list.length ? <div data-health-robot-only-super="" style={{ fontSize: 12, color: t.textMut, marginTop: 8 }}>{tr("Only the super admin can renew it.")}</div> : null}
+  </div></Crd>);
 }
 function HealthRuns({ af, t, onAsked }) {
   const [rows, setRows] = useState(null);
@@ -20033,6 +20248,7 @@ function HealthThresholds({ af, t }) {
   if (failed) return <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>;
   if (!rows) return <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
   const share = (r) => r.kind === "belowShare";
+  const below = (r) => r.kind === "below";
   const shown = (r, v) => (v === null || v === undefined ? "" : share(r) ? String(Math.round(Number(v) * 1000) / 10) : String(v));
   const valueOf = (r, line) => (edits[r.key] && Object.prototype.hasOwnProperty.call(edits[r.key], line) ? edits[r.key][line] : shown(r, r[line]));
   const sent = (r, text) => { const s = String(text).trim(); if (s === "") return null; const n = Number(s); if (!Number.isFinite(n)) return NaN; return share(r) ? n / 100 : n; };
@@ -20042,6 +20258,10 @@ function HealthThresholds({ af, t }) {
     const body = {};
     for (const k of changed) { const r = rows.find(x => x.key === k); body[k] = { yellow: sent(r, valueOf(r, "yellow")), red: sent(r, valueOf(r, "red")) }; }
     if (Object.keys(body).some(k => Number.isNaN(body[k].yellow) || Number.isNaN(body[k].red))) { setSaid({ ok: false, keys: [], text: tr("Type a number, or leave the box empty for never.") }); return; }
+    // A below number is red at or under its yellow line (helpers/healthPage.js readThresholds), so a red
+    // line over yellow is held here in words before the API refuses it.
+    const over = Object.keys(body).filter(k => { const r = rows.find(x => x.key === k); return below(r) && body[k].yellow !== null && body[k].red !== null && body[k].red > body[k].yellow; });
+    if (over.length) { const r = rows.find(x => x.key === over[0]); setSaid({ ok: false, keys: over.map(k => "thresholds." + k + ".red"), text: tr("For {0}, fewer is worse, so the red line is at or under the yellow line.", r.label || r.key) }); return; }
     try { const d = await af("/api/health/thresholds", { method: "PUT", body: { thresholds: body } }); setRows(d && Array.isArray(d.thresholds) ? d.thresholds : rows); setEdits({}); setSaid({ ok: true, text: tr("Saved. The numbers are colored by the new lines from their next check.") }); }
     catch (e) { setSaid({ ok: false, keys: refusalKeys(e), text: e.message || tr("Request failed") }); }
   });
@@ -20050,11 +20270,11 @@ function HealthThresholds({ af, t }) {
   const box = (r, line) => <Inp t={t} type="number" min="0" step="any" data-health-line={r.key + "." + line} aria-label={tr(line === "yellow" ? "{0}, yellow at" : "{0}, red at", r.label || r.key)} placeholder={tr("Never|line")} value={valueOf(r, line)} onChange={e => setLine(r.key, line, e.target.value)} style={{ width: 110, ...(bad(r.key, line) ? { borderColor: RD } : {}) }} />;
   return (<Crd t={t}><div data-health-thresholds="">
     <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Each number's yellow and red lines")}</div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("A number turns yellow at its yellow line and red at its red line. Leave a box empty for a line that is never crossed. Check-offs and shifts started are judged against the week before, as a percent of its average.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("A number turns yellow at its yellow line and red at its red line. Leave a box empty for a line that is never crossed. Check-offs and shifts started are judged against the week before, as a percent of its average. The days left on the robot's sign-in count down, so it turns yellow and red at or under its lines.")}</div>
     <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead><tr><th style={crHead(t)}>{tr("Number|health")}</th><th style={crHead(t)}>{tr("Yellow at")}</th><th style={crHead(t)}>{tr("Red at")}</th><th style={crHead(t)}>{tr("Default")}</th></tr></thead>
       <tbody>{rows.map(r => (<tr key={r.key} data-health-threshold={r.key} style={{ borderTop: "1px solid " + t.border }}>
-        <td style={{ padding: "8px 10px", color: t.text, minWidth: 180 }}>{r.label || r.key}{share(r) ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Percent of the week before")}</div> : r.unit === "ms" ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Milliseconds")}</div> : null}</td>
+        <td style={{ padding: "8px 10px", color: t.text, minWidth: 180 }}>{r.label || r.key}{share(r) ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Percent of the week before")}</div> : below(r) ? <div data-health-below="" style={{ fontSize: 11, color: t.textMut, lineHeight: 1.4 }}>{tr("Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.")}{r.unit === "days" ? " " + tr("In days.") : ""}</div> : r.unit === "ms" ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Milliseconds")}</div> : null}</td>
         <td style={{ padding: "8px 10px" }}>{box(r, "yellow")}</td>
         <td style={{ padding: "8px 10px" }}>{box(r, "red")}</td>
         <td data-health-default="" style={{ padding: "8px 10px", fontSize: 12, color: t.textSec, minWidth: 160 }}>{dflt(r)}</td>
@@ -20133,7 +20353,7 @@ function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
       {HEALTH_TABS.map(([k, l]) => <button key={k} data-health-tab={k} aria-pressed={tab === k} onClick={() => pick(k)} style={{ flexShrink: 0, minHeight: 44, padding: "7px 14px", borderRadius: 8, border: tab === k ? "1px solid " + GO : "1px solid transparent", background: tab === k ? t.goldBg : "transparent", color: tab === k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: FONT_BODY }}>{tr(l)}</button>)}
     </div>
     {tab === "numbers" && <HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} />}
-    {tab === "runs" && <HealthRuns af={af} t={t} onAsked={readSummary} />}
+    {tab === "runs" && <><HealthRobotSignIn af={af} t={t} lines={((numbers && Array.isArray(numbers.numbers) ? numbers.numbers : []).find(n => n.key === "robot_trust_days_left") || {}).lines} /><HealthRuns af={af} t={t} onAsked={readSummary} /></>}
     {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} />}
     {tab === "settings" && <><HealthRecipients af={af} t={t} allStaff={allStaff} /><HealthThresholds af={af} t={t} /></>}
     {tab === "reports" && <HealthReports af={af} t={t} token={token} />}
@@ -20639,6 +20859,9 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   useEffect(() => { load(); }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // The logo is a link signed for 60 minutes (part 386, the API's Round 11): a preview whose link no longer
+  // loads reads the settings again and takes the new link, unless another logo was picked meanwhile.
+  const readLogoAgain = () => af("/api/settings").then(d => { const was = readRef.current && readRef.current.logo_url; if (readRef.current) readRef.current = { ...readRef.current, logo_url: d && d.logo_url }; setForm(f => (f && f.logo_url === was ? { ...f, logo_url: d && d.logo_url } : f)); });
   // A refusal of one of the 300A's fields, drawn under it when its keys name it.
   const [oshaRefusal, setOshaRefusal] = useState({ text: "", keys: [] });
 
@@ -20757,7 +20980,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           <label style={lbl}>{tr("Logo")}</label>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 84, height: 84, borderRadius: 8, border: "1px solid " + t.border, background: t.inputBg, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-              {form.logo_url ? <img src={form.logo_url} alt={tr("logo")} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>}
+              {form.logo_url ? <FreshImg src={form.logo_url} readKey="settings-logo" onStale={readLogoAgain} data-settings-logo="" alt={tr("logo")} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} fallback={<span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>} /> : <span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>}
             </div>
             <div>
               <input ref={logoInput} type="file" accept="image/*" onChange={onLogoPick} style={{ display: "none" }} />
@@ -21900,6 +22123,9 @@ function JotformPickerField({ af, form, setForm, t }) {
 // Every read of a report writes an audit row, so a report is fetched only when a person opens one,
 // once per opening. Nothing here prefetches, refetches on a re-render, or polls.
 const IR_PAGE_SIZE = 50;
+// The count on the Filed forms tab is read off the first page of unfinished filings, so a full page reads
+// 50+, which says there may be more (part 386, DASH-59); none reads nothing.
+const unfinishedShown = (n) => (n >= IR_PAGE_SIZE ? IR_PAGE_SIZE + "+" : n > 0 ? String(n) : "");
 // The line the window says once a report is sent again, built from the answer: how many emails, how
 // many app notices, and what the email carried. Read when it is said, so it is in the screen's
 // language, the way every other line of the window is.
@@ -25015,7 +25241,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       setError(null);
       // The count on the tab: how many filings are unfinished, read off the unfinished list itself
       // whenever it is loaded whole and unfiltered.
-      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(list.length);
+      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(unfinishedShown(list.length));
     } catch (e) {
       if (!before) setRows([]);
       setError({ status: e && e.status, message: e.message || tr("Request failed") });
@@ -25029,7 +25255,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const recount = useCallback(() => {
     if (!onUnfinished) return;
     af("/api/forms/responses?status=draft&limit=" + IR_PAGE_SIZE)
-      .then(d => onUnfinished(d && Array.isArray(d.responses) ? d.responses.length : 0))
+      .then(d => onUnfinished(unfinishedShown(d && Array.isArray(d.responses) ? d.responses.length : 0)))
       .catch(e => { console.warn("Unfinished count:", e.message); });
   }, [af, onUnfinished]);
   useEffect(() => {
@@ -25935,7 +26161,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // and the PDF access log, which reads both kinds since the API's Step 163. Step 243 adds Customer
   // links, for holders of manage_settings, whether or not they hold the Jotform tabs.
   const TABS = [
-    { id: "incident_reports", l: unfinishedCount > 0 ? tr("Filed forms ({0})", unfinishedCount) : tr("Filed forms"), adminOnly: false },
+    { id: "incident_reports", l: unfinishedCount ? tr("Filed forms ({0})", unfinishedCount) : tr("Filed forms"), adminOnly: false },
     { id: "jotform", l: tr("Jotform"), adminOnly: true },
     { id: "pdf_access", l: tr("PDF access log"), adminOnly: true },
     { id: "links", l: tr("Customer links"), settingsOnly: true },
@@ -27450,6 +27676,10 @@ const warningListStatus = (s) => (s === "draft" ? tr("Draft, not issued") : warn
 const openDraftOf = (history) => (Array.isArray(history) ? history : []).find(x => x && x.id != null && x.status === "draft" && !warningRescinded(x)) || null;
 const draftDayOf = (w) => { const v = w && (w.updatedAt || w.updated_at || w.createdAt || w.created_at || w.incidentDate || w.incident_date || w.actionDate || w.action_date); return !v ? "" : String(v).length > 10 ? irDay(v) : fdLong(String(v).slice(0, 10)); };
 const warningOf = (d) => (d && d.warning && typeof d.warning === "object" ? d.warning : d);
+// When a warning was started and last saved (part 386, the API's Round 11 section 5): createdAt and updatedAt
+// on every summary and full view, instants kept by the database. "" from a row that carries neither.
+const warningStartedOf = (w) => String((w && (w.createdAt || w.created_at)) || "");
+const warningSavedOf = (w) => String((w && (w.updatedAt || w.updated_at)) || "");
 // A warning's fields as the API may name them, read the same way wherever a row comes from.
 const warningIssued = (w) => !!(w && (w.issuedAt || w.issued_at || (w.status && w.status !== "draft")));
 const warningRescinded = (w) => !!(w && (w.status === "rescinded" || w.rescindedAt || w.rescinded_at));
@@ -27631,6 +27861,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{personName || ""}{w && w.status ? ", " + warningStatusWord(w.status) : ""}</div>
+        {warningStartedOf(w) ? <div data-warning-started={warningStartedOf(w)} style={{ fontSize: 12, color: t.textMut, marginTop: 2 }}>{tr("Started {0}|warning", irWhen(warningStartedOf(w)))}{isDraft && warningSavedOf(w) && warningSavedOf(w) !== warningStartedOf(w) ? <span data-warning-saved={warningSavedOf(w)}>{" . " + tr("Last saved {0}", irWhen(warningSavedOf(w)))}</span> : null}</div> : null}
       </div>
       <button onClick={tryClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
     </div>
@@ -28732,16 +28963,18 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
   const [holdError, setHoldError] = useState("");
   const actionLabel = { hr_case_read: tr("Read the case"), hr_case_list: tr("Saw it in the list"), hr_case_updated: tr("Updated the case"), hr_case_access_log_read: tr("Read this log"), hr_case_escalation_mail: tr("Escalation email"), hr_case_created: tr("Raised the case"), hr_case_filed_mail: tr("Filing email to the team"), hr_case_assignment_mail: tr("Assignment email"), hr_case_due_soon_mail: tr("48 hour reminder to the team"), hr_case_overdue_mail: tr("72 hour reminder to the team") };
 
-  // Step 332: a refused list is drawn in the API's words, in one line, in the table's place.
+  // Step 332: a refused list is drawn in the API's words, in one line, in the table's place. A list that did
+  // not load says so with Try again in the table's place (part 386, DASH-50), never an empty No cases.
   const [refused, setRefused] = useState("");
+  const [listFailed, setListFailed] = useState("");
   const [next, setNext] = useState("");
   const [moreBusy, setMoreBusy] = useState(false);
   const caseFilters = (status) => ({ status: status && status !== "needs_response" ? status : "" });
   // The first page of a status, or, read again after a change, as many cases as are shown.
   const load = async (status, keep) => {
     setLoading(true);
-    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(status), "", keep ? cases.length : 0)); setCases(d && Array.isArray(d.cases) ? d.cases : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); setRefused(""); }
-    catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else showToast(e.message, "error"); }
+    try { const d = await af(pagedPath("/api/hr-cases", caseFilters(status), "", keep ? cases.length : 0)); setCases(d && Array.isArray(d.cases) ? d.cases : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); setRefused(""); setListFailed(""); }
+    catch (e) { if (e.status === 403) setRefused(e.message || tr("Request failed")); else { setListFailed(e.message || tr("This did not load.")); showToast(e.message, "error"); } }
     setLoading(false);
   };
   const more = async () => {
@@ -28879,7 +29112,9 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
     {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => { if (detail && caseLogUpdates(detail)) refreshLog(detail.id); }} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
-    {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
+    {refused ? <Crd t={t}><div data-cases-refused="" role="alert" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{refused}</div></Crd>
+      : listFailed ? <Crd t={t}><div data-cases-failed=""><LoadFailed t={t} onRetry={() => load(statusFilter)} text={listFailed} /></div></Crd>
+      : !loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
     {!loading && <ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="cases" />}
 
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
@@ -29372,7 +29607,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           const items = searched.slice((cur - 1) * hrPerPage, cur * hrPerPage);
           const columns = [
             { header: tr("Employee"), render: r => <span style={{ color: t.text }}>{r.user_name}</span> },
-            { header: tr("Training Name"), tdStyle: { color: t.text, fontWeight: 500 }, render: r => r.training_name },
+            { header: tr("Training Name"), tdStyle: { color: t.text, fontWeight: 500 }, render: r => <span data-training-record={r.id}>{r.training_name}{certificateByOf(r) ? <><br /><CertificateBy t={t} by={certificateByOf(r)} /></> : null}</span> },
             { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => trainingTypeMap[r.training_type] || r.training_type },
             { header: tr("Completed"), tdStyle: { fontSize: 12, whiteSpace: "nowrap" }, render: r => r.completed_date ? <span style={{ color: t.textSec }}>{fmtDate(r.completed_date)}</span> : <span style={{ color: OR }}>{tr("Pending")}</span> },
             { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
@@ -30264,7 +30499,7 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
     setMoving(false);
   };
   const columns = [
-    { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
+    { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.outsideCourse === true && <span data-topic-outside-row={tp.id} style={{ marginLeft: 8 }}><Bdg l={tr("Outside course")} c={BL} /></span>}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
     { header: tr("Document"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: tp => topicDocLine(tp) },
     { header: tr("How often"), tdStyle: { color: t.textSec }, render: tp => trainingFrequencyWord(tp.frequency) },
     { header: tr("When due"), tdStyle: { color: t.textSec }, render: tp => (firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule)) },
@@ -30310,7 +30545,11 @@ function TrainingCatalog({ af, t, token = "", sites = [], isAdmin = false, peopl
 }
 
 // The fields a topic's form edits, by the key a refusal names them with.
-const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId", "firstDueAfterTopicId"];
+const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "outsideCourse", "linkUrl", "evidenceForm", "recordNames", "category", "sortOrder", "signoffTopicId", "firstDueAfterTopicId"];
+// Part 386 (the API's Round 11 section 3): a topic From an outside course is one whose people upload their own
+// certificate in the staff app. Every Topic answers outsideCourse once the API holds it, and the form sends it
+// then, as it does First due after (Step 273).
+const hasOutsideKey = (tp) => !!tp && Object.prototype.hasOwnProperty.call(tp, "outsideCourse");
 const topicFieldOf = (k) => (k === "names" ? "names.en" : TOPIC_FIELDS.indexOf(k) >= 0 ? k : "");
 const topicFormOf = (tp) => ({
   key: (tp && tp.key) || "", en: (tp && tp.names && tp.names.en) || "", es: (tp && tp.names && tp.names.es) || "", fr: (tp && tp.names && tp.names.fr) || "",
@@ -30322,6 +30561,7 @@ const topicFormOf = (tp) => ({
   category: (tp && tp.category) || "", sortOrder: tp && tp.sortOrder != null ? String(tp.sortOrder) : "100", signoffTopicId: tp && tp.signoffTopicId != null ? String(tp.signoffTopicId) : "",
   // Step 273: the topic this one is first due after, or none.
   firstDueAfterTopicId: tp && tp.firstDueAfter && tp.firstDueAfter.topicId != null ? String(tp.firstDueAfter.topicId) : "",
+  outsideCourse: !!(tp && tp.outsideCourse === true),
 });
 
 // One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
@@ -30353,7 +30593,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{tp ? tp.name : tr("Add a topic")}</div>
             {tp && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[topicDocLine(tp), trainingFrequencyWord(tp.frequency)].filter(Boolean).join(" . ")}</div>}
-            {tp && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{tp.safetyCritical && <Bdg l={tr("Safety critical")} c={RD} />}{tp.active === false && <Bdg l={tr("Retired|topic")} c={t.textMut} />}</div>}
+            {tp && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{tp.safetyCritical && <Bdg l={tr("Safety critical")} c={RD} />}{tp.outsideCourse === true && <span data-topic-outside-badge=""><Bdg l={tr("Outside course")} c={BL} /></span>}{tp.active === false && <Bdg l={tr("Retired|topic")} c={t.textMut} />}</div>}
           </div>
           <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
         </div>
@@ -30392,6 +30632,7 @@ function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, 
     {row(tr("When due"), firstDueLine(tp) ? <span data-topic-first-due={tp.firstDueAfter.topicId}>{firstDueLine(tp)}</span> : trainingDueWord(tp.dueRule))}
     {row(tr("Per site"), tp.perSite ? tr("Yes") : tr("No"))}
     {row(tr("Safety critical"), tp.safetyCritical ? tr("Yes") : tr("No"))}
+    {hasOutsideKey(tp) && row(tr("From an outside course"), <span data-topic-outside={tp.outsideCourse === true ? "yes" : "no"}>{tp.outsideCourse === true ? tr("Yes. Staff upload their own certificate in the staff app.") : tr("No")}</span>)}
     {courseLinkOf(tp.linkUrl) && row(tr("Course link"), <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 600 }}>{courseLinkOf(tp.linkUrl)}</a>)}
     {tp.evidenceForm && row(tr("Evidence form"), tp.evidenceForm)}
     {(tp.recordNames || []).length > 0 && row(tr("Names on older records"), tp.recordNames.join("\n"))}
@@ -30421,6 +30662,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
   // one any of the catalog's. Its choice is every active topic but this one, read on its own, since
   // the catalog may be showing the retired ones.
   const firstDueOn = topic ? hasFirstDueKey(topic) : (topics || []).some(hasFirstDueKey);
+  const outsideOn = topic ? hasOutsideKey(topic) : (topics || []).some(hasOutsideKey);
   const [actives, setActives] = useState(null);
   useEffect(() => {
     if (!firstDueOn) return undefined;
@@ -30441,6 +30683,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
       evidenceForm: f.evidenceForm.trim() || null, recordNames: f.recordNames.split("\n").map(x => x.trim()).filter(Boolean),
       ...(categories ? { category: f.category || null, sortOrder: order, signoffTopicId: f.signoffTopicId || null } : {}),
       ...(firstDueOn ? { firstDueAfterTopicId: f.firstDueAfterTopicId || null } : {}),
+      ...(outsideOn ? { outsideCourse: !!f.outsideCourse } : {}),
     };
     try {
       const d = topic
@@ -30485,6 +30728,7 @@ function TopicForm({ af, t, topic, categories = null, topics = [], onCancel, onS
     {firstDueOn && field("firstDueAfterTopicId", tr("First due after"), <Sel t={t} aria-label={tr("First due after")} value={f.firstDueAfterTopicId} onChange={set("firstDueAfterTopicId")} options={[{ v: "", l: tr("None|first due") }].concat(anchorNow.concat(anchors).map(x => ({ v: String(x.id), l: x.name })))} />, tr("With a topic chosen, this one is first due its renewal months after the person first completes that topic, and nobody is asked for it before."))}
     {tick("perSite", tr("Per site"), tr("One record for each site the person works at."))}
     {tick("safetyCritical", tr("Safety critical"), tr("A lesson on this topic needs a trainer to watch a demonstration."))}
+    {outsideOn && tick("outsideCourse", tr("From an outside course"), tr("Staff take this course outside the app and upload their own certificate in the staff app. The record is written at once."))}
     {field("linkUrl", tr("Course link"), <Inp t={t} type="url" value={f.linkUrl} onChange={set("linkUrl")} placeholder="https://" />, tr("An https address for a course taken outside the app. It opens in a new tab."))}
     {field("evidenceForm", tr("Evidence form"), <Inp t={t} value={f.evidenceForm} onChange={set("evidenceForm")} placeholder={tr("e.g. OCSA-FRM-033")} />, tr("A form filed about the person at the site that counts as a record."))}
     {field("recordNames", tr("Names on older records"), <TArea t={t} rows={3} value={f.recordNames} onChange={set("recordNames")} />, tr("One name a line. A record under one of these names counts for this topic."))}
@@ -30760,7 +31004,7 @@ function useTrainingItems(af, userId, on = true) {
 // prints one.
 // Since Step 263 an item whose record carries a certificate opens it: certificateOf gives the record's
 // id, onCertificate opens it.
-function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null }) {
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null, certificateByOf: byOf = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
@@ -30768,6 +31012,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
       <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn && !it.firstDue ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
       {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
+      {certificateOf && byOf && certificateOf(it) && byOf(it) ? <CertificateBy t={t} by={byOf(it)} style={{ marginLeft: 12 }} /> : null}
       {certificateOf && whoOpenedOf && certificateOf(it) && whoOpenedOf(certificateOf(it))}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
       {signoffByOf(it) && <div data-item-covered={signoffByOf(it).topicId || ""} style={{ marginTop: 4 }}>{coveredBy(it)}</div>}
@@ -30799,6 +31044,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
   const step262 = useTrainingLive(af, "sessions");
   const [uploading, setUploading] = useState(false);
   const certificateOf = (it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return rec && recordHasCertificate(rec) ? String(rec.id) : ""; };
+  const certificateByOfItem = (it) => certificateByOf(records.find(r => String(r.id) === String(it.recordId)));
   const openCertificate = (recordId) => openCertificateOf(token, recordId, showToast);
   const idsFor = useCallback((it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return [it.attemptId, rec && rec.attempt_id].filter(Boolean).map(String).filter((x, i, all) => all.indexOf(x) === i); }, [records]);
   const wanted = ((d && d.items) || []).reduce((all, it) => all.concat(idsFor(it)), []).filter((x, i, all) => all.indexOf(x) === i);
@@ -30824,7 +31070,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
         {step262 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}><Btn t={t} v="ghost" data-certificate-upload="" onClick={() => setUploading(true)}>{tr("Upload a certificate")}</Btn></div>}
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} certificateByOf={certificateByOfItem} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
       </div>
     </div>
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
@@ -31055,6 +31301,19 @@ const HR_DOC_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png",
 const HR_DOC_MAX_BYTES = 25 * 1024 * 1024;
 const hrDocFileWhy = (f) => (!f ? "" : HR_DOC_TYPES.indexOf(f.type) < 0 && !/\.(pdf|jpe?g|png|heic|heif|docx?)$/i.test(f.name || "") ? tr("{0} is not a PDF, a JPEG, PNG or HEIC photo, or a Word file.", f.name) : f.size > HR_DOC_MAX_BYTES ? tr("{0} is over 25 MB.", f.name) : "");
 const recordHasCertificate = (r) => !!(r && (r.certificate_path || r.certificatePath || r.certificate === true));
+// Who filed a record's certificate (part 386, the API's Round 11 section 3): "person" when the staff member
+// uploaded it from an outside course in the staff app, "office" when the office filed it, read from a record
+// view's certificateBy or a training_records row's uploaded_by_person. A row from an API that does not say
+// answers "", so nothing is guessed.
+const certificateByOf = (r) => {
+  if (!r || !recordHasCertificate(r)) return "";
+  if (r.certificateBy === "person" || r.certificateBy === "office") return r.certificateBy;
+  if (r.uploaded_by_person === true) return "person";
+  if (r.uploaded_by_person === false) return "office";
+  return "";
+};
+const CERTIFICATE_BY_WORDS = { person: "Certificate uploaded by the person", office: "Certificate filed by the office" };
+const CertificateBy = ({ t, by, style }) => (by ? <span data-certificate-by={by} style={{ display: "inline-block", fontSize: 11, color: by === "person" ? BL : t.textMut, fontWeight: 600, ...(style || {}) }}>{tr(CERTIFICATE_BY_WORDS[by])}</span> : null);
 const CERTIFICATE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
 // A record's certificate, read with the token and opened in a new tab.

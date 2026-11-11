@@ -369,15 +369,15 @@ Last checked: 2026-10-05
 ## Schedule an inspection (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Inspections**.
-2. Click the **Scheduled** tab. The list shows the newest 50 inspections; **Show more** (**Mostrar más**) shows the next ones.
+2. Click the **Scheduled** tab. The list shows the newest 50 inspections; **Show more** (**Mostrar más**) shows the next ones. Under each site's name, the line says its last safety walk, such as **Last safety walk {0}** (**Último recorrido de seguridad: {0}**), and whether this month's is done: **Safety walk done this month on {0}** (**Recorrido de seguridad hecho este mes el {0}**) or **Safety walk due this month** (**Recorrido de seguridad pendiente este mes**). **Open the inspection** (**Abrir la inspección**) opens the inspection it was walked on.
 3. Click **Schedule Inspection**.
 4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date. Only active supervisors are listed.
-5. **Include the safety walk** (**Incluir el recorrido de seguridad**) is ticked to start: the inspector fills in the safety inspection (OCSA-FRM-015) in the same walk, signs once, and both records are kept. Untick it for an inspection with no safety part, such as one at a site whose safety inspection is done another way this month.
+5. The full safety walk is done once a month at each site. Once the site is picked, **Include the safety walk** (**Incluir el recorrido de seguridad**) is ticked only when the site has had no safety walk this month, and the line under it says **Safety walk due this month** (**Recorrido de seguridad pendiente este mes**) or **Safety walk done this month on {0}** (**Recorrido de seguridad hecho este mes el {0}**). With it ticked, the inspector fills in the safety inspection (OCSA-FRM-015) in the same walk, signs once, and both records are kept. You can still tick it or untick it.
 6. Click **Schedule**.
 If it does not work: a supervisor who has left is not listed. An inspection already held by someone who left shows them with their status until you pick someone else.
 Words people use for this: schedule an inspection, monthly inspection, site inspection, safety walk, one walk, inspection and safety inspection together, programar una inspección.
 Picture: inspections-schedule
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 ## Create an inspection template (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Inspections** (**Inspecciones**).
@@ -398,8 +398,10 @@ Who can do this: admins and supervisors
 3. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), with no count of tasks, since nothing is checked off there.
 4. Change the date to look at another day.
 5. Click **See the checklist** (**Ver la lista de verificación**) under a site to open what was done there on that day, on **Checklist Results** (**Resultados de la lista**).
+6. Today's board is read again every 30 seconds while the page is in view, and on the next read after you come back to its tab.
+If it does not work: a board that cannot be read says so with **Try again** (**Intentar de nuevo**). When a later read fails, **The board did not load again, so it shows the last one read.** (**El tablero no se volvió a cargar, así que muestra el último que se leyó.**) sits above the last board read.
 Picture: live-ops
-Last checked: 2026-10-19
+Last checked: 2026-11-11
 
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -433,14 +435,14 @@ Last checked: 2026-10-07
 Who can do this: admins and supervisors
 1. Click **Reports**.
 2. Find the report and click **Run** (**Ejecutar**). The issue report sits under **Issues** (**Problemas**).
-3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**). In every spreadsheet file the dashboard makes, a cell that would start a formula, one beginning with =, +, - or @, is written with an apostrophe in front, so it opens as the words that were typed.
+3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it with the company's name, address and logo from **Settings** (**Configuración**). A PDF made more than 50 minutes after the report was opened reads the company settings again first, so the logo still shows. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**). In every spreadsheet file the dashboard makes, a cell that would start a formula, one beginning with =, +, - or @, is written with an apostrophe in front, so it opens as the words that were typed.
 4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A built-in report reads **Template** (**Plantilla**) and is changed by duplicating it. To take a report off the list, see Remove a report you no longer need.
 5. **Supply Usage and Cost** (**Uso y costo de suministros**) shows the estimated cost, and puts the supplies in order of cost, for admins only. Anyone else reads the quantities and the events, with the supplies in name order, on screen and in the PDF.
-If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again.
+If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again. A trend needs two periods that hold a value; with fewer it says so in place of its line, such as **Not enough resolved data to chart a trend yet.** (**Todavía no hay suficientes datos resueltos para trazar una tendencia.**)
 Words people use for this: hours worked, labor report, payroll numbers, export data, who worked when, csv, spreadsheet.
 Picture: reports-library
 Picture: reports-issue-report
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
@@ -749,11 +751,11 @@ Last checked: 2026-09-30
 ## Continue an unfinished form (admin dashboard)
 Who can do this: the person who started it
 1. Closing a form window part way asks whether to leave. **Keep filling** (**Seguir llenando**) stays; **Leave** (**Salir**) saves first and closes.
-2. To pick it up again, click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), **Unfinished** (**Sin terminar**), and **Continue** (**Continuar**) on the row.
+2. To pick it up again, click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), **Unfinished** (**Sin terminar**), and **Continue** (**Continuar**) on the row. The tab counts the unfinished forms, such as **Filed forms ({0})** (**Formularios presentados ({0})**); it reads 50+ when there may be more than the 50 it read, and **Show more** (**Mostrar más**) under the list shows the next ones.
 3. The window opens with every saved answer in place.
 Words people use for this: finish a form later, resume a draft, continue a form, unfinished form, draft.
 Picture: unfinished-forms
-Last checked: 2026-09-28
+Last checked: 2026-11-11
 
 ## Make a customer link and print its QR code (admin dashboard)
 Who can do this: admins who can change settings. Supervisors do not see Customer links.
@@ -966,11 +968,11 @@ Who can do this: anyone who can see reports
 2. Under **Client reports** (**Informes para clientes**), click **Open** (**Abrir**) on **Client ratings** (**Calificaciones de los clientes**).
 3. Pick the dates at the top. The report starts on the last 90 days.
 4. To see one site, pick it in the site list. **All sites** (**Todos los sitios**) shows every site together.
-5. Each site shows its **Overall** (**General**) out of 10, its **Responses** (**Respuestas**), **Each question** (**Cada pregunta**), **Overall by month** (**General por mes**) and **Comments** (**Comentarios**). A month with no response is named in orange. Surveys rated 1 to 5 before September 29 are counted doubled, and the line under the title says so.
+5. Each site shows its **Overall** (**General**) out of 10, its **Responses** (**Respuestas**), **Each question** (**Cada pregunta**), **Overall by month** (**General por mes**) and **Comments** (**Comentarios**). A month with no response is named in orange. With fewer than two months that hold a response, **Overall by month** (**General por mes**) reads **Too few months with a response to draw a line yet.** (**Todavía hay muy pocos meses con respuestas para trazar una línea.**) Surveys rated 1 to 5 before September 29 are counted doubled, and the line under the title says so.
 6. Click **Export PDF** (**Exportar PDF**) or **Export CSV** (**Exportar CSV**) to keep a copy.
 Words people use for this: client ratings, customer satisfaction score, how is the client rating us, survey results by site, rating out of 10, calificaciones de los clientes.
 Picture: client-ratings
-Last checked: 2026-09-29
+Last checked: 2026-11-11
 
 ## Make and send the monthly report to a client (admin dashboard)
 Who can do this: anyone who can see reports prepares it; an admin who did not prepare it signs Reviewed by
@@ -1501,10 +1503,11 @@ Who can do this: admins, and supervisors given Cases
 7. Click **Open a case** (**Abrir un caso**).
 8. To warn the person later, open the case and click **Issue a warning** (**Emitir una advertencia**).
 9. To start a case from a filed report or an incident report, open the report under **Forms** (**Formularios**) and click **Open a case** (**Abrir un caso**) in it. **What happened** (**Qué pasó**) starts with a line naming the report, the window says **The filed report is linked to this case.** (**El reporte presentado queda vinculado a este caso.**), and the report then says **Case opened.** (**Caso abierto.**) When the report cannot go with the case, the window says so in red under that line, with **Open it without the report** (**Abrirlo sin el reporte**). Click it: the line then reads **The case will be opened without the report.** (**El caso se abrirá sin el reporte.**), and **Open a case** (**Abrir un caso**) opens it with the rest of what you filled in.
+If it does not work: a list of cases that cannot be read says **This did not load.** (**Esto no se cargó.**), or the system's own words, with **Try again** (**Intentar de nuevo**), never an empty list. A list the system refuses you shows its reason in the list's place.
 Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, case from an incident report, abrir un caso.
 Picture: case-open-window
 Picture: case-from-report
-Last checked: 2026-10-19
+Last checked: 2026-11-11
 
 ## Add an old form's warning to the record (admin dashboard)
 Who can do this: admins
@@ -2025,13 +2028,13 @@ Who can do this: admins and supervisors read it; admins add, edit, retire and re
 3. To add one, click **Add a topic** (**Agregar un tema**). Type the **Key** (**Clave**) in lowercase letters, numbers and underscores; it never changes. Type the **Name in English** (**Nombre en inglés**), the **Name in Spanish** (**Nombre en español**) and the **Name in French** (**Nombre en francés**), the **Document** (**Documento**) and the **Section** (**Sección**), and pick **How often** (**Con qué frecuencia**) and **When due** (**Cuándo se requiere**).
 4. Pick the **Category** (**Categoría**) staff find it under, or **None** (**Ninguna**), and type its **Order** (**Orden**) inside the category, a whole number from 0 to 9999 with the lowest first. Under **Signed off by checklist** (**Firmado con la lista de verificación**), pick the topic whose observation checklist signs this one off, or **None** (**Ninguna**); only a topic with such a checklist live is offered.
 5. For a refresher, such as a yearly safety refresher first due twelve months after a person's first safety training, pick that training under **First due after** (**Vence por primera vez después de**), or leave **None** (**Ninguno**). The topic is then first due its renewal months after the person first completes the training picked, and nobody is asked for it before. Its **When due** (**Cuándo se requiere**) reads first due so many months after that training, and a person coming due reads the day it is first due in **Gaps** (**Brechas**) and **Matrix** (**Matriz**).
-6. Tick **Per site** (**Por sitio**) when each site a person works at needs its own record, and **Safety critical** (**Crítico para la seguridad**) for a safety topic. A **Course link** (**Enlace del curso**) is the https address of a course taken outside the app, which opens in a new tab. Under **Names on older records** (**Nombres en registros anteriores**), list the names older records were saved under, one a line, so they count for the topic. Click **Add the topic** (**Agregar el tema**).
+6. Tick **Per site** (**Por sitio**) when each site a person works at needs its own record, and **Safety critical** (**Crítico para la seguridad**) for a safety topic. Tick **From an outside course** (**De un curso externo**) when staff take the course outside the app and upload their own certificate in the staff app; the topic then reads **Outside course** (**Curso externo**) in the catalog and on its page, where **From an outside course** (**De un curso externo**) says **Yes. Staff upload their own certificate in the staff app.** (**Sí. El personal sube su propio certificado en la aplicación del personal.**) A **Course link** (**Enlace del curso**) is the https address of a course taken outside the app, which opens in a new tab. Under **Names on older records** (**Nombres en registros anteriores**), list the names older records were saved under, one a line, so they count for the topic. Click **Add the topic** (**Agregar el tema**).
 7. To change one, click it, then **Edit** (**Editar**), and **Save** (**Guardar**). **Retire** (**Dar de baja**) stops asking anyone for the topic; **Restore** (**Restaurar**) brings it back.
-If it does not work: a refusal is shown under the field it names, such as a key another topic already uses, a checklist topic that has no observation checklist, or a topic that cannot be first due after the one picked, such as one taken at each site or one that does not renew. The catalog shows once the system answers it, and the categories once the system answers them; until then the topics are one list. **First due after** (**Vence por primera vez después de**) shows once the system answers it.
-Words people use for this: training catalog, required trainings, training topics, add a training topic, course link, mandated training, training category, catálogo de capacitación.
+If it does not work: a refusal is shown under the field it names, such as a key another topic already uses, a checklist topic that has no observation checklist, or a topic that cannot be first due after the one picked, such as one taken at each site or one that does not renew. The catalog shows once the system answers it, and the categories once the system answers them; until then the topics are one list. **First due after** (**Vence por primera vez después de**) and **From an outside course** (**De un curso externo**) show once the system answers them.
+Words people use for this: training catalog, required trainings, training topics, add a training topic, course link, mandated training, training category, outside course, mandated reporter training, catálogo de capacitación.
 Picture: training-catalog
 Picture: training-topic-add
-Last checked: 2026-10-06
+Last checked: 2026-11-11
 
 ## Say who needs a training topic (admin dashboard)
 Who can do this: admins
@@ -2125,10 +2128,12 @@ Who can do this: admins and supervisors
 3. Pick the **Topic** (**Tema**). For a topic taken at each site, a **Site** (**Sitio**) field appears under it: pick the site this certificate counts for, the person's own sites first. Fill in the **Completed Date** (**Fecha de finalización**). Leave the **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) empty to have it set by how often the topic is taken.
 4. Choose the certificate, a PDF, JPEG or PNG up to 10 MB.
 5. Click **Upload** (**Subir**). The training record is saved with the certificate on file, and **Open the certificate** (**Abrir el certificado**) shows beside it in the person's list and in **Records** (**Registros**).
+6. Each certificate says who filed it, in **Records** (**Registros**) under the training's name and in the person's list: **Certificate filed by the office** (**Certificado archivado por la oficina**) for one uploaded here, and **Certificate uploaded by the person** (**Certificado subido por la persona**) for one the staff member uploaded in the staff app for a topic from an outside course. A wrong one is taken off with **Remove from this list** (**Quitar de esta lista**) in **Records** (**Registros**).
 If it does not work: a file of another kind, or one over 10 MB, is refused under the file. A topic taken at each site cannot be uploaded until its site is picked, and the system refuses one sent without it under **Site** (**Sitio**). The button shows once the system answers it.
-Words people use for this: upload a certificate, outside course, external training, certificate on file, proof of training, subir certificado.
+Words people use for this: upload a certificate, outside course, external training, certificate on file, proof of training, who uploaded the certificate, staff uploaded certificate, subir certificado.
 Picture: training-certificate-upload
-Last checked: 2026-10-20
+Picture: training-certificate-by
+Last checked: 2026-11-11
 
 ## See who signed a document, and say who must sign it (admin dashboard)
 Who can do this: admins and supervisors read it; admins change who must sign
@@ -2538,14 +2543,14 @@ Who can do this: anyone signed in
 1. Click your name at the top right, then **My alerts** (**Mis alertas**). On a phone, it is under **More** (**Más**).
 2. Under **Alerts on this computer** (**Alertas en esta computadora**), click **Turn on alerts on this computer** (**Activar las alertas en esta computadora**).
 3. The browser asks once whether the dashboard may show alerts. Allow it.
-4. Each notice now shows as an alert on this computer, even when the dashboard is closed. Click an alert to open the dashboard on what it is about, the place the bell opens.
+4. Each notice now shows as an alert on this computer, even when the dashboard is closed. Click an alert to open the dashboard on what it is about, the place the bell opens. Clicking it marks its notice read on the bell, as clicking the notice there does.
 5. To stop them, open **My alerts** (**Mis alertas**) again and click **Turn off** (**Desactivar**).
 6. Signing out turns this computer's alerts off, so the next person at a shared computer never gets yours. So does a session that ends by itself, and a sign-in that cannot move this computer's alerts to the person signing in. Turn them on again here.
 7. An alert clicked while you are signed out opens what it is about once you sign in.
 If it does not work: **This browser blocks alerts from the dashboard. Allow them in the browser's site settings, then try again.** (**Este navegador bloquea las alertas del panel. Permítalas en la configuración del sitio del navegador y vuelva a intentarlo.**) means the browser was told no; allow notifications for the dashboard in the browser's site settings. **This browser cannot show alerts.** (**Este navegador no puede mostrar alertas.**) means the browser has no alerts at all. The switches in My alerts decide which notices alert, here and on your phone.
 Words people use for this: desktop notifications, computer alerts, push notifications, alerts on my laptop, browser notifications, alertas en la computadora.
 Picture: computer-alerts
-Last checked: 2026-10-20
+Last checked: 2026-11-11
 
 ## Cover a shift when someone is off (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
@@ -2666,11 +2671,11 @@ Who can do this: admins and supervisors
 8. Today is read again every 30 seconds while the page is open. A past day does not change. Today starts at the time the company's checklist day starts, 4:00 AM unless the company set another, so early in the morning Today can still be yesterday's checklist day. The address keeps the site, the days and the shift, so a view can be bookmarked or sent.
 9. Other ways in: **See the checklist** (**Ver la lista de verificación**) under each site on **Live Ops** (**Operaciones en vivo**), for the day shown there; **Checklist history** (**Historial de la lista de verificación**) on a site's page, with yesterday picked; and the **Checklist Results** (**Resultados de la lista**) card under **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
 10. To print the record on the approved form for the binder, see the entry on printing a site's zone cleaning checklists. To print this page as a report, see the entry on printing a checklist report.
-If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there.
+If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there. A site whose days had no steps due, such as one with no daily steps, draws no line and reads **No steps due these days** (**No hay pasos pendientes en estos días**), on its card and over several days; a line needs two days that had steps due.
 Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-11-10
+Last checked: 2026-11-11
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors
@@ -2883,29 +2888,29 @@ Who can do this: admins and supervisors, for the warnings they may issue
 1. A warning saved with **Save as draft** (**Guardar como borrador**) is not issued yet. On **Discipline** (**Disciplina**) it reads **Draft, not issued** (**Borrador, no emitida**).
 2. To carry it on, click **Issue a warning** (**Emitir una advertencia**) on **Discipline** (**Disciplina**), pick the person and click **Next** (**Siguiente**). For someone with a draft, the window says so and offers **Continue the draft from {0}** (**Continuar el borrador del {0}**), with the draft's day, beside **Start a new warning** (**Empezar una advertencia nueva**).
 3. On the person's **Disciplinary** (**Disciplinario**) card in **HR Records** (**Expedientes de personal**), **Continue the draft from {0}** (**Continuar el borrador del {0}**) sits beside **Issue a warning** (**Emitir una advertencia**). Clicking the draft's row on either list opens it too.
-4. The window reads **Loading...** (**Cargando...**) until the draft is read, then shows it as it was saved. When it cannot be read, it says **This draft did not load. Close it and open it again.** (**Este borrador no se cargó. Ciérrelo y ábralo de nuevo.**) and **Save as draft** (**Guardar como borrador**) stays off, so nothing can be saved over the draft.
+4. The window reads **Loading...** (**Cargando...**) until the draft is read, then shows it as it was saved. Under the person's name it says when the warning was **Started {0}** (**Iniciada el {0}**) and **Last saved {0}** (**Guardada por última vez el {0}**); **Continue the draft from {0}** (**Continuar el borrador del {0}**) names the day it was last saved. An issued warning's window says when it was started too. When it cannot be read, it says **This draft did not load. Close it and open it again.** (**Este borrador no se cargó. Ciérrelo y ábralo de nuevo.**) and **Save as draft** (**Guardar como borrador**) stays off, so nothing can be saved over the draft.
 5. A grey **Save as draft** (**Guardar como borrador**) lists under it what is still needed after **Still needed: {0}** (**Todavía falta: {0}**). A grey **Issue** (**Emitir**) says **Sign as the issuer first.** (**Primero firme como quien emite la advertencia.**)
 6. Closing the window with typing not saved asks **Close without saving?** (**¿Cerrar sin guardar?**). **Keep editing** (**Seguir editando**) goes back to it; **Close** (**Cerrar**) closes it, and the draft stays as it was last saved.
 If it does not work: a draft that did not load opens again from its row once the connection is back. To keep what you typed, click **Save as draft** (**Guardar como borrador**) before closing.
 Words people use for this: continue a draft, finish a warning, saved warning, draft warning, warning not issued, unsaved warning, close without saving, borrador.
 Picture: warning-continue-draft
 Picture: warning-still-needed
-Last checked: 2026-11-09
+Last checked: 2026-11-11
 
 ## Read the Health page (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
-2. **Numbers** (**Indicadores**) shows the 20 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
+2. **Numbers** (**Indicadores**) shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
 3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors.
 4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
-5. **Run-throughs** (**Recorridos de prueba**) lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
+5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
 6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
 7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
 If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
 Words people use for this: health page, platform health, is the app working, status page, run-throughs, the robot, incidents, red alert, daily numbers, salud.
 Picture: health-numbers
 Picture: health-run
-Last checked: 2026-11-10
+Last checked: 2026-11-11
 
 ## Make a health report (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
@@ -2924,10 +2929,11 @@ Who can do this: the super admin, and anyone the super admin has given the Healt
 2. Under **Who gets the morning email and the red alerts** (**Quién recibe el correo de la mañana y las alertas en rojo**), the list says who gets them. With nobody set it reads **Nobody is set, so the super admins get them.** (**No hay nadie indicado, así que los reciben los superadministradores.**)
 3. Pick someone in **Add a person** (**Agregar una persona**) and click **Add** (**Agregar**), or type an address in **Add an email address** (**Agregar un correo**) and click **Add** (**Agregar**). **Remove** (**Quitar**) takes one off. Click **Save the list** (**Guardar la lista**).
 4. Under **Each number's yellow and red lines** (**Las líneas amarilla y roja de cada indicador**), each number shows its **Yellow at** (**Amarillo en**) and **Red at** (**Rojo en**) lines, with its **Default** (**Predeterminado**) beside them. Type a new line, or leave a box empty for a line that is never crossed, and click **Save the lines** (**Guardar las líneas**). Check-offs and shifts started are typed as a percent of the week before.
-If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line.
+5. The days left on the robot's sign-in count down, so its row says **Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.** (**Menos es peor. Pasa a amarillo en la línea amarilla o por debajo y a rojo en la línea roja o por debajo, que va en la amarilla o por debajo.**) Its lines are typed in days, 5 and 1 by default.
+If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line, except for the robot's sign-in, where it is at or under it: **For {0}, fewer is worse, so the red line is at or under the yellow line.** (**En {0}, menos es peor, así que la línea roja va en la amarilla o por debajo.**)
 Words people use for this: health alerts, morning email, who gets the alerts, red alert, thresholds, alert lines, change the limits, alertas de salud.
 Picture: health-settings
-Last checked: 2026-11-10
+Last checked: 2026-11-11
 
 ## Set a site's shifts (admin dashboard)
 Who can do this: people who manage sites change them; anyone who can see the site can read them
@@ -2974,3 +2980,36 @@ Who can do this: anyone who can see the sites
 Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
 Picture: sites-test-site
 Last checked: 2026-11-10
+
+## Renew the robot's sign-in (admin dashboard)
+Who can do this: the super admin renews it; anyone given the Health page can read it
+1. Click **Health** (**Salud**), then **Run-throughs** (**Recorridos de prueba**).
+2. **The robot's sign-in** (**El inicio de sesión del robot**) lists each test account the robot signs in as, in plain words, such as **{0}'s sign-in on the robot ends in {1} days** (**El inicio de sesión de {0} en el robot termina en {1} días**), with the day it is **Trusted until {0}** (**De confianza hasta el {0}**). It turns yellow at 5 days left or fewer and red at 1 day or fewer, the lines of its number on **Numbers** (**Indicadores**).
+3. As the super admin, on a computer where you signed in with your own sign-in code, click **Renew** (**Renovar**) beside the account. Its device is trusted for another 30 days, and the line says **Renewed. {0}'s sign-in on the robot now ends on {1}.** (**Renovado. El inicio de sesión de {0} en el robot ahora termina el {1}.**)
+4. The people who get the health alerts are emailed 5 days before it ends, 1 day before, and on the day it ends. When it ends, the run-throughs that sign in as that account stop at the sign-in code and fail.
+If it does not work: **Sign in with your own sign-in code on this device first, then try again.** (**Primero inicie sesión con su propio código de inicio de sesión en este dispositivo y vuelva a intentarlo.**) means this computer is not trusted for your own account: sign out, sign in again and type the code that is emailed to you. Anyone but the super admin reads **Only the super admin can renew it.** (**Solo el superadministrador puede renovarlo.**)
+Words people use for this: robot sign-in, robot code, trusted device, renew the robot, run-throughs fail at sign-in, test supervisor sign-in, days left, renovar.
+Picture: health-robot-sign-in
+Last checked: 2026-11-11
+
+## Change the company logo (admin dashboard)
+Who can do this: admins, and anyone who holds the settings permission
+1. Click **Settings** (**Configuración**), then **Company** (**Empresa**).
+2. Under **Branding** (**Marca**), the **Logo** (**Logotipo**) shows the one on file. Click **Upload Logo** (**Subir logotipo**) and pick an image under 10 MB. The page says **Logo uploaded. Click Save to keep it.** (**Logotipo subido. Haga clic en Guardar para conservarlo.**)
+3. Click **Save Company Settings** (**Guardar la configuración de la empresa**). The logo prints on report PDFs, warnings and the health reports.
+4. The logo is kept privately and handed out as a link that works for an hour. When the page has been open longer and the logo no longer shows, the page reads the settings again and shows it. A report PDF made after that reads them again first.
+If it does not work: a file that is not an image, or one over 10 MB, is refused before it is sent. A supervisor reads the company's name, address, colors and logo on prints, and never opens this tab.
+Words people use for this: company logo, change the logo, upload logo, branding, letterhead, logo missing on the pdf, logotipo.
+Picture: settings-company-logo
+Last checked: 2026-11-11
+
+## Drop the safety walk from an inspection (admin dashboard)
+Who can do this: admins and supervisors, who schedule inspections
+1. Click **Inspections**, then the **Scheduled** tab, and open an inspection that is not done yet.
+2. **This site's last safety walk** (**El último recorrido de seguridad de este sitio**) says when the site was last walked and whether this month's walk is done. A site's own page under **Sites** (**Sitios**) says the same under its numbers.
+3. The full safety walk is done once a month at each site. When this month's walk was done on another inspection and this one still carries its own, the page says so: click **Drop the safety walk** (**Quitar el recorrido de seguridad**) and confirm.
+4. The inspection's **Safety walk** (**Recorrido de seguridad**) then reads **Not included** (**No incluido**), and any unfinished safety walk on it is set aside. The inspector walks the cards alone.
+If it does not work: **This site's safety walk is not done this month on another inspection, so this inspection keeps its own.** (**El recorrido de seguridad de este sitio no se ha hecho este mes en otra inspección, así que esta inspección conserva el suyo.**) means this month's walk is not on record on another inspection, so this one keeps it. A completed inspection keeps what it held, and **Drop the safety walk** (**Quitar el recorrido de seguridad**) is not offered there.
+Words people use for this: drop the safety walk, skip the safety walk, safety walk already done this month, monthly safety walk, one safety walk a month, frm-015 once a month, quitar el recorrido de seguridad.
+Picture: inspection-drop-safety
+Last checked: 2026-11-11

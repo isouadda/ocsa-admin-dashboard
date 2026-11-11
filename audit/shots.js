@@ -667,14 +667,15 @@ const SHOTS = [
       await wait(400); await press(c, "Add Supply"); await until(c, MODAL);
       await inModal(c).locator("input").first().fill(c.lang === "es" ? "Limpiador de acero inoxidable" : "Stainless steel cleaner");
     } },
-  { name: "inspections-schedule", entry: "Schedule an inspection",
+  { name: "inspections-schedule", entry: "Schedule an inspection", arm: (stubs, on) => stubs.setStep312(on),
     open: "inspections", ready: SHELL,
     act: async (c) => {
       await wait(400); await press(c, "Scheduled|inspections"); await press(c, "Schedule Inspection"); await until(c, MODAL);
       await choose(c, "Monthly quality walk"); await choose(c, seed.SITES[1].name); await choose(c, "Marcus Ferreira");
       await inModal(c).locator("input[type=date]").first().fill(seed.shift(7));
+      await until(c, "[data-schedule-walk-line]");
       await blur(c);
-      await show(c, "[data-schedule-with-safety]");
+      await show(c, "[data-schedule-walk-line]");
     } },
   { name: "inspections-new-template", entry: "Create an inspection template",
     open: "inspections", ready: SHELL,
@@ -1735,7 +1736,9 @@ const SHOTS = [
   // report's first page.
   { name: "checklist-results-day", entry: "See what was done at a site on any day", arm: (stubs, on) => stubs.setChecklist358(on),
     open: "checklist/s-1/" + seed.shift(-1), ready: "[data-cr-group] .apexcharts-canvas", act: async () => { await wait(900); } },
-  { name: "checklist-results-all-sites", entry: "See what was done at a site on any day", arm: (stubs, on) => stubs.setChecklist358(on),
+  // Since part 386 the second site's days have no steps due (audit/part386-stub.js, noSteps), so its card reads
+  // No steps due these days in place of its line.
+  { name: "checklist-results-all-sites", entry: "See what was done at a site on any day", arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene386({ noSteps: on ? seed.SITES[1].id : null }); },
     open: "checklist/all/yesterday", ready: "[data-cr-site-card] .apexcharts-canvas", act: async () => { await wait(900); } },
   { name: "checklist-results-range", entry: "Print a checklist report", arm: (stubs, on) => stubs.setChecklist358(on),
     open: "checklist/s-1/" + seed.shift(-7) + ".." + seed.shift(-1), ready: "[data-cr-range-chart] .apexcharts-series", act: async () => { await wait(900); } },
@@ -1887,6 +1890,25 @@ const SHOTS = [
   // testSite).
   { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
     open: "sites", ready: "[data-site-test]" },
+  // Part 386, section 2: HR Records' training records, the certificate on ht-5 uploaded by the person from an
+  // outside course (audit/part386-stub.js).
+  { name: "training-certificate-by", entry: "Upload a training certificate from an outside course",
+    open: "hr/training", ready: "[data-training-record='ht-5'] [data-certificate-by]",
+    act: async (c) => { await show(c, "[data-training-record='ht-5']"); await wait(300); } },
+  // Part 386, section 3: Settings, Company, with a logo stored and answered as a link signed for an hour
+  // (audit/part386-stub.js, logo).
+  { name: "settings-company-logo", entry: "Change the company logo", arm: (stubs, on) => stubs.setScene386({ logo: on }),
+    open: "settings", ready: SHELL,
+    act: async (c) => { await click(c, '[data-settings-tab="company"]'); await until(c, "[data-settings-logo]"); await show(c, "[data-settings-logo]"); await wait(300); } },
+  // Part 386, section 4: an open inspection at the first site, whose walk this month was done on insp-4, with
+  // Drop the safety walk (audit/part386-stub.js over Step 312's walk).
+  { name: "inspection-drop-safety", entry: "Drop the safety walk from an inspection", arm: (stubs, on) => stubs.setStep312(on),
+    open: "inspections/si-1", ready: "[data-drop-safety]",
+    act: async (c) => { await show(c, "[data-inspection-last-walk]"); await wait(300); } },
+  // Part 386, section 1: the robot's sign-in on the Run-throughs tab, as the super admin, against
+  // audit/part386-stub.js: Test Supervisor's device with 4 days left and Renew.
+  { name: "health-robot-sign-in", entry: "Renew the robot's sign-in", as: "superAdmin",
+    open: "health/runs", ready: "[data-health-robot-device]" },
 ];
 
 
