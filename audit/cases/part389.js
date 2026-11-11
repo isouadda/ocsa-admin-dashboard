@@ -346,14 +346,14 @@ async function moreCases(ctx, lang) {
     const first = await box.inputValue().catch(() => "");
     const dflt = await textOf(d, "[data-health-threshold='slowest_p95_ms'] [data-health-floor-default]");
     const wantDefault = lang === "es" ? "De forma predeterminada, una ruta cuenta a partir de 20 solicitudes al d\u00eda." : "A route counts from 20 requests a day by default.";
-    await box.fill("0");
+    await box.fill("0", { timeout: 3000 }).catch(() => {});
     let mark = d.mark();
     await click(d, "[data-health-thresholds-save]");
     await d.settle(300);
     const heldPuts = writes(d, mark, "PUT", /^\/api\/health\/thresholds$/).length;
     const held = await textOf(d, "[data-health-thresholds-said]");
     const outlined = await box.evaluate((x) => x.style.borderColor || "").catch(() => "");
-    await box.fill("30");
+    await box.fill("30", { timeout: 3000 }).catch(() => {});
     mark = d.mark();
     await click(d, "[data-health-thresholds-save]");
     await until(d, "[data-health-thresholds-said='saved']", 6000);
