@@ -1736,7 +1736,9 @@ const SHOTS = [
   // report's first page.
   { name: "checklist-results-day", entry: "See what was done at a site on any day", arm: (stubs, on) => stubs.setChecklist358(on),
     open: "checklist/s-1/" + seed.shift(-1), ready: "[data-cr-group] .apexcharts-canvas", act: async () => { await wait(900); } },
-  { name: "checklist-results-all-sites", entry: "See what was done at a site on any day", arm: (stubs, on) => stubs.setChecklist358(on),
+  // Since part 386 the second site's days have no steps due (audit/part386-stub.js, noSteps), so its card reads
+  // No steps due these days in place of its line.
+  { name: "checklist-results-all-sites", entry: "See what was done at a site on any day", arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene386({ noSteps: on ? seed.SITES[1].id : null }); },
     open: "checklist/all/yesterday", ready: "[data-cr-site-card] .apexcharts-canvas", act: async () => { await wait(900); } },
   { name: "checklist-results-range", entry: "Print a checklist report", arm: (stubs, on) => stubs.setChecklist358(on),
     open: "checklist/s-1/" + seed.shift(-7) + ".." + seed.shift(-1), ready: "[data-cr-range-chart] .apexcharts-series", act: async () => { await wait(900); } },

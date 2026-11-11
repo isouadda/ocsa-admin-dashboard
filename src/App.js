@@ -788,7 +788,14 @@ const BarChartW = ({ categories, values, colors, horizontal = false, height = 26
 // alone between two gaps still draws. A chart that passes neither is drawn as it always was.
 // Part 358: onPick(i) is called with the point a person clicks, which needs dots; spark draws a small
 // trend with no value axis and no grid.
+// A line has something to draw only when at least two of its points hold a value (part 386). ApexCharts throws an
+// uncaught "parser Error" on a line drawn from nulls alone, which the robot met on Checklist Results at a site
+// whose days had no steps due, and one point draws no line. Every caller whose points can be null (a percent of
+// nothing due, an average of nothing) asks this first and says why in words; the wrapper holds to it as well.
+const valuedPoints = (series) => Math.max(0, ...(series || []).map(x => (x && Array.isArray(x.data) ? x.data.filter(v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))).length : 0)));
+const lineDrawable = (series) => valuedPoints(series) >= 2;
 const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false, onPick, spark = false }) => {
+  if (!lineDrawable(series)) return <div data-chart-empty="" style={{ height: Math.min(height, 40) }} />;
   const o = chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, ...(dots ? { markers: { size: 4, strokeWidth: 0 } } : {}), xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: Object.assign({ labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } }, yMax ? { min: 0, max: yMax, tickAmount: 5 } : {}) });
   if (onPick) o.chart = Object.assign({}, o.chart, { events: { markerClick: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
   if (spark) { o.yaxis = Object.assign({}, o.yaxis, { labels: Object.assign({}, o.yaxis.labels, { show: false }) }); o.grid = Object.assign({}, o.grid, { show: false }); }
@@ -5731,7 +5738,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
                 : <>
                   <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
                   <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks)}</div>
-                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div><LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /></div> : null}
+                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div>{lineDrawable([{ data: c.trend.map(p => p.pct) }]) ? <LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /> : <div data-cr-no-steps={String(c.s.id)} style={{ fontSize: 12, color: t.textMut, padding: "10px 0" }}>{tr("No steps due these days")}</div>}</div> : null}
                 </>}
             <div style={{ marginTop: "auto" }}><Btn t={t} v="ghost" data-cr-open-site={String(c.s.id)} onClick={e => { e.stopPropagation(); go(String(c.s.id), period.token, ""); }} style={{ width: "100%" }}>{tr("Open this site")}</Btn></div>
           </div>
@@ -5787,7 +5794,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
         </Crd>); })}
       </div>
       <ChartCard t={t} title={tr("Done each day")} sub={tr("Each shift's share of steps done. Click a day to open it.")}>
-        <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} /></div>
+        {lineDrawable(series) ? <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} /></div>
+          : <div data-cr-no-steps={String(siteId)} style={{ fontSize: 13, color: t.textMut, padding: "16px 2px" }}>{tr("No steps due these days")}</div>}
       </ChartCard>
       <div style={{ marginTop: 14 }}><DataTable t={t} columns={cols} rows={days} rowKey={d => d.date} onRowClick={d => go(siteId, d.date, pickOk ? shiftPick : "")} /></div>
     </div>);
@@ -11904,7 +11912,7 @@ const IssueTrendWidget = ({ timing, t }) => {
   const hasData = series.some(s => s.data.some(v => v !== null && v !== undefined));
   return (
     <ChartCard t={t} title={tr("Resolution and response trend")} sub={tr("Median hours per {0}", bucketWord(timing && timing.bucket))}>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO, BL]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GO, BL]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart a trend yet.")}</div>}
     </ChartCard>
   );
@@ -11947,7 +11955,7 @@ const SlaComplianceTrendWidget = ({ timing, t }) => {
         <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: totalBreaches > 0 ? RD : GR }}>{totalBreaches}</span>
         <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>{trn("SLA breaches in range|count", totalBreaches)}</span>
       </div>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart compliance yet.")}</div>}
     </ChartCard>
   );
@@ -12173,7 +12181,7 @@ const SupplyCostTrendWidget = ({ data, t }) => {
   const hasData = trend.some(b => b.estimated_cost > 0);
   return (
     <ChartCard t={t} title={tr("Estimated cost trend")} sub={tr("Estimated supply cost per {0}", bucketWord(data && data.bucket))}>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No supply usage in this range yet.")}</div>}
     </ChartCard>
   );
@@ -12361,7 +12369,7 @@ const InspectionScoreTrendWidget = ({ rows, t }) => {
   const hasData = series[0].data.some(v => v !== null);
   return (
     <ChartCard t={t} title={tr("Inspection score trend")} sub={tr("Average score percent over time")}>
-      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
+      {cats.length && hasData && lineDrawable(series) ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
         <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No completed inspections in this range yet.")}</div>}
     </ChartCard>
   );
@@ -12630,7 +12638,7 @@ function ClientRatingsReport({ af, t, sites, settings, freshSettings = null, sho
       </>}
       {months.length > 0 && <>
         <div style={smallHead}>{tr("Overall by month")}</div>
-        <LineChartW t={t} height={220} colors={[GO]} yMax={RATING_TOP} dots categories={months.map(m => ratingMonth(m.month))} series={[{ name: tr("Overall"), data: months.map(m => (Number(m.responses) > 0 ? ratingNumber(m.overall) : null)) }]} />
+        {lineDrawable([{ name: tr("Overall"), data: months.map(m => (Number(m.responses) > 0 ? ratingNumber(m.overall) : null)) }]) ? <LineChartW t={t} height={220} colors={[GO]} yMax={RATING_TOP} dots categories={months.map(m => ratingMonth(m.month))} series={[{ name: tr("Overall"), data: months.map(m => (Number(m.responses) > 0 ? ratingNumber(m.overall) : null)) }]} /> : <div data-ratings-no-line="" style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>{tr("Too few months with a response to draw a line yet.")}</div>}
       </>}
       <div style={smallHead}>{tr("Comments")}</div>
       {comments.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No comments in this range.")}</div>}

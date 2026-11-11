@@ -18,6 +18,9 @@
 //             Inspections list and the site's page, with the inspection it was walked on; Drop the safety walk on
 //             an open inspection whose site's walk is done this month, refused in the API's words; none offered
 //             at a site with no walk this month (a guard)
+//   chart     Checklist Results at a site whose days have no steps due draws no chart on its card or over several
+//             days, says "No steps due these days" in its place, and the page throws no error; a site with steps
+//             due still draws its line (a guard)
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -427,6 +430,48 @@ async function walkCases(ctx, lang) {
   });
 }
 
+// ---- Section 5: a chart that draws nothing --------------------------------------------------------------
+async function chartCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/chart/" + x;
+  const S2 = seed.SITES[1].id;
+  const armed = (s) => { s.setChecklist358(true); s.setScene386({ noSteps: S2 }); };
+
+  // 1. The card of a site whose week has no due steps says so in place of its line, and the page throws nothing.
+  await withDriver(ctx, { name: "card", lang, arm: armed }, async (d) => {
+    await goHash(d, "checklist/all/today");
+    await until(d, "[data-cr-site-card='" + S2 + "']", 8000);
+    await d.settle(1500);
+    const said = await textOf(d, "[data-cr-no-steps='" + S2 + "']");
+    const drawn = await d.page.locator("[data-cr-site-card='" + S2 + "'] .apexcharts-line, [data-cr-site-card='" + S2 + "'] .apexcharts-area-series").count();
+    const errors = d.pageErrors.filter((e) => /parser|apexcharts|Error/i.test(e));
+    results.check(KIND, id("a-site-with-no-steps-due-draws-no-line-and-says-so"), said === d.say("No steps due these days") && drawn === 0 && errors.length === 0,
+      "the card says " + say(said) + " with " + drawn + " line(s) drawn; page errors " + say(errors.slice(0, 3)));
+  });
+
+  // 2. The same site over several days says so in place of the line, and the page throws nothing.
+  await withDriver(ctx, { name: "range", lang, arm: armed }, async (d) => {
+    await goHash(d, "checklist/" + S2 + "/last7");
+    await until(d, "[data-checklist-results]", 8000);
+    await d.settle(1500);
+    const said = await textOf(d, "[data-cr-no-steps='" + S2 + "']");
+    const chart = await has(d, "[data-cr-range-chart]");
+    const errors = d.pageErrors.filter((e) => /parser|apexcharts|Error/i.test(e));
+    results.check(KIND, id("a-site-over-several-days-with-no-steps-due-says-so"), said === d.say("No steps due these days") && !chart && errors.length === 0,
+      "the page says " + say(said) + (chart ? " beside a chart" : "") + "; page errors " + say(errors.slice(0, 3)));
+  });
+
+  // 3. A guard: a site with steps due still draws its line on its card.
+  await withDriver(ctx, { name: "still-drawn", lang, arm: armed }, async (d) => {
+    await goHash(d, "checklist/all/today");
+    await until(d, "[data-cr-site-card='" + seed.SITES[0].id + "'] .apexcharts-canvas", 8000);
+    await d.settle(800);
+    const lines = await d.page.locator("[data-cr-site-card='" + seed.SITES[0].id + "'] .apexcharts-canvas").count();
+    const said = await has(d, "[data-cr-no-steps='" + seed.SITES[0].id + "']");
+    results.check(KIND, id("guard-a-site-with-steps-due-draws-its-line"), lines >= 2 && !said, "the first site's card holds " + lines + " chart(s)" + (said ? " and says no steps are due" : ""));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
@@ -435,6 +480,7 @@ async function run(ctx) {
     if (want("training")) await trainingCases(ctx, lang);
     if (want("warnings")) await warningsCases(ctx, lang);
     if (want("walk")) await walkCases(ctx, lang);
+    if (want("chart")) await chartCases(ctx, lang);
   }
 }
 

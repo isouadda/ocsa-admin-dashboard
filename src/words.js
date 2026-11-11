@@ -5736,6 +5736,8 @@ export const WORDS = {
   "This site's safety walk is not done this month on another inspection, so this inspection keeps its own.": { es: "El recorrido de seguridad de este sitio no se ha hecho este mes en otra inspecci\u00f3n, as\u00ed que esta inspecci\u00f3n conserva el suyo.", fr: "La tourn\u00e9e de s\u00e9curit\u00e9 de ce site n'a pas \u00e9t\u00e9 faite ce mois-ci lors d'une autre inspection, donc cette inspection garde la sienne." },
   "This inspection does not include the safety walk.": { es: "Esta inspecci\u00f3n no incluye el recorrido de seguridad.", fr: "Cette inspection ne comprend pas la tourn\u00e9e de s\u00e9curit\u00e9." },
   "This inspection is completed. Its status and its safety walk cannot be changed.": { es: "Esta inspecci\u00f3n est\u00e1 completada. Su estado y su recorrido de seguridad no se pueden cambiar.", fr: "Cette inspection est termin\u00e9e. Son statut et sa tourn\u00e9e de s\u00e9curit\u00e9 ne peuvent pas \u00eatre modifi\u00e9s." },
+  "No steps due these days": { es: "No hay pasos pendientes en estos d\u00edas", fr: "Aucune \u00e9tape \u00e0 faire ces jours-l\u00e0" },
+  "Too few months with a response to draw a line yet.": { es: "Todav\u00eda hay muy pocos meses con respuestas para trazar una l\u00ednea.", fr: "Trop peu de mois avec une r\u00e9ponse pour tracer une ligne pour l'instant." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

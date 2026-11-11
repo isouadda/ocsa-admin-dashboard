@@ -78,6 +78,12 @@
 //                                         walkGone); else 200 { inspection: { id, withSafety: false },
 //                                         voidedDrafts: 1, lastWalk }
 //
+//   Section 5, a chart that draws nothing (helpers/checklistRecord.js), once the scene noSteps names a site, as a
+//   site with no checklist items at all answers:
+//     GET /api/reports/checklist-summary  that site's days with nothing due: due 0, done 0, checks 0, counted {
+//                                         due: 0, done: 0 }, so every day's percent is null
+//     GET /api/sites/:id/checklist-record that site's days with every item listed, none due and none checked
+//
 // Every value is invented: the test accounts, the devices and the days.
 "use strict";
 
@@ -413,7 +419,28 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 5: a site whose days have no steps due ----------------------------------------------------------
+  function noStepsRoute(method, path, query, body, lang, base) {
+    const site = m().scene.noSteps ? String(m().scene.noSteps) : "";
+    if (!site || method !== "GET") return null;
+    if (path === "/api/reports/checklist-summary") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.sites)) {
+        a.json = Object.assign({}, a.json, { sites: a.json.sites.map((x) => (String(x.siteId) !== site ? x : Object.assign({}, x, { notTracked: false, days: (x.days || []).map((d) => ({ date: d.date, due: 0, done: 0, checks: 0, counted: { due: 0, done: 0 }, shifts: [] })) }))) });
+      }
+      return a;
+    }
+    if (path === "/api/sites/" + site + "/checklist-record") {
+      const a = base();
+      // Its items stay listed, none of them due and none checked, so each day's percent is null.
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.days)) a.json = Object.assign({}, a.json, { days: a.json.days.map((d) => Object.assign({}, d, { items: (d.items || []).map((i) => Object.assign({}, i, { due: false, done: false, checks: [], doneAt: null, doneBy: null })), checks: [], counted: { due: 0, done: 0 }, shifts: [] })) });
+      return a;
+    }
+    return null;
+  }
+
   function route(method, path, query, body, lang, base) {
+    { const n = noStepsRoute(method, path, query, body, lang, base); if (n) return n; }
     if (/^\/api\/inspections\/(safety-walks|scheduled)/.test(path)) { const w = walksRoute(method, path, query, body, lang, base); if (w) return w; }
     if (/^\/api\/discipline(\/|$)/.test(path) && path !== "/api/discipline/steps") return disciplineRoute(method, path, query, body, lang, base);
     if (path === "/api/settings" && (method === "GET" || method === "PATCH")) return settingsRoute(method, path, query, body, lang, base);

@@ -5451,3 +5451,5 @@ The safety walk was dropped. This inspection is the cards alone.,Se quitó el re
 "This site's safety walk is not done this month on another inspection, so this inspection keeps its own.","El recorrido de seguridad de este sitio no se ha hecho este mes en otra inspección, así que esta inspección conserva el suyo.","Inspections, Drop the safety walk refused (inspections.safetyWalkNotDone)"
 This inspection does not include the safety walk.,Esta inspección no incluye el recorrido de seguridad.,"Inspections, Drop the safety walk refused (inspections.noSafetyPart)"
 This inspection is completed. Its status and its safety walk cannot be changed.,Esta inspección está completada. Su estado y su recorrido de seguridad no se pueden cambiar.,"Inspections, Drop the safety walk refused (inspections.completedLocked)"
+No steps due these days,No hay pasos pendientes en estos días,"Checklist Results, a site's card and a site over several days, when no day has steps due"
+Too few months with a response to draw a line yet.,Todavía hay muy pocos meses con respuestas para trazar una línea.,"Reports, client ratings, overall by month"
