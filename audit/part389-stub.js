@@ -47,6 +47,19 @@
 //     GET /api/hr/employee-folder/:id    findingFollowUps: [FollowUp & { finding: { id, title, foundAt,
 //                                         siteName } }], newest first, a conversation with recordKind coaching
 //
+//   Section 2, what else Round 12 gave the dashboard:
+//     GET /api/health/thresholds          the slowest_p95_ms row carries minRequests (the saved one, else 20) and
+//                                         defaults.minRequests 20 (helpers/healthPage.js thresholdsView)
+//     PUT /api/health/thresholds          minRequests on slowest_p95_ms a whole number from 1 to 10,000, kept when
+//                                         a body leaves it out; on any other number, or out of range, 400
+//                                         health.badDetails with its key (readThresholds); the rest goes to the
+//                                         layer under
+//     POST /api/sites/:siteId/tasks, PATCH /api/sites/:siteId/tasks/:taskId
+//                                         400 tasks.badDetails with keys for a priority, taskType, frequency (a
+//                                         create) or service category the table does not take (routes/sites.js
+//                                         taskValueKeys), nothing written: the stub's Urgent priority and Green
+//                                         Buildings category among them
+//
 //   The follow-ups on record: f-2, training on Glass and surface cleaning chosen two days ago (open); f-6, a
 //   conversation chosen five days ago and due two days ago (overdue); f-3, a conversation held, recorded and
 //   confirmed (done). f-1 and f-5 have no owner and no follow-up (needsFollowUp); f-4 was closed with none
@@ -88,6 +101,8 @@ module.exports = (ctx) => {
     "inspections.conversationRecorded": ["This conversation is already recorded", "Esta conversaci\u00f3n ya est\u00e1 registrada"],
     "inspections.badConversation": ["Say when it was held, what was covered and who else was there", "Indique cu\u00e1ndo se tuvo, qu\u00e9 se trat\u00f3 y qui\u00e9n m\u00e1s estuvo"],
     "issues.findingNoTask": ["A finding is followed up with training or a conversation, not a task", "Un hallazgo se atiende con capacitaci\u00f3n o una conversaci\u00f3n, no con una tarea"],
+    "health.badDetails": ["Some details are missing or not valid. Check the fields named and send it again.", "Faltan algunos datos o no son v\u00e1lidos. Revise los campos indicados y env\u00edelo de nuevo."],
+    "tasks.badDetails": ["Some task details are not valid", "Algunos datos de la tarea no son v\u00e1lidos"],
   };
   const refuse = (lang, status, code, extra) => bad(status, code, T(lang, WORDS[code][0], WORDS[code][1]), extra);
 
@@ -326,7 +341,73 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 2: the slowest route's floor, and a task's refusals ---------------------------------------------
+  const FLOOR_KEY = "slowest_p95_ms";
+  const FLOOR_DEFAULT = 20;
+  const withFloor = (a) => {
+    if (!a || a.status !== 200 || !a.json || !Array.isArray(a.json.thresholds)) return a;
+    const floor = m().floor === undefined ? FLOOR_DEFAULT : m().floor;
+    return Object.assign({}, a, { json: Object.assign({}, a.json, { thresholds: a.json.thresholds.map((r) => (r.key !== FLOOR_KEY ? r
+      : Object.assign({}, r, { minRequests: floor, defaults: Object.assign({}, r.defaults || {}, { minRequests: FLOOR_DEFAULT }) }))) }) });
+  };
+  function thresholdsRoute(method, path, query, body, lang, base) {
+    if (method === "GET") return withFloor(base());
+    if (method !== "PUT") return null;
+    const t = body && body.thresholds && typeof body.thresholds === "object" && !Array.isArray(body.thresholds) ? body.thresholds : null;
+    if (!t) return base();
+    const keys = [];
+    let floor;
+    Object.keys(t).forEach((k) => {
+      const v = t[k];
+      if (!v || typeof v !== "object" || Array.isArray(v) || !Object.prototype.hasOwnProperty.call(v, "minRequests")) return;
+      if (k !== FLOOR_KEY) { keys.push("thresholds." + k + ".minRequests"); return; }
+      if (Number.isInteger(v.minRequests) && v.minRequests >= 1 && v.minRequests <= 10000) floor = v.minRequests;
+      else keys.push("thresholds." + k + ".minRequests");
+    });
+    sent("thresholds", body);
+    if (keys.length) return refuse(lang, 400, "health.badDetails", { keys });
+    // The layer under reads yellow and red alone, so minRequests is taken off for it and put back after, which
+    // keeps the call as it was sent.
+    const v = t[FLOOR_KEY];
+    const had = !!v && typeof v === "object" && Object.prototype.hasOwnProperty.call(v, "minRequests");
+    const kept = had ? v.minRequests : undefined;
+    if (had) delete v.minRequests;
+    let a;
+    try { a = base(); } finally { if (had) v.minRequests = kept; }
+    if (a && a.status === 200 && floor !== undefined) m().floor = floor;
+    return withFloor(a);
+  }
+  const TASK_PRIORITIES = ["standard", "high", "critical"];
+  const TASK_TYPES = ["standard", "assigned"];
+  const TASK_FREQUENCIES = ["per_visit", "daily", "every_other_day", "weekly", "biweekly", "monthly", "quarterly", "seasonal", "as_needed"];
+  const TASK_CATEGORIES = ["QS", "SD", "HR", "HSE", "MC"];
+  const categoryOf = (b) => { for (const k of ["serviceCategory", "cims_category", "item_cims_category", "cimsCategory"]) if (b[k] !== undefined) return b[k]; return undefined; };
+  function taskValueKeys(b, patch) {
+    const keys = [];
+    const off = (v, list) => (v === undefined ? false : v === null || v === "" ? patch : list.indexOf(v) < 0);
+    if (off(b.priority, TASK_PRIORITIES)) keys.push("priority");
+    if (off(b.taskType, TASK_TYPES)) keys.push("taskType");
+    if (!patch && off(b.frequency, TASK_FREQUENCIES)) keys.push("frequency");
+    const category = categoryOf(b);
+    if (category !== undefined && category !== null && category !== "" && TASK_CATEGORIES.indexOf(category) < 0) keys.push("serviceCategory");
+    if (patch && category === "") keys.push("serviceCategory");
+    return keys;
+  }
+  function tasksRoute(method, path, query, body, lang) {
+    const b = body && typeof body === "object" ? body : {};
+    const create = method === "POST" && /^\/api\/sites\/[^/]+\/tasks$/.test(path);
+    const edit = method === "PATCH" && /^\/api\/sites\/[^/]+\/tasks\/[^/]+$/.test(path);
+    if (!create && !edit) return null;
+    if (create && (!b.label || !b.zone)) return null;
+    const keys = taskValueKeys(b, edit);
+    if (!keys.length) return null;
+    sent("task", { path, body, keys });
+    return refuse(lang, 400, "tasks.badDetails", { keys });
+  }
+
   function route(method, path, query, body, lang, base) {
+    if (path === "/api/health/thresholds") { const r = thresholdsRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) { const r = tasksRoute(method, path, query, body, lang); if (r) return r; }
     if (/^\/api\/inspections\/findings(\/|$)/.test(path)) { const r = findingsRoute(method, path, query, body, lang, base); if (r) return r; }
     { const r = recordsRoute(method, path, query, body, lang, base); if (r) return r; }
     return base();

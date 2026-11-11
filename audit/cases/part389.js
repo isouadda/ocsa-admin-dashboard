@@ -12,6 +12,10 @@
 //             and their training from findings; the inspection's page, its PDF and CSV, the analytics CSV and the
 //             corrective action show each finding's follow-up and the day it was done; what was covered is kept
 //             from someone who does not read HR records
+//   more      what else Round 12 gave the dashboard: the slowest route's floor (minRequests) in the lines editor,
+//             with its default in words, held in words outside 1 to 10,000 and sent beside yellow and red; a
+//             task's 400 tasks.badDetails drawn under the fields its keys name, on Add Task and Edit Task on a
+//             site and on Assigned Tasks' Create Task
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -46,6 +50,7 @@ const API = {
   "inspections.ownerRequired": ["Choose an owner for this finding first", "Primero elija un responsable para este hallazgo"],
   "inspections.badConversation": ["Say when it was held, what was covered and who else was there", "Indique cu\u00e1ndo se tuvo, qu\u00e9 se trat\u00f3 y qui\u00e9n m\u00e1s estuvo"],
   "issues.findingNoTask": ["A finding is followed up with training or a conversation, not a task", "Un hallazgo se atiende con capacitaci\u00f3n o una conversaci\u00f3n, no con una tarea"],
+  "tasks.badDetails": ["Some task details are not valid", "Algunos datos de la tarea no son v\u00e1lidos"],
 };
 const api = (code, lang) => API[code][lang === "es" ? 1 : 0];
 const TOPIC = {
@@ -176,8 +181,8 @@ async function findingsCases(ctx, lang) {
     await click(d, "[data-finding-record-save]");
     await until(d, "[data-finding-refusal='covered']", 5000);
     const empty = await textOf(d, "[data-finding-refusal='covered']");
-    await d.page.locator("textarea[data-finding-field='covered']").first().fill("Walked the third landing together and agreed on a dusting round each week.");
-    await d.page.locator("input[data-finding-field='othersPresent']").first().fill("The site's lead");
+    await d.page.locator("textarea[data-finding-field='covered']").first().fill("Walked the third landing together and agreed on a dusting round each week.", { timeout: 3000 }).catch(() => {});
+    await d.page.locator("input[data-finding-field='othersPresent']").first().fill("The site's lead", { timeout: 3000 }).catch(() => {});
     await click(d, "[data-finding-record-save]");
     await until(d, "[data-finding-said='saved']", 6000);
     const body = ((stubs.sent389().filter((x) => x.what === "conversation").pop() || {}).body || {}).body || {};
@@ -326,11 +331,109 @@ async function findingsCases(ctx, lang) {
   });
 }
 
+// ---- Section 2: what else Round 12 gave the dashboard ---------------------------------------------------------
+async function moreCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/more/" + x;
+  const writes = (d, mark, method, re) => d.callsSince(mark).filter((c) => c.method === method && re.test(c.path));
+
+  // 1. The slowest route's floor: its box reads the saved 20 with the default in words; 0 is held in words with
+  //    nothing sent; 30 is sent beside the number's yellow and red, and the box reads what the API answered.
+  await withDriver(ctx, { name: "floor", lang, persona: "superAdmin" }, async (d) => {
+    await goHash(d, "health/settings");
+    await until(d, "[data-health-floor='slowest_p95_ms']", 8000);
+    const box = d.page.locator("[data-health-line='slowest_p95_ms.minRequests']").first();
+    const first = await box.inputValue().catch(() => "");
+    const dflt = await textOf(d, "[data-health-threshold='slowest_p95_ms'] [data-health-floor-default]");
+    const wantDefault = lang === "es" ? "De forma predeterminada, una ruta cuenta a partir de 20 solicitudes al d\u00eda." : "A route counts from 20 requests a day by default.";
+    await box.fill("0");
+    let mark = d.mark();
+    await click(d, "[data-health-thresholds-save]");
+    await d.settle(300);
+    const heldPuts = writes(d, mark, "PUT", /^\/api\/health\/thresholds$/).length;
+    const held = await textOf(d, "[data-health-thresholds-said]");
+    const outlined = await box.evaluate((x) => x.style.borderColor || "").catch(() => "");
+    await box.fill("30");
+    mark = d.mark();
+    await click(d, "[data-health-thresholds-save]");
+    await until(d, "[data-health-thresholds-said='saved']", 6000);
+    const put = writes(d, mark, "PUT", /^\/api\/health\/thresholds$/).pop();
+    const lines = put && put.body && put.body.thresholds ? put.body.thresholds.slowest_p95_ms : null;
+    const after = await box.inputValue().catch(() => "");
+    results.check(KIND, id("the-slowest-route-s-floor-in-the-lines-editor"), first === "20" && dflt === wantDefault && heldPuts === 0 && held === d.say("Type a whole number of requests from 1 to 10,000.") && outlined !== ""
+      && !!lines && lines.minRequests === 30 && lines.yellow === 1500 && lines.red === 3000 && !!put && put.status === 200 && after === "30",
+      "the box read " + say(first) + " with " + say(dflt) + "; 0 sent " + heldPuts + " PUT(s), said " + say(held) + ", outlined " + say(outlined) + "; 30 sent " + say(lines) + (put ? " answered " + put.status : "") + ", the box reads " + say(after));
+  });
+
+  // 2. Add Task with a priority and a category the API's table does not take: 400 tasks.badDetails is drawn under
+  //    Priority and under Service Category in the API's words, and the window stays open.
+  await withDriver(ctx, { name: "add-task", lang }, async (d) => {
+    await goHash(d, "sites/s-1/tasks");
+    await until(d, "[data-site-task]", 8000);
+    await d.clickText(d.say("Add Task"), { exact: true });
+    await until(d, "select[data-task-field='priority']", 5000);
+    await d.modal().locator("input[placeholder='" + d.say("e.g. Vacuum carpets") + "']").first().fill("Wipe the reception desk").catch(() => {});
+    await d.modal().locator("input[placeholder='" + d.say("e.g. Restrooms") + "']").first().fill("Lobby").catch(() => {});
+    await pick(d, "select[data-task-field='priority']", "urgent");
+    await pick(d, "select[data-task-field='serviceCategory']", "GB");
+    const mark = d.mark();
+    await d.modal().getByRole("button", { name: d.say("Create"), exact: true }).first().click().catch(() => {});
+    await until(d, "[data-task-refusal='priority']", 5000);
+    const post = writes(d, mark, "POST", /^\/api\/sites\/s-1\/tasks$/).pop();
+    const pri = await textOf(d, "[data-task-refusal='priority']");
+    const cat = await textOf(d, "[data-task-refusal='serviceCategory']");
+    const open = await d.modalOpen();
+    results.check(KIND, id("add-task-draws-the-refusal-under-its-fields"), !!post && post.status === 400 && pri === api("tasks.badDetails", lang) && cat === api("tasks.badDetails", lang) && open,
+      "Create " + (post ? "answered " + post.status : "sent nothing") + "; under Priority " + say(pri) + ", under Service Category " + say(cat) + (open ? "" : ", and the window closed"));
+  });
+
+  // 3. Edit Task on a checklist item with a category the API's table does not take: drawn under Service Category
+  //    alone.
+  await withDriver(ctx, { name: "edit-task", lang }, async (d) => {
+    await goHash(d, "sites/s-1/tasks");
+    await until(d, "[data-site-task='ck-1']", 8000);
+    await d.page.locator("[data-site-task='ck-1']").first().click().catch(() => {});
+    await until(d, "select[data-task-field='serviceCategory']", 5000);
+    await pick(d, "select[data-task-field='serviceCategory']", "GB");
+    const mark = d.mark();
+    await d.modal().getByRole("button", { name: d.say("Save Changes"), exact: true }).first().click().catch(() => {});
+    await until(d, "[data-task-refusal='serviceCategory']", 5000);
+    const patch = writes(d, mark, "PATCH", /^\/api\/sites\/s-1\/tasks\/[^/]+$/).pop();
+    const cat = await textOf(d, "[data-task-refusal='serviceCategory']");
+    const pri = await has(d, "[data-task-refusal='priority']");
+    results.check(KIND, id("edit-task-draws-the-refusal-under-its-field"), !!patch && patch.status === 400 && cat === api("tasks.badDetails", lang) && !pri,
+      "Save " + (patch ? "answered " + patch.status : "sent nothing") + "; under Service Category " + say(cat) + (pri ? ", and under Priority too" : ""));
+  });
+
+  // 4. Assigned Tasks' Create Task with a priority the API's table does not take: drawn under Priority.
+  await withDriver(ctx, { name: "create-task", lang }, async (d) => {
+    await goHash(d, "assigned");
+    await d.settle(400);
+    await d.clickText(d.say("Create Task"), { exact: false });
+    await until(d, "select[data-task-field='priority']", 5000);
+    await d.modal().locator("select").first().selectOption(seed.SITES[0].id).catch(() => {});
+    await d.fillByLabel(d.say("Task Description *"), "Polish the hallway floor");
+    await d.fillByLabel(d.say("Zone *"), "Hallway");
+    await pick(d, "select[data-task-field='priority']", "urgent");
+    await d.modal().locator("[data-person-pick-field]").first().click().catch(() => {});
+    await d.page.locator("[data-person-pick-option]", { hasText: "Tomasz" }).first().click().catch(() => {});
+    await d.settle(200);
+    const mark = d.mark();
+    await d.clickText(d.say("Create and Assign"), { inModal: true });
+    await until(d, "[data-task-refusal='priority']", 5000);
+    const post = writes(d, mark, "POST", /^\/api\/sites\/[^/]+\/tasks$/).pop();
+    const pri = await textOf(d, "[data-task-refusal='priority']");
+    results.check(KIND, id("create-task-draws-the-refusal-under-priority"), !!post && post.status === 400 && pri === api("tasks.badDetails", lang),
+      "Create and Assign " + (post ? "answered " + post.status : "sent nothing") + "; under Priority " + say(pri));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("findings")) await findingsCases(ctx, lang);
+    if (want("more")) await moreCases(ctx, lang);
   }
 }
 

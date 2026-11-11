@@ -4003,6 +4003,20 @@ const siteDetailsRefusalField = (e) => {
   if (names("contractreference", "contract_reference")) return "contractReference";
   return "";
 };
+// Part 389: the API's Round 12 (part 382, 3.6) answers a site's task with a value its table does not take, on a
+// create or an edit, 400 tasks.badDetails with keys naming each (priority, taskType, frequency,
+// serviceCategory). The words are drawn under each field the keys name, and above the window's buttons for a
+// key it has no field for.
+const taskRefusalOf = (e) => (e && e.code === "tasks.badDetails" ? { keys: refusalKeys(e), text: (e && e.message) || tr("Request failed") } : null);
+const taskBad = (said, k) => !!said && (said.keys || []).indexOf(k) >= 0;
+const TaskFieldRefusal = ({ said, k }) => (taskBad(said, k) ? <div data-task-refusal={k} role="alert" style={{ fontSize: 12, color: RD, marginTop: 4, lineHeight: 1.5 }}>{said.text}</div> : null);
+function TaskOtherRefusal({ said, fields }) {
+  if (!said) return null;
+  const other = (said.keys || []).filter(k => fields.indexOf(k) < 0);
+  if ((said.keys || []).length && !other.length) return null;
+  return <div data-task-refusal={other.join(",") || "refused"} role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{said.text}</div>;
+}
+const taskRed = (said, k) => (taskBad(said, k) ? { borderColor: RD } : undefined);
 function SitesPage({ af, token, showToast, maintenance = null, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute, onOpenLinks }) {
   // A record's field, on Record Detail and its print: a field that carries pay or money only for a holder
   // of manage_employment (decision 1, DASH-22).
@@ -4350,12 +4364,13 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const [onceTask, taskBusy] = useBusyGuard();
   const submitTask = onceTask(async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
+    if (addTask.said) setAddTask(a => (a ? { ...a, said: null } : a));
     try {
       await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, serviceCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}), ...(siteShifts.length ? { shiftLabels: addTask.shifts || null } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) { const said = taskRefusalOf(e); if (said) setAddTask(a => (a ? { ...a, said } : a)); else showToast(e.message, "error"); }
   });
 
   // The task's stored picture read again for a fresh link, while the window still shows it (part 372); a
@@ -4368,12 +4383,13 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     if (tk) setEditTask(cur => (cur && cur.id === id && !cur.mediaOwn ? { ...cur, mediaUrl: tk.media_url || "" } : cur));
   };
   const submitEditTask = async () => {
+    if (editTask.said) setEditTask(a => (a ? { ...a, said: null } : a));
     try {
       await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, serviceCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}), ...(siteShifts.length && !editTask.inBlock ? { shiftLabels: editTask.shifts || null } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) { const said = taskRefusalOf(e); if (said) setEditTask(a => (a ? { ...a, said } : a)); else showToast(e.message, "error"); }
   };
 
   const delTask = async (sid, tid) => {
@@ -4978,7 +4994,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Task")}</div><button onClick={() => setAddTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Description *")}</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder={tr("e.g. Vacuum carpets")} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder={tr("e.g. Restrooms")} /></div></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} data-task-field="serviceCategory" value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} style={taskRed(addTask.said, "serviceCategory")} /><TaskFieldRefusal said={addTask.said} k="serviceCategory" /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} data-task-field="priority" value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} style={taskRed(addTask.said, "priority")} /><TaskFieldRefusal said={addTask.said} k="priority" /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} data-task-field="taskType" value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} style={taskRed(addTask.said, "taskType")} /><TaskFieldRefusal said={addTask.said} k="taskType" /></div></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions (optional)")}</Lbl><TArea t={t} value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder={tr("Step-by-step instructions, tips, or notes for the cleaner...")} rows={3} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video (optional)")}</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
@@ -4989,6 +5005,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         {critLive && addTask.touch && <CriticalToggle t={t} on={addTask.crit} onChange={v => setAddTask({ ...addTask, crit: v })} />}
         <TaskShiftsPick t={t} shifts={siteShifts} value={addTask.shifts} onChange={v => setAddTask({ ...addTask, shifts: v })} />
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><PersonPick t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <TaskOtherRefusal said={addTask.said} fields={["serviceCategory", "priority", "taskType"]} />
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask} disabled={taskBusy}>{tr("Create")}</Btn></div></div></Mdl>}
 
       {/* EDIT TASK MODAL */}
@@ -4996,7 +5013,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Task")}</div><button onClick={() => setEditTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Name")}</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone")}</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} data-task-field="serviceCategory" value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} style={taskRed(editTask.said, "serviceCategory")} /><TaskFieldRefusal said={editTask.said} k="serviceCategory" /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} data-task-field="priority" value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} style={taskRed(editTask.said, "priority")} /><TaskFieldRefusal said={editTask.said} k="priority" /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} data-task-field="taskType" value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} style={taskRed(editTask.said, "taskType")} /><TaskFieldRefusal said={editTask.said} k="taskType" /></div></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder={tr("Step-by-step instructions, tips, or notes...")} rows={4} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video")}</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
@@ -5014,6 +5031,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         {critLive && editTask.touch && <CriticalToggle t={t} on={editTask.crit} onChange={v => setEditTask({ ...editTask, crit: v })} />}
         <TaskShiftsPick t={t} shifts={siteShifts} value={editTask.shifts} inBlock={editTask.inBlock} onChange={v => setEditTask({ ...editTask, shifts: v })} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
+        <TaskOtherRefusal said={editTask.said} fields={["serviceCategory", "priority", "taskType"]} />
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
 
@@ -15207,7 +15225,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
   const openDetail = async (task) => { setSel(task); try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); } };
   const submitReassign = onceAssign(async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { setReassignForm(f => (f ? { ...f, said: e.message || tr("Request failed"), saidAt: refusalKeys(e).indexOf("userId") >= 0 ? "userId" : "" } : f)); } });
-  const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, serviceCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } });
+  const submitCreate = onceAssign(async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } if (createForm.said) setCreateForm(f => (f ? { ...f, said: null } : f)); try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, serviceCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { const said = taskRefusalOf(e); if (said) setCreateForm(f => (f ? { ...f, said } : f)); else showToast(e.message, "error"); } });
   const buildings = [...new Set(tasks.map(tk => tk.building_name).filter(Boolean))];
   const floors = [...new Set(tasks.map(tk => tk.floor_number).filter(Boolean))];
   const zones = [...new Set(tasks.map(tk => tk.zone).filter(Boolean))];
@@ -15281,7 +15299,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder={tr("e.g. 1")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder={tr("e.g. Offices")} /></div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} data-task-field="priority" value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} style={taskRed(createForm.said, "priority")} /><TaskFieldRefusal said={createForm.said} k="priority" /></div><div><Lbl>{tr("Assign To *")}</Lbl><PersonPick t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder={tr("Step-by-step instructions or notes...")} rows={3} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video (optional)")}</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
@@ -15289,6 +15307,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         {createForm.mediaUrl && (createForm.mediaType === "video" ? <div style={{ marginTop: 8 }}><video src={createForm.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 160 }} /></div> : <div style={{ marginTop: 8 }}><img src={createForm.mediaUrl} alt={tr("Attached")} style={{ width: "100%", borderRadius: 8, maxHeight: 160, objectFit: "cover" }} /></div>)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div></div>
+      <TaskOtherRefusal said={createForm.said} fields={["priority"]} />
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitCreate} disabled={assignBusy}>{tr("Create and Assign")}</Btn></div>
     </div></Mdl>}
   </div>);
@@ -20553,10 +20572,24 @@ function HealthThresholds({ af, t }) {
   const valueOf = (r, line) => (edits[r.key] && Object.prototype.hasOwnProperty.call(edits[r.key], line) ? edits[r.key][line] : shown(r, r[line]));
   const sent = (r, text) => { const s = String(text).trim(); if (s === "") return null; const n = Number(s); if (!Number.isFinite(n)) return NaN; return share(r) ? n / 100 : n; };
   const setLine = (key, line, v) => { setEdits(e => ({ ...e, [key]: { ...(e[key] || {}), [line]: v } })); setSaid(null); };
-  const changed = Object.keys(edits).filter(k => { const r = rows.find(x => x.key === k); return r && ["yellow", "red"].some(l => Object.prototype.hasOwnProperty.call(edits[k], l) && edits[k][l] !== shown(r, r[l])); });
+  // Part 389 (the API's part 382, 6.1): a number with a request floor (slowest_p95_ms) answers minRequests, the
+  // requests a route serves in the day before it counts, 1 to 10,000, 20 by default. The PUT sends it beside the
+  // number's yellow and red, since a body that leaves yellow or red out sets them to their defaults.
+  const floored = (r) => !!r && Object.prototype.hasOwnProperty.call(r, "minRequests");
+  const floorShown = (r) => (r.minRequests === null || r.minRequests === undefined ? "" : String(r.minRequests));
+  const floorOf = (r) => (edits[r.key] && Object.prototype.hasOwnProperty.call(edits[r.key], "minRequests") ? edits[r.key].minRequests : floorShown(r));
+  const changed = Object.keys(edits).filter(k => { const r = rows.find(x => x.key === k); return r && (["yellow", "red"].some(l => Object.prototype.hasOwnProperty.call(edits[k], l) && edits[k][l] !== shown(r, r[l])) || (floored(r) && Object.prototype.hasOwnProperty.call(edits[k], "minRequests") && edits[k].minRequests !== floorShown(r))); });
   const save = once(async () => {
     const body = {};
-    for (const k of changed) { const r = rows.find(x => x.key === k); body[k] = { yellow: sent(r, valueOf(r, "yellow")), red: sent(r, valueOf(r, "red")) }; }
+    for (const k of changed) {
+      const r = rows.find(x => x.key === k);
+      body[k] = { yellow: sent(r, valueOf(r, "yellow")), red: sent(r, valueOf(r, "red")) };
+      if (floored(r) && floorOf(r) !== floorShown(r)) {
+        const n = String(floorOf(r)).trim() === "" ? NaN : Number(floorOf(r));
+        if (!Number.isInteger(n) || n < 1 || n > 10000) { setSaid({ ok: false, keys: ["thresholds." + k + ".minRequests"], text: tr("Type a whole number of requests from 1 to 10,000.") }); return; }
+        body[k].minRequests = n;
+      }
+    }
     if (Object.keys(body).some(k => Number.isNaN(body[k].yellow) || Number.isNaN(body[k].red))) { setSaid({ ok: false, keys: [], text: tr("Type a number, or leave the box empty for never.") }); return; }
     // A below number is red at or under its yellow line (helpers/healthPage.js readThresholds), so a red
     // line over yellow is held here in words before the API refuses it.
@@ -20567,6 +20600,7 @@ function HealthThresholds({ af, t }) {
   });
   const bad = (key, line) => !!(said && !said.ok && (said.keys || []).some(k => k === "thresholds." + key + "." + line || k === "thresholds." + key));
   const dflt = (r) => tr("Default: {0}", healthLineText({ kind: r.kind, yellow: r.defaults ? r.defaults.yellow : null, red: r.defaults ? r.defaults.red : null }, r.unit));
+  const floorDefault = (r) => (r.defaults && r.defaults.minRequests != null ? trn("A route counts from {0} requests a day by default.|count", Number(r.defaults.minRequests)) : "");
   const box = (r, line) => <Inp t={t} type="number" min="0" step="any" data-health-line={r.key + "." + line} aria-label={tr(line === "yellow" ? "{0}, yellow at" : "{0}, red at", r.label || r.key)} placeholder={tr("Never|line")} value={valueOf(r, line)} onChange={e => setLine(r.key, line, e.target.value)} style={{ width: 110, ...(bad(r.key, line) ? { borderColor: RD } : {}) }} />;
   return (<Crd t={t}><div data-health-thresholds="">
     <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Each number's yellow and red lines")}</div>
@@ -20574,10 +20608,13 @@ function HealthThresholds({ af, t }) {
     <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead><tr><th style={crHead(t)}>{tr("Number|health")}</th><th style={crHead(t)}>{tr("Yellow at")}</th><th style={crHead(t)}>{tr("Red at")}</th><th style={crHead(t)}>{tr("Default")}</th></tr></thead>
       <tbody>{rows.map(r => (<tr key={r.key} data-health-threshold={r.key} style={{ borderTop: "1px solid " + t.border }}>
-        <td style={{ padding: "8px 10px", color: t.text, minWidth: 180 }}>{r.label || r.key}{share(r) ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Percent of the week before")}</div> : below(r) ? <div data-health-below="" style={{ fontSize: 11, color: t.textMut, lineHeight: 1.4 }}>{tr("Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.")}{r.unit === "days" ? " " + tr("In days.") : ""}</div> : r.unit === "ms" ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Milliseconds")}</div> : null}</td>
+        <td style={{ padding: "8px 10px", color: t.text, minWidth: 180 }}>{r.label || r.key}{share(r) ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Percent of the week before")}</div> : below(r) ? <div data-health-below="" style={{ fontSize: 11, color: t.textMut, lineHeight: 1.4 }}>{tr("Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.")}{r.unit === "days" ? " " + tr("In days.") : ""}</div> : r.unit === "ms" ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("Milliseconds")}</div> : null}{floored(r) ? <div data-health-floor={r.key} style={{ marginTop: 6 }}>
+          <div style={{ fontSize: 11, color: t.textMut, lineHeight: 1.4, marginBottom: 4 }}>{tr("A route counts only once it served this many requests in the day, so one slow request on a quiet route never sets the number.")}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><Inp t={t} type="number" min="1" max="10000" step="1" data-health-line={r.key + ".minRequests"} aria-label={tr("{0}, requests before a route counts", r.label || r.key)} value={floorOf(r)} onChange={e => setLine(r.key, "minRequests", e.target.value)} style={{ width: 110, ...(bad(r.key, "minRequests") ? { borderColor: RD } : {}) }} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("requests a day, from 1 to 10,000")}</span></div>
+        </div> : null}</td>
         <td style={{ padding: "8px 10px" }}>{box(r, "yellow")}</td>
         <td style={{ padding: "8px 10px" }}>{box(r, "red")}</td>
-        <td data-health-default="" style={{ padding: "8px 10px", fontSize: 12, color: t.textSec, minWidth: 160 }}>{dflt(r)}</td>
+        <td data-health-default="" style={{ padding: "8px 10px", fontSize: 12, color: t.textSec, minWidth: 160 }}>{dflt(r)}{floored(r) && floorDefault(r) ? <div data-health-floor-default="" style={{ marginTop: 4 }}>{floorDefault(r)}</div> : null}</td>
       </tr>))}</tbody>
     </table></div>
     {said ? <div data-health-thresholds-said={said.ok ? "saved" : "refused"} role={said.ok ? "status" : "alert"} style={{ fontSize: 12, color: said.ok ? GR : RD, marginTop: 8 }}>{said.text}</div> : null}

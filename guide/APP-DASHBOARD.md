@@ -239,8 +239,9 @@ Who can do this: admins and supervisors
 3. Choose the site, describe the task, set the zone, and choose who it is assigned to under **Assign To *** (**Asignar a ***): type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**) and pick them.
 4. Add instructions, a photo or video, and a due date if needed.
 5. Click **Create and Assign**.
+If it does not work: a **Priority** (**Prioridad**) the system does not take is refused in its own words under the box. Pick another and click **Create and Assign** (**Crear y asignar**) again.
 Picture: tasks-create
-Last checked: 2026-10-07
+Last checked: 2026-11-11
 
 ## Reassign a task (admin dashboard)
 Who can do this: admins and supervisors
@@ -1802,9 +1803,10 @@ Who can do this: anyone who can change a site's tasks
 3. Tick **Touchpoint** (**Punto de contacto frecuente**): a high-touch surface disinfected on schedule, such as a door handle or a rail.
 4. For a surface touched most, tick **Critical** (**Crítico**) under it. A critical touchpoint is treated twice a day at Level 2 and on every round at Level 3. Unticking **Touchpoint** (**Punto de contacto frecuente**) unticks **Critical** (**Crítico**) too.
 5. Click **Save Changes** (**Guardar los cambios**), or **Create** (**Crear**) for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and **Critical** (**Crítico**) beside it when ticked. It prints on the disinfection coverage log, a critical one under Critical Touchpoints.
+If it does not work: a **Service Category** (**Categoría de servicio**), **Priority** (**Prioridad**) or **Task Type** (**Tipo de tarea**) the system does not take is refused in its own words under that box, and nothing is saved. Pick another and save again.
 Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, critical touchpoint, critical surfaces, punto de contacto frecuente, punto de contacto crítico.
 Picture: touchpoint-task-window
-Last checked: 2026-10-07
+Last checked: 2026-11-11
 
 ## Make a site's concern link, so a client can report a problem (admin dashboard)
 Who can do this: admins who can change settings
@@ -2930,10 +2932,12 @@ Who can do this: the super admin, and anyone the super admin has given the Healt
 2. Under **Who gets the morning email and the red alerts** (**Quién recibe el correo de la mañana y las alertas en rojo**), the list says who gets them. With nobody set it reads **Nobody is set, so the super admins get them.** (**No hay nadie indicado, así que los reciben los superadministradores.**)
 3. Pick someone in **Add a person** (**Agregar una persona**) and click **Add** (**Agregar**), or type an address in **Add an email address** (**Agregar un correo**) and click **Add** (**Agregar**). **Remove** (**Quitar**) takes one off. Click **Save the list** (**Guardar la lista**).
 4. Under **Each number's yellow and red lines** (**Las líneas amarilla y roja de cada indicador**), each number shows its **Yellow at** (**Amarillo en**) and **Red at** (**Rojo en**) lines, with its **Default** (**Predeterminado**) beside them. Type a new line, or leave a box empty for a line that is never crossed, and click **Save the lines** (**Guardar las líneas**). Check-offs and shifts started are typed as a percent of the week before.
-5. The days left on the robot's sign-in count down, so its row says **Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.** (**Menos es peor. Pasa a amarillo en la línea amarilla o por debajo y a rojo en la línea roja o por debajo, que va en la amarilla o por debajo.**) Its lines are typed in days, 5 and 1 by default.
-If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line, except for the robot's sign-in, where it is at or under it: **For {0}, fewer is worse, so the red line is at or under the yellow line.** (**En {0}, menos es peor, así que la línea roja va en la amarilla o por debajo.**)
+5. The slowest route counts a route only once it served enough requests in the day, so one slow request on a quiet route never sets it. Type how many in its box, a whole number from 1 to 10,000; beside it, its default reads **A route counts from {0} requests a day by default.** (**De forma predeterminada, una ruta cuenta a partir de {0} solicitudes al día.**), 20 requests. Click **Save the lines** (**Guardar las líneas**).
+6. The days left on the robot's sign-in count down, so its row says **Fewer is worse. It turns yellow at or under the yellow line and red at or under the red line, which is at or under yellow.** (**Menos es peor. Pasa a amarillo en la línea amarilla o por debajo y a rojo en la línea roja o por debajo, que va en la amarilla o por debajo.**) Its lines are typed in days, 5 and 1 by default.
+If it does not work: a line the system refuses is outlined in red, with the reason under the table. A red line is at or above its yellow line, except for the robot's sign-in, where it is at or under it: **For {0}, fewer is worse, so the red line is at or under the yellow line.** (**En {0}, menos es peor, así que la línea roja va en la amarilla o por debajo.**) A number of requests outside 1 to 10,000 is held before it is sent: **Type a whole number of requests from 1 to 10,000.** (**Escriba un número entero de solicitudes, de 1 a 10,000.**)
 Words people use for this: health alerts, morning email, who gets the alerts, red alert, thresholds, alert lines, change the limits, alertas de salud.
 Picture: health-settings
+Picture: health-route-floor
 Last checked: 2026-11-11
 
 ## Set a site's shifts (admin dashboard)

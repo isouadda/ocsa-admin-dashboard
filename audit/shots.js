@@ -1939,6 +1939,10 @@ const SHOTS = [
       await typeIn(c, "input[data-finding-field='othersPresent']", "The site's lead", "El encargado del sitio");
       await show(c, "[data-finding-record-save]");
     } },
+  // Part 389, section 2: the slowest route's floor beside its lines, as the super admin (audit/part389-stub.js).
+  { name: "health-route-floor", entry: "Choose who gets the health alerts", as: "superAdmin",
+    open: "health/settings", ready: "[data-health-floor]",
+    act: async (c) => { await toTop(c, "[data-health-threshold='server_errors']", 140); } },
   { name: "hr-coaching", entry: "Read a person's coaching and training from findings",
     open: "hr/" + seed.PEOPLE.supervisor.id, ready: "[data-folder-coaching]",
     act: async (c) => { await toTop(c, "[data-folder-coaching]", 110); } },

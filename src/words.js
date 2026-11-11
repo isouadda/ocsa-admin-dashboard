@@ -5800,6 +5800,15 @@ export const WORDS = {
   "Not done yet": { es: "A\u00fan sin hacer", fr: "Pas encore faits" },
   "Any follow-up": { es: "Cualquier seguimiento", fr: "Tout suivi" },
   "Record it|conversation": { es: "Registrarla", fr: "L'enregistrer" },
+  "Type a whole number of requests from 1 to 10,000.": { es: "Escriba un n\u00famero entero de solicitudes, de 1 a 10,000.", fr: "Tapez un nombre entier de requ\u00eates, de 1 \u00e0 10 000." },
+  "A route counts only once it served this many requests in the day, so one slow request on a quiet route never sets the number.": { es: "Una ruta solo cuenta cuando atendi\u00f3 esta cantidad de solicitudes en el d\u00eda, as\u00ed que una sola solicitud lenta en una ruta tranquila nunca fija el indicador.", fr: "Une route ne compte qu'une fois qu'elle a servi ce nombre de requ\u00eates dans la journ\u00e9e, donc une seule requ\u00eate lente sur une route calme ne fixe jamais l'indicateur." },
+  "{0}, requests before a route counts": { es: "{0}, solicitudes antes de que una ruta cuente", fr: "{0}, requ\u00eates avant qu'une route compte" },
+  "requests a day, from 1 to 10,000": { es: "solicitudes al d\u00eda, de 1 a 10,000", fr: "requ\u00eates par jour, de 1 \u00e0 10 000" },
+  "A route counts from {0} requests a day by default.|count": {
+    en: { one: "A route counts from {0} request a day by default.", other: "A route counts from {0} requests a day by default." },
+    es: { one: "De forma predeterminada, una ruta cuenta a partir de {0} solicitud al d\u00eda.", other: "De forma predeterminada, una ruta cuenta a partir de {0} solicitudes al d\u00eda." },
+    fr: { one: "Par d\u00e9faut, une route compte \u00e0 partir de {0} requ\u00eate par jour.", other: "Par d\u00e9faut, une route compte \u00e0 partir de {0} requ\u00eates par jour." },
+  },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
