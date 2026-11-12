@@ -211,7 +211,9 @@ async function briefCases(ctx, lang) {
   // 1. A number's incident: the brief's first line, the incident whole with its timeline, the number it names with
   //    today, its lines and every day read, the routes behind it, the API's commit and the build; in English and
   //    plain ASCII on either screen, the toast in the screen's language.
-  await withDriver(ctx, { name: "incident", lang, persona: "superAdmin" }, async (d) => {
+  // Since part 397 an incident's brief is the API's own (GET /api/health/incidents/:id/brief), and the block built from
+  // the page's reads is what an API before Round 14 is given: the incident's cases run under the scene noBrief.
+  await withDriver(ctx, { name: "incident", lang, persona: "superAdmin", arm: (s) => s.setScene397({ noBrief: true }) }, async (d) => {
     await openHealth(d, "incidents");
     await until(d, "[data-copy-for-claude-button='" + NUMBER_INCIDENT + "']", 8000);
     await letClipboard(d);
@@ -230,7 +232,7 @@ async function briefCases(ctx, lang) {
   });
 
   // 2. An outage's brief carries its monitor, its reason and its duration.
-  await withDriver(ctx, { name: "outage", lang, persona: "superAdmin", arm: (s) => s.setScene393({ uptime: true }) }, async (d) => {
+  await withDriver(ctx, { name: "outage", lang, persona: "superAdmin", arm: (s) => { s.setScene393({ uptime: true }); s.setScene397({ noBrief: true }); } }, async (d) => {
     await openHealth(d, "incidents");
     await until(d, "[data-copy-for-claude-button='" + OPEN_OUTAGE + "']", 8000);
     await letClipboard(d);
@@ -269,7 +271,7 @@ async function briefCases(ctx, lang) {
   });
 
   // 4. A browser that refuses the clipboard: the brief in a box, selected, with how to copy it by hand.
-  await withDriver(ctx, { name: "refused", lang, persona: "superAdmin" }, async (d) => {
+  await withDriver(ctx, { name: "refused", lang, persona: "superAdmin", arm: (s) => s.setScene397({ noBrief: true }) }, async (d) => {
     await openHealth(d, "incidents");
     await until(d, "[data-copy-for-claude-button='" + NUMBER_INCIDENT + "']", 8000);
     await d.waitToastGone(4000);

@@ -227,6 +227,10 @@ const SUITES = [
   // Round 10 (part 393): live uptime, Copy for Claude, and what the API's Round 13 gave the dashboard, against the stub
   // as the API is built at ocsa-api 6c112ee (audit/part393-stub.js). Its own passes, like part389.
   { name: "part393", mod: "./cases/part393", widths: [] },
+  // Round 11 (part 397): a week of zeros, the API's brief, findings without the inspection, and the test site and a
+  // supervisor, against the stub as the API is built at ocsa-api ff35991 (audit/part397-stub.js). Its own passes, like
+  // part393.
+  { name: "part397", mod: "./cases/part397", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

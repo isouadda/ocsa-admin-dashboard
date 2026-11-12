@@ -440,11 +440,11 @@ Who can do this: admins and supervisors
 3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it with the company's name, address and logo from **Settings** (**Configuración**). A PDF made more than 50 minutes after the report was opened reads the company settings again first, so the logo still shows. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**). In every spreadsheet file the dashboard makes, a cell that would start a formula, one beginning with =, +, - or @, is written with an apostrophe in front, so it opens as the words that were typed.
 4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A built-in report reads **Template** (**Plantilla**) and is changed by duplicating it. To take a report off the list, see Remove a report you no longer need.
 5. **Supply Usage and Cost** (**Uso y costo de suministros**) shows the estimated cost, and puts the supplies in order of cost, for admins only. Anyone else reads the quantities and the events, with the supplies in name order, on screen and in the PDF.
-If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again. A trend needs two periods that hold a value; with fewer it says so in place of its line, such as **Not enough resolved data to chart a trend yet.** (**Todavía no hay suficientes datos resueltos para trazar una tendencia.**)
+If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again. A trend needs two periods that hold a value; with fewer it says so in place of its line, such as **Not enough resolved data to chart a trend yet.** (**Todavía no hay suficientes datos resueltos para trazar una tendencia.**) A chart whose every value is 0 lists each value by name in place of its bars or its ring, and reads **Every value is 0.** (**Todos los valores están en 0.**)
 Words people use for this: hours worked, labor report, payroll numbers, export data, who worked when, csv, spreadsheet.
 Picture: reports-library
 Picture: reports-issue-report
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
@@ -1864,18 +1864,18 @@ Last checked: 2026-10-05
 
 ## Enter the year's holidays (admin dashboard)
 Who can do this: admins who can change settings
-OCSA observes the eleven federal holidays in its handbook and the two Eids. The federal days follow the handbook. The Eid dates, which OCSA confirms each year, and any other day the office is closed are entered here. A holiday is not a working day, so a client's concern filed before one is due a day later.
+OCSA observes nine paid holidays under its handbook: New Year's Day, Martin Luther King Jr. Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day, the Day After Thanksgiving and Christmas Day. The federal days follow the handbook. The Day After Thanksgiving, and any other day the office is closed, is entered here. The Eids are not OCSA holidays; staff who observe them take vacation, personal or sick time. A holiday is not a working day, so a client's concern filed before one is due a day later.
 1. Click **Settings** (**Configuración**), then the **Holidays** (**Días festivos**) tab.
 2. Pick the year at the top, this year or next. The table shows each holiday's **Date** (**Fecha**), its name under **Holiday** (**Día festivo**), its **Kind** (**Tipo**), **Federal** (**Federal**) or **Office** (**De la oficina**), and its **Note** (**Nota**). A federal holiday that falls on a Saturday is observed the Friday before, and one on a Sunday the Monday after; its date then reads Observed for and the actual day.
-3. Click **Add a holiday** (**Agregar un día festivo**). Fill in the **Date** (**Fecha**), the name under **Holiday** (**Día festivo**), such as Eid al-Fitr, and a **Note** (**Nota**) if you like, such as when OCSA confirmed it. Click **Add holiday** (**Agregar el día festivo**).
+3. Click **Add a holiday** (**Agregar un día festivo**). Fill in the **Date** (**Fecha**), the name under **Holiday** (**Día festivo**), such as Day After Thanksgiving, and a **Note** (**Nota**) if you like, such as when OCSA confirmed it. Click **Add holiday** (**Agregar el día festivo**).
 4. To change a day the office entered, click **Edit** (**Editar**) on its row, change it, and click **Save** (**Guardar**).
 5. To take one off, click **Retire** (**Dar de baja**) and confirm. It stops counting as a holiday and stays on record. Tick **Show retired** (**Mostrar los dados de baja**) to see it, marked **Retired** (**Dado de baja**).
 A federal holiday reads **Set by the handbook** (**Fijado por el manual**) and is not changed here.
 If it does not work: the reason is shown under the field it is about, such as a date that is already a holiday, or at the top of the window. The tab shows once the system holds the holidays.
-Words people use for this: holiday, holidays, eid, eid al-fitr, eid al-adha, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
+Words people use for this: holiday, holidays, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
 Picture: holidays-year
 Picture: holidays-add-window
-Last checked: 2026-10-07
+Last checked: 2026-11-12
 
 ## Make a request QR, so anyone in the building can ask for help (admin dashboard)
 Who can do this: admins who can change settings
@@ -2675,11 +2675,11 @@ Who can do this: admins and supervisors
 8. Today is read again every 30 seconds while the page is open. A past day does not change. Today starts at the time the company's checklist day starts, 4:00 AM unless the company set another, so early in the morning Today can still be yesterday's checklist day. The address keeps the site, the days and the shift, so a view can be bookmarked or sent.
 9. Other ways in: **See the checklist** (**Ver la lista de verificación**) under each site on **Live Ops** (**Operaciones en vivo**), for the day shown there; **Checklist history** (**Historial de la lista de verificación**) on a site's page, with yesterday picked; and the **Checklist Results** (**Resultados de la lista**) card under **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
 10. To print the record on the approved form for the binder, see the entry on printing a site's zone cleaning checklists. To print this page as a report, see the entry on printing a checklist report.
-If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there. A site whose days had no steps due, such as one with no daily steps, draws no line and reads **No steps due these days** (**No hay pasos pendientes en estos días**), on its card and over several days; a line needs two days that had steps due.
-Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
+If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there. A site whose days had no steps due, such as one with no daily steps, draws no line and reads **No steps due these days** (**No hay pasos pendientes en estos días**), on its card and over several days; a line needs two days that had steps due. A site whose days had steps due and none done draws a flat line along the bottom, its ring reads 0%, and the line reads **0% done on every day with steps due** (**0 % hecho en todos los días con pasos pendientes**), on its card and over several days.
+Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, nothing done, zero percent, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors
@@ -2907,7 +2907,7 @@ Who can do this: the super admin, and anyone the super admin has given the Healt
 2. **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**), each monitor's status, uptime and response times, read again every minute. Below them it shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
 3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors. **Copy for Claude** (**Copiar para Claude**) there copies the number and what is behind it for the chat.
 4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
-5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
+5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot, and a step the robot skipped says why, as **Why it was skipped: {0}** (**Por qué se omitió: {0}**).
 6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
 7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. An outage a monitor caught is an incident too, with its monitor, its reason and how long it was down. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
 If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
@@ -2982,7 +2982,8 @@ Last checked: 2026-11-12
 Who can do this: anyone who can see the sites
 1. One site is kept for the robot's run-throughs on the Health page. In **Sites** (**Sitios**) its name carries **TEST** (**PRUEBA**), and so does its page.
 2. Wherever a site is picked or named, such as **Checklist Results** (**Resultados de la lista**), **Live Ops** (**Operaciones en vivo**), **Schedule** (**Horario**), a task or a report, the test site reads with (**TEST** (**PRUEBA**)) after its name, the way a test account is marked.
-3. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export. On **Checklist Results** (**Resultados de la lista**), **All sites** (**Todos los sitios**), its card says so: **This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.** (**Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. Ábralo para ver lo que se marcó ahí.**)
+3. Only admins and test accounts see the test site in a list of sites or a picker. A supervisor does not, and a change a supervisor makes there, such as to a shift at the test site, is refused in the system's own words: this is the test site, and only test accounts and admins can make changes there. A shift there still names its site in **Edit Scheduled Shift** (**Editar el turno programado**).
+4. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export. On **Checklist Results** (**Resultados de la lista**), **All sites** (**Todos los sitios**), its card says so: **This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.** (**Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. Ábralo para ver lo que se marcó ahí.**)
 Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
 Picture: sites-test-site
 Picture: checklist-results-test-site
@@ -3024,44 +3025,44 @@ Last checked: 2026-11-11
 ## See inspection findings and their follow-ups (admin dashboard)
 Who can do this: admins and supervisors
 An inspection finding is not a to-do item. It calls for training, or a conversation with the person whose work it was.
-1. Click **Inspections** (**Inspecciones**), then the **Findings** (**Hallazgos**) tab. The tab counts the findings that need a follow-up or are late.
-2. Each row shows the card the inspection found deficient, its site and zone, when it was found and on which inspection, its notes, its **Follow-up** (**Seguimiento**) and its owner.
+1. Click **Inspections** (**Inspecciones**), then the **Findings** (**Hallazgos**) tab. The tab counts the findings that need a follow-up or are late. At the top, **Needs a follow-up** (**Necesita seguimiento**), **Late** (**Atrasado**) and **Open** (**Abierto**) say how many there are of each, whatever the filters below; click one to show only those.
+2. Each row is named by the finding's title, then shows the card the inspection found deficient, its site and zone, when it was found and on which inspection, its notes, its **Follow-up** (**Seguimiento**) and its owner.
 3. The findings with no follow-up come first, then the late ones, then the open ones. **Needs a follow-up** (**Necesita seguimiento**) says the day to choose one by, two days after it was found. **Late** (**Atrasado**) says the day it was due.
 4. Narrow the list with **Status** (**Estado**), **Site** (**Sitio**), **Owner** (**Responsable**) and **Follow-up** (**Seguimiento**). **Not done yet** (**Aún sin hacer**) is where it starts; **Done** (**Hecho**) and **Resolved without a follow-up** (**Resuelto sin seguimiento**) show the closed ones.
 5. Click a finding to open it, with its photos, notes, owner and follow-up. See the entries on choosing a finding's follow-up and recording a conversation.
 6. A finding's window under **Issues** (**Incidencias**) shows its **Follow-up** (**Seguimiento**) and offers no **Assign as Task** (**Asignar como tarea**). **Open the follow-up** (**Abrir el seguimiento**) or **Choose a follow-up** (**Elegir un seguimiento**) opens it here.
-7. The **Reports** (**Informes**) tab's **Export CSV** (**Exportar CSV**) adds each card's finding and its follow-up, its due day and the day it was done.
+7. The **Reports** (**Informes**) tab's **Export CSV** (**Exportar CSV**) adds each card's finding and its follow-up, the training topic by name, its due day and the day it was done.
 If it does not work: the list says it did not load, with **Try again** (**Intentar de nuevo**). A finding that is not found, or a list someone may not read, is refused in the system's own words.
 Words people use for this: inspection findings, finding follow-up, late findings, findings with no follow-up, training after an inspection, coaching, hallazgos.
 Picture: inspection-findings
 Picture: issue-finding-follow-up
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Choose a finding's follow-up: training or a conversation (admin dashboard)
-Who can do this: admins, anyone who manages inspections, and a supervisor at the finding's site
-1. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding.
+Who can do this: admins, anyone who manages inspections, and a supervisor assigned at the finding's site
+1. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding. The window has the finding's title, with its card under it as **Card: {0}** (**Tarjeta: {0}**).
 2. Click **Choose a follow-up** (**Elegir un seguimiento**), or **Change the follow-up** (**Cambiar el seguimiento**) for one that is not done yet.
 3. Pick **Training** (**Capacitación**) or **A conversation** (**Una conversación**). Training is a lesson given to the person, due in 7 days, which they find on My training in the staff app; it is done once they pass it. A conversation is due in 3 days.
 4. For training, pick the **Lesson topic** (**Tema de la lección**). The topic the card's category suggests comes first, marked **{0} (suggested)** (**{0} (sugerido)**), and is picked already.
 5. Under **Owner** (**Responsable**), pick the person whose work it was. A finding that has an owner keeps them unless you pick someone else.
 6. Click **Save the follow-up** (**Guardar el seguimiento**). The window says the day it is due.
-If it does not work: a refusal is shown in the system's own words under the field it names, such as a training with no topic, or a finding with no owner. A follow-up that is done cannot be changed, and a closed finding takes none. Someone who may not choose at the site reads the system's refusal above the form.
+If it does not work: a refusal is shown in the system's own words under the field it names, such as a training with no topic, or a finding with no owner. A follow-up that is done cannot be changed, and a closed finding takes none. A finding someone may not decide, such as one at a site where a supervisor is not assigned, offers no **Choose a follow-up** (**Elegir un seguimiento**) and reads **A follow-up is chosen by whoever manages inspections, or a supervisor at the site.** (**El seguimiento lo elige quien gestiona las inspecciones, o un supervisor del sitio.**)
 Words people use for this: choose a follow-up, training for a finding, a conversation about a finding, retrain someone, coaching, elegir un seguimiento.
 Picture: finding-follow-up-choose
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Record a conversation about a finding (admin dashboard)
-Who can do this: whoever held it: admins, anyone who manages inspections, and a supervisor at the finding's site
+Who can do this: whoever held it: admins, anyone who manages inspections, and a supervisor assigned at the finding's site
 1. Hold the conversation with the person whose work it was.
 2. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding. Its **Follow-up** (**Seguimiento**) reads **A conversation** (**Una conversación**) with its due day.
 3. Click **Record the conversation** (**Registrar la conversación**).
 4. Set **When it was held** (**Cuándo se tuvo**), type **What was covered** (**Qué se trató**), and, when anyone else was there, **Who else was there (optional)** (**Quién más estuvo (opcional)**).
 5. Click **Record it** (**Registrarla**). The follow-up is done, the finding is marked fixed, and the person is asked to confirm it on their phone. Until they do, it reads **Waiting for the person to confirm it.** (**Esperando que la persona la confirme.**)
 6. It is kept as coaching on the person's record, apart from warnings, and never as discipline. What was covered is read only by those who read HR records, the person and whoever recorded it.
-If it does not work: what is missing is named in the system's own words under its field: when it was held, which cannot be ahead of now, or what was covered, up to 2,000 characters. A conversation already recorded cannot be recorded again.
+If it does not work: what is missing is named in the system's own words under its field: when it was held, which cannot be ahead of now, or what was covered, up to 2,000 characters. A conversation already recorded cannot be recorded again. A finding someone may not decide offers no **Record the conversation** (**Registrar la conversación**).
 Words people use for this: record a conversation, coaching conversation, talked to the cleaner, conversation about a finding, registrar la conversación.
 Picture: finding-conversation-record
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Read a person's coaching and training from findings (admin dashboard)
 Who can do this: admins, and anyone given **Read HR records** (**Leer los expedientes de personal**) under **Roles and Permissions** (**Roles y permisos**)
@@ -3090,7 +3091,7 @@ Last checked: 2026-11-12
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. When something on the Health page turns red, click **Health** (**Salud**), then **Incidents** (**Incidentes**), and find the incident it opened. Or, on **Numbers** (**Indicadores**), click the red number to open who or what is behind it.
 2. Click **Copy for Claude** (**Copiar para Claude**). The page says **Copied for Claude. Paste it into the chat.** (**Copiado para Claude. Péguelo en el chat.**)
-3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in: the incident with its timeline, the number with its lines and its past days, the routes and counts behind it, an outage's monitor, reason and how long it lasted, the API's version and the dashboard's version.
+3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in. On an incident it is the system's own brief, copied as the system writes it: the incident with its timeline, the number with how it is worked out, its lines, today and the 7 days before, the rows behind it, an outage's monitor, reason and how long it lasted, a run-through's last runs and the steps that failed, and the API's version. On a number's sheet it is the number with its lines and its past days, the routes and counts behind it, the API's version and the dashboard's version. When the system's brief does not load, an incident's is made from the page the same way.
 4. People behind a number are given as how many, never by name, email, phone or badge.
 If it does not work: when the browser does not let the page copy, the page says **This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.** (**Este navegador no dejó que la página copiara. El resumen está seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.**) Press those keys, then paste it into the chat.
 Words people use for this: copy for claude, send to claude, health brief, paste into the chat, red number, incident details, ask claude to fix it, copiar para claude.
