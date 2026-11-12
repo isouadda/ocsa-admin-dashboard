@@ -2903,17 +2903,17 @@ Last checked: 2026-11-11
 ## Read the Health page (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
-2. **Numbers** (**Indicadores**) shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
+2. **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**), each monitor's status, uptime and response times, read again every minute. Below them it shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
 3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors.
 4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
 5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
 6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
-7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
+7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. An outage a monitor caught is an incident too, with its monitor, its reason and how long it was down. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
 If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
-Words people use for this: health page, platform health, is the app working, status page, run-throughs, the robot, incidents, red alert, daily numbers, salud.
+Words people use for this: health page, platform health, is the app working, status page, uptime, run-throughs, the robot, incidents, outages, red alert, daily numbers, salud.
 Picture: health-numbers
 Picture: health-run
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Make a health report (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
@@ -3070,3 +3070,16 @@ If it does not work: both show once the person has a follow-up from a finding. A
 Words people use for this: coaching, coaching record, conversations, retraining after an inspection, training from findings, orientación.
 Picture: hr-coaching
 Last checked: 2026-11-11
+
+## See the uptime monitors and outages (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**). **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**): each part of the platform the uptime service checks every few minutes, the staff app, the dashboard, the API, the API's deep check, the scheduled jobs and Help.
+2. Each monitor shows its status, **Up** (**Activo**), **Down** (**Caído**), **Paused** (**En pausa**) or **Unknown** (**Desconocido**), and since when; its uptime for **1 day** (**1 día**), **7 days** (**7 días**) and **30 days** (**30 días**); its last response and its average over 24 hours; and its last 24 hours of response times as a small line.
+3. The panel is read again every minute while the page is open, and says when: **Read at {0}. Read again every minute.** (**Leído a las {0}. Se vuelve a leer cada minuto.**)
+4. Click **Incidents** (**Incidentes**). Each outage a monitor caught is an incident, named for its monitor, with its reason, such as a 429 or a 503, and how long it was down: **Down for {0}** (**Caído durante {0}**), or **Down for {0} so far** (**Caído durante {0} hasta ahora**) while it goes on.
+5. Once it is fixed, click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**), as for any incident. The health reports print it beside the outage.
+If it does not work: when the uptime service does not answer, the panel keeps the last good read and says so: **Not read just now. This is the last good read, from {0}.** (**No se leyó ahora. Esta es la última lectura correcta, de {0}.**) **Uptime is not set up on this server.** (**La disponibilidad no está configurada en este servidor.**) means the server has no uptime key yet.
+Words people use for this: uptime, uptime monitors, is the app down, outage, downtime, response time, uptimerobot, monitor down, disponibilidad.
+Picture: health-uptime
+Picture: health-outage
+Last checked: 2026-11-12

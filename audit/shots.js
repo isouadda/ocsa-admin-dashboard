@@ -1863,8 +1863,10 @@ const SHOTS = [
   // Part 379, section 1: the Health page as the super admin, against audit/part379-stub.js: the light and the
   // numbers, a failed run-through's window with its step's error and screenshot, who is told and the lines,
   // and the reports kept.
-  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin",
-    open: "health", ready: "[data-health-number='server_errors']" },
+  // Part 393: the numbers under the uptime monitors (audit/part393-stub.js, the scene uptime), the numbers in view.
+  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
+    open: "health", ready: "[data-health-number='server_errors']",
+    act: async (c) => { await until(c, "[data-uptime-monitor]"); await toTop(c, "[data-health-numbers]", 150); } },
   { name: "health-run", entry: "Read the Health page", as: "superAdmin",
     open: "health/runs", ready: "[data-health-run-row]",
     act: async (c) => { await click(c, "[data-health-run-row='00000000-0000-4000-8000-000000000902']"); await until(c, "[data-health-run] [data-health-step-error]"); await wait(400); } },
@@ -1946,6 +1948,12 @@ const SHOTS = [
   { name: "hr-coaching", entry: "Read a person's coaching and training from findings",
     open: "hr/" + seed.PEOPLE.supervisor.id, ready: "[data-folder-coaching]",
     act: async (c) => { await toTop(c, "[data-folder-coaching]", 110); } },
+  // Part 393, section 1: the uptime monitors on the Health page and an outage in the incidents list, against
+  // audit/part393-stub.js with the scene uptime (the scheduled jobs down, Help paused).
+  { name: "health-uptime", entry: "See the uptime monitors and outages", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
+    open: "health", ready: "[data-uptime-monitor]" },
+  { name: "health-outage", entry: "See the uptime monitors and outages", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
+    open: "health/incidents", ready: "[data-health-outage]" },
 ];
 
 

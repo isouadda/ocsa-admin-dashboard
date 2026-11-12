@@ -20293,6 +20293,77 @@ function HealthListWindow({ af, t, number, day, onClose }) {
       : <DataTable t={t} columns={cols} rows={items} empty={tr("Nothing is behind this number now.")} />}
   </div></Mdl>);
 }
+// ===== LIVE UPTIME (part 393, the API's Round 13 section 1, part 384) =====
+// GET /api/health/uptime (view_health) answers the uptime monitors live (helpers/uptimeMonitors.js current): {
+// configured, checkedAt, stale, monitors: [{ id, name, url, type, status, since, intervalSeconds, lastResponseMs,
+// avgResponseMs24h, uptime: { d1, d7, d30 }, responseTimes24h: [{ at, ms }] }], incidents }, read from UptimeRobot at
+// most once a minute and kept 60 seconds. The page reads it on opening and again each minute while it is open, and
+// the Numbers tab draws every monitor the read answers: its status (up, down, paused, unknown) and since when (since
+// is null for a status older than the 30 days of logs), its uptime for 1, 7 and 30 days, its last and average
+// response, and its last 24 hours of half-hour means as a small line. stale: true is the last good read, said with
+// when it was; checkedAt null is a server that has not read it yet; configured: false is one line.
+const HEALTH_UPTIME_EVERY_MS = 60000;
+const UPTIME_STATUS = { up: "Up|monitor", down: "Down|monitor", paused: "Paused|monitor", unknown: "Unknown|monitor" };
+const uptimeStatusWord = (s) => tr(UPTIME_STATUS[s] || UPTIME_STATUS.unknown);
+const uptimeInk = (s, t) => (s === "up" ? GR : s === "down" ? RD : t.textMut);
+const uptimePct = (v) => { const n = healthNum(v); return n === null ? "--" : n.toLocaleString(localeTag(), { maximumFractionDigits: 3 }) + "%"; };
+const uptimeMs = (v) => (healthNum(v) === null ? "--" : healthValueText(v, "ms"));
+// A length in seconds as a person reads it: seconds under a minute, minutes and seconds under an hour, else hours
+// and minutes. An outage's length is UptimeRobot's own count, to the second.
+const healthSeconds = (s) => {
+  const n = Number(s);
+  if (s === null || s === undefined || s === "" || !Number.isFinite(n) || n < 0) return "--";
+  const r = Math.round(n);
+  if (r < 60) return tr("{0} s", r);
+  if (r < 3600) return tr("{0} min {1} s", Math.floor(r / 60), r % 60);
+  const m = Math.floor(r / 60);
+  return tr("{0} h {1} min", Math.floor(m / 60), m % 60);
+};
+// The last 24 hours of a monitor's response times as a small line, oldest first.
+function UptimeSpark({ t, points = [], ink }) {
+  const vals = (Array.isArray(points) ? points : []).map(p => healthNum(p && p.ms)).filter(v => v !== null);
+  if (vals.length < 2) return <div data-uptime-spark="0" style={{ height: 28, fontSize: 11, color: t.textMut, display: "flex", alignItems: "center" }}>{tr("No response times in the last 24 hours")}</div>;
+  const W = 220, H = 30;
+  const lo = Math.min(...vals), hi = Math.max(...vals, lo + 1);
+  const x = (i) => 2 + (i * (W - 4)) / (vals.length - 1), y = (v) => H - 3 - ((v - lo) * (H - 6)) / (hi - lo);
+  return (<svg data-uptime-spark={vals.length} width="100%" height={H} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" role="img" aria-label={tr("Response times over the last 24 hours, from {0} to {1}", uptimeMs(lo), uptimeMs(hi))}>
+    <polyline points={vals.map((v, i) => x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ")} fill="none" stroke={ink} strokeWidth="1.5" strokeLinejoin="round" />
+  </svg>);
+}
+function HealthUptime({ t, data, failed, onRetry }) {
+  const head = <SecT t={t}>{tr("Uptime monitors")}</SecT>;
+  if (!data && failed) return <div style={{ marginBottom: 16 }}>{head}<Crd t={t}><div data-health-uptime="failed"><LoadFailed t={t} onRetry={onRetry} text={failed} /></div></Crd></div>;
+  if (!data) return <div style={{ marginBottom: 16 }}>{head}<Crd t={t}><div data-health-uptime="loading" style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd></div>;
+  if (data.configured !== true) return <div style={{ marginBottom: 16 }}>{head}<Crd t={t}><div data-health-uptime="off" style={{ fontSize: 13, color: t.textSec }}>{tr("Uptime is not set up on this server.")}</div></Crd></div>;
+  const mons = Array.isArray(data.monitors) ? data.monitors : [];
+  const state = !data.checkedAt ? "unread" : data.stale === true ? "stale" : "live";
+  const line = state === "unread" ? tr("Uptime has not been read yet.")
+    : state === "stale" ? tr("Not read just now. This is the last good read, from {0}.", irWhen(data.checkedAt))
+    : tr("Read at {0}. Read again every minute.", irWhen(data.checkedAt));
+  return (<div data-health-uptime={state} data-health-uptime-read-at={data.checkedAt || ""} style={{ marginBottom: 16 }}>
+    {head}
+    <div data-health-uptime-line="" style={{ fontSize: 12, color: state === "live" ? t.textSec : OR, marginBottom: 10, lineHeight: 1.5 }}>{line}</div>
+    {failed ? <div data-health-uptime-failed="" role="status" style={{ fontSize: 12, color: OR, marginBottom: 10 }}>{tr("The last read did not load. It is read again in a minute.")}</div> : null}
+    {!mons.length ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No monitors to show.")}</div></Crd>
+      : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(250px, 100%), 1fr))", gap: 12 }}>
+        {mons.map(m => {
+          const up = m.uptime || {};
+          const word = uptimeStatusWord(m.status);
+          return (<Crd key={m.id} t={t} style={{ padding: 14, minWidth: 0 }}><div data-uptime-monitor={m.id} data-uptime-status={m.status || "unknown"} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: "50%", background: uptimeInk(m.status, t), flexShrink: 0 }} /><div style={{ fontSize: 13, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{m.name}</div></div>
+            <div data-uptime-since={m.since || ""} style={{ fontSize: 12, fontWeight: 600, color: uptimeInk(m.status, t) }}>{m.since ? tr("{0} since {1}", word, irWhen(m.since)) : tr("{0} for over 30 days", word)}</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: t.textSec }}>
+              <span data-uptime-d1={healthNum(up.d1) === null ? "" : String(up.d1)}>{tr("1 day|uptime")}: <b style={{ color: t.text }}>{uptimePct(up.d1)}</b></span>
+              <span data-uptime-d7={healthNum(up.d7) === null ? "" : String(up.d7)}>{tr("7 days")}: <b style={{ color: t.text }}>{uptimePct(up.d7)}</b></span>
+              <span data-uptime-d30={healthNum(up.d30) === null ? "" : String(up.d30)}>{tr("30 days")}: <b style={{ color: t.text }}>{uptimePct(up.d30)}</b></span>
+            </div>
+            <div data-uptime-response="" style={{ fontSize: 12, color: t.textSec }}>{tr("Last response {0}", uptimeMs(m.lastResponseMs))} . {tr("Average {0} over 24 hours", uptimeMs(m.avgResponseMs24h))}</div>
+            <UptimeSpark t={t} points={m.responseTimes24h} ink={uptimeInk(m.status === "up" ? "up" : m.status, t)} />
+          </div></Crd>);
+        })}
+      </div>}
+  </div>);
+}
 function HealthNumbers({ af, t, data, failed, onRetry }) {
   const [open, setOpen] = useState(null);
   if (failed) return <Crd t={t}><LoadFailed t={t} onRetry={onRetry} text={failed} /></Crd>;
@@ -20470,6 +20541,12 @@ function HealthRuns({ af, t, onAsked }) {
     {open && <HealthRunWindow af={af} t={t} runId={open} onClose={() => setOpen(null)} />}
   </div>);
 }
+// Part 393 (the API's Round 13 section 2): every incident carries source, monitor, reason and durationSeconds. An
+// outage UptimeRobot logged (source uptimerobot, kind monitor) reads as its monitor, its reason and how long it
+// lasted, so far while it goes on; every other incident's length is durationSeconds too, from opened to closed.
+const healthIsOutage = (x) => !!x && x.source === "uptimerobot";
+const healthOutageMonitor = (x) => (x && x.monitor && x.monitor.name) || (x && x.title) || "--";
+const healthIncidentLength = (x) => (x && x.durationSeconds !== null && x.durationSeconds !== undefined ? healthSeconds(x.durationSeconds) : healthSpan(x && x.openedAt, x && x.closedAt));
 function HealthIncidents({ af, t, onChanged }) {
   const [list, setList] = useState(null);
   const [failed, setFailed] = useState("");
@@ -20493,12 +20570,17 @@ function HealthIncidents({ af, t, onChanged }) {
     {list === null ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>
       : !list.length ? <Crd t={t}><div data-health-no-incidents="" style={{ fontSize: 13, color: t.textMut }}>{onlyOpen ? tr("No incident is open.") : tr("No incidents yet.")}</div></Crd>
-      : list.map(x => (<Crd key={x.id} t={t} style={{ marginBottom: 10 }}><div data-health-incident={x.id} data-health-incident-closed={x.closedAt ? "1" : "0"}>
+      : list.map(x => { const outage = healthIsOutage(x); return (<Crd key={x.id} t={t} style={{ marginBottom: 10 }}><div data-health-incident={x.id} data-health-incident-closed={x.closedAt ? "1" : "0"} data-health-incident-source={x.source || "health"}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{x.title}</div>
           <Bdg l={x.closedAt ? tr("Closed|incident") : tr("Open|incident")} c={x.closedAt ? GR : RD} />
         </div>
-        <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{healthKindWord(x.kind)} . {tr("Opened {0}", irWhen(x.openedAt))}{x.closedAt ? " . " + tr("Closed {0}, after {1}", irWhen(x.closedAt), healthSpan(x.openedAt, x.closedAt)) : ""}</div>
+        <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{healthKindWord(x.kind)} . {tr("Opened {0}", irWhen(x.openedAt))}{x.closedAt ? " . " + tr("Closed {0}, after {1}", irWhen(x.closedAt), healthIncidentLength(x)) : ""}</div>
+        {outage && <div data-health-outage={x.id} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 6, fontSize: 13, color: t.text }}>
+          <span data-health-outage-monitor={(x.monitor && x.monitor.id) || ""}>{tr("Monitor: {0}", healthOutageMonitor(x))}</span>
+          <span data-health-outage-reason={x.reason || ""}>{x.reason ? tr("Reason: {0}", x.reason) : tr("No reason was given.")}</span>
+          <span data-health-outage-length={x.durationSeconds === null || x.durationSeconds === undefined ? "" : String(x.durationSeconds)} style={{ color: x.closedAt ? t.textSec : RD, fontWeight: 600 }}>{x.closedAt ? tr("Down for {0}", healthSeconds(x.durationSeconds)) : tr("Down for {0} so far", healthSeconds(x.durationSeconds))}</span>
+        </div>}
         <div data-health-resolution="" style={{ fontSize: 13, color: x.resolution ? t.text : t.textMut, marginTop: 6 }}>{x.resolution ? tr("What fixed it: {0}", x.resolution) : tr("What fixed it is not written yet.")}</div>
         {(x.timeline || []).length > 0 && <div style={{ marginTop: 8 }}>{x.timeline.map((e, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, padding: "2px 0" }}>{irWhen(e.at)}: {e.text}</div>)}</div>}
         {writing && writing.id === x.id ? (<div style={{ marginTop: 10 }}>
@@ -20507,7 +20589,7 @@ function HealthIncidents({ af, t, onChanged }) {
           {said && said.id === x.id ? <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{said.text}</div> : null}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}><Btn t={t} data-health-resolution-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn><Btn t={t} v="ghost" onClick={() => { setWriting(null); setSaid(null); }}>{tr("Cancel")}</Btn></div>
         </div>) : <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-health-resolve={x.id} onClick={() => { setWriting({ id: x.id, text: x.resolution || "" }); setSaid(null); }}>{x.resolution ? tr("Change what fixed it") : tr("Write what fixed it")}</Btn></div>}
-      </div></Crd>))}
+      </div></Crd>); })}
   </div>);
 }
 // The recipients of the morning email and the red alerts, replaced as a set: the people picked and the
@@ -20676,6 +20758,19 @@ function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
   const readSummary = useCallback(() => af("/api/health/summary").then(d => { setSummary(d || {}); setSumFailed(""); }).catch(e => { setSummary(null); setSumFailed(e.message || tr("This did not load.")); }), [af]);
   const readNumbers = useCallback(() => af("/api/health/numbers").then(d => { setNumbers(d || { numbers: [] }); setNumFailed(""); }).catch(e => { setNumbers(null); setNumFailed(e.message || tr("This did not load.")); }), [af]);
   useEffect(() => { readSummary(); readNumbers(); }, [readSummary, readNumbers]);
+  // Part 393: the uptime monitors, read on opening and again each minute while the page is open and in view; a page
+  // put back in view after a minute or more reads them at once. A read that fails keeps the last one on screen.
+  const [uptime, setUptime] = useState(null);
+  const [upFailed, setUpFailed] = useState("");
+  const upAt = useRef(0);
+  const readUptime = useCallback(() => { upAt.current = Date.now(); return af("/api/health/uptime").then(d => { setUptime(d && typeof d === "object" ? d : { configured: false }); setUpFailed(""); }).catch(e => setUpFailed(e.message || tr("This did not load."))); }, [af]);
+  useEffect(() => {
+    readUptime();
+    const timer = setInterval(() => { if (document.visibilityState !== "hidden") readUptime(); }, HEALTH_UPTIME_EVERY_MS);
+    const seen = () => { if (document.visibilityState !== "hidden" && Date.now() - upAt.current >= HEALTH_UPTIME_EVERY_MS) readUptime(); };
+    document.addEventListener("visibilitychange", seen);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", seen); };
+  }, [readUptime]);
   const refresh = async () => {
     if (busy) return;
     setBusy(true);
@@ -20689,7 +20784,7 @@ function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
     <div data-health-tabs="" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
       {HEALTH_TABS.map(([k, l]) => <button key={k} data-health-tab={k} aria-pressed={tab === k} onClick={() => pick(k)} style={{ flexShrink: 0, minHeight: 44, padding: "7px 14px", borderRadius: 8, border: tab === k ? "1px solid " + GO : "1px solid transparent", background: tab === k ? t.goldBg : "transparent", color: tab === k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: FONT_BODY }}>{tr(l)}</button>)}
     </div>
-    {tab === "numbers" && <HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} />}
+    {tab === "numbers" && <><HealthUptime t={t} data={uptime} failed={upFailed} onRetry={readUptime} /><HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} /></>}
     {tab === "runs" && <><HealthRobotSignIn af={af} t={t} lines={((numbers && Array.isArray(numbers.numbers) ? numbers.numbers : []).find(n => n.key === "robot_trust_days_left") || {}).lines} /><HealthRuns af={af} t={t} onAsked={readSummary} /></>}
     {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} />}
     {tab === "settings" && <><HealthRecipients af={af} t={t} allStaff={allStaff} /><HealthThresholds af={af} t={t} /></>}
