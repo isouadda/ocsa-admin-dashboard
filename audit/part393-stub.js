@@ -27,7 +27,11 @@
 //                                         of 1, every monitor of the read behind it ({ name, state, down }), and
 //                                         the open outage is counted
 //
-// Every value is invented: the monitors' ids, their times, their reasons and the days.
+//   Section 2, Copy for Claude:
+//     GET /api/health                     { status: "healthy", timestamp, commit }, the commit an invented hex id; the
+//                                         scene unhealthy answers 503 { status: "unhealthy", commit }
+//
+// Every value is invented: the monitors' ids, their times, their reasons, the commit and the days.
 "use strict";
 
 module.exports = (ctx) => {
@@ -141,7 +145,7 @@ module.exports = (ctx) => {
       if (a && a.status === 403) return a;
       m().uptimeReads += 1;
       sent("uptime", null);
-      if (m().scene.uptimeFails) return bad(500, "server.error", T(lang, "Something went wrong on our side. Try again in a moment.", "Algo salió mal de nuestro lado. Inténtelo de nuevo en un momento."));
+      if (m().scene.uptimeFails) return bad(500, "server.error", T(lang, "Something went wrong on our side. Try again in a moment.", "Algo sali\u00f3 mal de nuestro lado. Int\u00e9ntelo de nuevo en un momento."));
       return ok(uptimeAnswer());
     }
     if (path === "/api/health/incidents" && method === "GET") {
@@ -162,7 +166,7 @@ module.exports = (ctx) => {
       const b = body && typeof body === "object" ? body : {};
       const text = typeof b.resolution === "string" ? b.resolution.replace(/\s+/g, " ").trim() : "";
       const stray = Object.keys(b).filter((k) => k !== "resolution");
-      if (!text || text.length > 1000 || stray.length) return bad(400, "health.badDetails", T(lang, "Some details are missing or not valid. Check the fields named and send it again.", "Faltan algunos datos o no son válidos. Revise los campos indicados y envíelo de nuevo."), { keys: stray.length ? stray : ["resolution"] });
+      if (!text || text.length > 1000 || stray.length) return bad(400, "health.badDetails", T(lang, "Some details are missing or not valid. Check the fields named and send it again.", "Faltan algunos datos o no son v\u00e1lidos. Revise los campos indicados y env\u00edelo de nuevo."), { keys: stray.length ? stray : ["resolution"] });
       x.resolution = text; x.resolvedBy = me().id;
       x.timeline = x.timeline.concat([{ at: seed.NOW_ISO, text: "What fixed it was written" }]);
       return ok({ incident: clone(x) });
@@ -187,7 +191,15 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 2: Copy for Claude ---------------------------------------------------------------------------------
+  // GET /api/health (server.js, part 384 5.8): the deployed commit beside the status, healthy or not, no sign-in.
+  const COMMIT = "c0ffee5eed0123456789abcdef0123456789abcd";
+
   function route(method, path, query, body, lang, base) {
+    if (path === "/api/health" && method === "GET") {
+      sent("health", null);
+      return m().scene.unhealthy ? { status: 503, json: { status: "unhealthy", commit: COMMIT } } : ok({ status: "healthy", timestamp: seed.NOW_ISO, commit: COMMIT });
+    }
     if (/^\/api\/health\//.test(path)) { const r = healthRoute(method, path, query, body, lang, base); if (r) return r; }
     return base();
   }

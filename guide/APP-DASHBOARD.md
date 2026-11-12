@@ -2904,7 +2904,7 @@ Last checked: 2026-11-11
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
 2. **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**), each monitor's status, uptime and response times, read again every minute. Below them it shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
-3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors.
+3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors. **Copy for Claude** (**Copiar para Claude**) there copies the number and what is behind it for the chat.
 4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
 5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
 6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
@@ -3082,4 +3082,16 @@ If it does not work: when the uptime service does not answer, the panel keeps th
 Words people use for this: uptime, uptime monitors, is the app down, outage, downtime, response time, uptimerobot, monitor down, disponibilidad.
 Picture: health-uptime
 Picture: health-outage
+Last checked: 2026-11-12
+
+## Copy a health problem for Claude (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. When something on the Health page turns red, click **Health** (**Salud**), then **Incidents** (**Incidentes**), and find the incident it opened. Or, on **Numbers** (**Indicadores**), click the red number to open who or what is behind it.
+2. Click **Copy for Claude** (**Copiar para Claude**). The page says **Copied for Claude. Paste it into the chat.** (**Copiado para Claude. Péguelo en el chat.**)
+3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in: the incident with its timeline, the number with its lines and its past days, the routes and counts behind it, an outage's monitor, reason and how long it lasted, the API's version and the dashboard's version.
+4. People behind a number are given as how many, never by name, email, phone or badge.
+If it does not work: when the browser does not let the page copy, the page says **This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.** (**Este navegador no dejó que la página copiara. El resumen está seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.**) Press those keys, then paste it into the chat.
+Words people use for this: copy for claude, send to claude, health brief, paste into the chat, red number, incident details, ask claude to fix it, copiar para claude.
+Picture: health-copy-for-claude
+Picture: health-copy-by-hand
 Last checked: 2026-11-12

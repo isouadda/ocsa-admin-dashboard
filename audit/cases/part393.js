@@ -8,6 +8,12 @@
 //             minute while the page is open; a stale read said with when it was, a server with no read yet, and
 //             a server with no uptime key in one line; and each outage in the incidents list with its monitor,
 //             its reason and how long it lasted, open or closed, taking what fixed it as every incident does
+//   brief     Copy for Claude: on a number's incident, the brief in English and plain ASCII whatever the screen's
+//             language, its first line, the incident whole, the number it names with every day read and the routes
+//             behind it, the API's commit and the build, with a toast; on an outage, its monitor, reason and
+//             duration; on a drill-down sheet, routes and counts only, a list of people as how many and never a
+//             name, and the slowest route's floor; and where the browser refuses the clipboard, the brief selected in
+//             a box with how to copy it by hand
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -172,11 +178,114 @@ async function uptimeCases(ctx, lang) {
   });
 }
 
+// ---- Section 2: Copy for Claude ----------------------------------------------------------------------------------
+const NUMBER_INCIDENT = "00000000-0000-4000-8000-000000000701";
+const COMMIT = "c0ffee5eed0123456789abcdef0123456789abcd";
+const ASCII = /^[\n\x20-\x7e]*$/;
+// The clipboard is let in for the page, and read back once a button copied.
+async function letClipboard(d) { await d.page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(d.page.url()).origin }).catch(() => {}); }
+const clipboard = (d) => d.page.evaluate(() => navigator.clipboard.readText().catch(() => ""));
+async function copyAt(d, at) {
+  await d.waitToastGone(4000);
+  await d.page.evaluate(() => navigator.clipboard.writeText("").catch(() => {}));
+  await d.page.locator("[data-copy-for-claude-button='" + at + "']").first().click().catch(() => {});
+  const toast = await d.waitToast(5000).then(() => d.toast()).catch(() => null);
+  await d.settle(200);
+  return { toast, text: await clipboard(d) };
+}
+const linesOf = (text) => String(text || "").split("\n");
+async function briefCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/brief/" + x;
+  const copied = (d) => d.say("Copied for Claude. Paste it into the chat.");
+
+  // 1. A number's incident: the brief's first line, the incident whole with its timeline, the number it names with
+  //    today, its lines and every day read, the routes behind it, the API's commit and the build; in English and
+  //    plain ASCII on either screen, the toast in the screen's language.
+  await withDriver(ctx, { name: "incident", lang, persona: "superAdmin" }, async (d) => {
+    await openHealth(d, "incidents");
+    await until(d, "[data-copy-for-claude-button='" + NUMBER_INCIDENT + "']", 8000);
+    await letClipboard(d);
+    const { toast, text } = await copyAt(d, NUMBER_INCIDENT);
+    const L = linesOf(text);
+    const want = ["OCSA Health brief", "Incident: " + NUMBER_INCIDENT, "Kind: number", "Key: server_errors", "Title: Server errors are red", "Opened: 2026-03-17T12:00:00.000Z", "Closed: still open",
+      "Timeline (1):", "- 2026-03-17T12:00:00.000Z Server errors reached 31, over the red line of 25", "Number: server_errors", "Today: 31, red", "Yesterday: 3", "Lines: yellow at 5, red at 25", "Days read (30):",
+      "- 2026-03-17: 31, red", "Behind it on 2026-03-17 (2 rows):", "- method GET, route /api/sites/:id/tasks, errors 22, requests 4100", "API commit: " + COMMIT];
+    const missing = want.filter((w) => L.indexOf(w) < 0);
+    const build = L.find((x) => x.indexOf("Dashboard build: ") === 0) || "";
+    const named = L.filter((x) => x.indexOf("Name: ") === 0);
+    const ok = L[0] === "OCSA Health brief" && missing.length === 0 && build.length > "Dashboard build: ".length && ASCII.test(text) && toast === copied(d)
+      && (lang === "en" ? named.length === 1 && named[0] === "Name: Server errors" : named.length === 0);
+    results.check(KIND, id("a-number-incident-copies-the-whole-brief-in-english"), ok,
+      "the toast " + say(toast) + " (want " + say(copied(d)) + "); the brief is missing " + say(missing) + ", reads " + say(build) + ", names " + say(named) + (ASCII.test(text) ? "" : ", and holds a byte outside ASCII") + "; it reads " + say(text.slice(0, 400)));
+  });
+
+  // 2. An outage's brief carries its monitor, its reason and its duration.
+  await withDriver(ctx, { name: "outage", lang, persona: "superAdmin", arm: (s) => s.setScene393({ uptime: true }) }, async (d) => {
+    await openHealth(d, "incidents");
+    await until(d, "[data-copy-for-claude-button='" + OPEN_OUTAGE + "']", 8000);
+    await letClipboard(d);
+    const { text } = await copyAt(d, OPEN_OUTAGE);
+    const L = linesOf(text);
+    const want = ["OCSA Health brief", "Kind: monitor", "Key: uptime:378553759093400111", "Outage", "Monitor: OCSA scheduled jobs (id 804609605)", "Reason: 503 Service Unavailable", "Duration: 1500 seconds, still down",
+      "- 2026-03-18T01:05:00.000Z OCSA scheduled jobs down: 503 Service Unavailable", "API commit: " + COMMIT];
+    const missing = want.filter((w) => L.indexOf(w) < 0);
+    results.check(KIND, id("an-outage-copies-its-monitor-reason-and-duration"), missing.length === 0 && ASCII.test(text), "the brief is missing " + say(missing) + "; it reads " + say(text.slice(0, 400)));
+  });
+
+  // 3. A drill-down sheet: a list of people reads as how many, with no name, and the slowest route's carries its
+  //    floor and its routes.
+  await withDriver(ctx, { name: "drill-down", lang, persona: "superAdmin" }, async (d) => {
+    await openHealth(d);
+    await until(d, "[data-health-number='never_signed_in']", 8000);
+    await letClipboard(d);
+    await d.page.locator("[data-health-number='never_signed_in']").first().click().catch(() => {});
+    await until(d, "[data-copy-for-claude-button='never_signed_in']", 6000);
+    const people = await copyAt(d, "never_signed_in");
+    const P = linesOf(people.text);
+    const names = ["Rashid", "Haddad", "Yuki", "Tanabe", "Salome", "Mkhize", "@"].filter((w) => people.text.indexOf(w) >= 0);
+    await d.closeModal().catch(() => {});
+    await d.settle(300);
+    await d.page.locator("[data-health-number='slowest_p95_ms']").first().click().catch(() => {});
+    await until(d, "[data-copy-for-claude-button='slowest_p95_ms']", 6000);
+    const slow = await copyAt(d, "slowest_p95_ms");
+    const S = linesOf(slow.text);
+    const wantP = ["OCSA Health brief", "Number: never_signed_in", "Behind it on 2026-03-17 (3 rows):", "- 3 rows about people, names left out", "API commit: " + COMMIT];
+    const wantS = ["Number: slowest_p95_ms", "Today: 900, green", "Lines: yellow at 1500 ms, red at 3000 ms", "Floor: a route counts once it served 20 requests in the day",
+      "- method GET, route /api/sites/:id/tasks, p50 120, p95 900, requests 4100", "- method GET, route /api/library, p50 60, p95 300, requests 620"];
+    const missing = wantP.filter((w) => P.indexOf(w) < 0).concat(wantS.filter((w) => S.indexOf(w) < 0));
+    const noIncident = P.every((x) => x.indexOf("Incident: ") !== 0);
+    results.check(KIND, id("a-drill-down-copies-routes-and-counts-and-never-a-name"), missing.length === 0 && names.length === 0 && noIncident && ASCII.test(people.text) && ASCII.test(slow.text),
+      "missing " + say(missing) + "; names in it " + say(names) + "; the people's brief " + say(people.text.slice(0, 300)) + "; the slowest route's " + say(slow.text.slice(0, 300)));
+  });
+
+  // 4. A browser that refuses the clipboard: the brief in a box, selected, with how to copy it by hand.
+  await withDriver(ctx, { name: "refused", lang, persona: "superAdmin" }, async (d) => {
+    await openHealth(d, "incidents");
+    await until(d, "[data-copy-for-claude-button='" + NUMBER_INCIDENT + "']", 8000);
+    await d.waitToastGone(4000);
+    await d.page.evaluate(() => { try { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => Promise.reject(new Error("refused")), readText: () => Promise.reject(new Error("refused")) } }); } catch (e) { /* kept */ } });
+    await d.page.locator("[data-copy-for-claude-button='" + NUMBER_INCIDENT + "']").first().click().catch(() => {});
+    await until(d, "[data-copy-for-claude-text='" + NUMBER_INCIDENT + "']", 5000);
+    const box = await d.page.evaluate((at) => {
+      const ta = document.querySelector("[data-copy-for-claude-text='" + at + "']");
+      if (!ta) return null;
+      return { value: ta.value, focused: document.activeElement === ta, start: ta.selectionStart, end: ta.selectionEnd, said: ta.parentElement.querySelector("[role='status']").innerText.trim() };
+    }, NUMBER_INCIDENT);
+    const toast = await d.toast();
+    const want = d.say("This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.");
+    const ok = !!box && box.value.indexOf("OCSA Health brief\n\nIncident: " + NUMBER_INCIDENT) === 0 && box.focused && box.start === 0 && box.end === box.value.length && box.said === want && toast !== copied(d);
+    results.check(KIND, id("a-refused-clipboard-shows-the-brief-selected"), ok,
+      box ? "the box reads " + say(box.value.slice(0, 80)) + ", focused " + box.focused + ", selected " + box.start + " to " + box.end + " of " + box.value.length + ", it says " + say(box.said) + "; the toast " + say(toast) : "no box");
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("uptime")) await uptimeCases(ctx, lang);
+    if (want("brief")) await briefCases(ctx, lang);
   }
 }
 

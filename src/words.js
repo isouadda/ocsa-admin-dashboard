@@ -5831,6 +5831,12 @@ export const WORDS = {
   "No reason was given.": { es: "No se dio ning\u00fan motivo.", fr: "Aucune raison n'a \u00e9t\u00e9 donn\u00e9e." },
   "Down for {0}": { es: "Ca\u00eddo durante {0}", fr: "Hors ligne pendant {0}" },
   "Down for {0} so far": { es: "Ca\u00eddo durante {0} hasta ahora", fr: "Hors ligne depuis {0} jusqu'ici" },
+  "Copy for Claude": { es: "Copiar para Claude", fr: "Copier pour Claude" },
+  "Copying...": { es: "Copiando...", fr: "Copie..." },
+  "Copied for Claude. Paste it into the chat.": { es: "Copiado para Claude. P\u00e9guelo en el chat.", fr: "Copi\u00e9 pour Claude. Collez-le dans la conversation." },
+  "This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.": { es: "Este navegador no dej\u00f3 que la p\u00e1gina copiara. El resumen est\u00e1 seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.", fr: "Ce navigateur n'a pas laiss\u00e9 la page copier. Le r\u00e9sum\u00e9 est s\u00e9lectionn\u00e9 ci-dessous : appuyez sur Ctrl+C, ou Commande+C sur un Mac, pour le copier." },
+  "The brief could not be made. Try again.": { es: "No se pudo preparar el resumen. Int\u00e9ntelo de nuevo.", fr: "Le r\u00e9sum\u00e9 n'a pas pu \u00eatre pr\u00e9par\u00e9. R\u00e9essayez." },
+  "The brief for Claude": { es: "El resumen para Claude", fr: "Le r\u00e9sum\u00e9 pour Claude" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

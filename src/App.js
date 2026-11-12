@@ -1844,7 +1844,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "health" && (canOpenPage("health") ? <HealthPage af={af} t={t} token={token} allStaff={allStaff} route={route} onRoute={replaceRoute} /> : capsPending ? <CapsPendingNotice t={t} /> : <HealthRefused t={t} onBack={() => setPage("overview")} />)}
+        {page === "health" && (canOpenPage("health") ? <HealthPage af={af} t={t} token={token} allStaff={allStaff} route={route} onRoute={replaceRoute} showToast={showToast} /> : capsPending ? <CapsPendingNotice t={t} /> : <HealthRefused t={t} onBack={() => setPage("overview")} />)}
         {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} token={token} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -20269,7 +20269,111 @@ const HEALTH_LIST_COLS = {
   monitors_down: [["name", "Monitor"], ["state", "State"], ["down", "Down", "yesno"]],
   robot_trust_days_left: [["account", "Test account"], ["device", "Device"], ["endsAt", "Ends", "when"], ["daysLeft", "Days left"]],
 };
-function HealthListWindow({ af, t, number, day, onClose }) {
+// ===== COPY FOR CLAUDE (part 393, the owner's word of Nov 11) =====
+// When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
+// needs to fix it. Every Health incident and every number's drill-down sheet carries Copy for Claude, which copies
+// one plain ASCII block in English, built from the reads the page has today (the API's Round 14 adds GET
+// /api/health/incidents/:id/brief, which the next round reads instead):
+//   - the first line, OCSA Health brief;
+//   - an incident's id, kind, key, title, opened and closed times, what fixed it and its timeline;
+//   - an outage's monitor, reason and duration;
+//   - a number's key, its day, today's value and state, yesterday, the 7 days' average, its yellow and red lines and
+//     any floor (GET /api/health/thresholds, minRequests), and every past day the page read; for a number's
+//     incident, the number it names (its key) and the rows read from its list;
+//   - the rows the drill-down shows, routes and counts only: a list of people, or of rows that name a site or a
+//     person, reads as how many, never a name, email, phone or badge;
+//   - the API's commit from GET /api/health (commit), and the dashboard's own build.
+// The number's name is the screen's, so it is copied only on an English screen; its key names it in every language.
+// Anything outside plain ASCII in a value the API sent is written without its accent, or as a question mark.
+// The fields of a list's rows a brief carries, by the number's key. Any other list is of people, or names them.
+const HEALTH_BRIEF_COLS = {
+  app_open_ms: ["startedAt", "trigger", "appOpenMs"],
+  server_errors: ["method", "route", "errors", "requests"],
+  slowest_p95_ms: ["method", "route", "p50", "p95", "requests"],
+  check_offs: ["checkOffs"],
+  shifts_started: ["shiftsStarted"],
+  emails_failed: ["purpose", "failed", "lastAt"],
+  push_failed: ["hour", "sent", "failed"],
+  runs_failed: ["journey", "outcome", "durationMs"],
+  monitors_down: ["name", "state", "down"],
+};
+const briefAscii = (v) => String(v === null || v === undefined ? "" : v).normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, "\"").replace(/[\u2013\u2014]/g, "-").replace(/\r/g, "").replace(/[^\x20-\x7e\n]/g, "?");
+const briefValue = (v) => (v === null || v === undefined || v === "" ? "none" : typeof v === "object" ? briefAscii(v.name || JSON.stringify(v)) : briefAscii(v));
+const briefLine = (lines, unit) => {
+  if (!lines) return "none";
+  const one = (x) => (x === null || x === undefined ? "never" : lines.kind === "belowShare" ? Math.round(Number(x) * 100) + "% of the week before" : briefValue(x) + (unit === "ms" ? " ms" : ""));
+  if (lines.kind === "below") return "yellow at or under " + one(lines.yellow) + ", red at or under " + one(lines.red);
+  if (lines.kind === "belowShare") return "yellow under " + one(lines.yellow) + ", red under " + one(lines.red);
+  return "yellow at " + one(lines.yellow) + ", red at " + one(lines.red);
+};
+function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
+  const out = ["OCSA Health brief"];
+  const x = incident;
+  if (x) {
+    out.push("", "Incident: " + briefValue(x.id), "Kind: " + briefValue(x.kind), "Key: " + briefValue(x.key), "Title: " + briefValue(x.title),
+      "Opened: " + briefValue(x.openedAt), "Closed: " + (x.closedAt ? briefValue(x.closedAt) : "still open"), "What fixed it: " + (x.resolution ? briefValue(x.resolution) : "not written yet"));
+    if (healthIsOutage(x)) {
+      out.push("", "Outage", "Monitor: " + briefValue(healthOutageMonitor(x)) + (x.monitor && x.monitor.id ? " (id " + briefValue(x.monitor.id) + ")" : ""), "Reason: " + briefValue(x.reason),
+        "Duration: " + (x.durationSeconds === null || x.durationSeconds === undefined ? "none" : briefValue(x.durationSeconds) + " seconds" + (x.closedAt ? "" : ", still down")));
+    }
+    const tl = Array.isArray(x.timeline) ? x.timeline : [];
+    out.push("", "Timeline (" + tl.length + "):");
+    tl.forEach(e => out.push("- " + briefValue(e && e.at) + " " + briefValue(e && e.text)));
+  }
+  const n = number;
+  if (n) {
+    const hist = Array.isArray(n.history) ? n.history : [];
+    out.push("", "Number: " + briefValue(n.key));
+    if (getLang() === "en" && n.label) out.push("Name: " + briefValue(n.label));
+    out.push("Unit: " + briefValue(n.unit), "Today: " + briefValue(n.value) + ", " + briefValue(n.state || "unknown"), "Yesterday: " + briefValue(n.previous),
+      "7 days before, average: " + briefValue(n.weekAverage), "Lines: " + briefLine(n.lines, n.unit));
+    if (floor !== null && floor !== undefined) out.push("Floor: a route counts once it served " + briefValue(floor) + " requests in the day");
+    out.push("", "Days read (" + hist.length + "):");
+    hist.forEach(h => out.push("- " + briefValue(h && h.day) + ": " + briefValue(h && h.value) + ", " + briefValue((h && h.state) || "unknown")));
+  }
+  if (n && Array.isArray(rows)) {
+    const cols = HEALTH_BRIEF_COLS[n.key];
+    out.push("", "Behind it on " + briefValue(rowsDay) + " (" + rows.length + (rows.length === 1 ? " row" : " rows") + "):");
+    if (!cols) out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row about a person" : " rows about people") + ", names left out" : "- nothing");
+    else if (!rows.length) out.push("- nothing");
+    else rows.forEach(r => out.push("- " + cols.map(k => k + " " + briefValue(r && r[k])).join(", ")));
+  }
+  out.push("", "API commit: " + (commit ? briefValue(commit) : "not answered"), "Dashboard build: " + briefValue(BUILD_STAMP), "Copied at: " + new Date().toISOString());
+  return out.join("\n") + "\n";
+}
+// The API's commit, GET /api/health (part 384, 5.8), and a number's floor, GET /api/health/thresholds; null when either
+// read fails or answers none.
+const healthCommitOf = (af) => af("/api/health").then(d => (d && typeof d.commit === "string" && d.commit ? d.commit : null)).catch(() => null);
+const healthFloorOf = (af, key) => af("/api/health/thresholds").then(d => { const r = (d && Array.isArray(d.thresholds) ? d.thresholds : []).find(x => x && x.key === key); return r && r.minRequests !== undefined && r.minRequests !== null ? r.minRequests : null; }).catch(() => null);
+// The button, its toast, and the box with the brief selected where the browser refuses the clipboard.
+function CopyForClaude({ t, at, build, showToast }) {
+  const [busy, setBusy] = useState(false);
+  const [box, setBox] = useState("");
+  const area = useRef(null);
+  useEffect(() => { if (box && area.current) { area.current.focus(); area.current.select(); } }, [box]);
+  const copy = async (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (busy) return;
+    setBusy(true); setBox("");
+    let text = "";
+    try { text = await build(); } catch (err) { text = ""; }
+    let copied = false;
+    if (text) { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); copied = true; } } catch (err) { copied = false; } }
+    setBusy(false);
+    if (!text) { if (showToast) showToast(tr("The brief could not be made. Try again."), "error"); return; }
+    if (copied) { if (showToast) showToast(tr("Copied for Claude. Paste it into the chat.")); return; }
+    setBox(text);
+  };
+  return (<div data-copy-for-claude={at} style={{ minWidth: 0, flex: box ? "1 1 100%" : "0 1 auto" }}>
+    <Btn t={t} v="ghost" data-copy-for-claude-button={at} onClick={copy} disabled={busy}>{busy ? tr("Copying...") : tr("Copy for Claude")}</Btn>
+    {box ? <div data-copy-for-claude-box={at} style={{ marginTop: 8 }}>
+      <div role="status" style={{ fontSize: 12, color: OR, marginBottom: 6, lineHeight: 1.5 }}>{tr("This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.")}</div>
+      <textarea ref={area} readOnly value={box} rows={10} aria-label={tr("The brief for Claude")} data-copy-for-claude-text={at} onClick={e => e.stopPropagation()} onFocus={e => e.target.select()} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: "monospace", resize: "vertical", whiteSpace: "pre" }} />
+    </div> : null}
+  </div>);
+}
+function HealthListWindow({ af, t, number, day, onClose, showToast }) {
   const [items, setItems] = useState(null);
   const [failed, setFailed] = useState("");
   const [again, setAgain] = useState(0);
@@ -20287,7 +20391,10 @@ function HealthListWindow({ af, t, number, day, onClose }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{number.label || number.key}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Who or what is behind this number on {0}, read now.", healthDay(day))}</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ flex: "1 1 240px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Who or what is behind this number on {0}, read now.", healthDay(day))}</div>
+      {items !== null && !failed ? <CopyForClaude t={t} at={number.key} showToast={showToast} build={async () => { const [commit, floor] = await Promise.all([healthCommitOf(af), healthFloorOf(af, number.key)]); return healthBrief({ number, rows: items, rowsDay: day, floor, commit }); }} /> : null}
+    </div>
     {items === null ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} text={failed} />
       : <DataTable t={t} columns={cols} rows={items} empty={tr("Nothing is behind this number now.")} />}
@@ -20364,7 +20471,7 @@ function HealthUptime({ t, data, failed, onRetry }) {
       </div>}
   </div>);
 }
-function HealthNumbers({ af, t, data, failed, onRetry }) {
+function HealthNumbers({ af, t, data, failed, onRetry, showToast }) {
   const [open, setOpen] = useState(null);
   if (failed) return <Crd t={t}><LoadFailed t={t} onRetry={onRetry} text={failed} /></Crd>;
   if (!data) return <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
@@ -20392,7 +20499,7 @@ function HealthNumbers({ af, t, data, failed, onRetry }) {
         })}
       </div>
     </div>))}
-    {open && <HealthListWindow af={af} t={t} number={open} day={data.day} onClose={() => setOpen(null)} />}
+    {open && <HealthListWindow af={af} t={t} number={open} day={data.day} onClose={() => setOpen(null)} showToast={showToast} />}
   </div>);
 }
 // Run now's refusals in plain words, by their codes, for an answer that carries none.
@@ -20547,7 +20654,7 @@ function HealthRuns({ af, t, onAsked }) {
 const healthIsOutage = (x) => !!x && x.source === "uptimerobot";
 const healthOutageMonitor = (x) => (x && x.monitor && x.monitor.name) || (x && x.title) || "--";
 const healthIncidentLength = (x) => (x && x.durationSeconds !== null && x.durationSeconds !== undefined ? healthSeconds(x.durationSeconds) : healthSpan(x && x.openedAt, x && x.closedAt));
-function HealthIncidents({ af, t, onChanged }) {
+function HealthIncidents({ af, t, onChanged, numbers = null, showToast }) {
   const [list, setList] = useState(null);
   const [failed, setFailed] = useState("");
   const [onlyOpen, setOnlyOpen] = useState(true);
@@ -20556,6 +20663,18 @@ function HealthIncidents({ af, t, onChanged }) {
   const [once, busy] = useBusyGuard();
   const read = useCallback(() => af("/api/health/incidents" + (onlyOpen ? "?open=true" : "")).then(d => { setList(d && Array.isArray(d.incidents) ? d.incidents : []); setFailed(""); }).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); }), [af, onlyOpen]);
   useEffect(() => { setList(null); read(); }, [read]);
+  // Copy for Claude on an incident (part 393): a number's incident carries the number it names, from the page's
+  // numbers, and the rows of its list read now; an outage its monitor, reason and duration.
+  const briefOfIncident = async (x) => {
+    const number = x && x.kind === "number" && numbers && Array.isArray(numbers.numbers) ? numbers.numbers.find(n => n && n.key === x.key) || null : null;
+    const day = numbers && numbers.day ? numbers.day : "";
+    const [commit, rows, floor] = await Promise.all([
+      healthCommitOf(af),
+      number ? af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : "")).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
+      number ? healthFloorOf(af, number.key) : null,
+    ]);
+    return healthBrief({ incident: x, number, rows, rowsDay: day, floor, commit });
+  };
   const save = once(async () => {
     const text = (writing && writing.text || "").replace(/\s+/g, " ").trim();
     if (!text) { setSaid({ id: writing.id, text: tr("Write what fixed it first.") }); return; }
@@ -20588,7 +20707,7 @@ function HealthIncidents({ af, t, onChanged }) {
           <TArea t={t} data-health-resolution-text="" aria-label={tr("What fixed it")} rows={3} maxLength={1000} value={writing.text} onChange={e => setWriting({ ...writing, text: e.target.value })} />
           {said && said.id === x.id ? <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{said.text}</div> : null}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}><Btn t={t} data-health-resolution-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn><Btn t={t} v="ghost" onClick={() => { setWriting(null); setSaid(null); }}>{tr("Cancel")}</Btn></div>
-        </div>) : <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-health-resolve={x.id} onClick={() => { setWriting({ id: x.id, text: x.resolution || "" }); setSaid(null); }}>{x.resolution ? tr("Change what fixed it") : tr("Write what fixed it")}</Btn></div>}
+        </div>) : <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}><Btn t={t} v="ghost" data-health-resolve={x.id} onClick={() => { setWriting({ id: x.id, text: x.resolution || "" }); setSaid(null); }}>{x.resolution ? tr("Change what fixed it") : tr("Write what fixed it")}</Btn><CopyForClaude t={t} at={x.id} showToast={showToast} build={() => briefOfIncident(x)} /></div>}
       </div></Crd>); })}
   </div>);
 }
@@ -20748,7 +20867,7 @@ function HealthReports({ af, t, token }) {
     {pdf && <PdfWindow token={token} t={t} onClose={() => setPdf(null)} boxProps={{ "data-health-pdf": pdf.id }} title={tr(HEALTH_REPORT_KINDS[pdf.kind] || pdf.kind)} sub={tr("{0} to {1}", healthDay(pdf.from), healthDay(pdf.to))} pathFor={() => "/api/health/reports/" + encodeURIComponent(pdf.id) + "/pdf"} fallbackName={"health-" + pdf.kind + "-" + pdf.from + "-" + pdf.to + ".pdf"} oneLanguage />}
   </div>);
 }
-function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
+function HealthPage({ af, t, token, allStaff = [], route = [], onRoute, showToast }) {
   const tab = HEALTH_TABS.some(x => x[0] === route[0]) ? route[0] : "numbers";
   const [summary, setSummary] = useState(null);
   const [sumFailed, setSumFailed] = useState("");
@@ -20784,9 +20903,9 @@ function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
     <div data-health-tabs="" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
       {HEALTH_TABS.map(([k, l]) => <button key={k} data-health-tab={k} aria-pressed={tab === k} onClick={() => pick(k)} style={{ flexShrink: 0, minHeight: 44, padding: "7px 14px", borderRadius: 8, border: tab === k ? "1px solid " + GO : "1px solid transparent", background: tab === k ? t.goldBg : "transparent", color: tab === k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: FONT_BODY }}>{tr(l)}</button>)}
     </div>
-    {tab === "numbers" && <><HealthUptime t={t} data={uptime} failed={upFailed} onRetry={readUptime} /><HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} /></>}
+    {tab === "numbers" && <><HealthUptime t={t} data={uptime} failed={upFailed} onRetry={readUptime} /><HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} showToast={showToast} /></>}
     {tab === "runs" && <><HealthRobotSignIn af={af} t={t} lines={((numbers && Array.isArray(numbers.numbers) ? numbers.numbers : []).find(n => n.key === "robot_trust_days_left") || {}).lines} /><HealthRuns af={af} t={t} onAsked={readSummary} /></>}
-    {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} />}
+    {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} numbers={numbers} showToast={showToast} />}
     {tab === "settings" && <><HealthRecipients af={af} t={t} allStaff={allStaff} /><HealthThresholds af={af} t={t} /></>}
     {tab === "reports" && <HealthReports af={af} t={t} token={token} />}
   </div>);

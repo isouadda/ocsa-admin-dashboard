@@ -1954,6 +1954,25 @@ const SHOTS = [
     open: "health", ready: "[data-uptime-monitor]" },
   { name: "health-outage", entry: "See the uptime monitors and outages", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
     open: "health/incidents", ready: "[data-health-outage]" },
+  // Part 393, section 2: Copy for Claude on a number's incident, copied with its toast, and the box a browser that
+  // refuses the clipboard shows, the brief selected (audit/part393-stub.js).
+  { name: "health-copy-for-claude", entry: "Copy a health problem for Claude", as: "superAdmin",
+    open: "health/incidents", ready: "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']",
+    act: async (c) => {
+      await c.page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: c.origin });
+      await c.d.waitToastGone(4000);
+      await click(c, "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']");
+      await c.d.waitToast(5000);
+    } },
+  { name: "health-copy-by-hand", entry: "Copy a health problem for Claude", as: "superAdmin",
+    open: "health/incidents", ready: "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']",
+    act: async (c) => {
+      await c.d.waitToastGone(4000);
+      await c.page.evaluate(() => { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => Promise.reject(new Error("refused")) } }); });
+      await click(c, "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']");
+      await until(c, "[data-copy-for-claude-text]");
+      await toTop(c, "[data-health-incident='00000000-0000-4000-8000-000000000701']", 20);
+    } },
 ];
 
 
