@@ -1863,8 +1863,10 @@ const SHOTS = [
   // Part 379, section 1: the Health page as the super admin, against audit/part379-stub.js: the light and the
   // numbers, a failed run-through's window with its step's error and screenshot, who is told and the lines,
   // and the reports kept.
-  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin",
-    open: "health", ready: "[data-health-number='server_errors']" },
+  // Part 393: the numbers under the uptime monitors (audit/part393-stub.js, the scene uptime), the numbers in view.
+  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
+    open: "health", ready: "[data-health-number='server_errors']",
+    act: async (c) => { await until(c, "[data-uptime-monitor]"); await toTop(c, "[data-health-numbers]", 150); } },
   { name: "health-run", entry: "Read the Health page", as: "superAdmin",
     open: "health/runs", ready: "[data-health-run-row]",
     act: async (c) => { await click(c, "[data-health-run-row='00000000-0000-4000-8000-000000000902']"); await until(c, "[data-health-run] [data-health-step-error]"); await wait(400); } },
@@ -1890,6 +1892,11 @@ const SHOTS = [
   // testSite).
   { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
     open: "sites", ready: "[data-site-test]" },
+  // Part 393, section 3: Checklist Results' All sites with Riverbend Logistics Hub as the test site, which the summary
+  // leaves out, so its card says why it has no counts (audit/part393-stub.js, testSite).
+  { name: "checklist-results-test-site", entry: "Tell the test site apart",
+    arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene379({ testSite: on }); stubs.setScene393({ testSite: on ? seed.SITES[2].id : null }); },
+    open: "checklist/all/today", ready: "[data-cr-test-site]", act: async () => { await wait(900); } },
   // Part 386, section 2: HR Records' training records, the certificate on ht-5 uploaded by the person from an
   // outside course (audit/part386-stub.js).
   { name: "training-certificate-by", entry: "Upload a training certificate from an outside course",
@@ -1946,6 +1953,31 @@ const SHOTS = [
   { name: "hr-coaching", entry: "Read a person's coaching and training from findings",
     open: "hr/" + seed.PEOPLE.supervisor.id, ready: "[data-folder-coaching]",
     act: async (c) => { await toTop(c, "[data-folder-coaching]", 110); } },
+  // Part 393, section 1: the uptime monitors on the Health page and an outage in the incidents list, against
+  // audit/part393-stub.js with the scene uptime (the scheduled jobs down, Help paused).
+  { name: "health-uptime", entry: "See the uptime monitors and outages", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
+    open: "health", ready: "[data-uptime-monitor]" },
+  { name: "health-outage", entry: "See the uptime monitors and outages", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
+    open: "health/incidents", ready: "[data-health-outage]" },
+  // Part 393, section 2: Copy for Claude on a number's incident, copied with its toast, and the box a browser that
+  // refuses the clipboard shows, the brief selected (audit/part393-stub.js).
+  { name: "health-copy-for-claude", entry: "Copy a health problem for Claude", as: "superAdmin",
+    open: "health/incidents", ready: "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']",
+    act: async (c) => {
+      await c.page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: c.origin });
+      await c.d.waitToastGone(4000);
+      await click(c, "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']");
+      await c.d.waitToast(5000);
+    } },
+  { name: "health-copy-by-hand", entry: "Copy a health problem for Claude", as: "superAdmin",
+    open: "health/incidents", ready: "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']",
+    act: async (c) => {
+      await c.d.waitToastGone(4000);
+      await c.page.evaluate(() => { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => Promise.reject(new Error("refused")) } }); });
+      await click(c, "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']");
+      await until(c, "[data-copy-for-claude-text]");
+      await toTop(c, "[data-health-incident='00000000-0000-4000-8000-000000000701']", 20);
+    } },
 ];
 
 

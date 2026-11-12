@@ -6181,6 +6181,19 @@ function createStubs() {
   // ocsa-api e4f2048, over part 386's and every layer under it but the pictures, in every run. Its findings are
   // the Step 253 layer's, there once that layer is armed.
   const part389 = require("./part389-stub")({ seed, state, ok, clone, person, items: INSPECTION_ITEMS, findings: () => (step253 ? findings() : []) });
+  // What the API's Round 13 answers for the dashboard (part 393), in audit/part393-stub.js: the API as built at
+  // ocsa-api 6c112ee, over part 389's and every layer under it but the pictures, in every run.
+  const part393 = require("./part393-stub")({ seed, state, ok, clone, person });
+  // A read the part393 layer makes on its own (features on the permissions read): routed through every layer as a
+  // call is, refusals a case set included, and kept out of the calls and the language count a run reads.
+  function quietGet(path, lang) {
+    const kept = calls.length;
+    const counted = language.calls;
+    const l = lang === "es" ? "es" : "en";
+    try { return handle({ method: "GET", url: "http://stub.invalid" + path + (path.indexOf("?") >= 0 ? "&" : "?") + "locale=" + l, headers: { authorization: "Bearer quiet", "accept-language": l }, lang: l }); }
+    finally { calls.splice(kept); language.calls = counted; }
+  }
+  part393.setProbe(quietGet);
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7366,7 +7379,8 @@ function createStubs() {
     const under379 = () => part379.route(method, path, u.searchParams, body, record.language, under372p);
     const under386 = () => part386.route(method, path, u.searchParams, body, record.language, under379);
     const under389 = () => part389.route(method, path, u.searchParams, body, record.language, under386);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under389);
+    const under393 = () => part393.route(method, path, u.searchParams, body, record.language, under389);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under393);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7492,6 +7506,10 @@ function createStubs() {
     sent389: () => part389.sent(),
     model389: () => part389.model(),
     followUps389: () => part389.followUps(),
+    // Part 393: the API's Round 13 (audit/part393-stub.js), what a run sent it, and its scenes.
+    setScene393: (o) => { part393.setScene(o || {}); },
+    sent393: () => part393.sent(),
+    model393: () => part393.model(),
     sent386: () => part386.sent(),
     model386: () => part386.model(),
     sent379: () => part379.sent(),
@@ -7659,6 +7677,7 @@ function createStubs() {
       part379.reset();
       part386.reset();
       part389.reset();
+      part393.reset();
       pictures372.reset();
     },
     fixtures: {

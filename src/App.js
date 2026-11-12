@@ -455,6 +455,12 @@ const changedFields = (now, was) => { const out = {}; Object.keys(now).forEach(k
 // since the API's Round 10 (part 376), carries TEST after its name, as a test account is marked, so nobody
 // assigns real staff or work to it by mistake.
 const siteShown = (s) => (s ? String(s.name || "") + (s.is_test === true || s.isTest === true ? " (" + tr("TEST") + ")" : "") : "");
+// Part 393 (the API's Round 13, 4.4): a row that names its site says whether it is the test site, isTest beside siteId on
+// the by-site board, site_is_test beside site_name on the schedule's and the reports' rows, and siteIsTest beside
+// siteName where a report names its site that way. Such a row's site reads as the test site, marked the way siteShown
+// marks it, wherever the row's site is drawn, printed or exported.
+const rowSiteTest = (r) => !!r && (r.site_is_test === true || r.siteIsTest === true || r.isTest === true);
+const rowSiteName = (r, name) => siteShown({ name: name !== undefined && name !== null ? name : (r && (r.site_name || r.siteName)) || "", is_test: rowSiteTest(r) });
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
 // The health alerts and the morning health email link <dashboard>/health (the API's Round 10, part 376).
 // Opened in the browser, that address reads as #health, so it lands on the Health page.
@@ -1112,6 +1118,8 @@ export default function AdminDashboard() {
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn, maintenance, leaveOn]);
+  // Who is signed in, for the windows that read SelfCtx (part 393).
+  const selfCtx = useMemo(() => ({ id: user && user.id != null ? String(user.id) : "", test: !!(user && (user.isTestAccount === true || user.is_test_account === true)) }), [user]);
   // What the HR folder and a site's page need to know about leave balances (part 368).
   const leaveCtx = useMemo(() => ({ on: leaveOn, canManage: leaveOn && hasCap("manage_leave_balances") }), [leaveOn, hasCap]);
   const [sites, setSites] = useState([]);
@@ -1157,18 +1165,24 @@ export default function AdminDashboard() {
     run();
     return () => { alive = false; clearTimeout(timer); window.removeEventListener("online", again); document.removeEventListener("visibilitychange", again); };
   }, [token]);
+  // Part 393 (the API's Round 13, 5.7): GET /api/users/me/permissions answers features: { clearances, discipline,
+  // workspace, library }, whether the caller may read each of those areas' lists, by the rule the area's own router
+  // reads. Sign-in sets those four items from it and reads none of the four lists. null while the read is out; false
+  // when the API answered without it (an API before Round 13, or the per-person route read in its place), and then
+  // the four lists are read to set each flag, as before.
+  const [features, setFeatures] = useState(null);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
-    if (!token || !id) { setCaps(null); setCapsRead("reading"); return undefined; }
+    if (!token || !id) { setCaps(null); setCapsRead("reading"); setFeatures(null); return undefined; }
     let alive = true; let timer = null; let tries = 0;
-    const done = (map) => { if (!alive) return; const m = map && typeof map === "object" ? map : null; setCaps(m); setCapsRead(m ? "read" : "failed"); };
+    const done = (map, feats) => { if (!alive) return; const m = map && typeof map === "object" ? map : null; setCaps(m); setCapsRead(m ? "read" : "failed"); setFeatures(feats && typeof feats === "object" && !Array.isArray(feats) ? feats : false); };
     // Until Step 179 answers the me route, the per-person route says the same for whoever may read it.
     // When both fail for want of a connection, a deadline or a server error, the read is tried again
     // after 10, 20, 40 and 80 seconds and then every 2 minutes, six times in all (DASH-20, as DASH-10
     // does for sites and people), and what waits on it stays closed until then.
     const read = () => {
       af("/api/users/me/permissions")
-        .then(d => done(d && d.capabilities))
+        .then(d => done(d && d.capabilities, d && d.features))
         .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => {
           console.warn("Own capabilities:", e.message);
           if (!alive) return;
@@ -1184,24 +1198,42 @@ export default function AdminDashboard() {
   // Whether the session's first round of probes has answered (DASH-27).
   const [probesIn, setProbesIn] = useState(false);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setLibraryOn(false); setMaintenance(null); setLeaveOn(false); setProbesIn(false); return undefined; }
+    if (!token) { setDevicesOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setMaintenance(null); setLeaveOn(false); setProbesIn(false); return undefined; }
     // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
     // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
     let alive = true; let soft = false; let timer = null;
     const probes = [];
-    probes.push(af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); }));
-    probes.push(af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); }));
-    probes.push(af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); }));
     probes.push(af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); }));
     probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
     probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
-    probes.push(af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLibraryOn(false); console.warn("Library:", e.message); }));
     probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? { maxPhotos: Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d.responseDays } : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
     probes.push(af("/api/leave/policies").then(d => { if (alive) setLeaveOn(!!(d && Array.isArray(d.policies))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLeaveOn(false); console.warn("Leave balances:", e.message); }));
     probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
     Promise.all(probes).then(() => { if (alive) setProbesIn(true); if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
     return () => { alive = false; clearTimeout(timer); };
   }, [token, af, probeRound]);
+  // The four areas features names (part 393): from features once the permissions read answers with it, else each read
+  // once its list answers, a soft failure read again after 30 seconds up to three times, as the other probes are.
+  const [fourIn, setFourIn] = useState(false);
+  const [fourRound, setFourRound] = useState(0);
+  useEffect(() => {
+    if (!token) { setClearancesOn(false); setDisciplineOn(false); setWorkspaceOn(false); setLibraryOn(false); setFourIn(false); return undefined; }
+    if (features === null) return undefined;
+    if (features) {
+      const on = (k) => features[k] === true;
+      disciplinaryCategoryLive = on("discipline");
+      setClearancesOn(on("clearances")); setDisciplineOn(on("discipline")); setWorkspaceOn(on("workspace")); setLibraryOn(on("library")); setFourIn(true);
+      return undefined;
+    }
+    let alive = true; let soft = false; let timer = null;
+    const probes = [];
+    probes.push(af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); }));
+    probes.push(af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); }));
+    probes.push(af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); }));
+    probes.push(af("/api/library").then(d => { if (alive) setLibraryOn(!!libraryDocsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLibraryOn(false); console.warn("Library:", e.message); }));
+    Promise.all(probes).then(() => { if (alive) setFourIn(true); if (alive && soft && fourRound < 3) timer = setTimeout(() => setFourRound(n => n + 1), 30000); });
+    return () => { alive = false; clearTimeout(timer); };
+  }, [token, af, features, fourRound]);
   // Whether that call has answered (DASH-27); an admin's Forms waits on nothing.
   const [filedFormsIn, setFiledFormsIn] = useState(false);
   useEffect(() => {
@@ -1296,7 +1328,7 @@ export default function AdminDashboard() {
   // An alert tapped before signing in opens once the session knows what this person can open: their
   // capabilities and the page probes have answered (DASH-27), so Cases, Forms, Equipment and Waiting for
   // signatures are not refused in the moment before they arrive.
-  const sessionKnown = !capsPending && probesIn && signaturesIn && filedFormsIn;
+  const sessionKnown = !capsPending && probesIn && fourIn && signaturesIn && filedFormsIn;
   // A window the worker opened for a tapped alert names its notice as ?notice=<id>: read once, taken off the
   // address, and handled as the message an open window is sent (part 386, DASH-80).
   const noticeInAddress = useRef(null);
@@ -1618,7 +1650,7 @@ export default function AdminDashboard() {
   // A row of the More menu, the row the user menu draws.
   const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
 
-  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><PayCtx.Provider value={!!canEmploy}><LeaveCtx.Provider value={leaveCtx}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><SelfCtx.Provider value={selfCtx}><PayCtx.Provider value={!!canEmploy}><LeaveCtx.Provider value={leaveCtx}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
     {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
         closed again by a pick, by its own close button and by Escape. */}
@@ -1844,7 +1876,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "health" && (canOpenPage("health") ? <HealthPage af={af} t={t} token={token} allStaff={allStaff} route={route} onRoute={replaceRoute} /> : capsPending ? <CapsPendingNotice t={t} /> : <HealthRefused t={t} onBack={() => setPage("overview")} />)}
+        {page === "health" && (canOpenPage("health") ? <HealthPage af={af} t={t} token={token} allStaff={allStaff} route={route} onRoute={replaceRoute} showToast={showToast} /> : capsPending ? <CapsPendingNotice t={t} /> : <HealthRefused t={t} onBack={() => setPage("overview")} />)}
         {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} token={token} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -1887,7 +1919,7 @@ export default function AdminDashboard() {
     {toast && <Tst t={toast} />}
     {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></LeaveCtx.Provider></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
+  </div></LeaveCtx.Provider></PayCtx.Provider></SelfCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
@@ -2020,6 +2052,9 @@ function SecondStepForm({ t, second, onDone, onBack }) {
 // employee ID are read from the option (badge, employeeId) or else from the shell's people, PeopleCtx,
 // by the option's id. Escape, a press outside and a pick close it.
 const PeopleCtx = createContext([]);
+// The signed-in person, { id, test }, for a window that needs to know whether a record is their own and whether they
+// are a test account, which the sign-in answer names (isTestAccount) (part 393).
+const SelfCtx = createContext({ id: "", test: false });
 const personKeysOf = (p) => ({ badge: String((p && (p.badgeNumber || p.badge_number || p.badge)) || ""), employeeId: String((p && (p.employeeId || p.employee_id)) || "") });
 const PICK_ROWS = 12;
 function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", ...rest }) {
@@ -5135,7 +5170,7 @@ function OpsPage({ af, t, allStaff }) {
     {opsFailed && <Crd t={t} style={{ marginBottom: 20 }}><div data-ops-failed={ready ? "kept" : "none"}><LoadFailed t={t} onRetry={loadOps} text={ready ? tr("The board did not load again, so it shows the last one read.") : opsFailed} /></div></Crd>}
     {ready && sites.length === 0 && !opsFailed && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
-      <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
+      <div data-ops-site={site.siteId} data-ops-not-tracked={notTrackedOf(site) ? "true" : undefined} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8, flexWrap: "wrap" }}><div data-ops-site-name={site.siteId} data-site-is-test={rowSiteTest(site) ? "1" : undefined} style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{rowSiteName(site, site.siteName)}</div><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{notTrackedOf(site) && <Bdg l={tr("Not tracked")} c={t.textMut} />}<Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></span></div>
       {notTrackedOf(site) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div>}
       {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); const untracked = notTrackedOf(site) || notTrackedOf(p); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
@@ -5355,12 +5390,19 @@ async function crReadSite(af, siteId, from, to, today) {
 // each with its start and end on the company's clock, the end on the next day when crossesMidnight, and the
 // days a run may start on. A shift's run of a day is its own group, with its own ring: the per visit, daily
 // and every other day items on the shift's list (an item in a block is its block's shift's; else the
-// task's shiftLabels from GET /api/sites/:siteId/tasks, none meaning every shift), each done when it was
-// checked inside the run's window, and the ring's count the record's days[].shifts answers for the run.
+// task's shiftLabels, which the record's items carry since part 393, none meaning every shift), each done when
+// it was checked in that run (the check's runLabel since part 393, else inside the run's window), and the ring's
+// count the record's days[].shifts answers for the run.
 // A daily item an earlier run of the day checked, and this run has not, carries earlier: who checked it,
 // when and on which shift, drawn as a grey line; it counts for that shift. Weekly to seasonal and as
 // needed work stays the site's for its period, under Whole site. An overnight run's checks after the
 // checklist day's start fall on the next day's record, so the day after is read too, inside the 31 days.
+// Part 393 (the API's Round 13, 4.2): each check carries runLabel, the shift of the run it was made in (null outside any
+// run), so it belongs to that shift's run of its day, from the run's start to the same shift's start the next day, even
+// when it was made after the run's window closed; a check made outside any run is in none. A check from an API before
+// it carries no runLabel and is placed by the run's window, as before.
+const crHasRun = (c) => !!c && Object.prototype.hasOwnProperty.call(c, "runLabel");
+const crInRun = (c, s, win) => (crHasRun(c) ? c.runLabel === s.label && c.at >= win.start && c.at < win.start + 86400000 : c.at >= win.start && (!win.end || c.at < win.end));
 const crWeekday = (day) => SHIFT_DAYS[new Date(day + "T12:00:00Z").getUTCDay()];
 const crRunsOn = (s, day) => { const d = shiftDaysOf(s.daysOfWeek); return d.length === 0 || d.indexOf(crWeekday(day)) >= 0; };
 async function crReadRuns(af, siteId, from, to, today, named) {
@@ -5368,17 +5410,21 @@ async function crReadRuns(af, siteId, from, to, today, named) {
   const oneDay = from === to;
   const shifts = named.map(s => ({ label: s.label, displayLabel: siteShiftName(s), startTime: String(s.startTime).slice(0, 5), endTime: String(s.endTime || "").slice(0, 5), crossesMidnight: s.crossesMidnight === true, daysOfWeek: s.daysOfWeek || null }));
   const upTo = shifts.some(s => s.crossesMidnight) && crDaysIn(from, to).length < 31 ? crAddDays(to, 1) : to;
-  const [rec, tasks, board, periodic] = await Promise.all([
+  const [rec, board, periodic] = await Promise.all([
     af("/api/sites/" + sid + "/checklist-record?from=" + from + "&to=" + upTo),
-    af("/api/sites/" + sid + "/tasks" + EVERY_ITEM).catch(() => []),
     oneDay ? af("/api/shift-sessions/by-site" + (from === today ? "?date=" + from : "?start_date=" + from + "&end_date=" + from)).catch(() => null) : null,
     oneDay ? af("/api/periodic-work?siteId=" + sid + "&on=" + from).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
   ]);
   if (!rec || typeof rec !== "object") throw new Error(tr("This did not load."));
   if (rec.notTracked === true) return { notTracked: true, shifts, days: [], people: [], periodic: null, multi: true, runs: true };
   if (!Array.isArray(rec.days)) throw new Error(tr("This did not load."));
+  // Part 393 (the API's Round 13, 4.3): each item of the record carries shiftLabels, the task's own, null for every
+  // shift, so the site's task list is no longer read for them. A record from an API before it carries none, and the
+  // task list is read for them as before.
   const labelsOf = {};
-  (Array.isArray(tasks) ? tasks : []).forEach(tk => { if (tk && tk.id != null) labelsOf[String(tk.id)] = Array.isArray(tk.shiftLabels) ? tk.shiftLabels : []; });
+  let labelled = false;
+  rec.days.forEach(d => (d && Array.isArray(d.items) ? d.items : []).forEach(i => { if (i && Object.prototype.hasOwnProperty.call(i, "shiftLabels")) { labelled = true; labelsOf[String(i.taskId)] = Array.isArray(i.shiftLabels) ? i.shiftLabels : []; } }));
+  if (!labelled) (await af("/api/sites/" + sid + "/tasks" + EVERY_ITEM).catch(() => [])).forEach(tk => { if (tk && tk.id != null) labelsOf[String(tk.id)] = Array.isArray(tk.shiftLabels) ? tk.shiftLabels : []; });
   const onList = (i, l) => (i.shift ? i.shift === l : !(labelsOf[String(i.taskId)] || []).length || labelsOf[String(i.taskId)].indexOf(l) >= 0);
   // Every check of each item over the days read, oldest first.
   const every = {};
@@ -5396,13 +5442,13 @@ async function crReadRuns(af, siteId, from, to, today, named) {
       const before = on.filter(x => x.s !== s && x.win && x.win.start < win.start);
       const mine = items.filter(i => crKind(i) === "today" && onList(i, s.label)).map(i => {
         const all = every[String(i.taskId)] || [];
-        const inRun = all.filter(c => c.at >= win.start && (!win.end || c.at < win.end));
+        const inRun = all.filter(c => crInRun(c, s, win));
         let earlier = null;
         if (!inRun.length && i.frequency === "daily") before.forEach(x => {
-          const hit = all.filter(c => c.at >= x.win.start && c.at < Math.min(x.win.end || win.start, win.start)).pop();
+          const hit = all.filter(c => (crHasRun(c) ? crInRun(c, x.s, x.win) : c.at >= x.win.start && c.at < Math.min(x.win.end || win.start, win.start))).pop();
           if (hit && (!earlier || hit.at > earlier.at)) earlier = { at: hit.at, who: (hit.completedBy && hit.completedBy.name) || "", shift: x.s.displayLabel };
         });
-        return Object.assign({}, i, { done: inRun.length > 0, checks: inRun.map(c => ({ completedAt: c.completedAt, completedBy: c.completedBy, notes: c.notes || null })),
+        return Object.assign({}, i, { done: inRun.length > 0, checks: inRun.map(c => ({ completedAt: c.completedAt, completedBy: c.completedBy, notes: c.notes || null, runLabel: crHasRun(c) ? c.runLabel : s.label })),
           completedAt: inRun.length ? inRun[0].completedAt : null, completedBy: inRun.length ? inRun[0].completedBy : null, earlier });
       });
       const c = counts.find(x => x && x.label === s.label);
@@ -5763,10 +5809,13 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     const span = data.span;
     // Each card counts the way the site's own rings count, from each day's counted (the API's part 371):
     // per visit, daily and every other day work due that day, done of due, and every check. A day without
-    // counted is read as due and done. A site the summary does not name did not load.
+    // counted is read as due and done. A site the summary does not name did not load, unless it is the test site
+    // (part 393, the robot's Round 1 finding 4): the summary leaves the test site out, as every report does, so its
+    // card says so and opens the site, whose own record reads its checks.
     const cards = active.map(s => {
       const rec = data.bySite[String(s.id)] || null;
-      const got = rec ? {} : { error: tr("This did not load.") };
+      const testLeftOut = !rec && (s.is_test === true || s.isTest === true);
+      const got = rec || testLeftOut ? {} : { error: tr("This did not load.") };
       const notTracked = siteIsReference(s) || !!(rec && rec.notTracked === true);
       const recDays = rec ? rec.days : [];
       const inPeriod = recDays.filter(d => d && d.date >= period.from && d.date <= period.to);
@@ -5775,16 +5824,17 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
       const st = { due: sum("due"), done: sum("done"), checks: inPeriod.reduce((n, d) => n + (Number(d.checks) || 0), 0) };
       st.pct = crPct(st.done, st.due);
       const trend = recDays.map(d => ({ date: d.date, pct: crPct(Number(ringOf(d).done) || 0, Number(ringOf(d).due) || 0) }));
-      return { s, got, rec, notTracked, st, trend };
+      return { s, got, rec, notTracked, st, trend, testLeftOut };
     });
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
-          <div data-cr-site-card={String(c.s.id)} data-cr-due={c.notTracked || c.got.error ? undefined : c.st.due} data-cr-done={c.notTracked || c.got.error ? undefined : c.st.done} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{siteShown(c.s)}</div>{live && !c.notTracked && !c.got.error ? <Bdg l={tr("Live")} c={GR} /> : null}</div>
-            {c.notTracked ? <div style={{ padding: "18px 0" }}><NotTrackedWord t={t} style={{ fontSize: 12 }} /><div style={{ fontSize: 12, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div></div>
+          <div data-cr-site-card={String(c.s.id)} data-cr-due={c.notTracked || c.got.error || c.testLeftOut ? undefined : c.st.due} data-cr-done={c.notTracked || c.got.error || c.testLeftOut ? undefined : c.st.done} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{siteShown(c.s)}</div>{live && !c.notTracked && !c.got.error && !c.testLeftOut ? <Bdg l={tr("Live")} c={GR} /> : null}</div>
+            {c.testLeftOut ? <div data-cr-test-site={String(c.s.id)} style={{ padding: "18px 0" }}><Bdg l={tr("TEST")} c={OR} /><div style={{ fontSize: 12, color: t.textSec, marginTop: 8, lineHeight: 1.5 }}>{tr("This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.")}</div></div>
+              : c.notTracked ? <div style={{ padding: "18px 0" }}><NotTrackedWord t={t} style={{ fontSize: 12 }} /><div style={{ fontSize: 12, color: t.textMut, marginTop: 6, lineHeight: 1.5 }}>{tr("Staff do not check off tasks at this site. They can read its task list as a reference.")}</div></div>
               : c.got.error ? <div style={{ fontSize: 12, color: RD, padding: "18px 0" }}>{c.got.error}</div>
                 : <>
                   <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
@@ -6298,16 +6348,17 @@ const openRequest = (id) => { window.location.hash = "issues/requests/" + encode
 // site's band and a second person's check (STEP253_CONTRACT.md, sections 2 to 5). The Issue Tracker
 // draws them as a Source with their Due, First response and Time to fixed, and opens one from
 // GET /api/issues/:id, whose canVerify offers Verify, which is POST /api/issues/:id/verify. An
-// inspection ticket is closed only by Verify, so the status picker offers it no close. Nothing here
-// draws until the API's Step 253 answers: one POST /api/issues/link-corrective-action naming nothing,
-// which that API refuses with issues.badDetails, or with 403 for a caller without view_reports, and
-// which an older API, with no such route, answers any other way. Nothing is written by it. The list's
-// ?source=inspection proves nothing, since the API's Step 250 already takes the filter.
+// inspection ticket is closed only by Verify, so the status picker offers it no close. What the page
+// needs to know is whether the API lists inspection tickets: to offer Inspection under Source, and to read
+// an opened issue whole from GET /api/issues/:id, a ticket opened from a notice before the list holds it.
+// Since part 393 (the robot's finding) that is read, never written: one GET /api/issues?source=inspection
+// &limit=1, a session, which every API since Step 253 answers with a list (limit alone keeps the bare
+// array). It was one POST /api/issues/link-corrective-action naming nothing, refused on purpose, which the
+// guard on test accounts refused and logged every night.
 let findingsLiveProbe = null;
-const FINDINGS_PROBE_CODES = ["issues.badDetails", "issues.notFound", "forms.reportNotFound", "forms.notACorrectiveAction"];
 const probeFindingsLive = (af) => {
-  if (!findingsLiveProbe) findingsLiveProbe = af("/api/issues/link-corrective-action", { method: "POST", body: {} }).then(() => false)
-    .catch(e => { if (e && (e.status === 403 || FINDINGS_PROBE_CODES.indexOf(e.code) >= 0)) return true; if (!e || e.status == null) { console.warn("Inspection findings:", e && e.message); findingsLiveProbe = null; } return false; });
+  if (!findingsLiveProbe) findingsLiveProbe = af("/api/issues?source=inspection&limit=1").then(d => Array.isArray(d) || !!(d && Array.isArray(d.issues)))
+    .catch(e => { if (!e || e.status == null) { console.warn("Inspection findings:", e && e.message); findingsLiveProbe = null; } return false; });
   return findingsLiveProbe;
 };
 function useFindingsLive(af) {
@@ -12081,7 +12132,7 @@ const SlaBySiteWidget = ({ timing, t }) => {
   if (rows.length < 2) return null;
   return (
     <ChartCard t={t} title={tr("Resolution SLA by site")} sub={tr("Compliance percent, higher is better")}>
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.sla_resolution_compliance_pct)} t={t} valueSuffix="%" name={tr("Resolution SLA %")} />
+      <BarChartW categories={rows.map(s => rowSiteName(s))} values={rows.map(s => s.sla_resolution_compliance_pct)} t={t} valueSuffix="%" name={tr("Resolution SLA %")} />
     </ChartCard>
   );
 };
@@ -12152,7 +12203,7 @@ function IssueTimingReport({ af, t, sites, settings, freshSettings = null, confi
   const MetCell = ({ v }) => { const w = metWord(v); return <span data-met={v === true ? "met" : v === false ? "missed" : "none"} style={{ color: w.color || t.textMut, fontWeight: w.color ? 600 : 400 }}>{w.text}</span>; };
   const judgedColumns = [
     { header: tr("Issue"), render: r => <span style={{ fontWeight: 600, color: t.text, fontFamily: "monospace", fontSize: 12 }}>{r.reference || r.id}</span> },
-    { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.site_name || r.siteName || "--" },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => rowSiteName(r) || "--" },
     { header: tr("Respond by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.respondBy ? irWhen(r.respondBy) : tr("No target")) },
     { header: tr("Response|target"), render: r => <MetCell v={r.metResponse} /> },
     { header: tr("Due"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.dueAt ? irWhen(r.dueAt) : tr("No target")) },
@@ -12192,7 +12243,7 @@ function IssueTimingReport({ af, t, sites, settings, freshSettings = null, confi
     ).join("")) : "";
     const trendTable = trendRows ? ('<h2>' + esc(tr("Trend by {0}", bucketWord(timing && timing.bucket))) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Reported|issue count"), tr("Resolved|issue count"), tr("Median resolution"), tr("Median first response")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
     const tableRows = out.by_site ? ((timing && timing.by_site ? timing.by_site : []).map(s =>
-      '<tr><td>' + esc(s.site_name) + '</td><td>' + s.reported_count + '</td><td>' + s.resolved_count + '</td><td>' + s.open_count + '</td><td>' + s.aging_count + '</td><td>' + fmtDurMin(s.resolution_median_minutes) + '</td><td>' + fmtDurMin(s.first_response_median_minutes) + '</td><td>' + fmtPctVal(s.sla_resolution_compliance_pct) + '</td><td>' + fmtPctVal(s.sla_response_compliance_pct) + '</td></tr>'
+      '<tr><td>' + esc(rowSiteName(s)) + '</td><td>' + s.reported_count + '</td><td>' + s.resolved_count + '</td><td>' + s.open_count + '</td><td>' + s.aging_count + '</td><td>' + fmtDurMin(s.resolution_median_minutes) + '</td><td>' + fmtDurMin(s.first_response_median_minutes) + '</td><td>' + fmtPctVal(s.sla_resolution_compliance_pct) + '</td><td>' + fmtPctVal(s.sla_response_compliance_pct) + '</td></tr>'
     ).join("")) : "";
     const siteTable = tableRows ? ('<h2>' + esc(tr("By site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Reported|issue count"), tr("Resolved|issue count"), tr("Open|issue count"), tr("Aging|issue count"), tr("Median resolution"), tr("Median first response"), tr("Resolution SLA"), tr("Response SLA")) + '</tr></thead><tbody>' + tableRows + '</tbody></table>') : "";
     const sv = sm.open_by_severity;
@@ -12204,7 +12255,7 @@ function IssueTimingReport({ af, t, sites, settings, freshSettings = null, confi
     const slaTable = slaRows ? ('<h2>' + esc(tr("SLA compliance by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Resolution SLA"), tr("Response SLA"), tr("Resolution breaches"), tr("Response breaches")) + '</tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
     const targetsLine = tgt ? ('<p class="meta">' + esc(targetsSaid) + '</p>') : "";
     const judgedRows = judged ? judged.map(r =>
-      '<tr><td>' + esc(r.reference || r.id) + '</td><td>' + esc(r.site_name || r.siteName || '') + '</td><td>' + esc(r.respondBy ? irWhen(r.respondBy) : tr("No target")) + '</td><td>' + esc(metWord(r.metResponse).text) + '</td><td>' + esc(r.dueAt ? irWhen(r.dueAt) : tr("No target")) + '</td><td>' + esc(metWord(r.metResolution).text) + '</td></tr>'
+      '<tr><td>' + esc(r.reference || r.id) + '</td><td>' + esc(rowSiteName(r)) + '</td><td>' + esc(r.respondBy ? irWhen(r.respondBy) : tr("No target")) + '</td><td>' + esc(metWord(r.metResponse).text) + '</td><td>' + esc(r.dueAt ? irWhen(r.dueAt) : tr("No target")) + '</td><td>' + esc(metWord(r.metResolution).text) + '</td></tr>'
     ).join("") : "";
     const judgedTable = judgedRows ? ('<h2>' + esc(tr("Against their targets")) + '</h2><table><thead><tr>' + heads(tr("Issue"), tr("Site"), tr("Respond by"), tr("Response|target"), tr("Due"), tr("Resolution|target")) + '</tr></thead><tbody>' + judgedRows + '</tbody></table>') : "";
     const einLine = showEin ? ('<div>' + esc(tr("EIN {0}", settings.ein)) + '</div>') : "";
@@ -12307,7 +12358,7 @@ const SupplyCostBySiteWidget = ({ data, t }) => {
   if (rows.length < 1) return null;
   return (
     <ChartCard t={t} title={tr("Estimated cost by site")} sub={tr("Higher means more spend")}>
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.estimated_cost)} t={t} name={tr("Estimated cost (USD)")} />
+      <BarChartW categories={rows.map(s => rowSiteName(s))} values={rows.map(s => s.estimated_cost)} t={t} name={tr("Estimated cost (USD)")} />
     </ChartCard>
   );
 };
@@ -12405,7 +12456,7 @@ function SupplyUsageReport({ af, t, sites, settings, freshSettings = null, confi
     const summaryCards = (seesPay ? card(m(sm.total_estimated_cost), tr("Estimated cost")) : "") + card(String(sm.usage_events), tr("Usage events")) + card(String(sm.supplies_used), tr("Supplies used")) + card(String(sm.sites_active), tr("Sites"));
     const trendRows = out.trend ? ((data && data.trend ? data.trend : []).filter(b => b.usage_events > 0).map(b => '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td>' + costTd(b.estimated_cost) + '<td>' + esc(String(b.quantity)) + '</td><td>' + esc(String(b.usage_events)) + '</td></tr>').join("")) : "";
     const trendTable = trendRows ? ('<h2>' + esc(seesPay ? tr("Estimated cost by period") : tr("Quantity")) + '</h2><table><thead><tr>' + heads(tr("Period"), ...costTh, tr("Quantity"), tr("Events")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
-    const siteRows = out.by_site ? ((data && data.by_site ? data.by_site : []).map(s => '<tr><td>' + esc(s.site_name) + '</td>' + costTd(s.estimated_cost) + '<td>' + esc(String(s.usage_events)) + '</td></tr>').join("")) : "";
+    const siteRows = out.by_site ? ((data && data.by_site ? data.by_site : []).map(s => '<tr><td>' + esc(rowSiteName(s)) + '</td>' + costTd(s.estimated_cost) + '<td>' + esc(String(s.usage_events)) + '</td></tr>').join("")) : "";
     const siteTable = siteRows ? ('<h2>' + esc(seesPay ? tr("Cost by site") : tr("Site")) + '</h2><table><thead><tr>' + heads(tr("Site"), ...costTh, tr("Events")) + '</tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
     const supRows = out.top_supplies ? (bySupply.slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(supplyCatOf(s.category)) + '</td><td>' + esc(s.is_green_certified ? tr("Yes") : tr("No")) + '</td>' + costTd(s.estimated_cost) + '<td>' + esc(String(s.quantity) + " " + (s.unit ? supplyUnitOf(s.unit) : "")) + '</td></tr>').join("")) : "";
     const supTable = supRows ? ('<h2>' + esc(seesPay ? tr("Top supplies by cost") : tr("Supplies used")) + '</h2><table><thead><tr>' + heads(tr("Supply"), tr("Category"), tr("Green"), ...costTh, tr("Quantity")) + '</tr></thead><tbody>' + supRows + '</tbody></table>') : "";
@@ -14846,7 +14897,7 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
   }, [af, summaryRead]);
 
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
-  const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
+  const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, rowSiteName(r), r.total_quantity, r.unit])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
 
   const runReport = (d) => { setActive(d); setView("run"); };
   const newReport = () => { setEditing(null); setView("edit"); };
@@ -15032,7 +15083,7 @@ function ReportsPage({ af, token, showToast, isAdmin, user = null, t, sites, lkM
         <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Task Completion")}</div>
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
+            <span data-report-site={s.siteId} data-site-is-test={rowSiteTest(s) ? "1" : undefined} style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{rowSiteName(s, s.siteName)}</span>
             {notTrackedOf(s) ? <span data-report-not-tracked={s.siteId} style={{ fontSize: 12, color: t.textMut, fontWeight: 600 }}>{tr("Not tracked")}</span> : <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{trn("{0} done|count", s.completedTasks)}</span>}
           </div>
         </div>) : null}
@@ -16436,7 +16487,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       (d.sites || []).forEach(site => (site.people || []).forEach(p => {
         if (!p.sessionDate) return;
         if (!byDay[p.sessionDate]) byDay[p.sessionDate] = [];
-        byDay[p.sessionDate].push({ ...p, siteId: site.siteId, siteName: site.siteName, notTracked: notTrackedOf(site) || notTrackedOf(p) });
+        byDay[p.sessionDate].push({ ...p, siteId: site.siteId, siteName: site.siteName, isTest: site.isTest === true, notTracked: notTrackedOf(site) || notTrackedOf(p) });
       }));
       setStartedByDay(byDay);
     } catch (e) {
@@ -16708,30 +16759,30 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
             {off && <div data-shift-time-off-word="" style={{ fontSize: 8, fontWeight: 700, color: off.status === "approved" ? RD : OR, textTransform: "uppercase" }}>{off.status === "approved" ? tr("Off, needs cover") : tr("Time off requested")}</div>}
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " " + tr("F{0}", s.floor_number) : ""}</span>}
-            {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
+            {s.site_name && <div data-schedule-site={s.site_id} data-site-is-test={rowSiteTest(s) ? "1" : undefined} style={{ fontSize: 9, opacity: 0.8 }}>{rowSiteName(s)}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{serviceWord(s.service_category)}</div>}
             {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>{tr("Repeats")}</div>}
           </button>); })}
           {startedHere.map(p => (<button type="button" key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ ...chipBtn, background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
             {tr("Started")} {fmtSessionStart(p.startedAt)}
             {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " " + tr("F{0}", p.floorNumber) : ""}</span>}
-            {p.siteName && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.siteName}</div>}
+            {p.siteName && <div data-schedule-site={p.siteId} data-site-is-test={rowSiteTest(p) ? "1" : undefined} style={{ fontSize: 9, opacity: 0.8 }}>{rowSiteName(p)}</div>}
             {p.notTracked ? <div style={{ fontSize: 8, opacity: 0.8 }}>{tr("Not tracked")}</div> : p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</div>}
           </button>))}
           {openHere.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ ...chipBtn, background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
             <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: t.hover }}>{tr("OPEN")}</span>
-            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
+            {p.site_name && <div data-schedule-site={p.site_id} data-site-is-test={rowSiteTest(p) ? "1" : undefined} style={{ fontSize: 9, opacity: 0.8 }}>{rowSiteName(p)}</div>}
           </button>))}
           {dropReqs.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail({ ...p, isDropRequest: true }); }} style={{ ...chipBtn, background: "#F1C40F22", color: "#F1C40F", border: "1px dashed #F1C40F60" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
             <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: "#F1C40F30" }}>{tr("DROP REQ")}</span>
-            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
+            {p.site_name && <div data-schedule-site={p.site_id} data-site-is-test={rowSiteTest(p) ? "1" : undefined} style={{ fontSize: 9, opacity: 0.8 }}>{rowSiteName(p)}</div>}
           </button>))}
           {claimedByMe.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ ...chipBtn, background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
             <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: OR + "25" }}>{tr("CLAIMED")}</span>
-            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
+            {p.site_name && <div data-schedule-site={p.site_id} data-site-is-test={rowSiteTest(p) ? "1" : undefined} style={{ fontSize: 9, opacity: 0.8 }}>{rowSiteName(p)}</div>}
             {p.claimed_by_name && p.claimed_by_name.trim() && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.claimed_by_name}</div>}
           </button>))}
         </>);
@@ -16757,7 +16808,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div>
     {calInspections.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: BL, textTransform: "uppercase" }}>{tr("Inspections")}</div>
-      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<button type="button" key={i.id} onClick={() => openInspModal(i)} style={{ ...chipBtn, background: BL + "18", color: BL, border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</button>))}</div>); })}
+      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<button type="button" key={i.id} onClick={() => openInspModal(i)} style={{ ...chipBtn, background: BL + "18", color: BL, border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div data-schedule-site={i.site_id} data-site-is-test={rowSiteTest(i) ? "1" : undefined} style={{ fontSize: 9, opacity: 0.8 }}>{rowSiteName(i)}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</button>))}</div>); })}
     </div>)}
     {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
   </div>);
@@ -16775,7 +16826,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={24} /><div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div></div>
         {items}
       </div>); })}
-      {getInspForDay(d).map(i => (<button type="button" key={i.id} onClick={() => openInspModal(i)} style={{ ...chipBtn, background: BL + "18", color: BL, border: "1px solid " + BL + "30", marginTop: 4 }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</button>))}
+      {getInspForDay(d).map(i => (<button type="button" key={i.id} onClick={() => openInspModal(i)} style={{ ...chipBtn, background: BL + "18", color: BL, border: "1px solid " + BL + "30", marginTop: 4 }}>{i.template_name}{i.site_name && <div data-schedule-site={i.site_id} data-site-is-test={rowSiteTest(i) ? "1" : undefined} style={{ fontSize: 9, opacity: 0.8 }}>{rowSiteName(i)}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</button>))}
     </div>))}
     {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
   </div>);
@@ -16942,7 +16993,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Started Shift")}</div><button onClick={() => setStartedDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut }}>{roleOf(startedDetail.role)}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <div><div style={startedLbl}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
+        <div><div style={startedLbl}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName ? rowSiteName(startedDetail) : "-"}</div></div>
         <div><div style={startedLbl}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
         <div><div style={startedLbl}>{tr("Building")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.buildingName || "-"}</div></div>
         <div><div style={startedLbl}>{tr("Floor")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.floorNumber ? tr("Floor {0}", startedDetail.floorNumber) : "-"}</div></div>
@@ -16958,7 +17009,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Inspection Details")}</div><button onClick={() => setInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
-        <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{rowSiteName(inspModal)}</div>
         <Bdg l={inspStatusWord[inspModal.status || "scheduled"] || inspModal.status} c={inspModal.status === "completed" ? GR : BL} />
       </div>
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><PersonPick t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={supervisorOptions(schedSupervisors, inspForm.assigned_to)} /></div>
@@ -17926,15 +17977,39 @@ function useSafetyWalks(af) {
       .catch(() => setWalks(w => ({ ...w, [k]: { failed: true } })));
   }, [af]);
   const again = useCallback((siteId) => { asked.current[String(siteId || "")] = false; want(siteId); }, [want]);
-  return [walks, want, again];
+  // Part 393 (the API's Round 13, 5.4): many sites in one read, GET /api/inspections/safety-walks?siteIds=a,b (1 to 100
+  // sites a read) answering { walks: { [siteId]: lastWalk | null } }, in place of one read a site. A site the API
+  // refuses (403 access.noSiteAccess, keys naming the sites) reads nothing, and the rest are read again once without
+  // it; any other failure reads nothing for the sites asked, as one read a site did.
+  const wantMany = useCallback((ids) => {
+    const fresh = Array.from(new Set((ids || []).map(x => String(x || "")).filter(k => k && !asked.current[k])));
+    if (!fresh.length) return;
+    fresh.forEach(k => { asked.current[k] = true; });
+    const readSome = (list, again2) => af("/api/inspections/safety-walks?siteIds=" + list.map(encodeURIComponent).join(","))
+      .then(d => { const w = d && d.walks && typeof d.walks === "object" ? d.walks : null; setWalks(cur => { const next = { ...cur }; list.forEach(k => { next[k] = w ? { lastWalk: w[k] || null } : { failed: true }; }); return next; }); })
+      .catch(e => {
+        const refused = !again2 && e && e.code === "access.noSiteAccess" ? refusalKeys(e).map(String).filter(k => list.indexOf(k) >= 0) : [];
+        const rest = list.filter(k => refused.indexOf(k) < 0);
+        const gone = refused.length && rest.length ? refused : list;
+        setWalks(cur => { const next = { ...cur }; gone.forEach(k => { next[k] = { failed: true }; }); return next; });
+        if (refused.length && rest.length) readSome(rest, true);
+      });
+    for (let i = 0; i < fresh.length; i += 100) readSome(fresh.slice(i, i + 100), false);
+  }, [af]);
+  return [walks, want, again, wantMany];
 }
-// A site's last walk in a line: when, whether this month's is done, and the inspection it was walked on.
+// A site's last walk in a line: when, whether this month's is done, and the inspection it was walked on. Since the
+// API's Round 13 (part 393, 5.2) the walk names that inspection, inspection { id, templateName, scheduledDate } | null,
+// null for a walk filed on its own; the line names it and opens it.
 function LastSafetyWalk({ t, walk, onOpen, compact = false, siteId = "" }) {
   if (!walk || walk.failed) return null;
   const lw = walk.lastWalk;
+  const insp = lw && lw.inspection && lw.inspection.id != null ? lw.inspection : null;
+  const openId = insp ? String(insp.id) : lw && lw.scheduledInspectionId ? String(lw.scheduledInspectionId) : "";
   return (<div data-last-safety-walk={siteId} data-last-safety-walk-month={lw ? (lw.thisMonth ? "done" : "due") : "none"} style={{ fontSize: compact ? 11 : 12, color: lw && lw.thisMonth ? GR : t.textSec, marginTop: compact ? 2 : 0, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
     <span>{lw && lw.thisMonth ? safetyWalkDueWords(lw) : (lw ? tr("Last safety walk {0}", fdLong(lw.day)) : tr("No safety walk on record yet")) + " . " + safetyWalkDueWords(lw)}</span>
-    {lw && lw.scheduledInspectionId && onOpen ? <button data-last-safety-walk-open={lw.scheduledInspectionId} onClick={e => { e.stopPropagation(); onOpen(lw.scheduledInspectionId); }} style={{ minHeight: compact ? 28 : 44, padding: 0, background: "none", border: "none", color: t.goldText, fontSize: compact ? 11 : 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the inspection")}</button> : null}
+    {insp && insp.templateName ? <span data-last-safety-walk-inspection={String(insp.id)} style={{ color: t.textSec }}>{insp.scheduledDate ? tr("Walked on {0}, scheduled {1}", insp.templateName, fdLong(insp.scheduledDate)) : tr("Walked on {0}", insp.templateName)}</span> : null}
+    {lw && openId && onOpen ? <button data-last-safety-walk-open={openId} onClick={e => { e.stopPropagation(); onOpen(openId); }} style={{ minHeight: compact ? 28 : 44, padding: 0, background: "none", border: "none", color: t.goldText, fontSize: compact ? 11 : 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the inspection")}</button> : null}
   </div>);
 }
 // The same line where it is read on its own, as a site's page reads it.
@@ -18221,7 +18296,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "", withSafety: true });
   // Part 386: Include the safety walk starts on only when the site has no walk this month, until the person
   // turns it either way themselves; each site's last walk is read once for the list and the form.
-  const [walks, wantWalk, walkAgain] = useSafetyWalks(af);
+  const [walks, wantWalk, walkAgain, wantWalks] = useSafetyWalks(af);
   const [safetyTouched, setSafetyTouched] = useState(false);
   const [dropSaid, setDropSaid] = useState(null);
   const formWalk = scheduleForm.site_id ? walks[String(scheduleForm.site_id)] : null;
@@ -18421,7 +18496,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
   const pickTab = (tb) => { setTab(tb); if (onRoute && (tb === "findings" || onFindings)) onRoute(tb === "findings" ? ["findings"] : []); };
   // Part 386: the last safety walk of every site the list holds.
   const listedSites = Array.from(new Set((scheduled || []).map(si => String(si.site_id || "")).filter(Boolean))).sort().join(",");
-  useEffect(() => { listedSites.split(",").filter(Boolean).forEach(wantWalk); }, [listedSites, wantWalk]);
+  useEffect(() => { wantWalks(listedSites.split(",").filter(Boolean)); }, [listedSites, wantWalks]);
 
 
   const openEditInspection = (si) => {
@@ -20269,7 +20344,111 @@ const HEALTH_LIST_COLS = {
   monitors_down: [["name", "Monitor"], ["state", "State"], ["down", "Down", "yesno"]],
   robot_trust_days_left: [["account", "Test account"], ["device", "Device"], ["endsAt", "Ends", "when"], ["daysLeft", "Days left"]],
 };
-function HealthListWindow({ af, t, number, day, onClose }) {
+// ===== COPY FOR CLAUDE (part 393, the owner's word of Nov 11) =====
+// When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
+// needs to fix it. Every Health incident and every number's drill-down sheet carries Copy for Claude, which copies
+// one plain ASCII block in English, built from the reads the page has today (the API's Round 14 adds GET
+// /api/health/incidents/:id/brief, which the next round reads instead):
+//   - the first line, OCSA Health brief;
+//   - an incident's id, kind, key, title, opened and closed times, what fixed it and its timeline;
+//   - an outage's monitor, reason and duration;
+//   - a number's key, its day, today's value and state, yesterday, the 7 days' average, its yellow and red lines and
+//     any floor (GET /api/health/thresholds, minRequests), and every past day the page read; for a number's
+//     incident, the number it names (its key) and the rows read from its list;
+//   - the rows the drill-down shows, routes and counts only: a list of people, or of rows that name a site or a
+//     person, reads as how many, never a name, email, phone or badge;
+//   - the API's commit from GET /api/health (commit), and the dashboard's own build.
+// The number's name is the screen's, so it is copied only on an English screen; its key names it in every language.
+// Anything outside plain ASCII in a value the API sent is written without its accent, or as a question mark.
+// The fields of a list's rows a brief carries, by the number's key. Any other list is of people, or names them.
+const HEALTH_BRIEF_COLS = {
+  app_open_ms: ["startedAt", "trigger", "appOpenMs"],
+  server_errors: ["method", "route", "errors", "requests"],
+  slowest_p95_ms: ["method", "route", "p50", "p95", "requests"],
+  check_offs: ["checkOffs"],
+  shifts_started: ["shiftsStarted"],
+  emails_failed: ["purpose", "failed", "lastAt"],
+  push_failed: ["hour", "sent", "failed"],
+  runs_failed: ["journey", "outcome", "durationMs"],
+  monitors_down: ["name", "state", "down"],
+};
+const briefAscii = (v) => String(v === null || v === undefined ? "" : v).normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, "\"").replace(/[\u2013\u2014]/g, "-").replace(/\r/g, "").replace(/[^\x20-\x7e\n]/g, "?");
+const briefValue = (v) => (v === null || v === undefined || v === "" ? "none" : typeof v === "object" ? briefAscii(v.name || JSON.stringify(v)) : briefAscii(v));
+const briefLine = (lines, unit) => {
+  if (!lines) return "none";
+  const one = (x) => (x === null || x === undefined ? "never" : lines.kind === "belowShare" ? Math.round(Number(x) * 100) + "% of the week before" : briefValue(x) + (unit === "ms" ? " ms" : ""));
+  if (lines.kind === "below") return "yellow at or under " + one(lines.yellow) + ", red at or under " + one(lines.red);
+  if (lines.kind === "belowShare") return "yellow under " + one(lines.yellow) + ", red under " + one(lines.red);
+  return "yellow at " + one(lines.yellow) + ", red at " + one(lines.red);
+};
+function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
+  const out = ["OCSA Health brief"];
+  const x = incident;
+  if (x) {
+    out.push("", "Incident: " + briefValue(x.id), "Kind: " + briefValue(x.kind), "Key: " + briefValue(x.key), "Title: " + briefValue(x.title),
+      "Opened: " + briefValue(x.openedAt), "Closed: " + (x.closedAt ? briefValue(x.closedAt) : "still open"), "What fixed it: " + (x.resolution ? briefValue(x.resolution) : "not written yet"));
+    if (healthIsOutage(x)) {
+      out.push("", "Outage", "Monitor: " + briefValue(healthOutageMonitor(x)) + (x.monitor && x.monitor.id ? " (id " + briefValue(x.monitor.id) + ")" : ""), "Reason: " + briefValue(x.reason),
+        "Duration: " + (x.durationSeconds === null || x.durationSeconds === undefined ? "none" : briefValue(x.durationSeconds) + " seconds" + (x.closedAt ? "" : ", still down")));
+    }
+    const tl = Array.isArray(x.timeline) ? x.timeline : [];
+    out.push("", "Timeline (" + tl.length + "):");
+    tl.forEach(e => out.push("- " + briefValue(e && e.at) + " " + briefValue(e && e.text)));
+  }
+  const n = number;
+  if (n) {
+    const hist = Array.isArray(n.history) ? n.history : [];
+    out.push("", "Number: " + briefValue(n.key));
+    if (getLang() === "en" && n.label) out.push("Name: " + briefValue(n.label));
+    out.push("Unit: " + briefValue(n.unit), "Today: " + briefValue(n.value) + ", " + briefValue(n.state || "unknown"), "Yesterday: " + briefValue(n.previous),
+      "7 days before, average: " + briefValue(n.weekAverage), "Lines: " + briefLine(n.lines, n.unit));
+    if (floor !== null && floor !== undefined) out.push("Floor: a route counts once it served " + briefValue(floor) + " requests in the day");
+    out.push("", "Days read (" + hist.length + "):");
+    hist.forEach(h => out.push("- " + briefValue(h && h.day) + ": " + briefValue(h && h.value) + ", " + briefValue((h && h.state) || "unknown")));
+  }
+  if (n && Array.isArray(rows)) {
+    const cols = HEALTH_BRIEF_COLS[n.key];
+    out.push("", "Behind it on " + briefValue(rowsDay) + " (" + rows.length + (rows.length === 1 ? " row" : " rows") + "):");
+    if (!cols) out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row about a person" : " rows about people") + ", names left out" : "- nothing");
+    else if (!rows.length) out.push("- nothing");
+    else rows.forEach(r => out.push("- " + cols.map(k => k + " " + briefValue(r && r[k])).join(", ")));
+  }
+  out.push("", "API commit: " + (commit ? briefValue(commit) : "not answered"), "Dashboard build: " + briefValue(BUILD_STAMP), "Copied at: " + new Date().toISOString());
+  return out.join("\n") + "\n";
+}
+// The API's commit, GET /api/health (part 384, 5.8), and a number's floor, GET /api/health/thresholds; null when either
+// read fails or answers none.
+const healthCommitOf = (af) => af("/api/health").then(d => (d && typeof d.commit === "string" && d.commit ? d.commit : null)).catch(() => null);
+const healthFloorOf = (af, key) => af("/api/health/thresholds").then(d => { const r = (d && Array.isArray(d.thresholds) ? d.thresholds : []).find(x => x && x.key === key); return r && r.minRequests !== undefined && r.minRequests !== null ? r.minRequests : null; }).catch(() => null);
+// The button, its toast, and the box with the brief selected where the browser refuses the clipboard.
+function CopyForClaude({ t, at, build, showToast }) {
+  const [busy, setBusy] = useState(false);
+  const [box, setBox] = useState("");
+  const area = useRef(null);
+  useEffect(() => { if (box && area.current) { area.current.focus(); area.current.select(); } }, [box]);
+  const copy = async (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (busy) return;
+    setBusy(true); setBox("");
+    let text = "";
+    try { text = await build(); } catch (err) { text = ""; }
+    let copied = false;
+    if (text) { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); copied = true; } } catch (err) { copied = false; } }
+    setBusy(false);
+    if (!text) { if (showToast) showToast(tr("The brief could not be made. Try again."), "error"); return; }
+    if (copied) { if (showToast) showToast(tr("Copied for Claude. Paste it into the chat.")); return; }
+    setBox(text);
+  };
+  return (<div data-copy-for-claude={at} style={{ minWidth: 0, flex: box ? "1 1 100%" : "0 1 auto" }}>
+    <Btn t={t} v="ghost" data-copy-for-claude-button={at} onClick={copy} disabled={busy}>{busy ? tr("Copying...") : tr("Copy for Claude")}</Btn>
+    {box ? <div data-copy-for-claude-box={at} style={{ marginTop: 8 }}>
+      <div role="status" style={{ fontSize: 12, color: OR, marginBottom: 6, lineHeight: 1.5 }}>{tr("This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.")}</div>
+      <textarea ref={area} readOnly value={box} rows={10} aria-label={tr("The brief for Claude")} data-copy-for-claude-text={at} onClick={e => e.stopPropagation()} onFocus={e => e.target.select()} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: "monospace", resize: "vertical", whiteSpace: "pre" }} />
+    </div> : null}
+  </div>);
+}
+function HealthListWindow({ af, t, number, day, onClose, showToast }) {
   const [items, setItems] = useState(null);
   const [failed, setFailed] = useState("");
   const [again, setAgain] = useState(0);
@@ -20287,13 +20466,87 @@ function HealthListWindow({ af, t, number, day, onClose }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{number.label || number.key}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Who or what is behind this number on {0}, read now.", healthDay(day))}</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ flex: "1 1 240px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Who or what is behind this number on {0}, read now.", healthDay(day))}</div>
+      {items !== null && !failed ? <CopyForClaude t={t} at={number.key} showToast={showToast} build={async () => { const [commit, floor] = await Promise.all([healthCommitOf(af), healthFloorOf(af, number.key)]); return healthBrief({ number, rows: items, rowsDay: day, floor, commit }); }} /> : null}
+    </div>
     {items === null ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} text={failed} />
       : <DataTable t={t} columns={cols} rows={items} empty={tr("Nothing is behind this number now.")} />}
   </div></Mdl>);
 }
-function HealthNumbers({ af, t, data, failed, onRetry }) {
+// ===== LIVE UPTIME (part 393, the API's Round 13 section 1, part 384) =====
+// GET /api/health/uptime (view_health) answers the uptime monitors live (helpers/uptimeMonitors.js current): {
+// configured, checkedAt, stale, monitors: [{ id, name, url, type, status, since, intervalSeconds, lastResponseMs,
+// avgResponseMs24h, uptime: { d1, d7, d30 }, responseTimes24h: [{ at, ms }] }], incidents }, read from UptimeRobot at
+// most once a minute and kept 60 seconds. The page reads it on opening and again each minute while it is open, and
+// the Numbers tab draws every monitor the read answers: its status (up, down, paused, unknown) and since when (since
+// is null for a status older than the 30 days of logs), its uptime for 1, 7 and 30 days, its last and average
+// response, and its last 24 hours of half-hour means as a small line. stale: true is the last good read, said with
+// when it was; checkedAt null is a server that has not read it yet; configured: false is one line.
+const HEALTH_UPTIME_EVERY_MS = 60000;
+const UPTIME_STATUS = { up: "Up|monitor", down: "Down|monitor", paused: "Paused|monitor", unknown: "Unknown|monitor" };
+const uptimeStatusWord = (s) => tr(UPTIME_STATUS[s] || UPTIME_STATUS.unknown);
+const uptimeInk = (s, t) => (s === "up" ? GR : s === "down" ? RD : t.textMut);
+const uptimePct = (v) => { const n = healthNum(v); return n === null ? "--" : n.toLocaleString(localeTag(), { maximumFractionDigits: 3 }) + "%"; };
+const uptimeMs = (v) => (healthNum(v) === null ? "--" : healthValueText(v, "ms"));
+// A length in seconds as a person reads it: seconds under a minute, minutes and seconds under an hour, else hours
+// and minutes. An outage's length is UptimeRobot's own count, to the second.
+const healthSeconds = (s) => {
+  const n = Number(s);
+  if (s === null || s === undefined || s === "" || !Number.isFinite(n) || n < 0) return "--";
+  const r = Math.round(n);
+  if (r < 60) return tr("{0} s", r);
+  if (r < 3600) return tr("{0} min {1} s", Math.floor(r / 60), r % 60);
+  const m = Math.floor(r / 60);
+  return tr("{0} h {1} min", Math.floor(m / 60), m % 60);
+};
+// The last 24 hours of a monitor's response times as a small line, oldest first.
+function UptimeSpark({ t, points = [], ink }) {
+  const vals = (Array.isArray(points) ? points : []).map(p => healthNum(p && p.ms)).filter(v => v !== null);
+  if (vals.length < 2) return <div data-uptime-spark="0" style={{ height: 28, fontSize: 11, color: t.textMut, display: "flex", alignItems: "center" }}>{tr("No response times in the last 24 hours")}</div>;
+  const W = 220, H = 30;
+  const lo = Math.min(...vals), hi = Math.max(...vals, lo + 1);
+  const x = (i) => 2 + (i * (W - 4)) / (vals.length - 1), y = (v) => H - 3 - ((v - lo) * (H - 6)) / (hi - lo);
+  return (<svg data-uptime-spark={vals.length} width="100%" height={H} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" role="img" aria-label={tr("Response times over the last 24 hours, from {0} to {1}", uptimeMs(lo), uptimeMs(hi))}>
+    <polyline points={vals.map((v, i) => x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ")} fill="none" stroke={ink} strokeWidth="1.5" strokeLinejoin="round" />
+  </svg>);
+}
+function HealthUptime({ t, data, failed, onRetry }) {
+  const head = <SecT t={t}>{tr("Uptime monitors")}</SecT>;
+  if (!data && failed) return <div style={{ marginBottom: 16 }}>{head}<Crd t={t}><div data-health-uptime="failed"><LoadFailed t={t} onRetry={onRetry} text={failed} /></div></Crd></div>;
+  if (!data) return <div style={{ marginBottom: 16 }}>{head}<Crd t={t}><div data-health-uptime="loading" style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd></div>;
+  if (data.configured !== true) return <div style={{ marginBottom: 16 }}>{head}<Crd t={t}><div data-health-uptime="off" style={{ fontSize: 13, color: t.textSec }}>{tr("Uptime is not set up on this server.")}</div></Crd></div>;
+  const mons = Array.isArray(data.monitors) ? data.monitors : [];
+  const state = !data.checkedAt ? "unread" : data.stale === true ? "stale" : "live";
+  const line = state === "unread" ? tr("Uptime has not been read yet.")
+    : state === "stale" ? tr("Not read just now. This is the last good read, from {0}.", irWhen(data.checkedAt))
+    : tr("Read at {0}. Read again every minute.", irWhen(data.checkedAt));
+  return (<div data-health-uptime={state} data-health-uptime-read-at={data.checkedAt || ""} style={{ marginBottom: 16 }}>
+    {head}
+    <div data-health-uptime-line="" style={{ fontSize: 12, color: state === "live" ? t.textSec : OR, marginBottom: 10, lineHeight: 1.5 }}>{line}</div>
+    {failed ? <div data-health-uptime-failed="" role="status" style={{ fontSize: 12, color: OR, marginBottom: 10 }}>{tr("The last read did not load. It is read again in a minute.")}</div> : null}
+    {!mons.length ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No monitors to show.")}</div></Crd>
+      : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(250px, 100%), 1fr))", gap: 12 }}>
+        {mons.map(m => {
+          const up = m.uptime || {};
+          const word = uptimeStatusWord(m.status);
+          return (<Crd key={m.id} t={t} style={{ padding: 14, minWidth: 0 }}><div data-uptime-monitor={m.id} data-uptime-status={m.status || "unknown"} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: "50%", background: uptimeInk(m.status, t), flexShrink: 0 }} /><div style={{ fontSize: 13, fontWeight: 600, color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{m.name}</div></div>
+            <div data-uptime-since={m.since || ""} style={{ fontSize: 12, fontWeight: 600, color: uptimeInk(m.status, t) }}>{m.since ? tr("{0} since {1}", word, irWhen(m.since)) : tr("{0} for over 30 days", word)}</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: t.textSec }}>
+              <span data-uptime-d1={healthNum(up.d1) === null ? "" : String(up.d1)}>{tr("1 day|uptime")}: <b style={{ color: t.text }}>{uptimePct(up.d1)}</b></span>
+              <span data-uptime-d7={healthNum(up.d7) === null ? "" : String(up.d7)}>{tr("7 days")}: <b style={{ color: t.text }}>{uptimePct(up.d7)}</b></span>
+              <span data-uptime-d30={healthNum(up.d30) === null ? "" : String(up.d30)}>{tr("30 days")}: <b style={{ color: t.text }}>{uptimePct(up.d30)}</b></span>
+            </div>
+            <div data-uptime-response="" style={{ fontSize: 12, color: t.textSec }}>{tr("Last response {0}", uptimeMs(m.lastResponseMs))} . {tr("Average {0} over 24 hours", uptimeMs(m.avgResponseMs24h))}</div>
+            <UptimeSpark t={t} points={m.responseTimes24h} ink={uptimeInk(m.status === "up" ? "up" : m.status, t)} />
+          </div></Crd>);
+        })}
+      </div>}
+  </div>);
+}
+function HealthNumbers({ af, t, data, failed, onRetry, showToast }) {
   const [open, setOpen] = useState(null);
   if (failed) return <Crd t={t}><LoadFailed t={t} onRetry={onRetry} text={failed} /></Crd>;
   if (!data) return <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
@@ -20321,7 +20574,7 @@ function HealthNumbers({ af, t, data, failed, onRetry }) {
         })}
       </div>
     </div>))}
-    {open && <HealthListWindow af={af} t={t} number={open} day={data.day} onClose={() => setOpen(null)} />}
+    {open && <HealthListWindow af={af} t={t} number={open} day={data.day} onClose={() => setOpen(null)} showToast={showToast} />}
   </div>);
 }
 // Run now's refusals in plain words, by their codes, for an answer that carries none.
@@ -20470,7 +20723,13 @@ function HealthRuns({ af, t, onAsked }) {
     {open && <HealthRunWindow af={af} t={t} runId={open} onClose={() => setOpen(null)} />}
   </div>);
 }
-function HealthIncidents({ af, t, onChanged }) {
+// Part 393 (the API's Round 13 section 2): every incident carries source, monitor, reason and durationSeconds. An
+// outage UptimeRobot logged (source uptimerobot, kind monitor) reads as its monitor, its reason and how long it
+// lasted, so far while it goes on; every other incident's length is durationSeconds too, from opened to closed.
+const healthIsOutage = (x) => !!x && x.source === "uptimerobot";
+const healthOutageMonitor = (x) => (x && x.monitor && x.monitor.name) || (x && x.title) || "--";
+const healthIncidentLength = (x) => (x && x.durationSeconds !== null && x.durationSeconds !== undefined ? healthSeconds(x.durationSeconds) : healthSpan(x && x.openedAt, x && x.closedAt));
+function HealthIncidents({ af, t, onChanged, numbers = null, showToast }) {
   const [list, setList] = useState(null);
   const [failed, setFailed] = useState("");
   const [onlyOpen, setOnlyOpen] = useState(true);
@@ -20479,6 +20738,18 @@ function HealthIncidents({ af, t, onChanged }) {
   const [once, busy] = useBusyGuard();
   const read = useCallback(() => af("/api/health/incidents" + (onlyOpen ? "?open=true" : "")).then(d => { setList(d && Array.isArray(d.incidents) ? d.incidents : []); setFailed(""); }).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); }), [af, onlyOpen]);
   useEffect(() => { setList(null); read(); }, [read]);
+  // Copy for Claude on an incident (part 393): a number's incident carries the number it names, from the page's
+  // numbers, and the rows of its list read now; an outage its monitor, reason and duration.
+  const briefOfIncident = async (x) => {
+    const number = x && x.kind === "number" && numbers && Array.isArray(numbers.numbers) ? numbers.numbers.find(n => n && n.key === x.key) || null : null;
+    const day = numbers && numbers.day ? numbers.day : "";
+    const [commit, rows, floor] = await Promise.all([
+      healthCommitOf(af),
+      number ? af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : "")).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
+      number ? healthFloorOf(af, number.key) : null,
+    ]);
+    return healthBrief({ incident: x, number, rows, rowsDay: day, floor, commit });
+  };
   const save = once(async () => {
     const text = (writing && writing.text || "").replace(/\s+/g, " ").trim();
     if (!text) { setSaid({ id: writing.id, text: tr("Write what fixed it first.") }); return; }
@@ -20493,12 +20764,17 @@ function HealthIncidents({ af, t, onChanged }) {
     {list === null ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div></Crd>
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={read} text={failed} /></Crd>
       : !list.length ? <Crd t={t}><div data-health-no-incidents="" style={{ fontSize: 13, color: t.textMut }}>{onlyOpen ? tr("No incident is open.") : tr("No incidents yet.")}</div></Crd>
-      : list.map(x => (<Crd key={x.id} t={t} style={{ marginBottom: 10 }}><div data-health-incident={x.id} data-health-incident-closed={x.closedAt ? "1" : "0"}>
+      : list.map(x => { const outage = healthIsOutage(x); return (<Crd key={x.id} t={t} style={{ marginBottom: 10 }}><div data-health-incident={x.id} data-health-incident-closed={x.closedAt ? "1" : "0"} data-health-incident-source={x.source || "health"}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{x.title}</div>
           <Bdg l={x.closedAt ? tr("Closed|incident") : tr("Open|incident")} c={x.closedAt ? GR : RD} />
         </div>
-        <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{healthKindWord(x.kind)} . {tr("Opened {0}", irWhen(x.openedAt))}{x.closedAt ? " . " + tr("Closed {0}, after {1}", irWhen(x.closedAt), healthSpan(x.openedAt, x.closedAt)) : ""}</div>
+        <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{healthKindWord(x.kind)} . {tr("Opened {0}", irWhen(x.openedAt))}{x.closedAt ? " . " + tr("Closed {0}, after {1}", irWhen(x.closedAt), healthIncidentLength(x)) : ""}</div>
+        {outage && <div data-health-outage={x.id} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 6, fontSize: 13, color: t.text }}>
+          <span data-health-outage-monitor={(x.monitor && x.monitor.id) || ""}>{tr("Monitor: {0}", healthOutageMonitor(x))}</span>
+          <span data-health-outage-reason={x.reason || ""}>{x.reason ? tr("Reason: {0}", x.reason) : tr("No reason was given.")}</span>
+          <span data-health-outage-length={x.durationSeconds === null || x.durationSeconds === undefined ? "" : String(x.durationSeconds)} style={{ color: x.closedAt ? t.textSec : RD, fontWeight: 600 }}>{x.closedAt ? tr("Down for {0}", healthSeconds(x.durationSeconds)) : tr("Down for {0} so far", healthSeconds(x.durationSeconds))}</span>
+        </div>}
         <div data-health-resolution="" style={{ fontSize: 13, color: x.resolution ? t.text : t.textMut, marginTop: 6 }}>{x.resolution ? tr("What fixed it: {0}", x.resolution) : tr("What fixed it is not written yet.")}</div>
         {(x.timeline || []).length > 0 && <div style={{ marginTop: 8 }}>{x.timeline.map((e, i) => <div key={i} style={{ fontSize: 12, color: t.textSec, padding: "2px 0" }}>{irWhen(e.at)}: {e.text}</div>)}</div>}
         {writing && writing.id === x.id ? (<div style={{ marginTop: 10 }}>
@@ -20506,8 +20782,8 @@ function HealthIncidents({ af, t, onChanged }) {
           <TArea t={t} data-health-resolution-text="" aria-label={tr("What fixed it")} rows={3} maxLength={1000} value={writing.text} onChange={e => setWriting({ ...writing, text: e.target.value })} />
           {said && said.id === x.id ? <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{said.text}</div> : null}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}><Btn t={t} data-health-resolution-save="" onClick={save} disabled={busy}>{busy ? tr("Saving...") : tr("Save")}</Btn><Btn t={t} v="ghost" onClick={() => { setWriting(null); setSaid(null); }}>{tr("Cancel")}</Btn></div>
-        </div>) : <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-health-resolve={x.id} onClick={() => { setWriting({ id: x.id, text: x.resolution || "" }); setSaid(null); }}>{x.resolution ? tr("Change what fixed it") : tr("Write what fixed it")}</Btn></div>}
-      </div></Crd>))}
+        </div>) : <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}><Btn t={t} v="ghost" data-health-resolve={x.id} onClick={() => { setWriting({ id: x.id, text: x.resolution || "" }); setSaid(null); }}>{x.resolution ? tr("Change what fixed it") : tr("Write what fixed it")}</Btn><CopyForClaude t={t} at={x.id} showToast={showToast} build={() => briefOfIncident(x)} /></div>}
+      </div></Crd>); })}
   </div>);
 }
 // The recipients of the morning email and the red alerts, replaced as a set: the people picked and the
@@ -20666,7 +20942,7 @@ function HealthReports({ af, t, token }) {
     {pdf && <PdfWindow token={token} t={t} onClose={() => setPdf(null)} boxProps={{ "data-health-pdf": pdf.id }} title={tr(HEALTH_REPORT_KINDS[pdf.kind] || pdf.kind)} sub={tr("{0} to {1}", healthDay(pdf.from), healthDay(pdf.to))} pathFor={() => "/api/health/reports/" + encodeURIComponent(pdf.id) + "/pdf"} fallbackName={"health-" + pdf.kind + "-" + pdf.from + "-" + pdf.to + ".pdf"} oneLanguage />}
   </div>);
 }
-function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
+function HealthPage({ af, t, token, allStaff = [], route = [], onRoute, showToast }) {
   const tab = HEALTH_TABS.some(x => x[0] === route[0]) ? route[0] : "numbers";
   const [summary, setSummary] = useState(null);
   const [sumFailed, setSumFailed] = useState("");
@@ -20676,6 +20952,19 @@ function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
   const readSummary = useCallback(() => af("/api/health/summary").then(d => { setSummary(d || {}); setSumFailed(""); }).catch(e => { setSummary(null); setSumFailed(e.message || tr("This did not load.")); }), [af]);
   const readNumbers = useCallback(() => af("/api/health/numbers").then(d => { setNumbers(d || { numbers: [] }); setNumFailed(""); }).catch(e => { setNumbers(null); setNumFailed(e.message || tr("This did not load.")); }), [af]);
   useEffect(() => { readSummary(); readNumbers(); }, [readSummary, readNumbers]);
+  // Part 393: the uptime monitors, read on opening and again each minute while the page is open and in view; a page
+  // put back in view after a minute or more reads them at once. A read that fails keeps the last one on screen.
+  const [uptime, setUptime] = useState(null);
+  const [upFailed, setUpFailed] = useState("");
+  const upAt = useRef(0);
+  const readUptime = useCallback(() => { upAt.current = Date.now(); return af("/api/health/uptime").then(d => { setUptime(d && typeof d === "object" ? d : { configured: false }); setUpFailed(""); }).catch(e => setUpFailed(e.message || tr("This did not load."))); }, [af]);
+  useEffect(() => {
+    readUptime();
+    const timer = setInterval(() => { if (document.visibilityState !== "hidden") readUptime(); }, HEALTH_UPTIME_EVERY_MS);
+    const seen = () => { if (document.visibilityState !== "hidden" && Date.now() - upAt.current >= HEALTH_UPTIME_EVERY_MS) readUptime(); };
+    document.addEventListener("visibilitychange", seen);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", seen); };
+  }, [readUptime]);
   const refresh = async () => {
     if (busy) return;
     setBusy(true);
@@ -20689,9 +20978,9 @@ function HealthPage({ af, t, token, allStaff = [], route = [], onRoute }) {
     <div data-health-tabs="" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
       {HEALTH_TABS.map(([k, l]) => <button key={k} data-health-tab={k} aria-pressed={tab === k} onClick={() => pick(k)} style={{ flexShrink: 0, minHeight: 44, padding: "7px 14px", borderRadius: 8, border: tab === k ? "1px solid " + GO : "1px solid transparent", background: tab === k ? t.goldBg : "transparent", color: tab === k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: FONT_BODY }}>{tr(l)}</button>)}
     </div>
-    {tab === "numbers" && <HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} />}
+    {tab === "numbers" && <><HealthUptime t={t} data={uptime} failed={upFailed} onRetry={readUptime} /><HealthNumbers af={af} t={t} data={numbers} failed={numFailed} onRetry={readNumbers} showToast={showToast} /></>}
     {tab === "runs" && <><HealthRobotSignIn af={af} t={t} lines={((numbers && Array.isArray(numbers.numbers) ? numbers.numbers : []).find(n => n.key === "robot_trust_days_left") || {}).lines} /><HealthRuns af={af} t={t} onAsked={readSummary} /></>}
-    {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} />}
+    {tab === "incidents" && <HealthIncidents af={af} t={t} onChanged={readSummary} numbers={numbers} showToast={showToast} />}
     {tab === "settings" && <><HealthRecipients af={af} t={t} allStaff={allStaff} /><HealthThresholds af={af} t={t} /></>}
     {tab === "reports" && <HealthReports af={af} t={t} token={token} />}
   </div>);
@@ -22463,6 +22752,10 @@ const IR_PAGE_SIZE = 50;
 // The count on the Filed forms tab is read off the first page of unfinished filings, so a full page reads
 // 50+, which says there may be more (part 386, DASH-59); none reads nothing.
 const unfinishedShown = (n) => (n >= IR_PAGE_SIZE ? IR_PAGE_SIZE + "+" : n > 0 ? String(n) : "");
+// Part 393 (the API's Round 13, 5.6): GET /api/forms/responses?status=draft answers counts: { draft }, every unfinished
+// filing the caller may read under the same filters, whatever the page, so the tab counts them all. A list without it
+// is counted off the page, as before, up to the page's size and a plus.
+const draftCountOf = (d) => { const n = d && d.counts && d.counts.draft !== undefined && d.counts.draft !== null ? Number(d.counts.draft) : NaN; return Number.isFinite(n) && n >= 0 ? (n > 0 ? String(Math.round(n)) : "") : unfinishedShown(d && Array.isArray(d.responses) ? d.responses.length : 0); };
 // The line the window says once a report is sent again, built from the answer: how many emails, how
 // many app notices, and what the email carried. Read when it is said, so it is in the screen's
 // language, the way every other line of the window is.
@@ -25580,7 +25873,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       setError(null);
       // The count on the tab: how many filings are unfinished, read off the unfinished list itself
       // whenever it is loaded whole and unfiltered.
-      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(unfinishedShown(list.length));
+      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(draftCountOf(d));
     } catch (e) {
       if (!before) setRows([]);
       setError({ status: e && e.status, message: e.message || tr("Request failed") });
@@ -25594,7 +25887,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const recount = useCallback(() => {
     if (!onUnfinished) return;
     af("/api/forms/responses?status=draft&limit=" + IR_PAGE_SIZE)
-      .then(d => onUnfinished(unfinishedShown(d && Array.isArray(d.responses) ? d.responses.length : 0)))
+      .then(d => onUnfinished(draftCountOf(d)))
       .catch(e => { console.warn("Unfinished count:", e.message); });
   }, [af, onUnfinished]);
   useEffect(() => {
@@ -28087,6 +28380,32 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const [sentLine, setSentLine] = useState("");
   const [rescinding, setRescinding] = useState(false);
   const [rescindReason, setRescindReason] = useState("");
+  // Part 393 (the robot's finding; the API's part 382, Round 12 3.5): Rescind is offered by the API's own rule
+  // (routes/discipline.js POST /:id/rescind): an admin, or the person who issued the warning when the warning is about
+  // a test account. The warning names its issuer (issuedBy.userId). Whether its person is a test account is read from
+  // the issuer's own account first: the API's test guard holds a test account to test records, so a warning a test
+  // account issued is about a test account (the robot's Test Supervisor, tidying its nightly warning). Else from the
+  // person the window was opened for or the shell's people, and, when neither says, from the HR summary with the test
+  // accounts in it, which a supervisor's people list leaves out; a summary the API refuses offers nothing.
+  const self = useContext(SelfCtx);
+  const selfId = self && self.id ? self.id : "";
+  const knownPeople = useContext(PeopleCtx);
+  const issuerIsMe = !!selfId && !!(w && w.issuedBy && w.issuedBy.userId != null) && String(w.issuedBy.userId) === String(selfId);
+  const subjectId = String(userId || (w && w.person && w.person.userId) || "");
+  const [testSubject, setTestSubject] = useState(null);
+  useEffect(() => {
+    if (isAdmin || !issuerIsMe || !subjectId) return undefined;
+    if (self && self.test) { setTestSubject(true); return undefined; }
+    const flagOf = (p) => (!p ? null : p.isTestAccount === true || p.is_test_account === true ? true : Object.prototype.hasOwnProperty.call(p, "isTestAccount") || Object.prototype.hasOwnProperty.call(p, "is_test_account") ? false : null);
+    const said = flagOf(person) !== null ? flagOf(person) : flagOf((knownPeople || []).find(p => p && String(p.id) === subjectId));
+    if (said !== null) { setTestSubject(said); return undefined; }
+    let alive = true;
+    af("/api/hr/employees-summary?status=all&include_test=true")
+      .then(d => { const row = (d && Array.isArray(d.employees) ? d.employees : []).find(e => e && String(e.id) === subjectId); if (alive) setTestSubject(!!(row && row.is_test_account === true)); })
+      .catch(() => { if (alive) setTestSubject(false); });
+    return () => { alive = false; };
+  }, [af, isAdmin, issuerIsMe, subjectId, person, knownPeople, self]);
+  const mayRescind = isAdmin || (issuerIsMe && testSubject === true);
   const [endOpen, setEndOpen] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
@@ -28304,8 +28623,8 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
           {type === "termination" && <Btn t={t} v="danger" onClick={() => setEndOpen(true)} style={small}>{tr("End employment")}</Btn>}
           <Btn t={t} onClick={send} disabled={!!busy || sendGoing || !deliver.method} data-warning-send="" style={{ minHeight: 44, minWidth: 96 }}>{busy === "send" ? tr("Sending...") : tr("Send")}</Btn>
         </div>
-        {isAdmin && <div style={{ marginTop: 16 }}>
-          {!rescinding ? <Btn t={t} v="ghost" onClick={() => setRescinding(true)} style={small}>{tr("Rescind")}</Btn> : <div data-warning-rescind="">
+        {mayRescind && <div style={{ marginTop: 16 }}>
+          {!rescinding ? <Btn t={t} v="ghost" data-warning-rescind-open="" onClick={() => setRescinding(true)} style={small}>{tr("Rescind")}</Btn> : <div data-warning-rescind="">
             <Lbl>{tr("Why it is rescinded")}</Lbl>
             <TArea t={t} rows={2} aria-label={tr("Why it is rescinded")} value={rescindReason} onChange={e => setRescindReason(e.target.value)} style={box("reason")} />
             <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The warning stays on the record, marked rescinded.")}</div>
@@ -29539,8 +29858,6 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
 }
 
 function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "", trainingPage = false, signaturesPage = false, accessReport = false }) {
-  // The signed-in person's name as the staff list holds it, which a signature request names its sender by.
-  const selfName379 = (() => { const me = (allStaff || []).find(p => p && String(p.id) === String(selfId)); return me ? (me.name || ((me.firstName || me.first_name || "") + " " + (me.lastName || me.last_name || "")).trim()) : ""; })();
   // Step 257: #hr/training opens the Training area, and #hr/training/<view> one of its tabs.
   const trainingRoute = route[0] === "training";
   // Step 272: #hr/signatures opens Waiting for signatures, and #hr/signatures/<requestId> one request.
@@ -29949,7 +30266,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
       {signaturesPage && <SecT t={t}>{tr("Waiting for signatures")}</SecT>}
-      {tab === "signatures" && signaturesLive && <SignatureRequests af={af} t={t} token={token} sites={sites} showToast={showToast} isAdmin={isAdmin} selfName={selfName379} focusId={signaturesRoute && route[1] ? String(route[1]) : ""} onFocusDone={() => { if (onRoute && signaturesRoute && route[1]) onRoute(["signatures"]); }} />}
+      {tab === "signatures" && signaturesLive && <SignatureRequests af={af} t={t} token={token} sites={sites} showToast={showToast} isAdmin={isAdmin} selfId={selfId} focusId={signaturesRoute && route[1] ? String(route[1]) : ""} onFocusDone={() => { if (onRoute && signaturesRoute && route[1]) onRoute(["signatures"]); }} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -33287,10 +33604,12 @@ function SignHereWindow({ af, t, requestId, personName = "", onClose, onDone }) 
 // route's own filters; Open, the default, is waiting and not right together, read with no state and
 // kept here.
 const SIGN_LIST_STATES = [{ v: "open", l: "Open|requests" }, { v: "waiting", l: "Waiting for signature" }, { v: "disputed", l: "Not right" }, { v: "signed", l: "Signed|signature" }, { v: "declined", l: "Declined|signature" }, { v: "cancelled", l: "Cancelled|signature" }, { v: "all", l: "All|requests" }];
-function SignatureRequests({ af, t, token, sites = [], showToast, focusId = "", onFocusDone, isAdmin = false, selfName = "" }) {
-  // A paper signature or a refusal is recorded by the request's sender or an admin (part 379). The request
-  // names its sender by name alone, so that is what is matched.
-  const mayRecord = (r) => isAdmin || (!!selfName && !!(r && r.requestedBy && r.requestedBy.name) && r.requestedBy.name.trim().toLowerCase() === selfName.trim().toLowerCase());
+function SignatureRequests({ af, t, token, sites = [], showToast, focusId = "", onFocusDone, isAdmin = false, selfId = "" }) {
+  // A paper signature or a refusal is recorded by the request's sender or an admin (part 379), the API's own rule
+  // (routes/signatures.js POST /:id/record: an admin, or requested_by the caller). Since the API's Round 13 (part
+  // 393) the request names its sender by id, requestedBy { id, name }, and the id is what is matched, so two people
+  // of one name are never taken for each other.
+  const mayRecord = (r) => isAdmin || (!!selfId && !!(r && r.requestedBy && r.requestedBy.id != null) && String(r.requestedBy.id) === String(selfId));
   const [list, setList] = useState(null);
   // The request open in its window: a row clicked, or the one the address or a notice names.
   const [open, setOpen] = useState(focusId);

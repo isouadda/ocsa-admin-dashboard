@@ -371,7 +371,7 @@ Last checked: 2026-10-05
 ## Schedule an inspection (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Inspections**.
-2. Click the **Scheduled** tab. The list shows the newest 50 inspections; **Show more** (**Mostrar más**) shows the next ones. Under each site's name, the line says its last safety walk, such as **Last safety walk {0}** (**Último recorrido de seguridad: {0}**), and whether this month's is done: **Safety walk done this month on {0}** (**Recorrido de seguridad hecho este mes el {0}**) or **Safety walk due this month** (**Recorrido de seguridad pendiente este mes**). **Open the inspection** (**Abrir la inspección**) opens the inspection it was walked on.
+2. Click the **Scheduled** tab. The list shows the newest 50 inspections; **Show more** (**Mostrar más**) shows the next ones. Under each site's name, the line says its last safety walk, such as **Last safety walk {0}** (**Último recorrido de seguridad: {0}**), and whether this month's is done: **Safety walk done this month on {0}** (**Recorrido de seguridad hecho este mes el {0}**) or **Safety walk due this month** (**Recorrido de seguridad pendiente este mes**). Where the walk was made on an inspection, the line names it, **Walked on {0}, scheduled {1}** (**Recorrido en {0}, programada para el {1}**), and **Open the inspection** (**Abrir la inspección**) opens it. Every site's line is read at once.
 3. Click **Schedule Inspection**.
 4. Choose the template, the site, the supervisor under **Assigned Supervisor** (**Supervisor asignado**), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and the date. Only active supervisors are listed.
 5. The full safety walk is done once a month at each site. Once the site is picked, **Include the safety walk** (**Incluir el recorrido de seguridad**) is ticked only when the site has had no safety walk this month, and the line under it says **Safety walk due this month** (**Recorrido de seguridad pendiente este mes**) or **Safety walk done this month on {0}** (**Recorrido de seguridad hecho este mes el {0}**). With it ticked, the inspector fills in the safety inspection (OCSA-FRM-015) in the same walk, signs once, and both records are kept. You can still tick it or untick it.
@@ -379,7 +379,7 @@ Who can do this: admins and supervisors
 If it does not work: a supervisor who has left is not listed. An inspection already held by someone who left shows them with their status until you pick someone else.
 Words people use for this: schedule an inspection, monthly inspection, site inspection, safety walk, one walk, inspection and safety inspection together, programar una inspección.
 Picture: inspections-schedule
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 ## Create an inspection template (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Inspections** (**Inspecciones**).
@@ -753,11 +753,11 @@ Last checked: 2026-09-30
 ## Continue an unfinished form (admin dashboard)
 Who can do this: the person who started it
 1. Closing a form window part way asks whether to leave. **Keep filling** (**Seguir llenando**) stays; **Leave** (**Salir**) saves first and closes.
-2. To pick it up again, click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), **Unfinished** (**Sin terminar**), and **Continue** (**Continuar**) on the row. The tab counts the unfinished forms, such as **Filed forms ({0})** (**Formularios presentados ({0})**); it reads 50+ when there may be more than the 50 it read, and **Show more** (**Mostrar más**) under the list shows the next ones.
+2. To pick it up again, click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), **Unfinished** (**Sin terminar**), and **Continue** (**Continuar**) on the row. The tab counts every unfinished form you can see, however many there are, such as **Filed forms ({0})** (**Formularios presentados ({0})**), and **Show more** (**Mostrar más**) under the list shows the next ones.
 3. The window opens with every saved answer in place.
 Words people use for this: finish a form later, resume a draft, continue a form, unfinished form, draft.
 Picture: unfinished-forms
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Make a customer link and print its QR code (admin dashboard)
 Who can do this: admins who can change settings. Supervisors do not see Customer links.
@@ -1473,14 +1473,15 @@ Picture: warning-declined-to-sign
 Last checked: 2026-11-10
 
 ## Rescind a warning (admin dashboard)
-Who can do this: admins
+Who can do this: admins, and the person who issued a warning about a test account
 1. Open the warning from the person's **Disciplinary** (**Disciplinario**) card or from **Discipline** (**Disciplina**).
 2. Click **Rescind** (**Anular**).
 3. Fill in **Why it is rescinded** (**Por qué se anula**). **The warning stays on the record, marked rescinded.** (**La advertencia queda en el registro, marcada como anulada.**)
 4. Click **Rescind** (**Anular**). The warning is struck through, with the reason under it.
+If it does not work: a supervisor sees **Rescind** (**Anular**) only on a warning they issued about a test account, such as the robot's nightly warning. Any other warning is rescinded by an admin.
 Words people use for this: take back a warning, cancel a warning, remove a write-up, warning given by mistake, anular.
 Picture: warning-rescind
-Last checked: 2026-10-01
+Last checked: 2026-11-12
 
 ## See every warning on the Discipline page (admin dashboard)
 Who can do this: admins see every warning; supervisors see the warnings they issued
@@ -2903,17 +2904,17 @@ Last checked: 2026-11-11
 ## Read the Health page (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
-2. **Numbers** (**Indicadores**) shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
-3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors.
+2. **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**), each monitor's status, uptime and response times, read again every minute. Below them it shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
+3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors. **Copy for Claude** (**Copiar para Claude**) there copies the number and what is behind it for the chat.
 4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
 5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot.
 6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
-7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
+7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. An outage a monitor caught is an incident too, with its monitor, its reason and how long it was down. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
 If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
-Words people use for this: health page, platform health, is the app working, status page, run-throughs, the robot, incidents, red alert, daily numbers, salud.
+Words people use for this: health page, platform health, is the app working, status page, uptime, run-throughs, the robot, incidents, outages, red alert, daily numbers, salud.
 Picture: health-numbers
 Picture: health-run
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Make a health report (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
@@ -2955,14 +2956,14 @@ Last checked: 2026-11-10
 
 ## Read a site's checklist by shift (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Checklist Results** (**Resultados de la lista**) and pick a site that has its own shifts. On one day, each shift's run has its own ring: the daily, per visit and every other day steps on that shift's list, done of due, counted inside the shift's hours.
+1. Click **Checklist Results** (**Resultados de la lista**) and pick a site that has its own shifts. On one day, each shift's run has its own ring: the daily, per visit and every other day steps on that shift's list, done of due. Each check counts for the shift it was made on, even one made a few minutes after that shift's hours ended.
 2. **Who worked: {0}** (**Quién trabajó: {0}**) names who started that shift and who checked its work, and **When the checks happened** (**Cuándo se hicieron las marcas**) draws its checks across its hours.
 3. Under **Tasks** (**Tareas**), each shift lists its own steps. A daily step an earlier shift did that day, and this shift has not, reads in grey **Done by {0} on the {1} shift at {2}. It is due again on this shift.** (**{0} la hizo a las {2} ({1}). Vuelve a tocar en este turno.**) It counts for the shift that did it.
 4. Weekly, monthly and other repeating work stays the site's for its period, under **Whole site** (**Todo el sitio**) and **Repeating work** (**Trabajo que se repite**).
 If it does not work: a site with no shifts of its own reads as before, by its shift blocks or as one list a day. An overnight shift's checks after midnight count on the day the shift began.
 Words people use for this: checklist by shift, first shift checklist, second shift, what did each shift do, shift ring, done by the last shift, resultados por turno.
 Picture: checklist-results-runs
-Last checked: 2026-11-10
+Last checked: 2026-11-12
 
 ## Record a paper signature or a refusal (admin dashboard)
 Who can do this: admins, and the person who sent the warning to sign
@@ -2972,19 +2973,20 @@ Who can do this: admins, and the person who sent the warning to sign
 4. Choose the signed paper's photo or PDF, up to 10 MB, if you have one. It is kept privately with the warning.
 5. The window says what happens next: **Once saved, the request closes and the warning records it. Its final copy is emailed to {0}, with the issuer copied.** (**Al guardarlo, la solicitud se cierra y la advertencia lo registra. Su copia final se envía por correo a {0}, con copia a quien la emitió.**) Click **Record it** (**Registrarlo**).
 6. The request then reads **Signed** (**Firmado**) with **on paper** (**en papel**), or **Declined** (**Se negó a firmar**) with **Refused in person** (**Rechazado en persona**), and the window says whether the final copy was emailed. With no email on file it says **Recorded. No email on file, so the signed copy was not mailed. Deliver it another way.** (**Registrado. No hay correo registrado, así que la copia firmada no se envió. Entréguela de otra forma.**)
-If it does not work: only a warning's request can be recorded this way, while it is still waiting or not right; anything else is refused in the system's words under the form. A request entered by mistake is closed with **Cancel** (**Cancelar**) instead.
+If it does not work: the button shows for admins and for the account that sent the request, never for someone who only has the same name. Only a warning's request can be recorded this way, while it is still waiting or not right; anything else is refused in the system's words under the form. A request entered by mistake is closed with **Cancel** (**Cancelar**) instead.
 Words people use for this: signed on paper, paper signature, printed copy, refused to sign in person, witnessed refusal, scan the signed warning, firma en papel.
 Picture: signature-paper
-Last checked: 2026-11-10
+Last checked: 2026-11-12
 
 ## Tell the test site apart (admin dashboard)
 Who can do this: anyone who can see the sites
 1. One site is kept for the robot's run-throughs on the Health page. In **Sites** (**Sitios**) its name carries **TEST** (**PRUEBA**), and so does its page.
-2. Wherever a site is picked, such as **Checklist Results** (**Resultados de la lista**), a schedule, a task or a report, the test site reads with (**TEST** (**PRUEBA**)) after its name, the way a test account is marked.
-3. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export.
+2. Wherever a site is picked or named, such as **Checklist Results** (**Resultados de la lista**), **Live Ops** (**Operaciones en vivo**), **Schedule** (**Horario**), a task or a report, the test site reads with (**TEST** (**PRUEBA**)) after its name, the way a test account is marked.
+3. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export. On **Checklist Results** (**Resultados de la lista**), **All sites** (**Todos los sitios**), its card says so: **This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.** (**Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. Ábralo para ver lo que se marcó ahí.**)
 Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
 Picture: sites-test-site
-Last checked: 2026-11-10
+Picture: checklist-results-test-site
+Last checked: 2026-11-12
 
 ## Renew the robot's sign-in (admin dashboard)
 Who can do this: the super admin renews it; anyone given the Health page can read it
@@ -3070,3 +3072,28 @@ If it does not work: both show once the person has a follow-up from a finding. A
 Words people use for this: coaching, coaching record, conversations, retraining after an inspection, training from findings, orientación.
 Picture: hr-coaching
 Last checked: 2026-11-11
+
+## See the uptime monitors and outages (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. Click **Health** (**Salud**). **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**): each part of the platform the uptime service checks every few minutes, the staff app, the dashboard, the API, the API's deep check, the scheduled jobs and Help.
+2. Each monitor shows its status, **Up** (**Activo**), **Down** (**Caído**), **Paused** (**En pausa**) or **Unknown** (**Desconocido**), and since when; its uptime for **1 day** (**1 día**), **7 days** (**7 días**) and **30 days** (**30 días**); its last response and its average over 24 hours; and its last 24 hours of response times as a small line.
+3. The panel is read again every minute while the page is open, and says when: **Read at {0}. Read again every minute.** (**Leído a las {0}. Se vuelve a leer cada minuto.**)
+4. Click **Incidents** (**Incidentes**). Each outage a monitor caught is an incident, named for its monitor, with its reason, such as a 429 or a 503, and how long it was down: **Down for {0}** (**Caído durante {0}**), or **Down for {0} so far** (**Caído durante {0} hasta ahora**) while it goes on.
+5. Once it is fixed, click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**), as for any incident. The health reports print it beside the outage.
+If it does not work: when the uptime service does not answer, the panel keeps the last good read and says so: **Not read just now. This is the last good read, from {0}.** (**No se leyó ahora. Esta es la última lectura correcta, de {0}.**) **Uptime is not set up on this server.** (**La disponibilidad no está configurada en este servidor.**) means the server has no uptime key yet.
+Words people use for this: uptime, uptime monitors, is the app down, outage, downtime, response time, uptimerobot, monitor down, disponibilidad.
+Picture: health-uptime
+Picture: health-outage
+Last checked: 2026-11-12
+
+## Copy a health problem for Claude (admin dashboard)
+Who can do this: the super admin, and anyone the super admin has given the Health page
+1. When something on the Health page turns red, click **Health** (**Salud**), then **Incidents** (**Incidentes**), and find the incident it opened. Or, on **Numbers** (**Indicadores**), click the red number to open who or what is behind it.
+2. Click **Copy for Claude** (**Copiar para Claude**). The page says **Copied for Claude. Paste it into the chat.** (**Copiado para Claude. Péguelo en el chat.**)
+3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in: the incident with its timeline, the number with its lines and its past days, the routes and counts behind it, an outage's monitor, reason and how long it lasted, the API's version and the dashboard's version.
+4. People behind a number are given as how many, never by name, email, phone or badge.
+If it does not work: when the browser does not let the page copy, the page says **This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.** (**Este navegador no dejó que la página copiara. El resumen está seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.**) Press those keys, then paste it into the chat.
+Words people use for this: copy for claude, send to claude, health brief, paste into the chat, red number, incident details, ask claude to fix it, copiar para claude.
+Picture: health-copy-for-claude
+Picture: health-copy-by-hand
+Last checked: 2026-11-12
