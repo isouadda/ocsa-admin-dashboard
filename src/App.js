@@ -345,6 +345,8 @@ async function apiFetch(path, opts = {}) {
     if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, userId: e.userId == null ? null : e.userId, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
     throw err;
   }
+  // A route that answers plain text (part 397: a Health incident's brief, text/plain) is read as text with asText.
+  if (opts.asText) return await r.text();
   return withSafeAddresses(await r.json());
 }
 // An answer the API writes as it goes. The request is apiFetch's, through apiRequest, so the address,
@@ -20390,8 +20392,10 @@ const HEALTH_LIST_COLS = {
 // ===== COPY FOR CLAUDE (part 393, the owner's word of Nov 11) =====
 // When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
 // needs to fix it. Every Health incident and every number's drill-down sheet carries Copy for Claude, which copies
-// one plain ASCII block in English, built from the reads the page has today (the API's Round 14 adds GET
-// /api/health/incidents/:id/brief, which the next round reads instead):
+// one plain ASCII block in English. Since part 397 an incident's is the API's own (GET
+// /api/health/incidents/:id/brief, the API's Round 14), copied as it answers; the block below is built from the
+// page's reads for a number's drill-down sheet, which has no brief of its own yet, and for an incident whose brief
+// did not load:
 //   - the first line, OCSA Health brief;
 //   - an incident's id, kind, key, title, opened and closed times, what fixed it and its timeline;
 //   - an outage's monitor, reason and duration;
@@ -20622,6 +20626,7 @@ function HealthNumbers({ af, t, data, failed, onRetry, showToast }) {
 }
 // Run now's refusals in plain words, by their codes, for an answer that carries none.
 const HEALTH_RUN_NOW_WORDS = { "health.runNowBusy": "A run-through was just asked for. Wait two minutes before asking again.", "health.runNowOff": "Run now is not set up on this server yet.", "health.runNowFailed": "GitHub did not start the run-through. Try again in a few minutes." };
+// A skipped step carries the robot's reason (part 384, reason; the robot's Round 3 finding 3), drawn under it.
 function HealthRunWindow({ af, t, runId, onClose }) {
   const [d, setD] = useState(null);
   const [failed, setFailed] = useState("");
@@ -20650,6 +20655,7 @@ function HealthRunWindow({ af, t, runId, onClose }) {
         {(j.steps || []).map((s, si) => (<div key={si} data-health-step={s.name} data-health-step-outcome={s.outcome} style={{ padding: "6px 0", borderTop: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: t.text }}>{si + 1}. {s.name}</span><span style={{ color: healthOutcomeInk(s.outcome, t), fontWeight: 600, whiteSpace: "nowrap" }}>{healthOutcomeWord(s.outcome)} . {healthLength(s.durationMs)}</span></div>
           {s.error ? <div data-health-step-error="" style={{ fontSize: 12, color: RD, marginTop: 4, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{s.error}</div> : null}
+          {s.outcome === "skipped" && s.reason ? <div data-health-step-reason="" style={{ fontSize: 12, color: t.textSec, marginTop: 4, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{tr("Why it was skipped: {0}", s.reason)}</div> : null}
           {s.screenshotUrl ? <FreshImg src={s.screenshotUrl} readKey={"health-run:" + runId} onStale={read} alt={tr("Screenshot of the step that failed")} data-health-shot="" style={{ display: "block", maxWidth: "100%", marginTop: 6, borderRadius: 6, border: "1px solid " + t.border }} /> : null}
         </div>))}
       </div></Crd>))}
@@ -20781,9 +20787,16 @@ function HealthIncidents({ af, t, onChanged, numbers = null, showToast }) {
   const [once, busy] = useBusyGuard();
   const read = useCallback(() => af("/api/health/incidents" + (onlyOpen ? "?open=true" : "")).then(d => { setList(d && Array.isArray(d.incidents) ? d.incidents : []); setFailed(""); }).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); }), [af, onlyOpen]);
   useEffect(() => { setList(null); read(); }, [read]);
-  // Copy for Claude on an incident (part 393): a number's incident carries the number it names, from the page's
+  // Copy for Claude on an incident (part 397): the API's own brief, GET /api/health/incidents/:id/brief (the API's
+  // Round 14), text/plain, copied exactly as it answers. When that read fails or answers nothing, the brief is built
+  // from the page's own reads as part 393 built it: a number's incident carries the number it names, from the page's
   // numbers, and the rows of its list read now; an outage its monitor, reason and duration.
   const briefOfIncident = async (x) => {
+    const said = await af("/api/health/incidents/" + encodeURIComponent(x.id) + "/brief", { asText: true }).catch(() => "");
+    if (typeof said === "string" && said.trim()) return said;
+    return briefFromPage(x);
+  };
+  const briefFromPage = async (x) => {
     const number = x && x.kind === "number" && numbers && Array.isArray(numbers.numbers) ? numbers.numbers.find(n => n && n.key === x.key) || null : null;
     const day = numbers && numbers.day ? numbers.day : "";
     const [commit, rows, floor] = await Promise.all([

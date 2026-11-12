@@ -5844,6 +5844,7 @@ export const WORDS = {
   "Every value is 0.": { es: "Todos los valores est\u00e1n en 0.", fr: "Toutes les valeurs sont \u00e0 0." },
   "0% done on every day with steps due": { es: "0 % hecho en todos los d\u00edas con pasos pendientes", fr: "0 % fait chaque jour avec des \u00e9tapes \u00e0 faire" },
   "Nothing to draw yet.": { es: "Todav\u00eda no hay nada que trazar.", fr: "Rien \u00e0 tracer pour l'instant." },
+  "Why it was skipped: {0}": { es: "Por qu\u00e9 se omiti\u00f3: {0}", fr: "Pourquoi elle a \u00e9t\u00e9 saut\u00e9e : {0}" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
