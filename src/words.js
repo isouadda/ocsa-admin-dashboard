@@ -5837,6 +5837,9 @@ export const WORDS = {
   "This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.": { es: "Este navegador no dej\u00f3 que la p\u00e1gina copiara. El resumen est\u00e1 seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.", fr: "Ce navigateur n'a pas laiss\u00e9 la page copier. Le r\u00e9sum\u00e9 est s\u00e9lectionn\u00e9 ci-dessous : appuyez sur Ctrl+C, ou Commande+C sur un Mac, pour le copier." },
   "The brief could not be made. Try again.": { es: "No se pudo preparar el resumen. Int\u00e9ntelo de nuevo.", fr: "Le r\u00e9sum\u00e9 n'a pas pu \u00eatre pr\u00e9par\u00e9. R\u00e9essayez." },
   "The brief for Claude": { es: "El resumen para Claude", fr: "Le r\u00e9sum\u00e9 pour Claude" },
+  "Walked on {0}, scheduled {1}": { es: "Recorrido en {0}, programada para el {1}", fr: "Fait lors de {0}, pr\u00e9vue le {1}" },
+  "Walked on {0}": { es: "Recorrido en {0}", fr: "Fait lors de {0}" },
+  "This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.": { es: "Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. \u00c1bralo para ver lo que se marc\u00f3 ah\u00ed.", fr: "C'est le site de test. Son travail est exclu de ces totaux et de tous les rapports. Ouvrez-le pour voir ce qui y a \u00e9t\u00e9 coch\u00e9." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

@@ -14,6 +14,12 @@
 //             duration; on a drill-down sheet, routes and counts only, a list of people as how many and never a
 //             name, and the slowest route's floor; and where the browser refuses the clipboard, the brief selected in
 //             a box with how to copy it by hand
+//   round13   what the API's Round 13 gave the dashboard: Record a paper signature offered to the sender by id, never
+//             to someone of the same name; a check counted for the run it was made in, with the items' shifts read
+//             from the record and no task list read; the test site marked on Live Ops and Schedule, and its card on
+//             Checklist Results saying why it has no counts; every site's last safety walk in one read, naming its
+//             inspection, a refused site left out and the rest read again; the draft count from counts.draft; and
+//             sign-in setting four side panel items from features with none of their lists read
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -280,12 +286,126 @@ async function briefCases(ctx, lang) {
   });
 }
 
+// ---- Section 3: what Round 13 gave the dashboard ------------------------------------------------------------------
+const S2 = seed.SITES[1].id;
+const S3 = seed.SITES[2].id;
+const SUPERVISOR = seed.PEOPLE.supervisor;
+const SUP_NAME = SUPERVISOR.firstName + " " + SUPERVISOR.lastName;
+async function round13Cases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/round13/" + x;
+
+  // 1. Record a paper signature is offered by the API's own rule, the sender by id: to the supervisor who sent the
+  //    warning, and recorded; not to a supervisor who only shares the sender's name.
+  const offeredAs = async (sender) => {
+    let out = null;
+    await withDriver(ctx, { name: "paper-" + (sender.id === SUPERVISOR.id ? "sender" : "namesake"), lang, persona: "supervisor", arm: (s) => s.setScene393({ sender }) }, async (d) => {
+      await goHash(d, "hr/signatures/sr-3");
+      await until(d, "[data-signature-request-window='sr-3']", 8000);
+      await d.settle(400);
+      out = { open: await has(d, "[data-signature-request-window='sr-3']"), offered: await has(d, "[data-paper-record]") };
+    });
+    return out || { open: false, offered: false };
+  };
+  const mine = await offeredAs({ id: SUPERVISOR.id, name: SUP_NAME });
+  const namesake = await offeredAs({ id: seed.PEOPLE.admin.id, name: SUP_NAME });
+  results.check(KIND, id("a-paper-signature-is-offered-to-its-sender-by-id"), mine.open && mine.offered && namesake.open && !namesake.offered,
+    "sent by the supervisor: " + (mine.offered ? "offered" : "not offered") + "; sent by someone of the same name: " + (namesake.offered ? "offered" : "not offered") + (mine.open && namesake.open ? "" : "; a request did not open"));
+
+  // 2. The checklist record: the items' shiftLabels come with the record, so the site's task list is not read, and a
+  //    check made in the First shift's run after its window closed counts for the First shift (runLabel).
+  await withDriver(ctx, { name: "runs", lang, arm: (s) => { s.setScene379({ shifts: true }); s.setScene393({ lateCheck: true }); } }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "checklist/" + S2 + "/today");
+    await until(d, "[data-cr-run]", 10000);
+    await d.settle(500);
+    const tasksRead = reads(d, mark, new RegExp("^/api/sites/" + S2 + "/tasks$")).length;
+    const first = await d.page.evaluate(() => { const box = document.querySelector("[data-cr-list-group='First']"); if (!box) return null; return Array.from(box.parentElement.querySelectorAll("[data-cr-task]")).map((r) => [r.getAttribute("data-cr-task"), r.getAttribute("data-cr-task-done")]); });
+    const g1 = await d.page.evaluate(() => { const g = document.querySelector("[data-cr-group='First']"); return g ? [g.getAttribute("data-cr-due"), g.getAttribute("data-cr-done")] : null; });
+    const restock = (first || []).find((x) => x[0] === "t379-3");
+    results.check(KIND, id("a-check-counts-for-its-run-and-the-task-list-is-not-read"), tasksRead === 0 && !!restock && restock[1] === "1" && say(g1) === say(["3", "3"]),
+      "the task list was read " + tasksRead + " times; the First shift's tasks " + say(first) + ", its ring " + say(g1));
+  });
+
+  // 3. The test site named: Live Ops' board and Schedule's week mark it TEST, and its card on Checklist Results says it
+  //    is the test site, left out of the counts, where it said This did not load.
+  const TEST_ON = (s) => { s.setScene379({ testSite: true }); s.setScene393({ testSite: S3 }); s.setChecklist358(true); };
+  await withDriver(ctx, { name: "test-site", lang, arm: TEST_ON }, async (d) => {
+    const marked = fill("{0} (" + d.say("TEST") + ")", seed.SITES[2].name);
+    await goHash(d, "operations");
+    await until(d, "[data-ops-site-name='" + S3 + "']", 8000);
+    const board = await textOf(d, "[data-ops-site-name='" + S3 + "']");
+    const boardTest = await attr(d, "[data-ops-site-name='" + S3 + "']", "data-site-is-test");
+    const plain = await attr(d, "[data-ops-site-name='" + seed.SITES[0].id + "']", "data-site-is-test");
+    await goHash(d, "schedule");
+    await until(d, "[data-shift-chip='sh-3'] [data-schedule-site]", 8000);
+    const chip = await textOf(d, "[data-shift-chip='sh-3'] [data-schedule-site]");
+    const chipTest = await attr(d, "[data-shift-chip='sh-3'] [data-schedule-site]", "data-site-is-test");
+    await goHash(d, "checklist/all/today");
+    await until(d, "[data-cr-site-card='" + S3 + "']", 10000);
+    await d.settle(400);
+    const card = await textOf(d, "[data-cr-site-card='" + S3 + "']");
+    const line = await textOf(d, "[data-cr-test-site='" + S3 + "']");
+    const wantLine = d.say("This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.");
+    const ok = board === marked && boardTest === "1" && plain === null && chip === marked && chipTest === "1" && line.indexOf(wantLine) >= 0 && card.indexOf(d.say("This did not load.")) < 0;
+    results.check(KIND, id("the-test-site-is-marked-and-its-card-says-why-it-has-no-counts"), ok,
+      "Live Ops " + say([board, boardTest, plain]) + " (want " + say(marked) + "); Schedule " + say([chip, chipTest]) + "; the card " + say(card.slice(0, 200)));
+  });
+
+  // 4. Many sites' last safety walks in one read, the walk naming its inspection; a site the API refuses reads nothing
+  //    and the rest are read again without it.
+  await withDriver(ctx, { name: "walks", lang, arm: (s) => s.setScene393({ noWalkAccess: [S3] }) }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "inspections");
+    await d.clickText(d.say("Scheduled|inspections"), { exact: true }).catch(() => {});
+    await until(d, "[data-last-safety-walk-inspection='insp-4']", 10000);
+    await d.settle(500);
+    const many = reads(d, mark, /^\/api\/inspections\/safety-walks$/);
+    const batched = many.filter((c) => /siteIds=/.test(c.query || ""));
+    const single = many.filter((c) => /siteId=/.test(c.query || "") && !/siteIds=/.test(c.query || ""));
+    const named = await textOf(d, "[data-last-safety-walk-inspection='insp-4']");
+    const want = fill(d.say("Walked on {0}, scheduled {1}"), "Monthly quality walk", "");
+    const refusedThenRest = batched.length === 2 && batched[0].status === 403 && batched[1].status === 200 && (batched[1].query || "").indexOf(S3) < 0;
+    results.check(KIND, id("every-site-s-walk-in-one-read-naming-its-inspection"), single.length === 0 && refusedThenRest && named.indexOf(want.replace(/\s+$/, "")) === 0,
+      "reads one a site " + single.length + ", many at once " + say(batched.map((c) => [c.query, c.status])) + "; the line " + say(named) + " (want " + say(want) + "...)");
+  });
+
+  // 5. The draft count on Filed forms is the API's counts.draft, every unfinished filing, more than one page.
+  await withDriver(ctx, { name: "drafts", lang, arm: (s) => s.setScene393({ draftCount: 63 }) }, async (d) => {
+    await goHash(d, "forms");
+    const want = fill(d.say("Filed forms ({0})"), 63);
+    await d.page.locator("button", { hasText: want }).first().waitFor({ timeout: 8000 }).catch(() => {});
+    const tab = await d.page.evaluate((w) => { const b = Array.from(document.querySelectorAll("button")).find((x) => x.innerText.trim().indexOf(w) === 0); return b ? b.innerText.trim() : Array.from(document.querySelectorAll("button")).map((x) => x.innerText.trim()).filter((x) => /\(\d+\+?\)$/.test(x)).join(" | "); }, before(d.say("Filed forms ({0})")));
+    results.check(KIND, id("the-draft-count-is-every-unfinished-filing"), tab === want, "the tab reads " + say(tab) + " (want " + say(want) + ")");
+  });
+
+  // 6. Sign-in sets Clearances, Discipline, the workspace and the Library from features and reads none of their four
+  //    lists; an API without features has them read, as before (a guard).
+  const FOUR = ["/api/clearances", "/api/discipline", "/api/workspace/projects", "/api/library"];
+  const signInReads = async (name, arm) => {
+    let out = null;
+    await withDriver(ctx, { name, lang, arm }, async (d, stubs) => {
+      await d.settle(1500);
+      const items = await d.page.evaluate(() => Array.from(document.querySelectorAll("[data-nav-item]")).map((b) => b.getAttribute("data-nav-item")));
+      out = { read: FOUR.filter((p) => stubs.calls.some((c) => c.method === "GET" && c.path === p)), items: ["clearances", "discipline", "workspace", "library"].filter((x) => items.indexOf(x) >= 0) };
+    });
+    return out || { read: ["(the run threw)"], items: [] };
+  };
+  const withF = await signInReads("features", null);
+  results.check(KIND, id("sign-in-reads-none-of-the-four-lists"), withF.read.length === 0 && withF.items.length === 4,
+    "sign-in read " + say(withF.read) + "; the side panel offers " + say(withF.items));
+  const without = await signInReads("no-features", (s) => s.setScene393({ noFeatures: true }));
+  results.check(KIND, id("an-api-without-features-has-the-lists-read-guard"), without.read.length === 4 && without.items.length === 4,
+    "sign-in read " + say(without.read) + "; the side panel offers " + say(without.items));
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("uptime")) await uptimeCases(ctx, lang);
     if (want("brief")) await briefCases(ctx, lang);
+    if (want("round13")) await round13Cases(ctx, lang);
   }
 }
 

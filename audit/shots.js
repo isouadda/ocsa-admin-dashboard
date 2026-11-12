@@ -1892,6 +1892,11 @@ const SHOTS = [
   // testSite).
   { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
     open: "sites", ready: "[data-site-test]" },
+  // Part 393, section 3: Checklist Results' All sites with Riverbend Logistics Hub as the test site, which the summary
+  // leaves out, so its card says why it has no counts (audit/part393-stub.js, testSite).
+  { name: "checklist-results-test-site", entry: "Tell the test site apart",
+    arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene379({ testSite: on }); stubs.setScene393({ testSite: on ? seed.SITES[2].id : null }); },
+    open: "checklist/all/today", ready: "[data-cr-test-site]", act: async () => { await wait(900); } },
   // Part 386, section 2: HR Records' training records, the certificate on ht-5 uploaded by the person from an
   // outside course (audit/part386-stub.js).
   { name: "training-certificate-by", entry: "Upload a training certificate from an outside course",

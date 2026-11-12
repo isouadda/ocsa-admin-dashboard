@@ -6184,6 +6184,15 @@ function createStubs() {
   // What the API's Round 13 answers for the dashboard (part 393), in audit/part393-stub.js: the API as built at
   // ocsa-api 6c112ee, over part 389's and every layer under it but the pictures, in every run.
   const part393 = require("./part393-stub")({ seed, state, ok, clone, person });
+  // A read the part393 layer makes on its own (features on the permissions read): routed through every layer as a
+  // call is, refusals a case set included, and kept out of the calls and the language count a run reads.
+  part393.setProbe((path, lang) => {
+    const kept = calls.length;
+    const counted = language.calls;
+    const l = lang === "es" ? "es" : "en";
+    try { return handle({ method: "GET", url: "http://stub.invalid" + path + (path.indexOf("?") >= 0 ? "&" : "?") + "locale=" + l, headers: { authorization: "Bearer quiet", "accept-language": l }, lang: l }); }
+    finally { calls.splice(kept); language.calls = counted; }
+  });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {

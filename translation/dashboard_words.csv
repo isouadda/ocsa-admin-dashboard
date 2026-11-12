@@ -5549,3 +5549,6 @@ Copied for Claude. Paste it into the chat.,Copiado para Claude. Péguelo en el c
 "This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.","Este navegador no dejó que la página copiara. El resumen está seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.","Health, Copy for Claude, when the browser refuses the clipboard"
 The brief could not be made. Try again.,No se pudo preparar el resumen. Inténtelo de nuevo.,"Health, Copy for Claude, when the brief could not be made"
 The brief for Claude,El resumen para Claude,"Health, Copy for Claude, the box holding the brief, read aloud"
+"Walked on {0}, scheduled {1}","Recorrido en {0}, programada para el {1}","Inspections, a site's last safety walk, the inspection it was walked on and its day"
+Walked on {0},Recorrido en {0},"Inspections, a site's last safety walk, the inspection it was walked on"
+This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.,Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. Ábralo para ver lo que se marcó ahí.,"Checklist Results, All sites, the test site's card"

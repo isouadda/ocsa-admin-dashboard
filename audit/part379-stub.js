@@ -500,9 +500,12 @@ module.exports = (ctx) => {
   function recordDay(day, lang) {
     const today = day === TODAY;
     const labelsOf = (tk) => { const v = (m().taskLabels || {})[tk.id] !== undefined ? m().taskLabels[tk.id] : tk.shiftLabels; return Array.isArray(v) ? v : []; };
+    // Since the API's Round 13 (part 384, 4.2 and 4.3), each check names its run's shift (runLabel, here the shift
+    // whose window holds it, which is the run its person's session joined) and each item its task's shiftLabels.
+    const runOf = (hm) => { const x = Date.parse(at(day, hm)); const r = shiftsAt(S2).find((y) => y.active && x >= Date.parse(at(day, y.startTime)) && x < Date.parse(at(day, y.endTime))); return r ? r.label : null; };
     const items = TASKS_379.map((tk) => {
-      const checks = today ? tk.checks.map(([hm, who]) => ({ completedAt: at(day, hm), completedBy: who, notes: null })) : [];
-      return { taskId: tk.id, zone: tk.zone, building: null, floor: null, label: tk.label, display: { label: T(lang, tk.label, tk.es), zone: T(lang, tk.zone, tk.zoneEs) }, frequency: tk.frequency, shift: null, period: tk.period,
+      const checks = today ? tk.checks.map(([hm, who]) => ({ completedAt: at(day, hm), completedBy: who, notes: null, runLabel: runOf(hm) })) : [];
+      return { taskId: tk.id, zone: tk.zone, building: null, floor: null, label: tk.label, display: { label: T(lang, tk.label, tk.es), zone: T(lang, tk.zone, tk.zoneEs) }, frequency: tk.frequency, shift: null, shiftLabels: labelsOf(tk).length ? labelsOf(tk).slice() : null, period: tk.period,
         priority: "standard", touchpoint: false, critical: false, due: true, done: checks.length > 0, completedAt: checks.length ? checks[0].completedAt : null, completedBy: checks.length ? checks[0].completedBy : null, notes: null, checks };
     });
     const shifts = shiftsAt(S2).filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder).map((r) => {

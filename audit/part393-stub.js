@@ -31,11 +31,38 @@
 //     GET /api/health                     { status: "healthy", timestamp, commit }, the commit an invented hex id; the
 //                                         scene unhealthy answers 503 { status: "unhealthy", commit }
 //
+//   Section 3, what Round 13 gave the dashboard (part 384, section 4 and 5):
+//     GET /api/signatures, /api/signatures/:id, POST /api/signatures/:id/record
+//                                         requestedBy { id, name } on every request; the scene sender { id, name }
+//                                         makes sr-3, the warning's request, sent by that person (the part379 layer's
+//                                         record route reads the same row, so it lets that person record it)
+//     GET /api/sites/s-2/checklist-record items[].shiftLabels and checks[].runLabel, answered by the part379 layer;
+//                                         the scene lateCheck moves the First shift's restrooms check to 2:02 PM, made
+//                                         in the First shift's run
+//     GET /api/shift-sessions/by-site     isTest on every site; the schedule's rows (GET /api/schedule, /calendar,
+//                                         /availability) and the reports' (issue timing, supply usage, hours,
+//                                         chemical usage, task completion, labor) site_is_test beside site_name or
+//                                         siteIsTest beside siteName; true for the site the scene testSite names,
+//                                         which GET /api/reports/checklist-summary then leaves out, as the API leaves
+//                                         the test site out of every report
+//     GET /api/inspections/safety-walks?siteIds=a,b
+//                                         { walks: { [siteId]: lastWalk | null } }; 400 inspections.badDetails keys
+//                                         ["siteIds"], or ["siteId", "siteIds"] for both; 403 access.noSiteAccess
+//                                         keys the sites the scene noWalkAccess names. Every lastWalk and
+//                                         lastSafetyWalk names its inspection { id, templateName, scheduledDate } |
+//                                         null, and ?siteId= answers openWalk (null)
+//     GET /api/forms/responses?status=draft
+//                                         counts: { draft } on every page; the scene draftCount stands for a server
+//                                         holding more drafts than a page, and noDraftCount for an API before Round 13
+//     GET /api/users/me/permissions       features: { clearances, discipline, workspace, library }; the scene
+//                                         features overrides one, noFeatures leaves it out as an API before Round 13;
+//                                         each is whether the stub's own list answers the person a list
+//
 // Every value is invented: the monitors' ids, their times, their reasons, the commit and the days.
 "use strict";
 
 module.exports = (ctx) => {
-  const { seed, ok, clone, person } = ctx;
+  const { seed, state, ok, clone, person } = ctx;
   const T = (lang, en, es) => (lang === "es" ? es : en);
   const bad = (status, code, error, extra) => ({ status, json: Object.assign({ error, code }, extra || {}) });
   const NOW = Date.parse(seed.NOW_ISO);
@@ -195,7 +222,167 @@ module.exports = (ctx) => {
   // GET /api/health (server.js, part 384 5.8): the deployed commit beside the status, healthy or not, no sign-in.
   const COMMIT = "c0ffee5eed0123456789abcdef0123456789abcd";
 
+  // ---- Section 3: what Round 13 gave the dashboard ----------------------------------------------------------------
+  const sc = () => m().scene;
+  // A route the layers under answer for one query, read again with the query changed and put back after: the same
+  // URLSearchParams every layer reads, so a change here is seen there.
+  const withQuery = (query, set, fn) => {
+    const was = Array.from(query.entries());
+    Object.keys(set).forEach((k) => { if (set[k] === null) query.delete(k); else query.set(k, set[k]); });
+    try { return fn(); } finally { Array.from(query.keys()).forEach((k) => query.delete(k)); was.forEach(([k, v]) => query.append(k, v)); }
+  };
+  // 4.1: requestedBy { id, name } on every request view (helpers/signatureRequests.js requestView). The scene sender
+  // { id, name } makes the warning's request sr-3 the one that person sent: sentBySupervisor is the supervisor, and
+  // namesake an admin who carries the supervisor's name.
+  function withSender(a) {
+    if (!a || a.status >= 300 || !a.json || typeof a.json !== "object") return a;
+    const rows = state.requests270 || [];
+    const fix = (r) => {
+      if (!r || typeof r !== "object" || !r.requestedBy || typeof r.requestedBy !== "object") return r;
+      const row = rows.find((x) => x.id === r.id);
+      const by = sc().sender && r.id === "sr-3" ? sc().sender : null;
+      return Object.assign({}, r, { requestedBy: { id: by ? by.id : row && row.requestedById ? String(row.requestedById) : null, name: by && by.name ? by.name : r.requestedBy.name } });
+    };
+    const j = Object.assign({}, a.json);
+    if (Array.isArray(j.requests)) j.requests = j.requests.map(fix);
+    if (j.request) j.request = fix(j.request);
+    a.json = j;
+    return a;
+  }
+  function signaturesRoute(method, path, query, body, lang, base) {
+    if (sc().sender && state.requests270) { const r = state.requests270.find((x) => x.id === "sr-3"); if (r) r.requestedById = sc().sender.id; }
+    const a = base();
+    if (sc().sender && state.requests270) { const r = state.requests270.find((x) => x.id === "sr-3"); if (r) r.requestedById = sc().sender.id; }
+    return withSender(a);
+  }
+  // 4.2: the scene lateCheck moves the First shift's check of Restock the restrooms (t379-3) to 2:02 PM, after the
+  // First shift's window closed and inside the Second's, still made in the First shift's run (runLabel First), as a
+  // person who stayed on past the hour checks it; the run's count is the API's, by the run.
+  function lateCheck(a, lang) {
+    if (!sc().lateCheck || !a || a.status !== 200 || !a.json || !Array.isArray(a.json.days)) return a;
+    const late = new Date(Date.parse(seed.TODAY + "T14:02:00-04:00")).toISOString();
+    a.json = clone(a.json);
+    a.json.days.forEach((d) => {
+      if (d.date !== seed.TODAY) return;
+      (d.items || []).forEach((i) => {
+        if (i.taskId !== "t379-3" || !Array.isArray(i.checks) || !i.checks.length) return;
+        i.checks[0] = Object.assign({}, i.checks[0], { completedAt: late, runLabel: "First" });
+        i.completedAt = late;
+      });
+    });
+    return a;
+  }
+  // 4.4: the test site named. The scene testSite names it (the part379 scene testSite marks the same site on GET
+  // /api/sites); the board answers isTest beside siteId on every site, and the schedule's and the reports' rows
+  // site_is_test beside site_name, or siteIsTest beside siteName.
+  const BOARD = "/api/shift-sessions/by-site";
+  const NAMED = [BOARD, "/api/schedule", "/api/schedule/calendar", "/api/schedule/availability", "/api/report-engine/issue-timing", "/api/report-engine/supply-usage",
+    "/api/reports/hours", "/api/reports/chemical-usage", "/api/reports/task-completion", "/api/labor/by-site", "/api/labor/per-shift"];
+  const isTestSite = (id) => !!sc().testSite && id !== undefined && id !== null && String(id) === String(sc().testSite);
+  function withTestSite(path, a) {
+    if (!a || a.status !== 200 || !a.json || typeof a.json !== "object") return a;
+    const walk = (x) => {
+      if (Array.isArray(x)) return x.map(walk);
+      if (!x || typeof x !== "object") return x;
+      const o = {};
+      Object.keys(x).forEach((k) => { o[k] = walk(x[k]); });
+      if (Object.prototype.hasOwnProperty.call(x, "site_name") && !Object.prototype.hasOwnProperty.call(x, "site_is_test")) o.site_is_test = isTestSite(x.site_id);
+      if (Object.prototype.hasOwnProperty.call(x, "siteName")) {
+        if (path === BOARD) { if (!Object.prototype.hasOwnProperty.call(x, "isTest")) o.isTest = isTestSite(x.siteId); }
+        else if (!Object.prototype.hasOwnProperty.call(x, "siteIsTest")) o.siteIsTest = isTestSite(x.siteId);
+      }
+      return o;
+    };
+    a.json = walk(a.json);
+    return a;
+  }
+  // 5.2 and 5.4: a walk names its inspection, inspection { id, templateName, scheduledDate } | null, null for a walk
+  // filed on its own; ?siteId= answers openWalk beside it (null here, no inspection being open that carries one);
+  // ?siteIds=a,b answers { walks } in one read, each id one the stub holds (the API's are uuids), 1 to 100 of them;
+  // 400 inspections.badDetails keys ["siteIds"] for a bad list and ["siteId", "siteIds"] for both; 403
+  // access.noSiteAccess with keys naming the sites the scene noWalkAccess refuses.
+  const INSP_WORDS = {
+    "inspections.badDetails": ["Some details are missing or not valid.", "Faltan algunos datos o no son v\u00e1lidos."],
+    "access.noSiteAccess": ["You do not have access to this site", "No tiene acceso a este sitio"],
+  };
+  const inspRefuse = (lang, status, code, extra) => bad(status, code, T(lang, INSP_WORDS[code][0], INSP_WORDS[code][1]), extra);
+  const inspectionOf = (w) => {
+    if (!w || typeof w !== "object") return w;
+    const id = w.scheduledInspectionId || null;
+    const row = id ? (seed.INSPECTION_SCORES || []).find((x) => x.id === id) : null;
+    return Object.assign({}, w, { inspection: id ? { id, templateName: row ? row.template_name : null, scheduledDate: row ? row.scheduled_date : null } : null });
+  };
+  function walksRoute(method, path, query, body, lang, base) {
+    if (path === "/api/inspections/safety-walks" && method === "GET") {
+      if (query.get("siteIds") !== null) {
+        sent("walks", { siteIds: query.get("siteIds"), siteId: query.get("siteId") });
+        if (query.get("siteId") !== null) return inspRefuse(lang, 400, "inspections.badDetails", { keys: ["siteId", "siteIds"] });
+        const ids = Array.from(new Set(String(query.get("siteIds")).split(",").map((x) => x.trim()).filter(Boolean)));
+        if (!ids.length || ids.length > 100 || !ids.every((x) => seed.SITES.some((y) => y.id === x))) return inspRefuse(lang, 400, "inspections.badDetails", { keys: ["siteIds"] });
+        const refused = ids.filter((x) => (sc().noWalkAccess || []).indexOf(x) >= 0);
+        if (refused.length) return inspRefuse(lang, 403, "access.noSiteAccess", { keys: refused });
+        const walks = {};
+        ids.forEach((id) => { const one = withQuery(query, { siteIds: null, siteId: id }, () => base()); walks[id] = one && one.status === 200 && one.json ? inspectionOf(one.json.lastWalk) || null : null; });
+        return ok({ walks });
+      }
+      const a = base();
+      if (a && a.status === 200 && a.json && typeof a.json === "object") a.json = Object.assign({}, a.json, { lastWalk: inspectionOf(a.json.lastWalk) || null, openWalk: null });
+      return a;
+    }
+    if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && typeof a.json === "object" && Object.prototype.hasOwnProperty.call(a.json, "lastSafetyWalk")) a.json = Object.assign({}, a.json, { lastSafetyWalk: inspectionOf(a.json.lastSafetyWalk) || null });
+      return a;
+    }
+    return null;
+  }
+  // 5.6: counts: { draft } on GET /api/forms/responses?status=draft, every unfinished filing under the same formCode
+  // and siteId whatever the page (limit and before left out); the scene draftCount stands for a server holding that
+  // many, more than a page.
+  function draftsRoute(method, path, query, body, lang, base) {
+    if (path !== "/api/forms/responses" || method !== "GET" || query.get("status") !== "draft" || sc().noDraftCount) return null;
+    const a = base();
+    if (!a || a.status !== 200 || !a.json || typeof a.json !== "object" || !Array.isArray(a.json.responses)) return a;
+    const all = withQuery(query, { limit: null, before: null }, () => base());
+    const n = sc().draftCount !== undefined ? sc().draftCount : all && all.json && Array.isArray(all.json.responses) ? all.json.responses.length : a.json.responses.length;
+    a.json = Object.assign({}, a.json, { counts: { draft: n } });
+    return a;
+  }
+  // 5.7: features { clearances, discipline, workspace, library } on GET /api/users/me/permissions, each the rule its own
+  // router reads: management for clearances and warnings (here an admin or a supervisor), the office for the
+  // workspace, and a reader of the Library (every office account here). The scene noFeatures answers as an API
+  // before Round 13 (no features).
+  // The stub's own rule for each is whether its list answers that person a list, read through every layer the way a
+  // call is (a refusal a case sets included) and kept out of the run's calls (audit/stubs.js quietGet).
+  let probe = null;
+  const lists = (path, lang, shape) => { const a = probe ? probe(path, lang) : null; return !!a && a.status === 200 && !!a.json && shape(a.json); };
+  function featuresRoute(method, path, query, body, lang, base) {
+    if (path !== "/api/users/me/permissions" || method !== "GET") return null;
+    const a = base();
+    if (sc().noFeatures || !a || a.status !== 200 || !a.json || typeof a.json !== "object") return a;
+    const f = Object.assign({
+      clearances: lists("/api/clearances", lang, (j) => Array.isArray(j.people)),
+      discipline: lists("/api/discipline", lang, (j) => Array.isArray(j.warnings) && !!j.counts),
+      workspace: lists("/api/workspace/projects", lang, (j) => !Array.isArray(j) && Array.isArray(j.projects)),
+      library: lists("/api/library", lang, (j) => Array.isArray(j.documents)),
+    }, sc().features || {});
+    a.json = Object.assign({}, a.json, { features: f });
+    return a;
+  }
+
   function route(method, path, query, body, lang, base) {
+    if (/^\/api\/signatures(\/|$)/.test(path)) return signaturesRoute(method, path, query, body, lang, base);
+    if (/^\/api\/sites\/[^/]+\/checklist-record$/.test(path) && method === "GET") return lateCheck(base(), lang);
+    if (NAMED.indexOf(path) >= 0 && method === "GET") return withTestSite(path, base());
+    // The checklist summary leaves the test site out, as every report does (routes/reports.js, is_test).
+    if (path === "/api/reports/checklist-summary" && method === "GET" && sc().testSite) {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.sites)) a.json = Object.assign({}, a.json, { sites: a.json.sites.filter((x) => !isTestSite(x.siteId)) });
+      return a;
+    }
+    if (/^\/api\/inspections\/(safety-walks|scheduled\/)/.test(path)) { const r = walksRoute(method, path, query, body, lang, base); if (r) return r; }
+    { const r = draftsRoute(method, path, query, body, lang, base); if (r) return r; }
+    { const r = featuresRoute(method, path, query, body, lang, base); if (r) return r; }
     if (path === "/api/health" && method === "GET") {
       sent("health", null);
       return m().scene.unhealthy ? { status: 503, json: { status: "unhealthy", commit: COMMIT } } : ok({ status: "healthy", timestamp: seed.NOW_ISO, commit: COMMIT });
@@ -207,6 +394,7 @@ module.exports = (ctx) => {
   return {
     route,
     setScene: (o) => { Object.assign(m().scene, o || {}); },
+    setProbe: (fn) => { probe = fn; },
     sent: () => m().sent,
     model: () => m(),
     reset: () => { model = null; },

@@ -616,8 +616,9 @@ async function moreFindingsCases(ctx, lang) {
     results.check(KIND, id("dash50-cases-draws-the-api-s-refusal"), text === (lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions"), "Cases drew " + say(text));
   });
 
-  // DASH-59. A full first page of unfinished filings reads 50+ on the Filed forms tab.
-  await withDriver(ctx, { name: "dash59", lang, arm: (s) => s.setScene386({ manyDrafts: true }) }, async (d) => {
+  // DASH-59. A full first page of unfinished filings reads 50+ on the Filed forms tab. Since the API's Round 13 (part
+  // 393) the list answers counts.draft and the tab reads it exactly; this holds the count of an API without it.
+  await withDriver(ctx, { name: "dash59", lang, arm: (s) => { s.setScene386({ manyDrafts: true }); s.setScene393({ noDraftCount: true }); } }, async (d) => {
     await goHash(d, "forms");
     await d.settle(2000);
     const want = fill(d.say("Filed forms ({0})"), "50+");
