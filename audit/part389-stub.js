@@ -419,6 +419,9 @@ module.exports = (ctx) => {
     sent: () => m().sent,
     model: () => m(),
     followUps: () => followUps(),
+    // The lesson topics in the library's order and the site's people, which the part397 layer answers on each finding.
+    topics: (lang) => topicsIn(lang),
+    owners: () => owners(),
     reset: () => { model = null; },
   };
 };
