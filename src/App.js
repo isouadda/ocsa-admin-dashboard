@@ -18073,6 +18073,12 @@ function SiteSafetyWalk({ af, t, siteId }) {
 // and records the conversation held (POST /api/inspections/findings/:id/conversation { heldAt?, covered,
 // othersPresent? }). Every refusal is drawn in the API's words, under the field its keys name.
 // #inspections/findings opens the tab and #inspections/findings/<id> the finding.
+// Since part 397 (the API's Round 14, section 2) the list answers followUpTopics and counts: { needsFollowUp, open,
+// overdue } over every unresolved finding whatever the filters, and each finding its title, its site's owners and
+// canDecide. The window takes its topics from the list's (or the finding's own read's) followUpTopics and its owners
+// from the finding's owners, with no read of the inspection; choosing and recording show only on a finding whose
+// canDecide is true; the tab's numbers are the counts; and a finding is named by its title. An API without them is
+// read as before: the inspection's topics and owners, the role's rule, and the first page's states.
 const FINDING_ORDER = { needsFollowUp: 0, overdue: 1, open: 2, done: 3, resolved: 4 };
 const findingsInOrder = (rows) => (rows || []).map((f, i) => ({ f, i })).sort((a, b) => {
   const ra = FINDING_ORDER[a.f.state] === undefined ? 5 : FINDING_ORDER[a.f.state];
@@ -18087,6 +18093,12 @@ const FINDING_STATE_FILTERS = [["", "Not done yet"], ["needsFollowUp", "Needs a 
 const FINDING_KIND_FILTERS = [["", "Any follow-up"], ["training", "Training|follow-up"], ["conversation", "A conversation|follow-up"], ["none", "No follow-up yet"]];
 const FINDING_FIELDS = ["kind", "topicId", "ownerId", "heldAt", "covered", "othersPresent"];
 const localNowInput = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes()); };
+const findingsCountOf = (d) => {
+  const c = d && d.counts && typeof d.counts === "object" ? d.counts : null;
+  if (c && Number.isFinite(Number(c.needsFollowUp)) && Number.isFinite(Number(c.overdue))) return Number(c.needsFollowUp) + Number(c.overdue);
+  return d && Array.isArray(d.findings) ? d.findings.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length : null;
+};
+const findingName = (f) => (f && typeof f.title === "string" && f.title.trim() ? f.title : (f && f.card && f.card.label) || "--");
 const findingFoundLine = (f) => [f.foundAt ? tr("Found {0}", fdLong(f.foundAt)) : "", f.inspection && f.inspection.templateName ? f.inspection.templateName : "", f.inspection && f.inspection.inspector && f.inspection.inspector.name ? tr("by {0}", f.inspection.inspector.name) : ""].filter(Boolean).join(", ");
 function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "", onOpen, onClose, onOpenInspection, onCount }) {
   const [filters, setFilters] = useState({ status: "", siteId: "", ownerId: "", kind: "" });
@@ -18095,12 +18107,17 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
   const [failed, setFailed] = useState("");
   const [owners, setOwners] = useState({});
   const [shown, setShown] = useState(null);
+  const [topics, setTopics] = useState(null);
+  const [counts, setCounts] = useState(null);
   const query = ["status", "siteId", "ownerId", "kind"].filter(k => filters[k]).map(k => k + "=" + encodeURIComponent(filters[k])).join("&");
   const read = useCallback(() => af("/api/inspections/findings" + (query ? "?" + query : "")).then(d => {
     const rows = d && Array.isArray(d.findings) ? d.findings : [];
     setList(rows); setAsOf(d && d.asOf ? String(d.asOf) : ""); setFailed("");
     setOwners(o => { const n = { ...o }; rows.forEach(f => { if (f && f.owner && f.owner.id) n[String(f.owner.id)] = f.owner.name || String(f.owner.id); }); return n; });
-    if (!query && onCount) onCount(rows.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length);
+    setTopics(d && Array.isArray(d.followUpTopics) ? d.followUpTopics : null);
+    const c = d && d.counts && typeof d.counts === "object" ? d.counts : null;
+    setCounts(c);
+    if ((c || !query) && onCount) onCount(findingsCountOf(d));
   }).catch(e => { setList(null); setFailed((e && e.message) || tr("This did not load.")); }), [af, query, onCount]);
   useEffect(() => { read(); }, [read]);
   // The finding the address names: the list's row when it holds it, else its own read.
@@ -18109,7 +18126,7 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
     const have = (list || []).find(f => f && String(f.id) === String(openId));
     if (have) { setShown(have); return undefined; }
     let alive = true;
-    af("/api/inspections/findings/" + encodeURIComponent(openId)).then(d => { if (alive && d && d.finding) setShown(d.finding); })
+    af("/api/inspections/findings/" + encodeURIComponent(openId)).then(d => { if (alive && d && d.finding) { setShown(d.finding); if (Array.isArray(d.followUpTopics)) setTopics(t0 => t0 || d.followUpTopics); } })
       .catch(e => { if (alive) setShown({ id: openId, refused: (e && e.message) || tr("Request failed") }); });
     return () => { alive = false; };
   }, [af, openId, list]);
@@ -18121,6 +18138,11 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
   return (<div data-findings-tab="">
     <SecT t={t}>{tr("Findings")}</SecT>
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A finding calls for training or a conversation with the person whose work it was. The ones with no follow-up and the late ones come first.")}</div>
+    {counts ? <div data-findings-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      {[["needsFollowUp", "Needs a follow-up"], ["overdue", "Late|follow-up"], ["open", "Open|follow-up"]].map(([k, l]) => <button key={k} type="button" data-findings-count={k} data-findings-count-value={String(Number(counts[k]) || 0)} aria-pressed={filters.status === k} onClick={() => setF("status", filters.status === k ? "" : k)}
+        style={{ minHeight: 44, padding: "6px 14px", borderRadius: R.sm, border: "1px solid " + (filters.status === k ? GO : t.border), background: filters.status === k ? t.goldBg : t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", display: "inline-flex", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: findingFollowStateColor(k, t) }}>{Number(counts[k]) || 0}</span><span style={{ color: t.textSec }}>{tr(l)}</span></button>)}
+    </div> : null}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10, marginBottom: 14 }}>
       <div><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} data-findings-filter="status" value={filters.status} onChange={e => setF("status", e.target.value)} options={FINDING_STATE_FILTERS.map(([v, l]) => ({ v, l: tr(l) }))} /></div>
       <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-findings-filter="siteId" value={filters.siteId} onChange={e => setF("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })))} /></div>
@@ -18133,8 +18155,8 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
     {rows.map(f => (<Crd key={f.id} t={t} onClick={() => onOpen && onOpen(f.id)} style={{ marginBottom: 8, padding: 14, cursor: "pointer", borderLeft: "3px solid " + findingFollowStateColor(f.state, t) }}>
       <div data-finding-row={f.id} data-finding-state={f.state || ""} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(f.card && f.card.label) || "--"}</div>
-          <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{[f.site && f.site.name, f.card && f.card.zone].filter(Boolean).join(" | ")}</div>
+          <div data-finding-title="" style={{ fontSize: 14, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{findingName(f)}</div>
+          <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{[f.site && f.site.name, f.card && f.card.label && f.card.label !== findingName(f) ? f.card.label : "", f.card && f.card.zone].filter(Boolean).join(" | ")}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{findingFoundLine(f)}</div>
           {f.notes ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.4, overflowWrap: "anywhere" }}>{f.notes}</div> : null}
           {Array.isArray(f.photos) && f.photos.length > 0 ? <div style={{ fontSize: 11, color: BL, marginTop: 4 }}>{tr("Photos ({0})", f.photos.length)}</div> : null}
@@ -18147,10 +18169,10 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
         </div>
       </div>
     </Crd>))}
-    {shown && <FindingWindow key={shown.id} af={af} t={t} finding={shown} canDecide={canDecide} onChanged={changed} onClose={() => onClose && onClose()} onOpenInspection={onOpenInspection} />}
+    {shown && <FindingWindow key={shown.id} af={af} t={t} finding={shown} topics={topics} canDecide={canDecide} onChanged={changed} onClose={() => onClose && onClose()} onOpenInspection={onOpenInspection} />}
   </div>);
 }
-function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, onOpenInspection }) {
+function FindingWindow({ af, t, finding, topics = null, canDecide = false, onChanged, onClose, onOpenInspection }) {
   const f = finding || {};
   const fu = f.followUp || null;
   const [insp, setInsp] = useState(null);
@@ -18161,14 +18183,19 @@ function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, 
   const [once, busy] = useBusyGuard();
   const sid = f.inspection && f.inspection.scheduledInspectionId ? String(f.inspection.scheduledInspectionId) : "";
   const closed = f.status === "closed" || f.status === "declined";
-  const canChoose = canDecide && !f.refused && !closed && !followUpDone(fu);
-  const canRecord = canDecide && !f.refused && !!fu && fu.kind === "conversation" && !followUpDone(fu) && !(fu.conversation && fu.conversation.recordedAt);
-  // The inspection's lesson topics and the site's people, which a follow-up chooses from.
+  const mayDecide = typeof f.canDecide === "boolean" ? f.canDecide : canDecide;
+  const canChoose = mayDecide && !f.refused && !closed && !followUpDone(fu);
+  const canRecord = mayDecide && !f.refused && !!fu && fu.kind === "conversation" && !followUpDone(fu) && !(fu.conversation && fu.conversation.recordedAt);
+  // The lesson topics and the site's people a follow-up chooses from: the list's followUpTopics and the finding's
+  // owners (part 397), else the inspection's.
+  const ownTopics = Array.isArray(topics) && Array.isArray(f.owners) ? topics : null;
+  const ownOwners = ownTopics ? f.owners : null;
   const readInsp = useCallback(() => {
+    if (ownTopics) { setInsp({ topics: ownTopics, owners: ownOwners }); setInspFailed(""); return Promise.resolve(); }
     if (!sid) { setInsp({ topics: [], owners: [] }); return Promise.resolve(); }
     return af("/api/inspections/scheduled/" + encodeURIComponent(sid)).then(d => { setInsp({ topics: d && Array.isArray(d.followUpTopics) ? d.followUpTopics : [], owners: d && Array.isArray(d.owners) ? d.owners : [] }); setInspFailed(""); })
       .catch(e => { setInsp(null); setInspFailed((e && e.message) || tr("This did not load.")); });
-  }, [af, sid]);
+  }, [af, sid, ownTopics, ownOwners]);
   useEffect(() => { if (canChoose) readInsp(); }, [readInsp, canChoose]);
   const topicsInOrder = () => {
     const all = insp ? insp.topics : [];
@@ -18216,7 +18243,8 @@ function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, 
   return (<Mdl t={t} onClose={onClose}><div data-finding-window={f.id} data-finding-window-state={f.state || ""} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Finding")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
     {f.refused ? <div data-finding-refusal="read" role="alert" style={{ fontSize: 13, color: RD }}>{f.refused}</div> : <>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(f.card && f.card.label) || "--"}</div>
+      <div data-finding-window-title="" style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{findingName(f)}</div>
+      {f.card && f.card.label && f.card.label !== findingName(f) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("Card: {0}", f.card.label)}</div> : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "6px 0 10px" }}><Bdg l={findingFollowStateWord(f.state)} c={findingFollowStateColor(f.state, t)} />{f.severity ? <Bdg l={({ high: tr("high"), medium: tr("medium"), low: tr("low") })[f.severity] || f.severity} c={f.severity === "high" ? RD : f.severity === "medium" ? OR : BL} /> : null}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 12, fontSize: 11, color: t.textMut }}>
         <div>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(f.site && f.site.name) || "--"}</div></div>
@@ -18265,7 +18293,7 @@ function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, 
         {sid && onOpenInspection && <Btn t={t} v="ghost" data-finding-open-inspection="" onClick={() => onOpenInspection(sid)} style={{ flex: "1 1 160px" }}>{tr("Open the inspection")}</Btn>}
         <Btn t={t} v="ghost" data-finding-open-issue="" onClick={() => { openFinding(f.id); }} style={{ flex: "1 1 160px" }}>{tr("Open in Issues")}</Btn>
       </div>
-      {!canDecide && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr("A follow-up is chosen by whoever manages inspections, or a supervisor at the site.")}</div>}
+      {!mayDecide && <div data-finding-cannot-decide="" style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr("A follow-up is chosen by whoever manages inspections, or a supervisor at the site.")}</div>}
     </>}
   </div></Mdl>);
 }
@@ -18537,7 +18565,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
   useEffect(() => { if (routeId) openDetail(routeId); }, [routeId]);
   useEffect(() => { if (onFindings) { setTab("findings"); setDetailView(null); } }, [onFindings]);
   const [findingsCount, setFindingsCount] = useState(null);
-  useEffect(() => { af("/api/inspections/findings").then(d => { if (d && Array.isArray(d.findings)) setFindingsCount(d.findings.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length); }).catch(() => {}); }, [af]);
+  useEffect(() => { af("/api/inspections/findings").then(d => { const n = findingsCountOf(d); if (n !== null) setFindingsCount(n); }).catch(() => {}); }, [af]);
   const pickTab = (tb) => { setTab(tb); if (onRoute && (tb === "findings" || onFindings)) onRoute(tb === "findings" ? ["findings"] : []); };
   // Part 386: the last safety walk of every site the list holds.
   const listedSites = Array.from(new Set((scheduled || []).map(si => String(si.site_id || "")).filter(Boolean))).sort().join(",");
@@ -18611,9 +18639,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
       // Part 389: each card's finding and its follow-up, once the rows carry them (finding_follow_up and the rest).
       const fuOn = rows.some(r => r && Object.prototype.hasOwnProperty.call(r, "finding_follow_up"));
       const fuKind = (k) => (k === "training" ? "Training" : k === "conversation" ? "Conversation" : String(k || ""));
-      const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"].concat(fuOn ? ["Finding ID", "Follow-up", "Follow-up due", "Follow-up done"] : []);
+      // Part 397: the training follow-up's topic by name (finding_follow_up_topic, the API's Round 14), once the rows carry it.
+      const topicOn = fuOn && rows.some(r => r && Object.prototype.hasOwnProperty.call(r, "finding_follow_up_topic"));
+      const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"].concat(fuOn ? ["Finding ID", "Follow-up"].concat(topicOn ? ["Follow-up topic"] : [], ["Follow-up due", "Follow-up done"]) : []);
       const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(catOf(r), cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]
-        .concat(fuOn ? [r.finding_id || "", r.finding_follow_up ? fuKind(r.finding_follow_up) : r.finding_id ? "None yet" : "", r.finding_follow_up_due_on ? String(r.finding_follow_up_due_on).slice(0, 10) : "", r.finding_follow_up_done_at ? companyDayOf(r.finding_follow_up_done_at) : ""] : []));
+        .concat(fuOn ? [r.finding_id || "", r.finding_follow_up ? fuKind(r.finding_follow_up) : r.finding_id ? "None yet" : ""].concat(topicOn ? [r.finding_follow_up_topic || ""] : [], [r.finding_follow_up_due_on ? String(r.finding_follow_up_due_on).slice(0, 10) : "", r.finding_follow_up_done_at ? companyDayOf(r.finding_follow_up_done_at) : ""]) : []));
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));

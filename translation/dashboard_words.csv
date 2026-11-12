@@ -5557,3 +5557,4 @@ Every value is 0.,Todos los valores están en 0.,"Every chart, bars or a donut w
 0% done on every day with steps due,0 % hecho en todos los días con pasos pendientes,"Checklist Results, a site's card and a site over several days, a week with steps due and none done"
 Nothing to draw yet.,Todavía no hay nada que trazar.,"Every chart, columns with no value at all"
 Why it was skipped: {0},Por qué se omitió: {0},"Health, a run-through's window, under a skipped step, the robot's reason"
+Card: {0},Tarjeta: {0},"Inspections, Findings, a finding's window, the inspection card it was found on, under the finding's title"

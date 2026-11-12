@@ -3024,44 +3024,44 @@ Last checked: 2026-11-11
 ## See inspection findings and their follow-ups (admin dashboard)
 Who can do this: admins and supervisors
 An inspection finding is not a to-do item. It calls for training, or a conversation with the person whose work it was.
-1. Click **Inspections** (**Inspecciones**), then the **Findings** (**Hallazgos**) tab. The tab counts the findings that need a follow-up or are late.
-2. Each row shows the card the inspection found deficient, its site and zone, when it was found and on which inspection, its notes, its **Follow-up** (**Seguimiento**) and its owner.
+1. Click **Inspections** (**Inspecciones**), then the **Findings** (**Hallazgos**) tab. The tab counts the findings that need a follow-up or are late. At the top, **Needs a follow-up** (**Necesita seguimiento**), **Late** (**Atrasado**) and **Open** (**Abierto**) say how many there are of each, whatever the filters below; click one to show only those.
+2. Each row is named by the finding's title, then shows the card the inspection found deficient, its site and zone, when it was found and on which inspection, its notes, its **Follow-up** (**Seguimiento**) and its owner.
 3. The findings with no follow-up come first, then the late ones, then the open ones. **Needs a follow-up** (**Necesita seguimiento**) says the day to choose one by, two days after it was found. **Late** (**Atrasado**) says the day it was due.
 4. Narrow the list with **Status** (**Estado**), **Site** (**Sitio**), **Owner** (**Responsable**) and **Follow-up** (**Seguimiento**). **Not done yet** (**Aún sin hacer**) is where it starts; **Done** (**Hecho**) and **Resolved without a follow-up** (**Resuelto sin seguimiento**) show the closed ones.
 5. Click a finding to open it, with its photos, notes, owner and follow-up. See the entries on choosing a finding's follow-up and recording a conversation.
 6. A finding's window under **Issues** (**Incidencias**) shows its **Follow-up** (**Seguimiento**) and offers no **Assign as Task** (**Asignar como tarea**). **Open the follow-up** (**Abrir el seguimiento**) or **Choose a follow-up** (**Elegir un seguimiento**) opens it here.
-7. The **Reports** (**Informes**) tab's **Export CSV** (**Exportar CSV**) adds each card's finding and its follow-up, its due day and the day it was done.
+7. The **Reports** (**Informes**) tab's **Export CSV** (**Exportar CSV**) adds each card's finding and its follow-up, the training topic by name, its due day and the day it was done.
 If it does not work: the list says it did not load, with **Try again** (**Intentar de nuevo**). A finding that is not found, or a list someone may not read, is refused in the system's own words.
 Words people use for this: inspection findings, finding follow-up, late findings, findings with no follow-up, training after an inspection, coaching, hallazgos.
 Picture: inspection-findings
 Picture: issue-finding-follow-up
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Choose a finding's follow-up: training or a conversation (admin dashboard)
-Who can do this: admins, anyone who manages inspections, and a supervisor at the finding's site
-1. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding.
+Who can do this: admins, anyone who manages inspections, and a supervisor assigned at the finding's site
+1. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding. The window has the finding's title, with its card under it as **Card: {0}** (**Tarjeta: {0}**).
 2. Click **Choose a follow-up** (**Elegir un seguimiento**), or **Change the follow-up** (**Cambiar el seguimiento**) for one that is not done yet.
 3. Pick **Training** (**Capacitación**) or **A conversation** (**Una conversación**). Training is a lesson given to the person, due in 7 days, which they find on My training in the staff app; it is done once they pass it. A conversation is due in 3 days.
 4. For training, pick the **Lesson topic** (**Tema de la lección**). The topic the card's category suggests comes first, marked **{0} (suggested)** (**{0} (sugerido)**), and is picked already.
 5. Under **Owner** (**Responsable**), pick the person whose work it was. A finding that has an owner keeps them unless you pick someone else.
 6. Click **Save the follow-up** (**Guardar el seguimiento**). The window says the day it is due.
-If it does not work: a refusal is shown in the system's own words under the field it names, such as a training with no topic, or a finding with no owner. A follow-up that is done cannot be changed, and a closed finding takes none. Someone who may not choose at the site reads the system's refusal above the form.
+If it does not work: a refusal is shown in the system's own words under the field it names, such as a training with no topic, or a finding with no owner. A follow-up that is done cannot be changed, and a closed finding takes none. A finding someone may not decide, such as one at a site where a supervisor is not assigned, offers no **Choose a follow-up** (**Elegir un seguimiento**) and reads **A follow-up is chosen by whoever manages inspections, or a supervisor at the site.** (**El seguimiento lo elige quien gestiona las inspecciones, o un supervisor del sitio.**)
 Words people use for this: choose a follow-up, training for a finding, a conversation about a finding, retrain someone, coaching, elegir un seguimiento.
 Picture: finding-follow-up-choose
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Record a conversation about a finding (admin dashboard)
-Who can do this: whoever held it: admins, anyone who manages inspections, and a supervisor at the finding's site
+Who can do this: whoever held it: admins, anyone who manages inspections, and a supervisor assigned at the finding's site
 1. Hold the conversation with the person whose work it was.
 2. Click **Inspections** (**Inspecciones**), then **Findings** (**Hallazgos**), and click the finding. Its **Follow-up** (**Seguimiento**) reads **A conversation** (**Una conversación**) with its due day.
 3. Click **Record the conversation** (**Registrar la conversación**).
 4. Set **When it was held** (**Cuándo se tuvo**), type **What was covered** (**Qué se trató**), and, when anyone else was there, **Who else was there (optional)** (**Quién más estuvo (opcional)**).
 5. Click **Record it** (**Registrarla**). The follow-up is done, the finding is marked fixed, and the person is asked to confirm it on their phone. Until they do, it reads **Waiting for the person to confirm it.** (**Esperando que la persona la confirme.**)
 6. It is kept as coaching on the person's record, apart from warnings, and never as discipline. What was covered is read only by those who read HR records, the person and whoever recorded it.
-If it does not work: what is missing is named in the system's own words under its field: when it was held, which cannot be ahead of now, or what was covered, up to 2,000 characters. A conversation already recorded cannot be recorded again.
+If it does not work: what is missing is named in the system's own words under its field: when it was held, which cannot be ahead of now, or what was covered, up to 2,000 characters. A conversation already recorded cannot be recorded again. A finding someone may not decide offers no **Record the conversation** (**Registrar la conversación**).
 Words people use for this: record a conversation, coaching conversation, talked to the cleaner, conversation about a finding, registrar la conversación.
 Picture: finding-conversation-record
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Read a person's coaching and training from findings (admin dashboard)
 Who can do this: admins, and anyone given **Read HR records** (**Leer los expedientes de personal**) under **Roles and Permissions** (**Roles y permisos**)
