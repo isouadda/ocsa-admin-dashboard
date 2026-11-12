@@ -5552,3 +5552,7 @@ The brief for Claude,El resumen para Claude,"Health, Copy for Claude, the box ho
 "Walked on {0}, scheduled {1}","Recorrido en {0}, programada para el {1}","Inspections, a site's last safety walk, the inspection it was walked on and its day"
 Walked on {0},Recorrido en {0},"Inspections, a site's last safety walk, the inspection it was walked on"
 This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.,Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. Ábralo para ver lo que se marcó ahí.,"Checklist Results, All sites, the test site's card"
+Every point is 0.,Todos los puntos están en 0.,"Every chart, a line whose every point is 0, drawn flat"
+Every value is 0.,Todos los valores están en 0.,"Every chart, bars or a donut whose every value is 0, listed with their numbers"
+0% done on every day with steps due,0 % hecho en todos los días con pasos pendientes,"Checklist Results, a site's card and a site over several days, a week with steps due and none done"
+Nothing to draw yet.,Todavía no hay nada que trazar.,"Every chart, columns with no value at all"

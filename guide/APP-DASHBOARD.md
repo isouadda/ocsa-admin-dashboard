@@ -440,11 +440,11 @@ Who can do this: admins and supervisors
 3. Set the date range and filters. **Export PDF** (**Exportar PDF**) prints it with the company's name, address and logo from **Settings** (**Configuración**). A PDF made more than 50 minutes after the report was opened reads the company settings again first, so the logo still shows. For spreadsheets, the **Export data (CSV)** (**Exportar datos (CSV)**) card has **Issues Report** (**Informe de incidencias**) and **Chemical Usage** (**Uso de químicos**). In every spreadsheet file the dashboard makes, a cell that would start a formula, one beginning with =, +, - or @, is written with an apostrophe in front, so it opens as the words that were typed.
 4. To make your own, click **New report** (**Nuevo informe**), or **Duplicate** (**Duplicar**) one and change it. A built-in report reads **Template** (**Plantilla**) and is changed by duplicating it. To take a report off the list, see Remove a report you no longer need.
 5. **Supply Usage and Cost** (**Uso y costo de suministros**) shows the estimated cost, and puts the supplies in order of cost, for admins only. Anyone else reads the quantities and the events, with the supplies in name order, on screen and in the PDF.
-If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again. A trend needs two periods that hold a value; with fewer it says so in place of its line, such as **Not enough resolved data to chart a trend yet.** (**Todavía no hay suficientes datos resueltos para trazar una tendencia.**)
+If it does not work: a date the system cannot read as a day is refused, and the reason shows in red under the dates. Pick the dates again. A trend needs two periods that hold a value; with fewer it says so in place of its line, such as **Not enough resolved data to chart a trend yet.** (**Todavía no hay suficientes datos resueltos para trazar una tendencia.**) A chart whose every value is 0 lists each value by name in place of its bars or its ring, and reads **Every value is 0.** (**Todos los valores están en 0.**)
 Words people use for this: hours worked, labor report, payroll numbers, export data, who worked when, csv, spreadsheet.
 Picture: reports-library
 Picture: reports-issue-report
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
@@ -2675,11 +2675,11 @@ Who can do this: admins and supervisors
 8. Today is read again every 30 seconds while the page is open. A past day does not change. Today starts at the time the company's checklist day starts, 4:00 AM unless the company set another, so early in the morning Today can still be yesterday's checklist day. The address keeps the site, the days and the shift, so a view can be bookmarked or sent.
 9. Other ways in: **See the checklist** (**Ver la lista de verificación**) under each site on **Live Ops** (**Operaciones en vivo**), for the day shown there; **Checklist history** (**Historial de la lista de verificación**) on a site's page, with yesterday picked; and the **Checklist Results** (**Resultados de la lista**) card under **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
 10. To print the record on the approved form for the binder, see the entry on printing a site's zone cleaning checklists. To print this page as a report, see the entry on printing a checklist report.
-If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there. A site whose days had no steps due, such as one with no daily steps, draws no line and reads **No steps due these days** (**No hay pasos pendientes en estos días**), on its card and over several days; a line needs two days that had steps due.
-Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, resultados de la lista.
+If it does not work: more than 31 days is refused, and the reason shows on the page; pick fewer days. A site whose task list is kept as a record reads **Not tracked** (**Sin seguimiento**), since nothing is checked off there. A site whose days had no steps due, such as one with no daily steps, draws no line and reads **No steps due these days** (**No hay pasos pendientes en estos días**), on its card and over several days; a line needs two days that had steps due. A site whose days had steps due and none done draws a flat line along the bottom, its ring reads 0%, and the line reads **0% done on every day with steps due** (**0 % hecho en todos los días con pasos pendientes**), on its card and over several days.
+Words people use for this: completed tasks, tasks done, what got done, what was done on a day, past day, last week, yesterday, checklist history, checklist results, who did what, not done, completion rate, percentage, report, nothing done, zero percent, resultados de la lista.
 Picture: checklist-results-day
 Picture: checklist-results-all-sites
-Last checked: 2026-11-11
+Last checked: 2026-11-12
 
 ## Print a checklist report (admin dashboard)
 Who can do this: admins and supervisors

@@ -783,10 +783,49 @@ const chartBase = (t, extra) => ({
   ...extra,
 });
 const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ minHeight: 44, fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
+// A chart whose every value is 0 (part 397, the robot's Round 3): ApexCharts threw "parser Error" on Checklist Results
+// at a site card whose week was seven zeros, after part 386 kept a line of nulls from it. A line, a bar chart or a
+// donut with no value other than 0 is never handed to ApexCharts. A line is drawn flat along the bottom here, a dot
+// for each point that holds a value and a gap where one holds none, with its words under it, and so are columns;
+// horizontal bars and a donut are listed by name with their numbers. A chart with at least one value other than 0
+// is drawn as it always was, and so is a
+// ring (RadialW), which draws 0 as an empty ring with its number in the middle.
+const noChartValue = (v) => v === null || v === undefined || v === "" || !Number.isFinite(Number(v));
+const allZeroOrNone = (values) => Array.isArray(values) && values.length > 0 && values.every(v => noChartValue(v) || Number(v) === 0);
+const lineAllZero = (series) => (series || []).every(x => !x || !Array.isArray(x.data) || x.data.length === 0 || allZeroOrNone(x.data));
+const ZeroLine = ({ t, categories, series, colors, spark, text }) => {
+  const list = (series || []).filter(x => x && Array.isArray(x.data));
+  const n = Math.max(2, ...list.map(x => x.data.length));
+  const at = (i) => "calc(6px + (100% - 12px) * " + (i / (n - 1)).toFixed(4) + ")";
+  const ink = (si) => (colors || CHART_PALETTE)[si % (colors || CHART_PALETTE).length];
+  const cats = Array.isArray(categories) ? categories : [];
+  const valued = list.reduce((a, x) => a + x.data.filter(v => !noChartValue(v)).length, 0);
+  const said = text || tr("Every point is 0.");
+  return (<div data-chart-flat={valued} role="img" aria-label={said} style={{ minWidth: 0, padding: spark ? "8px 0 2px" : "16px 4px 6px" }}>
+    <div aria-hidden="true" style={{ position: "relative", height: spark ? 18 : 30, borderBottom: spark ? "none" : "1px dashed " + t.border }}>
+      {list.map((x, si) => x.data.map((v, i) => (noChartValue(v) || i === 0 || noChartValue(x.data[i - 1]) ? null
+        : <span key={"l" + si + "-" + i} style={{ position: "absolute", left: at(i - 1), width: "calc((100% - 12px) * " + (1 / (n - 1)).toFixed(4) + ")", bottom: 4, borderTop: "2.5px solid " + ink(si) }} />)))}
+      {list.map((x, si) => x.data.map((v, i) => (noChartValue(v) ? null
+        : <span key={"d" + si + "-" + i} style={{ position: "absolute", left: at(i), bottom: 1, width: 8, height: 8, marginLeft: -4, borderRadius: "50%", background: ink(si) }} />)))}
+    </div>
+    {cats.length ? <div aria-hidden="true" style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11, color: t.textMut, marginTop: 4 }}><span>{cats[0]}</span><span>{cats[cats.length - 1]}</span></div> : null}
+    <div data-chart-flat-text="" style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{said}</div>
+  </div>);
+};
+const ZeroValues = ({ t, labels, values, suffix = "" }) => {
+  const rows = Array.isArray(labels) ? labels : [];
+  const anyZero = (values || []).some(v => !noChartValue(v));
+  return (<div data-chart-zero={rows.length} style={{ padding: "6px 4px" }}>
+    {rows.map((l, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, padding: "5px 0", borderBottom: "1px solid " + t.border }}><span style={{ color: t.textSec, minWidth: 0, overflowWrap: "anywhere" }}>{l}</span><span style={{ color: t.text, fontWeight: 600, whiteSpace: "nowrap" }}>{noChartValue(values[i]) ? "--" : "0" + suffix}</span></div>)}
+    {anyZero ? <div style={{ fontSize: 12, color: t.textMut, marginTop: 6 }}>{tr("Every value is 0.")}</div> : null}
+  </div>);
+};
 // Part 358: onPick(i) is called with the bar a person clicks; showValues writes each bar's value on it;
 // xLabels, a set of categories, writes only those under a column chart's bars, every bar keeping its
 // own in the tooltip. A chart that passes none is drawn as it always was.
 const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value", onPick, showValues = false, xLabels }) => {
+  if (allZeroOrNone(values)) return horizontal ? <ZeroValues t={t} labels={categories} values={values} suffix={valueSuffix} />
+    : <ZeroLine t={t} categories={categories} series={[{ name, data: values }]} colors={colors} text={values.some(v => !noChartValue(v)) ? tr("Every value is 0.") : tr("Nothing to draw yet.")} />;
   const o = chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } });
   if (onPick) o.chart = Object.assign({}, o.chart, { events: { dataPointSelection: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
   if (showValues) { o.dataLabels = { enabled: true, formatter: v => Math.round(v) + valueSuffix, style: { fontSize: "11px", fontFamily: FONT_BODY } }; if (horizontal) o.xaxis.labels = Object.assign({}, o.xaxis.labels, { show: false }); }
@@ -801,16 +840,19 @@ const BarChartW = ({ categories, values, colors, horizontal = false, height = 26
 // uncaught "parser Error" on a line drawn from nulls alone, which the robot met on Checklist Results at a site
 // whose days had no steps due, and one point draws no line. Every caller whose points can be null (a percent of
 // nothing due, an average of nothing) asks this first and says why in words; the wrapper holds to it as well.
+// A line whose every point is 0 is drawn flat by ZeroLine (part 397), with zeroText under it when the caller has
+// its own words for it.
 const valuedPoints = (series) => Math.max(0, ...(series || []).map(x => (x && Array.isArray(x.data) ? x.data.filter(v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))).length : 0)));
 const lineDrawable = (series) => valuedPoints(series) >= 2;
-const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false, onPick, spark = false }) => {
+const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false, onPick, spark = false, zeroText }) => {
   if (!lineDrawable(series)) return <div data-chart-empty="" style={{ height: Math.min(height, 40) }} />;
+  if (lineAllZero(series)) return <ZeroLine t={t} categories={categories} series={series} colors={colors} spark={spark} text={zeroText} />;
   const o = chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, ...(dots ? { markers: { size: 4, strokeWidth: 0 } } : {}), xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: Object.assign({ labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } }, yMax ? { min: 0, max: yMax, tickAmount: 5 } : {}) });
   if (onPick) o.chart = Object.assign({}, o.chart, { events: { markerClick: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
   if (spark) { o.yaxis = Object.assign({}, o.yaxis, { labels: Object.assign({}, o.yaxis.labels, { show: false }) }); o.grid = Object.assign({}, o.grid, { show: false }); }
   return <Chart type="area" height={height} series={series} options={o} />;
 };
-const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
+const DonutChartW = ({ labels, values, height = 260, t, colors }) => allZeroOrNone(values) ? <ZeroValues t={t} labels={labels} values={values} /> : <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
 const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <Chart type="radialBar" height={height} series={[Math.round(value)]} options={chartBase(t, { plotOptions: { radialBar: { hollow: { size: "60%" }, track: { background: t.cardAlt }, dataLabels: { name: { color: t.textMut, fontSize: "12px", offsetY: 22 }, value: { color: t.text, fontSize: "24px", fontWeight: 600, fontFamily: FONT_HEAD, offsetY: -12, formatter: valueText != null ? (() => valueText) : (v => Math.round(v) + "%") } } } }, labels: [label], colors: [color], fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: [GL], stops: [0, 100] } } })} />;
 
 // ===== DATE RANGE PICKER (shared component) =====
@@ -5811,7 +5853,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     // per visit, daily and every other day work due that day, done of due, and every check. A day without
     // counted is read as due and done. A site the summary does not name did not load, unless it is the test site
     // (part 393, the robot's Round 1 finding 4): the summary leaves the test site out, as every report does, so its
-    // card says so and opens the site, whose own record reads its checks.
+    // card says so and opens the site, whose own record reads its checks. A week with steps due and none done is a
+    // line of zeros, drawn flat with its words, never by ApexCharts (part 397, the robot's Round 3).
     const cards = active.map(s => {
       const rec = data.bySite[String(s.id)] || null;
       const testLeftOut = !rec && (s.is_test === true || s.isTest === true);
@@ -5839,7 +5882,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
                 : <>
                   <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
                   <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks)}</div>
-                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div>{lineDrawable([{ data: c.trend.map(p => p.pct) }]) ? <LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /> : <div data-cr-no-steps={String(c.s.id)} style={{ fontSize: 12, color: t.textMut, padding: "10px 0" }}>{tr("No steps due these days")}</div>}</div> : null}
+                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div>{lineDrawable([{ data: c.trend.map(p => p.pct) }]) ? <LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark zeroText={tr("0% done on every day with steps due")} /> : <div data-cr-no-steps={String(c.s.id)} style={{ fontSize: 12, color: t.textMut, padding: "10px 0" }}>{tr("No steps due these days")}</div>}</div> : null}
                 </>}
             <div style={{ marginTop: "auto" }}><Btn t={t} v="ghost" data-cr-open-site={String(c.s.id)} onClick={e => { e.stopPropagation(); go(String(c.s.id), period.token, ""); }} style={{ width: "100%" }}>{tr("Open this site")}</Btn></div>
           </div>
@@ -5895,7 +5938,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
         </Crd>); })}
       </div>
       <ChartCard t={t} title={tr("Done each day")} sub={tr("Each shift's share of steps done. Click a day to open it.")}>
-        {lineDrawable(series) ? <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} /></div>
+        {lineDrawable(series) ? <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} zeroText={tr("0% done on every day with steps due")} /></div>
           : <div data-cr-no-steps={String(siteId)} style={{ fontSize: 13, color: t.textMut, padding: "16px 2px" }}>{tr("No steps due these days")}</div>}
       </ChartCard>
       <div style={{ marginTop: 14 }}><DataTable t={t} columns={cols} rows={days} rowKey={d => d.date} onRowClick={d => go(siteId, d.date, pickOk ? shiftPick : "")} /></div>
