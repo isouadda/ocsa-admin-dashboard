@@ -16719,10 +16719,14 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     if (v === undefined || v === null || v === "") return "--";
     if (k === "start_time" || k === "end_time") return String(v).slice(0, 5);
     if (k === "user_id") { const p = staffList.find(x => String(x.id) === String(v)); return p ? (p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim()) : String(v); }
-    if (k === "site_id") { const x = sites.find(y => String(y.id) === String(v)); return x ? x.name : String(v); }
+    if (k === "site_id") { const x = sites.find(y => String(y.id) === String(v)); return x ? x.name : editModal && String(editModal.site_id) === String(v) && (editModal.site_name || editModal.siteName) ? rowSiteName(editModal) : String(v); }
     if (k === "status") return shiftStatusWord[v] || String(v);
     return String(v);
   };
+  // A shift at a site this person's site list leaves out, the test site for anyone but an admin or a test account
+  // since the API's Round 14 (part 397), keeps its own site in the picker, named and marked from the shift's row, so
+  // the window reads where it is. A change to it is refused by the API in its own words (403 testCrew.testSite).
+  const shiftOwnSite = (x) => (x && x.site_id && !sites.some(y => String(y.id) === String(x.site_id)) ? [{ v: x.site_id, l: rowSiteName(x) || String(x.site_id) }] : []);
   const openEdit = (shift) => {
     if (shift.site_id) loadSiteLocations(shift.site_id);
     const opened = { ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" };
@@ -16996,7 +17000,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) })), ...shiftOwnSite(editModal)]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Start Time")}</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
         <div><Lbl>{tr("End Time")}</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
