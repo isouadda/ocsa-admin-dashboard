@@ -1118,6 +1118,8 @@ export default function AdminDashboard() {
     if (id === "owner") return hasCap("view_owner_dashboard");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canEmploy, signaturesLive, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, casesOn, hrRecordsOn, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn, periodicOn, ticketsOn, libraryOn, maintenance, leaveOn]);
+  // Who is signed in, for the windows that read SelfCtx (part 393).
+  const selfCtx = useMemo(() => ({ id: user && user.id != null ? String(user.id) : "", test: !!(user && (user.isTestAccount === true || user.is_test_account === true)) }), [user]);
   // What the HR folder and a site's page need to know about leave balances (part 368).
   const leaveCtx = useMemo(() => ({ on: leaveOn, canManage: leaveOn && hasCap("manage_leave_balances") }), [leaveOn, hasCap]);
   const [sites, setSites] = useState([]);
@@ -1648,7 +1650,7 @@ export default function AdminDashboard() {
   // A row of the More menu, the row the user menu draws.
   const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
 
-  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><PayCtx.Provider value={!!canEmploy}><LeaveCtx.Provider value={leaveCtx}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><PeopleCtx.Provider value={allStaff}><SelfCtx.Provider value={selfCtx}><PayCtx.Provider value={!!canEmploy}><LeaveCtx.Provider value={leaveCtx}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
     {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
         closed again by a pick, by its own close button and by Escape. */}
@@ -1917,7 +1919,7 @@ export default function AdminDashboard() {
     {toast && <Tst t={toast} />}
     {updateBar}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div></LeaveCtx.Provider></PayCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
+  </div></LeaveCtx.Provider></PayCtx.Provider></SelfCtx.Provider></PeopleCtx.Provider></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, onForgot, say = null, wrongTries = 0, loading, t, second = null, onSecondDone, onSecondBack }) {
@@ -2050,6 +2052,9 @@ function SecondStepForm({ t, second, onDone, onBack }) {
 // employee ID are read from the option (badge, employeeId) or else from the shell's people, PeopleCtx,
 // by the option's id. Escape, a press outside and a pick close it.
 const PeopleCtx = createContext([]);
+// The signed-in person, { id, test }, for a window that needs to know whether a record is their own and whether they
+// are a test account, which the sign-in answer names (isTestAccount) (part 393).
+const SelfCtx = createContext({ id: "", test: false });
 const personKeysOf = (p) => ({ badge: String((p && (p.badgeNumber || p.badge_number || p.badge)) || ""), employeeId: String((p && (p.employeeId || p.employee_id)) || "") });
 const PICK_ROWS = 12;
 function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", ...rest }) {
@@ -6343,16 +6348,17 @@ const openRequest = (id) => { window.location.hash = "issues/requests/" + encode
 // site's band and a second person's check (STEP253_CONTRACT.md, sections 2 to 5). The Issue Tracker
 // draws them as a Source with their Due, First response and Time to fixed, and opens one from
 // GET /api/issues/:id, whose canVerify offers Verify, which is POST /api/issues/:id/verify. An
-// inspection ticket is closed only by Verify, so the status picker offers it no close. Nothing here
-// draws until the API's Step 253 answers: one POST /api/issues/link-corrective-action naming nothing,
-// which that API refuses with issues.badDetails, or with 403 for a caller without view_reports, and
-// which an older API, with no such route, answers any other way. Nothing is written by it. The list's
-// ?source=inspection proves nothing, since the API's Step 250 already takes the filter.
+// inspection ticket is closed only by Verify, so the status picker offers it no close. What the page
+// needs to know is whether the API lists inspection tickets: to offer Inspection under Source, and to read
+// an opened issue whole from GET /api/issues/:id, a ticket opened from a notice before the list holds it.
+// Since part 393 (the robot's finding) that is read, never written: one GET /api/issues?source=inspection
+// &limit=1, a session, which every API since Step 253 answers with a list (limit alone keeps the bare
+// array). It was one POST /api/issues/link-corrective-action naming nothing, refused on purpose, which the
+// guard on test accounts refused and logged every night.
 let findingsLiveProbe = null;
-const FINDINGS_PROBE_CODES = ["issues.badDetails", "issues.notFound", "forms.reportNotFound", "forms.notACorrectiveAction"];
 const probeFindingsLive = (af) => {
-  if (!findingsLiveProbe) findingsLiveProbe = af("/api/issues/link-corrective-action", { method: "POST", body: {} }).then(() => false)
-    .catch(e => { if (e && (e.status === 403 || FINDINGS_PROBE_CODES.indexOf(e.code) >= 0)) return true; if (!e || e.status == null) { console.warn("Inspection findings:", e && e.message); findingsLiveProbe = null; } return false; });
+  if (!findingsLiveProbe) findingsLiveProbe = af("/api/issues?source=inspection&limit=1").then(d => Array.isArray(d) || !!(d && Array.isArray(d.issues)))
+    .catch(e => { if (!e || e.status == null) { console.warn("Inspection findings:", e && e.message); findingsLiveProbe = null; } return false; });
   return findingsLiveProbe;
 };
 function useFindingsLive(af) {
@@ -28374,6 +28380,32 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const [sentLine, setSentLine] = useState("");
   const [rescinding, setRescinding] = useState(false);
   const [rescindReason, setRescindReason] = useState("");
+  // Part 393 (the robot's finding; the API's part 382, Round 12 3.5): Rescind is offered by the API's own rule
+  // (routes/discipline.js POST /:id/rescind): an admin, or the person who issued the warning when the warning is about
+  // a test account. The warning names its issuer (issuedBy.userId). Whether its person is a test account is read from
+  // the issuer's own account first: the API's test guard holds a test account to test records, so a warning a test
+  // account issued is about a test account (the robot's Test Supervisor, tidying its nightly warning). Else from the
+  // person the window was opened for or the shell's people, and, when neither says, from the HR summary with the test
+  // accounts in it, which a supervisor's people list leaves out; a summary the API refuses offers nothing.
+  const self = useContext(SelfCtx);
+  const selfId = self && self.id ? self.id : "";
+  const knownPeople = useContext(PeopleCtx);
+  const issuerIsMe = !!selfId && !!(w && w.issuedBy && w.issuedBy.userId != null) && String(w.issuedBy.userId) === String(selfId);
+  const subjectId = String(userId || (w && w.person && w.person.userId) || "");
+  const [testSubject, setTestSubject] = useState(null);
+  useEffect(() => {
+    if (isAdmin || !issuerIsMe || !subjectId) return undefined;
+    if (self && self.test) { setTestSubject(true); return undefined; }
+    const flagOf = (p) => (!p ? null : p.isTestAccount === true || p.is_test_account === true ? true : Object.prototype.hasOwnProperty.call(p, "isTestAccount") || Object.prototype.hasOwnProperty.call(p, "is_test_account") ? false : null);
+    const said = flagOf(person) !== null ? flagOf(person) : flagOf((knownPeople || []).find(p => p && String(p.id) === subjectId));
+    if (said !== null) { setTestSubject(said); return undefined; }
+    let alive = true;
+    af("/api/hr/employees-summary?status=all&include_test=true")
+      .then(d => { const row = (d && Array.isArray(d.employees) ? d.employees : []).find(e => e && String(e.id) === subjectId); if (alive) setTestSubject(!!(row && row.is_test_account === true)); })
+      .catch(() => { if (alive) setTestSubject(false); });
+    return () => { alive = false; };
+  }, [af, isAdmin, issuerIsMe, subjectId, person, knownPeople, self]);
+  const mayRescind = isAdmin || (issuerIsMe && testSubject === true);
   const [endOpen, setEndOpen] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
@@ -28591,8 +28623,8 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
           {type === "termination" && <Btn t={t} v="danger" onClick={() => setEndOpen(true)} style={small}>{tr("End employment")}</Btn>}
           <Btn t={t} onClick={send} disabled={!!busy || sendGoing || !deliver.method} data-warning-send="" style={{ minHeight: 44, minWidth: 96 }}>{busy === "send" ? tr("Sending...") : tr("Send")}</Btn>
         </div>
-        {isAdmin && <div style={{ marginTop: 16 }}>
-          {!rescinding ? <Btn t={t} v="ghost" onClick={() => setRescinding(true)} style={small}>{tr("Rescind")}</Btn> : <div data-warning-rescind="">
+        {mayRescind && <div style={{ marginTop: 16 }}>
+          {!rescinding ? <Btn t={t} v="ghost" data-warning-rescind-open="" onClick={() => setRescinding(true)} style={small}>{tr("Rescind")}</Btn> : <div data-warning-rescind="">
             <Lbl>{tr("Why it is rescinded")}</Lbl>
             <TArea t={t} rows={2} aria-label={tr("Why it is rescinded")} value={rescindReason} onChange={e => setRescindReason(e.target.value)} style={box("reason")} />
             <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The warning stays on the record, marked rescinded.")}</div>

@@ -1473,14 +1473,15 @@ Picture: warning-declined-to-sign
 Last checked: 2026-11-10
 
 ## Rescind a warning (admin dashboard)
-Who can do this: admins
+Who can do this: admins, and the person who issued a warning about a test account
 1. Open the warning from the person's **Disciplinary** (**Disciplinario**) card or from **Discipline** (**Disciplina**).
 2. Click **Rescind** (**Anular**).
 3. Fill in **Why it is rescinded** (**Por qué se anula**). **The warning stays on the record, marked rescinded.** (**La advertencia queda en el registro, marcada como anulada.**)
 4. Click **Rescind** (**Anular**). The warning is struck through, with the reason under it.
+If it does not work: a supervisor sees **Rescind** (**Anular**) only on a warning they issued about a test account, such as the robot's nightly warning. Any other warning is rescinded by an admin.
 Words people use for this: take back a warning, cancel a warning, remove a write-up, warning given by mistake, anular.
 Picture: warning-rescind
-Last checked: 2026-10-01
+Last checked: 2026-11-12
 
 ## See every warning on the Discipline page (admin dashboard)
 Who can do this: admins see every warning; supervisors see the warnings they issued

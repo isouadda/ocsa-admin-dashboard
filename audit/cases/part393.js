@@ -20,6 +20,9 @@
 //             Checklist Results saying why it has no counts; every site's last safety walk in one read, naming its
 //             inspection, a refused site left out and the rest read again; the draft count from counts.draft; and
 //             sign-in setting four side panel items from features with none of their lists read
+//   robot     two from the robot: Rescind offered by the API's rule to the issuer of a warning about a test account,
+//             and rescinded, and not to the issuer of one about a real person; and opening Issues writing nothing,
+//             with whether the API lists inspection tickets read in place of the empty corrective action link
 "use strict";
 const seed = require("../seed");
 const { createStubs } = require("../stubs");
@@ -399,6 +402,60 @@ async function round13Cases(ctx, lang) {
     "sign-in read " + say(without.read) + "; the side panel offers " + say(without.items));
 }
 
+// ---- Section 4: two from the robot --------------------------------------------------------------------------------
+const TEST_PERSON = "Bertrand Lefevre";
+async function openWarning(d, name) {
+  await goHash(d, "discipline");
+  await until(d, "table tbody tr", 8000);
+  await d.page.locator("table tbody tr", { hasText: name }).first().click().catch(() => {});
+  await until(d, "[data-warning-send], [data-warning-rescind-open]", 6000);
+  await d.settle(600);
+}
+async function robotCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/robot/" + x;
+
+  // 1. The issuer of a warning about a test account is offered Rescind, by the API's rule, and it is rescinded: the
+  //    robot's Test Supervisor, a test account itself, so the warning it issued is about a test account.
+  await withDriver(ctx, { name: "rescind-issuer", lang, persona: "supervisor", arm: (s) => s.setScene393({ testWarning: true, testIssuer: true }) }, async (d) => {
+    await openWarning(d, TEST_PERSON);
+    const offered = await has(d, "[data-warning-rescind-open]");
+    await d.page.locator("[data-warning-rescind-open]").first().click().catch(() => {});
+    await until(d, "[data-warning-rescind] textarea", 4000);
+    await d.page.locator("[data-warning-rescind] textarea").first().fill("The robot's nightly warning, tidied after the run.").catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-warning-rescind] button", { hasText: d.say("Rescind") }).last().click().catch(() => {});
+    await d.settle(800);
+    const post = writes(d, mark, "POST", /^\/api\/discipline\/dt-1\/rescind$/).pop();
+    results.check(KIND, id("the-issuer-of-a-test-account-s-warning-rescinds-it"), offered && !!post && post.status === 200 && post.body && post.body.reason === "The robot's nightly warning, tidied after the run.",
+      (offered ? "Rescind was offered" : "Rescind was not offered") + "; the rescind " + (post ? "answered " + post.status + " with " + say(post.body) : "was not sent"));
+  });
+
+  // 2. A guard: the same supervisor, not a test account, is not offered Rescind on a warning about a real person.
+  await withDriver(ctx, { name: "rescind-real", lang, persona: "supervisor", arm: (s) => s.setScene393({ testWarning: true }) }, async (d) => {
+    await openWarning(d, "Ngozi Okonkwo");
+    const open = await has(d, "[data-warning-send]") || await has(d, "[data-warning-rescind-open]") || await d.modalOpen();
+    const offered = await has(d, "[data-warning-rescind-open]");
+    results.check(KIND, id("a-warning-about-a-real-person-offers-the-issuer-no-rescind-guard"), open && !offered, open ? (offered ? "Rescind was offered" : "") : "the warning did not open");
+  });
+
+  // 3. Opening Issues writes nothing: no empty POST /api/issues/link-corrective-action, and the page reads whether the
+  //    API lists inspection tickets, then offers Inspection under Source.
+  await withDriver(ctx, { name: "issues-probe", lang, arm: (s) => s.setStep253(true) }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "issues");
+    await until(d, "[data-issue-source] option[value='inspection']", 8000);
+    await d.settle(500);
+    const posts = d.callsSince(mark).filter((c) => c.method !== "GET");
+    const probe = reads(d, mark, /^\/api\/issues$/).filter((c) => /source=inspection/.test(c.query || "") && /limit=1(&|$)/.test(c.query || ""));
+    const offered = await has(d, "[data-issue-source] option[value='inspection']");
+    const all = stubsCalls(d).filter((c) => c.method === "POST" && c.path === "/api/issues/link-corrective-action");
+    results.check(KIND, id("opening-issues-writes-nothing"), all.length === 0 && posts.length === 0 && probe.length === 1 && offered,
+      "writes " + say(posts.map((c) => c.method + " " + c.path)) + ", the empty link " + all.length + " times since sign-in, the read " + probe.length + " times, Inspection " + (offered ? "offered" : "not offered"));
+  });
+}
+const stubsCalls = (d) => d.callsSince(0);
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
@@ -406,6 +463,7 @@ async function run(ctx) {
     if (want("uptime")) await uptimeCases(ctx, lang);
     if (want("brief")) await briefCases(ctx, lang);
     if (want("round13")) await round13Cases(ctx, lang);
+    if (want("robot")) await robotCases(ctx, lang);
   }
 }
 

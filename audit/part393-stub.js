@@ -58,6 +58,21 @@
 //                                         features overrides one, noFeatures leaves it out as an API before Round 13;
 //                                         each is whether the stub's own list answers the person a list
 //
+//   Section 4, two from the robot:
+//     GET /api/discipline, /api/discipline/:id, POST /api/discipline/:id/rescind
+//                                         under the scene testWarning, two written warnings the supervisor issued,
+//                                         dt-1 about the test account and dt-2 about another person; the rescind as
+//                                         routes/discipline.js has it since part 382: an admin, or the issuer of a
+//                                         warning about a test account, else 403 discipline.adminOnly; a reason, else
+//                                         400 discipline.badDetails keys ["reason"]; once rescinded, 409
+//     POST /api/auth/login, GET /api/auth/me
+//                                         the scene testIssuer signs the supervisor in as a test account
+//                                         (isTestAccount), as the robot's Test Supervisor is
+//     GET /api/hr/employees-summary       is_test_account as the account holds it; under the scene testWarning the
+//                                         test accounts only with include_test=true, as the API answers
+//     GET /api/issues?source=inspection&limit=1
+//                                         the bare array, as every API since Step 253 answers it (the layers under)
+//
 // Every value is invented: the monitors' ids, their times, their reasons, the commit and the days.
 "use strict";
 
@@ -370,7 +385,89 @@ module.exports = (ctx) => {
     return a;
   }
 
+  // ---- Section 4: two from the robot -------------------------------------------------------------------------------
+  // 4.1, the rescind (routes/discipline.js POST /:id/rescind, part 382): an admin, or the issuer of a warning about a
+  // test account (p_is_test), else 403 discipline.adminOnly; a reason 1 to 1000 characters, else 400
+  // discipline.badDetails keys ["reason"]; a rescinded warning 409 discipline.notIssued. The scene testWarning lists
+  // two written warnings the supervisor issued, dt-1 about the test account (u-staff-10) and dt-2 about Ngozi Okonkwo
+  // (u-staff-6), on GET /api/discipline and GET /api/discipline/:id.
+  // The HR summary (routes/hr.js employees-summary) answers is_test_account as the account holds it, and the test
+  // accounts only with include_test=true.
+  const DISC_WORDS = {
+    "discipline.adminOnly": ["Only an administrator can do this. A supervisor issues verbal and written warnings to the staff below them.", "Solo un administrador puede hacer esto. Un supervisor da amonestaciones verbales y por escrito al personal a su cargo."],
+    "discipline.badDetails": ["Some details are missing or not valid.", "Faltan algunos datos o no son v\u00e1lidos."],
+    "discipline.notIssued": ["This warning is not issued.", "Esta amonestaci\u00f3n no est\u00e1 emitida."],
+    "common.notFound": ["Not found", "No encontrado"],
+  };
+  const discRefuse = (lang, status, code, extra) => bad(status, code, T(lang, DISC_WORDS[code][0], DISC_WORDS[code][1]), extra);
+  const staffOf = (id) => (state.staff && state.staff.length ? state.staff : seed.STAFF).find((p) => String(p.id) === String(id)) || null;
+  const nameOfStaff = (id) => { const p = staffOf(id); return p ? (p.name || [p.firstName || p.first_name, p.lastName || p.last_name].filter(Boolean).join(" ")) : null; };
+  const testAccount = (id) => { const p = staffOf(id); return !!p && (p.isTestAccount === true || String(p.id) === "u-staff-10"); };
+  const testWarnings = () => {
+    if (!m().warnings) {
+      const sup = seed.PEOPLE.supervisor;
+      const by = { userId: sup.id, name: sup.firstName + " " + sup.lastName };
+      const w = (id, userId) => ({ id, person: { userId, name: nameOfStaff(userId), sites: [] }, type: "written_warning", category: "attendance", incidentDate: seed.shift(-3), actionDate: seed.shift(-2),
+        status: "open", issuedAt: seed.shift(-2) + "T15:00:00Z", issuedBy: clone(by), delivered: { at: seed.shift(-2) + "T15:05:00Z", method: "in_person" }, signed: true, declinedToSign: false, caseId: null,
+        createdAt: seed.shift(-2) + "T14:40:00Z", updatedAt: seed.shift(-2) + "T15:05:00Z", signature: null, typeLabel: "Written warning", categoryLabel: "Attendance", rescinded: false,
+        summary: "Late to the shift three times in one week.", description: "Arrived after the start of the shift on three days in one week.", policyRef: null, expectations: "Arrive before the shift starts.",
+        expectedBy: null, suspensionStart: null, suspensionEnd: null, employeeAccount: null, followsProtectedActivity: false, controllerDiscussedOn: null, language: "en", followUpDate: null,
+        acknowledgedAt: seed.shift(-2) + "T15:05:00Z", employeeSignedAt: seed.shift(-2) + "T15:05:00Z", issuerSigned: true, witnessName: null, hasPdf: true, emailedTo: [], emailOnFile: true,
+        signedOnPaper: false, finalMail: null, draftedBy: clone(by), rescind: null });
+      m().warnings = [w("dt-1", "u-staff-10"), w("dt-2", "u-staff-6")];
+    }
+    return m().warnings;
+  };
+  function disciplineRoute(method, path, query, body, lang, base) {
+    if (!sc().testWarning) return null;
+    if (path === "/api/discipline" && method === "GET") {
+      const rows = testWarnings();
+      return ok({ warnings: clone(rows), counts: { byType: { written_warning: rows.filter((x) => x.status === "open").length }, total: rows.filter((x) => x.status === "open").length, drafts: 0, rescinded: rows.filter((x) => x.status === "rescinded").length }, nextCursor: null, limit: 50 });
+    }
+    const one = /^\/api\/discipline\/(dt-[0-9]+)(\/rescind)?$/.exec(path);
+    if (!one) return null;
+    const w = testWarnings().find((x) => x.id === one[1]);
+    if (!w) return discRefuse(lang, 404, "common.notFound");
+    if (!one[2] && method === "GET") return ok({ warning: clone(w) });
+    if (one[2] && method === "POST") {
+      sent("rescind", { id: w.id, body });
+      const p = me();
+      const admin = !!p && (p.role === "admin" || p.isSuperAdmin === true);
+      const issuerOfTest = testAccount(w.person.userId) && !!p && String(w.issuedBy.userId) === String(p.id);
+      if (!admin && !issuerOfTest) return discRefuse(lang, 403, "discipline.adminOnly");
+      if (w.status === "rescinded") return discRefuse(lang, 409, "discipline.notIssued");
+      const b = body && typeof body === "object" ? body : {};
+      const reason = typeof b.reason === "string" ? b.reason.replace(/\s+/g, " ").trim() : "";
+      if (!reason || reason.length > 1000) return discRefuse(lang, 400, "discipline.badDetails", { keys: ["reason"] });
+      w.status = "rescinded"; w.rescinded = true;
+      w.rescind = { at: seed.NOW_ISO, by: { userId: p.id, name: p.firstName + " " + p.lastName }, reason };
+      return ok({ warning: clone(w) });
+    }
+    return null;
+  }
+  function summaryRoute(method, path, query, body, lang, base) {
+    if (path !== "/api/hr/employees-summary" || method !== "GET") return null;
+    const a = base();
+    if (!a || a.status !== 200 || !a.json || !Array.isArray(a.json.employees)) return a;
+    const withTest = query.get("include_test") === "true";
+    a.json = Object.assign({}, a.json, { employees: a.json.employees.map((e) => Object.assign({}, e, { is_test_account: testAccount(e.id) })).filter((e) => withTest || !sc().testWarning || !e.is_test_account) });
+    return a;
+  }
+
+  // The scene testIssuer signs the supervisor in as a test account, the robot's Test Supervisor: the sign-in answer and
+  // GET /api/auth/me carry isTestAccount (routes/auth.js publicUser).
+  function signInRoute(method, path, query, body, lang, base) {
+    const a = base();
+    if (!sc().testIssuer || !a || a.status !== 200 || !a.json || !a.json.user || typeof a.json.user !== "object") return a;
+    if (String(a.json.user.id) !== String(seed.PEOPLE.supervisor.id)) return a;
+    a.json = Object.assign({}, a.json, { user: Object.assign({}, a.json.user, { isTestAccount: true }) });
+    return a;
+  }
+
   function route(method, path, query, body, lang, base) {
+    if (path === "/api/auth/login" || path === "/api/auth/me" || path === "/api/auth/verify-code") return signInRoute(method, path, query, body, lang, base);
+    if (/^\/api\/discipline(\/|$)/.test(path)) { const r = disciplineRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (path === "/api/hr/employees-summary") { const r = summaryRoute(method, path, query, body, lang, base); if (r) return r; }
     if (/^\/api\/signatures(\/|$)/.test(path)) return signaturesRoute(method, path, query, body, lang, base);
     if (/^\/api\/sites\/[^/]+\/checklist-record$/.test(path) && method === "GET") return lateCheck(base(), lang);
     if (NAMED.indexOf(path) >= 0 && method === "GET") return withTestSite(path, base());
