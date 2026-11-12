@@ -1864,18 +1864,18 @@ Last checked: 2026-10-05
 
 ## Enter the year's holidays (admin dashboard)
 Who can do this: admins who can change settings
-OCSA observes the eleven federal holidays in its handbook and the two Eids. The federal days follow the handbook. The Eid dates, which OCSA confirms each year, and any other day the office is closed are entered here. A holiday is not a working day, so a client's concern filed before one is due a day later.
+OCSA observes nine paid holidays under its handbook: New Year's Day, Martin Luther King Jr. Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day, the Day After Thanksgiving and Christmas Day. The federal days follow the handbook. The Day After Thanksgiving, and any other day the office is closed, is entered here. The Eids are not OCSA holidays; staff who observe them take vacation, personal or sick time. A holiday is not a working day, so a client's concern filed before one is due a day later.
 1. Click **Settings** (**Configuración**), then the **Holidays** (**Días festivos**) tab.
 2. Pick the year at the top, this year or next. The table shows each holiday's **Date** (**Fecha**), its name under **Holiday** (**Día festivo**), its **Kind** (**Tipo**), **Federal** (**Federal**) or **Office** (**De la oficina**), and its **Note** (**Nota**). A federal holiday that falls on a Saturday is observed the Friday before, and one on a Sunday the Monday after; its date then reads Observed for and the actual day.
-3. Click **Add a holiday** (**Agregar un día festivo**). Fill in the **Date** (**Fecha**), the name under **Holiday** (**Día festivo**), such as Eid al-Fitr, and a **Note** (**Nota**) if you like, such as when OCSA confirmed it. Click **Add holiday** (**Agregar el día festivo**).
+3. Click **Add a holiday** (**Agregar un día festivo**). Fill in the **Date** (**Fecha**), the name under **Holiday** (**Día festivo**), such as Day After Thanksgiving, and a **Note** (**Nota**) if you like, such as when OCSA confirmed it. Click **Add holiday** (**Agregar el día festivo**).
 4. To change a day the office entered, click **Edit** (**Editar**) on its row, change it, and click **Save** (**Guardar**).
 5. To take one off, click **Retire** (**Dar de baja**) and confirm. It stops counting as a holiday and stays on record. Tick **Show retired** (**Mostrar los dados de baja**) to see it, marked **Retired** (**Dado de baja**).
 A federal holiday reads **Set by the handbook** (**Fijado por el manual**) and is not changed here.
 If it does not work: the reason is shown under the field it is about, such as a date that is already a holiday, or at the top of the window. The tab shows once the system holds the holidays.
-Words people use for this: holiday, holidays, eid, eid al-fitr, eid al-adha, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
+Words people use for this: holiday, holidays, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
 Picture: holidays-year
 Picture: holidays-add-window
-Last checked: 2026-10-07
+Last checked: 2026-11-12
 
 ## Make a request QR, so anyone in the building can ask for help (admin dashboard)
 Who can do this: admins who can change settings
