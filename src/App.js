@@ -345,6 +345,8 @@ async function apiFetch(path, opts = {}) {
     if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, userId: e.userId == null ? null : e.userId, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
     throw err;
   }
+  // A route that answers plain text (part 397: a Health incident's brief, text/plain) is read as text with asText.
+  if (opts.asText) return await r.text();
   return withSafeAddresses(await r.json());
 }
 // An answer the API writes as it goes. The request is apiFetch's, through apiRequest, so the address,
@@ -783,10 +785,49 @@ const chartBase = (t, extra) => ({
   ...extra,
 });
 const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ minHeight: 44, fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
+// A chart whose every value is 0 (part 397, the robot's Round 3): ApexCharts threw "parser Error" on Checklist Results
+// at a site card whose week was seven zeros, after part 386 kept a line of nulls from it. A line, a bar chart or a
+// donut with no value other than 0 is never handed to ApexCharts. A line is drawn flat along the bottom here, a dot
+// for each point that holds a value and a gap where one holds none, with its words under it, and so are columns;
+// horizontal bars and a donut are listed by name with their numbers. A chart with at least one value other than 0
+// is drawn as it always was, and so is a
+// ring (RadialW), which draws 0 as an empty ring with its number in the middle.
+const noChartValue = (v) => v === null || v === undefined || v === "" || !Number.isFinite(Number(v));
+const allZeroOrNone = (values) => Array.isArray(values) && values.length > 0 && values.every(v => noChartValue(v) || Number(v) === 0);
+const lineAllZero = (series) => (series || []).every(x => !x || !Array.isArray(x.data) || x.data.length === 0 || allZeroOrNone(x.data));
+const ZeroLine = ({ t, categories, series, colors, spark, text }) => {
+  const list = (series || []).filter(x => x && Array.isArray(x.data));
+  const n = Math.max(2, ...list.map(x => x.data.length));
+  const at = (i) => "calc(6px + (100% - 12px) * " + (i / (n - 1)).toFixed(4) + ")";
+  const ink = (si) => (colors || CHART_PALETTE)[si % (colors || CHART_PALETTE).length];
+  const cats = Array.isArray(categories) ? categories : [];
+  const valued = list.reduce((a, x) => a + x.data.filter(v => !noChartValue(v)).length, 0);
+  const said = text || tr("Every point is 0.");
+  return (<div data-chart-flat={valued} role="img" aria-label={said} style={{ minWidth: 0, padding: spark ? "8px 0 2px" : "16px 4px 6px" }}>
+    <div aria-hidden="true" style={{ position: "relative", height: spark ? 18 : 30, borderBottom: spark ? "none" : "1px dashed " + t.border }}>
+      {list.map((x, si) => x.data.map((v, i) => (noChartValue(v) || i === 0 || noChartValue(x.data[i - 1]) ? null
+        : <span key={"l" + si + "-" + i} style={{ position: "absolute", left: at(i - 1), width: "calc((100% - 12px) * " + (1 / (n - 1)).toFixed(4) + ")", bottom: 4, borderTop: "2.5px solid " + ink(si) }} />)))}
+      {list.map((x, si) => x.data.map((v, i) => (noChartValue(v) ? null
+        : <span key={"d" + si + "-" + i} style={{ position: "absolute", left: at(i), bottom: 1, width: 8, height: 8, marginLeft: -4, borderRadius: "50%", background: ink(si) }} />)))}
+    </div>
+    {cats.length ? <div aria-hidden="true" style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11, color: t.textMut, marginTop: 4 }}><span>{cats[0]}</span><span>{cats[cats.length - 1]}</span></div> : null}
+    <div data-chart-flat-text="" style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{said}</div>
+  </div>);
+};
+const ZeroValues = ({ t, labels, values, suffix = "" }) => {
+  const rows = Array.isArray(labels) ? labels : [];
+  const anyZero = (values || []).some(v => !noChartValue(v));
+  return (<div data-chart-zero={rows.length} style={{ padding: "6px 4px" }}>
+    {rows.map((l, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, padding: "5px 0", borderBottom: "1px solid " + t.border }}><span style={{ color: t.textSec, minWidth: 0, overflowWrap: "anywhere" }}>{l}</span><span style={{ color: t.text, fontWeight: 600, whiteSpace: "nowrap" }}>{noChartValue(values[i]) ? "--" : "0" + suffix}</span></div>)}
+    {anyZero ? <div style={{ fontSize: 12, color: t.textMut, marginTop: 6 }}>{tr("Every value is 0.")}</div> : null}
+  </div>);
+};
 // Part 358: onPick(i) is called with the bar a person clicks; showValues writes each bar's value on it;
 // xLabels, a set of categories, writes only those under a column chart's bars, every bar keeping its
 // own in the tooltip. A chart that passes none is drawn as it always was.
 const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value", onPick, showValues = false, xLabels }) => {
+  if (allZeroOrNone(values)) return horizontal ? <ZeroValues t={t} labels={categories} values={values} suffix={valueSuffix} />
+    : <ZeroLine t={t} categories={categories} series={[{ name, data: values }]} colors={colors} text={values.some(v => !noChartValue(v)) ? tr("Every value is 0.") : tr("Nothing to draw yet.")} />;
   const o = chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } });
   if (onPick) o.chart = Object.assign({}, o.chart, { events: { dataPointSelection: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
   if (showValues) { o.dataLabels = { enabled: true, formatter: v => Math.round(v) + valueSuffix, style: { fontSize: "11px", fontFamily: FONT_BODY } }; if (horizontal) o.xaxis.labels = Object.assign({}, o.xaxis.labels, { show: false }); }
@@ -801,16 +842,19 @@ const BarChartW = ({ categories, values, colors, horizontal = false, height = 26
 // uncaught "parser Error" on a line drawn from nulls alone, which the robot met on Checklist Results at a site
 // whose days had no steps due, and one point draws no line. Every caller whose points can be null (a percent of
 // nothing due, an average of nothing) asks this first and says why in words; the wrapper holds to it as well.
+// A line whose every point is 0 is drawn flat by ZeroLine (part 397), with zeroText under it when the caller has
+// its own words for it.
 const valuedPoints = (series) => Math.max(0, ...(series || []).map(x => (x && Array.isArray(x.data) ? x.data.filter(v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))).length : 0)));
 const lineDrawable = (series) => valuedPoints(series) >= 2;
-const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false, onPick, spark = false }) => {
+const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false, onPick, spark = false, zeroText }) => {
   if (!lineDrawable(series)) return <div data-chart-empty="" style={{ height: Math.min(height, 40) }} />;
+  if (lineAllZero(series)) return <ZeroLine t={t} categories={categories} series={series} colors={colors} spark={spark} text={zeroText} />;
   const o = chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, ...(dots ? { markers: { size: 4, strokeWidth: 0 } } : {}), xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: Object.assign({ labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } }, yMax ? { min: 0, max: yMax, tickAmount: 5 } : {}) });
   if (onPick) o.chart = Object.assign({}, o.chart, { events: { markerClick: (e, c, cfg) => onPick(cfg.dataPointIndex) } });
   if (spark) { o.yaxis = Object.assign({}, o.yaxis, { labels: Object.assign({}, o.yaxis.labels, { show: false }) }); o.grid = Object.assign({}, o.grid, { show: false }); }
   return <Chart type="area" height={height} series={series} options={o} />;
 };
-const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
+const DonutChartW = ({ labels, values, height = 260, t, colors }) => allZeroOrNone(values) ? <ZeroValues t={t} labels={labels} values={values} /> : <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
 const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <Chart type="radialBar" height={height} series={[Math.round(value)]} options={chartBase(t, { plotOptions: { radialBar: { hollow: { size: "60%" }, track: { background: t.cardAlt }, dataLabels: { name: { color: t.textMut, fontSize: "12px", offsetY: 22 }, value: { color: t.text, fontSize: "24px", fontWeight: 600, fontFamily: FONT_HEAD, offsetY: -12, formatter: valueText != null ? (() => valueText) : (v => Math.round(v) + "%") } } } }, labels: [label], colors: [color], fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: [GL], stops: [0, 100] } } })} />;
 
 // ===== DATE RANGE PICKER (shared component) =====
@@ -5811,7 +5855,8 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     // per visit, daily and every other day work due that day, done of due, and every check. A day without
     // counted is read as due and done. A site the summary does not name did not load, unless it is the test site
     // (part 393, the robot's Round 1 finding 4): the summary leaves the test site out, as every report does, so its
-    // card says so and opens the site, whose own record reads its checks.
+    // card says so and opens the site, whose own record reads its checks. A week with steps due and none done is a
+    // line of zeros, drawn flat with its words, never by ApexCharts (part 397, the robot's Round 3).
     const cards = active.map(s => {
       const rec = data.bySite[String(s.id)] || null;
       const testLeftOut = !rec && (s.is_test === true || s.isTest === true);
@@ -5839,7 +5884,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
                 : <>
                   <RadialW t={t} value={c.st.pct || 0} valueText={crPctText(c.st.pct)} label={tr("{0} of {1} steps", c.st.done, c.st.due)} height={190} />
                   <div style={{ fontSize: 12, color: t.textSec, textAlign: "center" }}>{trn("{0} check|count", c.st.checks)}</div>
-                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div>{lineDrawable([{ data: c.trend.map(p => p.pct) }]) ? <LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark /> : <div data-cr-no-steps={String(c.s.id)} style={{ fontSize: 12, color: t.textMut, padding: "10px 0" }}>{tr("No steps due these days")}</div>}</div> : null}
+                  {c.trend.length >= 2 ? <div style={{ marginTop: 2 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{oneDay ? tr("The 7 days to {0}", keptDay(span.to)) : tr("Each day")}</div>{lineDrawable([{ data: c.trend.map(p => p.pct) }]) ? <LineChartW t={t} height={100} categories={c.trend.map(p => fdDay(p.date))} series={[{ name: tr("Done"), data: c.trend.map(p => p.pct) }]} yMax={100} dots spark zeroText={tr("0% done on every day with steps due")} /> : <div data-cr-no-steps={String(c.s.id)} style={{ fontSize: 12, color: t.textMut, padding: "10px 0" }}>{tr("No steps due these days")}</div>}</div> : null}
                 </>}
             <div style={{ marginTop: "auto" }}><Btn t={t} v="ghost" data-cr-open-site={String(c.s.id)} onClick={e => { e.stopPropagation(); go(String(c.s.id), period.token, ""); }} style={{ width: "100%" }}>{tr("Open this site")}</Btn></div>
           </div>
@@ -5895,7 +5940,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
         </Crd>); })}
       </div>
       <ChartCard t={t} title={tr("Done each day")} sub={tr("Each shift's share of steps done. Click a day to open it.")}>
-        {lineDrawable(series) ? <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} /></div>
+        {lineDrawable(series) ? <div data-cr-range-chart=""><LineChartW t={t} height={260} categories={days.map(d => fdDay(d.date))} series={series} yMax={100} dots onPick={i => { if (days[i]) go(siteId, days[i].date, pickOk ? shiftPick : ""); }} zeroText={tr("0% done on every day with steps due")} /></div>
           : <div data-cr-no-steps={String(siteId)} style={{ fontSize: 13, color: t.textMut, padding: "16px 2px" }}>{tr("No steps due these days")}</div>}
       </ChartCard>
       <div style={{ marginTop: 14 }}><DataTable t={t} columns={cols} rows={days} rowKey={d => d.date} onRowClick={d => go(siteId, d.date, pickOk ? shiftPick : "")} /></div>
@@ -16674,10 +16719,14 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     if (v === undefined || v === null || v === "") return "--";
     if (k === "start_time" || k === "end_time") return String(v).slice(0, 5);
     if (k === "user_id") { const p = staffList.find(x => String(x.id) === String(v)); return p ? (p.name || ((p.firstName || "") + " " + (p.lastName || "")).trim()) : String(v); }
-    if (k === "site_id") { const x = sites.find(y => String(y.id) === String(v)); return x ? x.name : String(v); }
+    if (k === "site_id") { const x = sites.find(y => String(y.id) === String(v)); return x ? x.name : editModal && String(editModal.site_id) === String(v) && (editModal.site_name || editModal.siteName) ? rowSiteName(editModal) : String(v); }
     if (k === "status") return shiftStatusWord[v] || String(v);
     return String(v);
   };
+  // A shift at a site this person's site list leaves out, the test site for anyone but an admin or a test account
+  // since the API's Round 14 (part 397), keeps its own site in the picker, named and marked from the shift's row, so
+  // the window reads where it is. A change to it is refused by the API in its own words (403 testCrew.testSite).
+  const shiftOwnSite = (x) => (x && x.site_id && !sites.some(y => String(y.id) === String(x.site_id)) ? [{ v: x.site_id, l: rowSiteName(x) || String(x.site_id) }] : []);
   const openEdit = (shift) => {
     if (shift.site_id) loadSiteLocations(shift.site_id);
     const opened = { ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" };
@@ -16951,7 +17000,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) })), ...shiftOwnSite(editModal)]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>{tr("Start Time")}</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
         <div><Lbl>{tr("End Time")}</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
@@ -18028,6 +18077,12 @@ function SiteSafetyWalk({ af, t, siteId }) {
 // and records the conversation held (POST /api/inspections/findings/:id/conversation { heldAt?, covered,
 // othersPresent? }). Every refusal is drawn in the API's words, under the field its keys name.
 // #inspections/findings opens the tab and #inspections/findings/<id> the finding.
+// Since part 397 (the API's Round 14, section 2) the list answers followUpTopics and counts: { needsFollowUp, open,
+// overdue } over every unresolved finding whatever the filters, and each finding its title, its site's owners and
+// canDecide. The window takes its topics from the list's (or the finding's own read's) followUpTopics and its owners
+// from the finding's owners, with no read of the inspection; choosing and recording show only on a finding whose
+// canDecide is true; the tab's numbers are the counts; and a finding is named by its title. An API without them is
+// read as before: the inspection's topics and owners, the role's rule, and the first page's states.
 const FINDING_ORDER = { needsFollowUp: 0, overdue: 1, open: 2, done: 3, resolved: 4 };
 const findingsInOrder = (rows) => (rows || []).map((f, i) => ({ f, i })).sort((a, b) => {
   const ra = FINDING_ORDER[a.f.state] === undefined ? 5 : FINDING_ORDER[a.f.state];
@@ -18042,6 +18097,12 @@ const FINDING_STATE_FILTERS = [["", "Not done yet"], ["needsFollowUp", "Needs a 
 const FINDING_KIND_FILTERS = [["", "Any follow-up"], ["training", "Training|follow-up"], ["conversation", "A conversation|follow-up"], ["none", "No follow-up yet"]];
 const FINDING_FIELDS = ["kind", "topicId", "ownerId", "heldAt", "covered", "othersPresent"];
 const localNowInput = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes()); };
+const findingsCountOf = (d) => {
+  const c = d && d.counts && typeof d.counts === "object" ? d.counts : null;
+  if (c && Number.isFinite(Number(c.needsFollowUp)) && Number.isFinite(Number(c.overdue))) return Number(c.needsFollowUp) + Number(c.overdue);
+  return d && Array.isArray(d.findings) ? d.findings.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length : null;
+};
+const findingName = (f) => (f && typeof f.title === "string" && f.title.trim() ? f.title : (f && f.card && f.card.label) || "--");
 const findingFoundLine = (f) => [f.foundAt ? tr("Found {0}", fdLong(f.foundAt)) : "", f.inspection && f.inspection.templateName ? f.inspection.templateName : "", f.inspection && f.inspection.inspector && f.inspection.inspector.name ? tr("by {0}", f.inspection.inspector.name) : ""].filter(Boolean).join(", ");
 function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "", onOpen, onClose, onOpenInspection, onCount }) {
   const [filters, setFilters] = useState({ status: "", siteId: "", ownerId: "", kind: "" });
@@ -18050,12 +18111,17 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
   const [failed, setFailed] = useState("");
   const [owners, setOwners] = useState({});
   const [shown, setShown] = useState(null);
+  const [topics, setTopics] = useState(null);
+  const [counts, setCounts] = useState(null);
   const query = ["status", "siteId", "ownerId", "kind"].filter(k => filters[k]).map(k => k + "=" + encodeURIComponent(filters[k])).join("&");
   const read = useCallback(() => af("/api/inspections/findings" + (query ? "?" + query : "")).then(d => {
     const rows = d && Array.isArray(d.findings) ? d.findings : [];
     setList(rows); setAsOf(d && d.asOf ? String(d.asOf) : ""); setFailed("");
     setOwners(o => { const n = { ...o }; rows.forEach(f => { if (f && f.owner && f.owner.id) n[String(f.owner.id)] = f.owner.name || String(f.owner.id); }); return n; });
-    if (!query && onCount) onCount(rows.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length);
+    setTopics(d && Array.isArray(d.followUpTopics) ? d.followUpTopics : null);
+    const c = d && d.counts && typeof d.counts === "object" ? d.counts : null;
+    setCounts(c);
+    if ((c || !query) && onCount) onCount(findingsCountOf(d));
   }).catch(e => { setList(null); setFailed((e && e.message) || tr("This did not load.")); }), [af, query, onCount]);
   useEffect(() => { read(); }, [read]);
   // The finding the address names: the list's row when it holds it, else its own read.
@@ -18064,7 +18130,7 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
     const have = (list || []).find(f => f && String(f.id) === String(openId));
     if (have) { setShown(have); return undefined; }
     let alive = true;
-    af("/api/inspections/findings/" + encodeURIComponent(openId)).then(d => { if (alive && d && d.finding) setShown(d.finding); })
+    af("/api/inspections/findings/" + encodeURIComponent(openId)).then(d => { if (alive && d && d.finding) { setShown(d.finding); if (Array.isArray(d.followUpTopics)) setTopics(t0 => t0 || d.followUpTopics); } })
       .catch(e => { if (alive) setShown({ id: openId, refused: (e && e.message) || tr("Request failed") }); });
     return () => { alive = false; };
   }, [af, openId, list]);
@@ -18076,6 +18142,11 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
   return (<div data-findings-tab="">
     <SecT t={t}>{tr("Findings")}</SecT>
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A finding calls for training or a conversation with the person whose work it was. The ones with no follow-up and the late ones come first.")}</div>
+    {counts ? <div data-findings-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      {[["needsFollowUp", "Needs a follow-up"], ["overdue", "Late|follow-up"], ["open", "Open|follow-up"]].map(([k, l]) => <button key={k} type="button" data-findings-count={k} data-findings-count-value={String(Number(counts[k]) || 0)} aria-pressed={filters.status === k} onClick={() => setF("status", filters.status === k ? "" : k)}
+        style={{ minHeight: 44, padding: "6px 14px", borderRadius: R.sm, border: "1px solid " + (filters.status === k ? GO : t.border), background: filters.status === k ? t.goldBg : t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", display: "inline-flex", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: findingFollowStateColor(k, t) }}>{Number(counts[k]) || 0}</span><span style={{ color: t.textSec }}>{tr(l)}</span></button>)}
+    </div> : null}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10, marginBottom: 14 }}>
       <div><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} data-findings-filter="status" value={filters.status} onChange={e => setF("status", e.target.value)} options={FINDING_STATE_FILTERS.map(([v, l]) => ({ v, l: tr(l) }))} /></div>
       <div><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-findings-filter="siteId" value={filters.siteId} onChange={e => setF("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }].concat((sites || []).map(s => ({ v: String(s.id), l: siteShown(s) })))} /></div>
@@ -18088,8 +18159,8 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
     {rows.map(f => (<Crd key={f.id} t={t} onClick={() => onOpen && onOpen(f.id)} style={{ marginBottom: 8, padding: 14, cursor: "pointer", borderLeft: "3px solid " + findingFollowStateColor(f.state, t) }}>
       <div data-finding-row={f.id} data-finding-state={f.state || ""} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(f.card && f.card.label) || "--"}</div>
-          <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{[f.site && f.site.name, f.card && f.card.zone].filter(Boolean).join(" | ")}</div>
+          <div data-finding-title="" style={{ fontSize: 14, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{findingName(f)}</div>
+          <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{[f.site && f.site.name, f.card && f.card.label && f.card.label !== findingName(f) ? f.card.label : "", f.card && f.card.zone].filter(Boolean).join(" | ")}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{findingFoundLine(f)}</div>
           {f.notes ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.4, overflowWrap: "anywhere" }}>{f.notes}</div> : null}
           {Array.isArray(f.photos) && f.photos.length > 0 ? <div style={{ fontSize: 11, color: BL, marginTop: 4 }}>{tr("Photos ({0})", f.photos.length)}</div> : null}
@@ -18102,10 +18173,10 @@ function InspectionFindings({ af, t, sites = [], canDecide = false, openId = "",
         </div>
       </div>
     </Crd>))}
-    {shown && <FindingWindow key={shown.id} af={af} t={t} finding={shown} canDecide={canDecide} onChanged={changed} onClose={() => onClose && onClose()} onOpenInspection={onOpenInspection} />}
+    {shown && <FindingWindow key={shown.id} af={af} t={t} finding={shown} topics={topics} canDecide={canDecide} onChanged={changed} onClose={() => onClose && onClose()} onOpenInspection={onOpenInspection} />}
   </div>);
 }
-function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, onOpenInspection }) {
+function FindingWindow({ af, t, finding, topics = null, canDecide = false, onChanged, onClose, onOpenInspection }) {
   const f = finding || {};
   const fu = f.followUp || null;
   const [insp, setInsp] = useState(null);
@@ -18116,14 +18187,19 @@ function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, 
   const [once, busy] = useBusyGuard();
   const sid = f.inspection && f.inspection.scheduledInspectionId ? String(f.inspection.scheduledInspectionId) : "";
   const closed = f.status === "closed" || f.status === "declined";
-  const canChoose = canDecide && !f.refused && !closed && !followUpDone(fu);
-  const canRecord = canDecide && !f.refused && !!fu && fu.kind === "conversation" && !followUpDone(fu) && !(fu.conversation && fu.conversation.recordedAt);
-  // The inspection's lesson topics and the site's people, which a follow-up chooses from.
+  const mayDecide = typeof f.canDecide === "boolean" ? f.canDecide : canDecide;
+  const canChoose = mayDecide && !f.refused && !closed && !followUpDone(fu);
+  const canRecord = mayDecide && !f.refused && !!fu && fu.kind === "conversation" && !followUpDone(fu) && !(fu.conversation && fu.conversation.recordedAt);
+  // The lesson topics and the site's people a follow-up chooses from: the list's followUpTopics and the finding's
+  // owners (part 397), else the inspection's.
+  const ownTopics = Array.isArray(topics) && Array.isArray(f.owners) ? topics : null;
+  const ownOwners = ownTopics ? f.owners : null;
   const readInsp = useCallback(() => {
+    if (ownTopics) { setInsp({ topics: ownTopics, owners: ownOwners }); setInspFailed(""); return Promise.resolve(); }
     if (!sid) { setInsp({ topics: [], owners: [] }); return Promise.resolve(); }
     return af("/api/inspections/scheduled/" + encodeURIComponent(sid)).then(d => { setInsp({ topics: d && Array.isArray(d.followUpTopics) ? d.followUpTopics : [], owners: d && Array.isArray(d.owners) ? d.owners : [] }); setInspFailed(""); })
       .catch(e => { setInsp(null); setInspFailed((e && e.message) || tr("This did not load.")); });
-  }, [af, sid]);
+  }, [af, sid, ownTopics, ownOwners]);
   useEffect(() => { if (canChoose) readInsp(); }, [readInsp, canChoose]);
   const topicsInOrder = () => {
     const all = insp ? insp.topics : [];
@@ -18171,7 +18247,8 @@ function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, 
   return (<Mdl t={t} onClose={onClose}><div data-finding-window={f.id} data-finding-window-state={f.state || ""} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Finding")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
     {f.refused ? <div data-finding-refusal="read" role="alert" style={{ fontSize: 13, color: RD }}>{f.refused}</div> : <>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(f.card && f.card.label) || "--"}</div>
+      <div data-finding-window-title="" style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{findingName(f)}</div>
+      {f.card && f.card.label && f.card.label !== findingName(f) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("Card: {0}", f.card.label)}</div> : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "6px 0 10px" }}><Bdg l={findingFollowStateWord(f.state)} c={findingFollowStateColor(f.state, t)} />{f.severity ? <Bdg l={({ high: tr("high"), medium: tr("medium"), low: tr("low") })[f.severity] || f.severity} c={f.severity === "high" ? RD : f.severity === "medium" ? OR : BL} /> : null}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 12, fontSize: 11, color: t.textMut }}>
         <div>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(f.site && f.site.name) || "--"}</div></div>
@@ -18220,7 +18297,7 @@ function FindingWindow({ af, t, finding, canDecide = false, onChanged, onClose, 
         {sid && onOpenInspection && <Btn t={t} v="ghost" data-finding-open-inspection="" onClick={() => onOpenInspection(sid)} style={{ flex: "1 1 160px" }}>{tr("Open the inspection")}</Btn>}
         <Btn t={t} v="ghost" data-finding-open-issue="" onClick={() => { openFinding(f.id); }} style={{ flex: "1 1 160px" }}>{tr("Open in Issues")}</Btn>
       </div>
-      {!canDecide && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr("A follow-up is chosen by whoever manages inspections, or a supervisor at the site.")}</div>}
+      {!mayDecide && <div data-finding-cannot-decide="" style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr("A follow-up is chosen by whoever manages inspections, or a supervisor at the site.")}</div>}
     </>}
   </div></Mdl>);
 }
@@ -18492,7 +18569,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
   useEffect(() => { if (routeId) openDetail(routeId); }, [routeId]);
   useEffect(() => { if (onFindings) { setTab("findings"); setDetailView(null); } }, [onFindings]);
   const [findingsCount, setFindingsCount] = useState(null);
-  useEffect(() => { af("/api/inspections/findings").then(d => { if (d && Array.isArray(d.findings)) setFindingsCount(d.findings.filter(f => f && (f.state === "needsFollowUp" || f.state === "overdue")).length); }).catch(() => {}); }, [af]);
+  useEffect(() => { af("/api/inspections/findings").then(d => { const n = findingsCountOf(d); if (n !== null) setFindingsCount(n); }).catch(() => {}); }, [af]);
   const pickTab = (tb) => { setTab(tb); if (onRoute && (tb === "findings" || onFindings)) onRoute(tb === "findings" ? ["findings"] : []); };
   // Part 386: the last safety walk of every site the list holds.
   const listedSites = Array.from(new Set((scheduled || []).map(si => String(si.site_id || "")).filter(Boolean))).sort().join(",");
@@ -18566,9 +18643,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
       // Part 389: each card's finding and its follow-up, once the rows carry them (finding_follow_up and the rest).
       const fuOn = rows.some(r => r && Object.prototype.hasOwnProperty.call(r, "finding_follow_up"));
       const fuKind = (k) => (k === "training" ? "Training" : k === "conversation" ? "Conversation" : String(k || ""));
-      const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"].concat(fuOn ? ["Finding ID", "Follow-up", "Follow-up due", "Follow-up done"] : []);
+      // Part 397: the training follow-up's topic by name (finding_follow_up_topic, the API's Round 14), once the rows carry it.
+      const topicOn = fuOn && rows.some(r => r && Object.prototype.hasOwnProperty.call(r, "finding_follow_up_topic"));
+      const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"].concat(fuOn ? ["Finding ID", "Follow-up"].concat(topicOn ? ["Follow-up topic"] : [], ["Follow-up due", "Follow-up done"]) : []);
       const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", serviceCategoryLabel(catOf(r), cimsLabels), r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]
-        .concat(fuOn ? [r.finding_id || "", r.finding_follow_up ? fuKind(r.finding_follow_up) : r.finding_id ? "None yet" : "", r.finding_follow_up_due_on ? String(r.finding_follow_up_due_on).slice(0, 10) : "", r.finding_follow_up_done_at ? companyDayOf(r.finding_follow_up_done_at) : ""] : []));
+        .concat(fuOn ? [r.finding_id || "", r.finding_follow_up ? fuKind(r.finding_follow_up) : r.finding_id ? "None yet" : ""].concat(topicOn ? [r.finding_follow_up_topic || ""] : [], [r.finding_follow_up_due_on ? String(r.finding_follow_up_due_on).slice(0, 10) : "", r.finding_follow_up_done_at ? companyDayOf(r.finding_follow_up_done_at) : ""]) : []));
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));
@@ -20347,8 +20426,10 @@ const HEALTH_LIST_COLS = {
 // ===== COPY FOR CLAUDE (part 393, the owner's word of Nov 11) =====
 // When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
 // needs to fix it. Every Health incident and every number's drill-down sheet carries Copy for Claude, which copies
-// one plain ASCII block in English, built from the reads the page has today (the API's Round 14 adds GET
-// /api/health/incidents/:id/brief, which the next round reads instead):
+// one plain ASCII block in English. Since part 397 an incident's is the API's own (GET
+// /api/health/incidents/:id/brief, the API's Round 14), copied as it answers; the block below is built from the
+// page's reads for a number's drill-down sheet, which has no brief of its own yet, and for an incident whose brief
+// did not load:
 //   - the first line, OCSA Health brief;
 //   - an incident's id, kind, key, title, opened and closed times, what fixed it and its timeline;
 //   - an outage's monitor, reason and duration;
@@ -20579,6 +20660,7 @@ function HealthNumbers({ af, t, data, failed, onRetry, showToast }) {
 }
 // Run now's refusals in plain words, by their codes, for an answer that carries none.
 const HEALTH_RUN_NOW_WORDS = { "health.runNowBusy": "A run-through was just asked for. Wait two minutes before asking again.", "health.runNowOff": "Run now is not set up on this server yet.", "health.runNowFailed": "GitHub did not start the run-through. Try again in a few minutes." };
+// A skipped step carries the robot's reason (part 384, reason; the robot's Round 3 finding 3), drawn under it.
 function HealthRunWindow({ af, t, runId, onClose }) {
   const [d, setD] = useState(null);
   const [failed, setFailed] = useState("");
@@ -20607,6 +20689,7 @@ function HealthRunWindow({ af, t, runId, onClose }) {
         {(j.steps || []).map((s, si) => (<div key={si} data-health-step={s.name} data-health-step-outcome={s.outcome} style={{ padding: "6px 0", borderTop: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: t.text }}>{si + 1}. {s.name}</span><span style={{ color: healthOutcomeInk(s.outcome, t), fontWeight: 600, whiteSpace: "nowrap" }}>{healthOutcomeWord(s.outcome)} . {healthLength(s.durationMs)}</span></div>
           {s.error ? <div data-health-step-error="" style={{ fontSize: 12, color: RD, marginTop: 4, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{s.error}</div> : null}
+          {s.outcome === "skipped" && s.reason ? <div data-health-step-reason="" style={{ fontSize: 12, color: t.textSec, marginTop: 4, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{tr("Why it was skipped: {0}", s.reason)}</div> : null}
           {s.screenshotUrl ? <FreshImg src={s.screenshotUrl} readKey={"health-run:" + runId} onStale={read} alt={tr("Screenshot of the step that failed")} data-health-shot="" style={{ display: "block", maxWidth: "100%", marginTop: 6, borderRadius: 6, border: "1px solid " + t.border }} /> : null}
         </div>))}
       </div></Crd>))}
@@ -20738,9 +20821,16 @@ function HealthIncidents({ af, t, onChanged, numbers = null, showToast }) {
   const [once, busy] = useBusyGuard();
   const read = useCallback(() => af("/api/health/incidents" + (onlyOpen ? "?open=true" : "")).then(d => { setList(d && Array.isArray(d.incidents) ? d.incidents : []); setFailed(""); }).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); }), [af, onlyOpen]);
   useEffect(() => { setList(null); read(); }, [read]);
-  // Copy for Claude on an incident (part 393): a number's incident carries the number it names, from the page's
+  // Copy for Claude on an incident (part 397): the API's own brief, GET /api/health/incidents/:id/brief (the API's
+  // Round 14), text/plain, copied exactly as it answers. When that read fails or answers nothing, the brief is built
+  // from the page's own reads as part 393 built it: a number's incident carries the number it names, from the page's
   // numbers, and the rows of its list read now; an outage its monitor, reason and duration.
   const briefOfIncident = async (x) => {
+    const said = await af("/api/health/incidents/" + encodeURIComponent(x.id) + "/brief", { asText: true }).catch(() => "");
+    if (typeof said === "string" && said.trim()) return said;
+    return briefFromPage(x);
+  };
+  const briefFromPage = async (x) => {
     const number = x && x.kind === "number" && numbers && Array.isArray(numbers.numbers) ? numbers.numbers.find(n => n && n.key === x.key) || null : null;
     const day = numbers && numbers.day ? numbers.day : "";
     const [commit, rows, floor] = await Promise.all([

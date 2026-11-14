@@ -6194,6 +6194,13 @@ function createStubs() {
     finally { calls.splice(kept); language.calls = counted; }
   }
   part393.setProbe(quietGet);
+  // What the API's Round 14 answers for the dashboard (part 397), in audit/part397-stub.js: the API as built at
+  // ocsa-api ff35991, over part 393's and every layer under it but the pictures, in every run. It reads the incidents,
+  // the numbers and the runs a brief names through every layer as part393 reads features (quietGet), and the
+  // findings' topics and owners from the part389 layer.
+  const part397 = require("./part397-stub")({ seed, state, ok, clone, person, findings: () => (step253 ? findings() : []), schedule: SCHEDULE });
+  part397.setProbe(quietGet);
+  part397.setPart389(part389);
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7380,7 +7387,8 @@ function createStubs() {
     const under386 = () => part386.route(method, path, u.searchParams, body, record.language, under379);
     const under389 = () => part389.route(method, path, u.searchParams, body, record.language, under386);
     const under393 = () => part393.route(method, path, u.searchParams, body, record.language, under389);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under393);
+    const under397 = () => part397.route(method, path, u.searchParams, body, record.language, under393);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under397);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7510,6 +7518,11 @@ function createStubs() {
     setScene393: (o) => { part393.setScene(o || {}); },
     sent393: () => part393.sent(),
     model393: () => part393.model(),
+    // Part 397: the API's Round 14 (audit/part397-stub.js), what a run sent it, and its scenes.
+    setScene397: (o) => { part397.setScene(o || {}); },
+    sent397: () => part397.sent(),
+    model397: () => part397.model(),
+    briefs397: () => part397.briefs(),
     sent386: () => part386.sent(),
     model386: () => part386.model(),
     sent379: () => part379.sent(),
@@ -7678,6 +7691,7 @@ function createStubs() {
       part386.reset();
       part389.reset();
       part393.reset();
+      part397.reset();
       pictures372.reset();
     },
     fixtures: {

@@ -5840,6 +5840,12 @@ export const WORDS = {
   "Walked on {0}, scheduled {1}": { es: "Recorrido en {0}, programada para el {1}", fr: "Fait lors de {0}, pr\u00e9vue le {1}" },
   "Walked on {0}": { es: "Recorrido en {0}", fr: "Fait lors de {0}" },
   "This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.": { es: "Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. \u00c1bralo para ver lo que se marc\u00f3 ah\u00ed.", fr: "C'est le site de test. Son travail est exclu de ces totaux et de tous les rapports. Ouvrez-le pour voir ce qui y a \u00e9t\u00e9 coch\u00e9." },
+  "Every point is 0.": { es: "Todos los puntos est\u00e1n en 0.", fr: "Tous les points sont \u00e0 0." },
+  "Every value is 0.": { es: "Todos los valores est\u00e1n en 0.", fr: "Toutes les valeurs sont \u00e0 0." },
+  "0% done on every day with steps due": { es: "0 % hecho en todos los d\u00edas con pasos pendientes", fr: "0 % fait chaque jour avec des \u00e9tapes \u00e0 faire" },
+  "Nothing to draw yet.": { es: "Todav\u00eda no hay nada que trazar.", fr: "Rien \u00e0 tracer pour l'instant." },
+  "Why it was skipped: {0}": { es: "Por qu\u00e9 se omiti\u00f3: {0}", fr: "Pourquoi elle a \u00e9t\u00e9 saut\u00e9e : {0}" },
+  "Card: {0}": { es: "Tarjeta: {0}", fr: "Carte : {0}" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
