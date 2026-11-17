@@ -1892,11 +1892,11 @@ const SHOTS = [
   // testSite).
   { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
     open: "sites", ready: "[data-site-test]" },
-  // Part 393, section 3: Checklist Results' All sites with Riverbend Logistics Hub as the test site, which the summary
-  // leaves out, so its card says why it has no counts (audit/part393-stub.js, testSite).
+  // Part 400 (the API's Round 15, 8.5): Checklist Results' All sites with Riverbend Logistics Hub as the test site, which
+  // the summary names in leftOut, so it has no card and the line above the cards says so (audit/part400-stub.js).
   { name: "checklist-results-test-site", entry: "Tell the test site apart",
-    arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene379({ testSite: on }); stubs.setScene393({ testSite: on ? seed.SITES[2].id : null }); },
-    open: "checklist/all/today", ready: "[data-cr-test-site]", act: async () => { await wait(900); } },
+    arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene379({ testSite: on }); stubs.setScene400({ testSite: on ? seed.SITES[2].id : null }); },
+    open: "checklist/all/today", ready: "[data-cr-left-out]", act: async () => { await wait(900); } },
   // Part 386, section 2: HR Records' training records, the certificate on ht-5 uploaded by the person from an
   // outside course (audit/part386-stub.js).
   { name: "training-certificate-by", entry: "Upload a training certificate from an outside course",
@@ -1959,14 +1959,16 @@ const SHOTS = [
     open: "health", ready: "[data-uptime-monitor]" },
   { name: "health-outage", entry: "See the uptime monitors and outages", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
     open: "health/incidents", ready: "[data-health-outage]" },
-  // Part 393, section 2: Copy for Claude on a number's incident, copied with its toast, and the box a browser that
-  // refuses the clipboard shows, the brief selected (audit/part393-stub.js).
+  // Part 400 (the API's Round 15, 8.1): Copy for Claude on a number's drill-down sheet, the API's brief for the number
+  // copied with its toast; and, since part 393, the box a browser that refuses the clipboard shows, the brief selected.
   { name: "health-copy-for-claude", entry: "Copy a health problem for Claude", as: "superAdmin",
-    open: "health/incidents", ready: "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']",
+    open: "health", ready: "[data-health-number='slowest_p95_ms']",
     act: async (c) => {
       await c.page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: c.origin });
+      await click(c, "[data-health-number='slowest_p95_ms']");
+      await until(c, "[data-copy-for-claude-button='slowest_p95_ms']");
       await c.d.waitToastGone(4000);
-      await click(c, "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']");
+      await click(c, "[data-copy-for-claude-button='slowest_p95_ms']");
       await c.d.waitToast(5000);
     } },
   { name: "health-copy-by-hand", entry: "Copy a health problem for Claude", as: "superAdmin",

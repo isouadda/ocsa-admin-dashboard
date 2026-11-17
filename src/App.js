@@ -1241,21 +1241,36 @@ export default function AdminDashboard() {
   const [probeRound, setProbeRound] = useState(0);
   // Whether the session's first round of probes has answered (DASH-27).
   const [probesIn, setProbesIn] = useState(false);
+  // Part 400 (the API's Round 15, 8.6): features also answers equipment, periodic, tickets, maintenance, leave and
+  // devices, each by its list route's own gate, so sign-in sets those six items from it and reads none of the six lists.
+  // A key features does not answer (an API before Round 15, or the per-person route read in its place) is read from
+  // its list as before. Maintenance requests, once features says yes, still reads its options for the most photos a
+  // request takes and the days a response is due; the item shows whatever that read answers.
   useEffect(() => {
     if (!token) { setDevicesOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setMaintenance(null); setLeaveOn(false); setProbesIn(false); return undefined; }
+    if (features === null) return undefined;
+    const said = (k) => (features && typeof features[k] === "boolean" ? features[k] : null);
     // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
     // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
     let alive = true; let soft = false; let timer = null;
     const probes = [];
-    probes.push(af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); }));
-    probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
-    probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
-    probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? { maxPhotos: Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d.responseDays } : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
-    probes.push(af("/api/leave/policies").then(d => { if (alive) setLeaveOn(!!(d && Array.isArray(d.policies))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLeaveOn(false); console.warn("Leave balances:", e.message); }));
-    probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
+    const maintOf = (d) => ({ maxPhotos: d && Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d ? d.responseDays : undefined });
+    if (said("equipment") !== null) setEquipmentOn(said("equipment"));
+    else probes.push(af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); }));
+    if (said("periodic") !== null) setPeriodicOn(said("periodic"));
+    else probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
+    if (said("tickets") !== null) setTicketsOn(said("tickets"));
+    else probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
+    if (said("maintenance") === false) setMaintenance(null);
+    else if (said("maintenance") === true) probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(maintOf(d && Array.isArray(d.statuses) ? d : null)); }).catch(e => { if (alive) setMaintenance(maintOf(null)); console.warn("Maintenance options:", e.message); }));
+    else probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? maintOf(d) : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
+    if (said("leave") !== null) setLeaveOn(said("leave"));
+    else probes.push(af("/api/leave/policies").then(d => { if (alive) setLeaveOn(!!(d && Array.isArray(d.policies))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLeaveOn(false); console.warn("Leave balances:", e.message); }));
+    if (said("devices") !== null) setDevicesOn(said("devices"));
+    else probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
     Promise.all(probes).then(() => { if (alive) setProbesIn(true); if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
     return () => { alive = false; clearTimeout(timer); };
-  }, [token, af, probeRound]);
+  }, [token, af, probeRound, features]);
   // The four areas features names (part 393): from features once the permissions read answers with it, else each read
   // once its list answers, a soft failure read again after 30 seconds up to three times, as the other probes are.
   const [fourIn, setFourIn] = useState(false);
@@ -5533,7 +5548,10 @@ async function crReadAll(af, from, to) {
   if (!r || !Array.isArray(r.sites)) throw new Error(tr("This did not load."));
   const bySite = {};
   r.sites.forEach(x => { if (x && x.siteId != null) bySite[String(x.siteId)] = { notTracked: x.notTracked === true, days: Array.isArray(x.days) ? x.days : [] }; });
-  return { span, bySite };
+  // Part 400 (the API's Round 15, 8.5): leftOut [{ siteId, reason: "test" }] beside sites names the test sites the
+  // counts leave out, by id. null from an API before Round 15.
+  const leftOut = Array.isArray(r.leftOut) ? r.leftOut.filter(x => x && x.siteId != null).map(x => String(x.siteId)) : null;
+  return { span, bySite, leftOut };
 }
 // The task list's rows for a view, as shown: each day's groups, zone by zone, through the filters.
 function crRows(days, keep) {
@@ -5872,7 +5890,10 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     // (part 393, the robot's Round 1 finding 4): the summary leaves the test site out, as every report does, so its
     // card says so and opens the site, whose own record reads its checks. A week with steps due and none done is a
     // line of zeros, drawn flat with its words, never by ApexCharts (part 397, the robot's Round 3).
-    const cards = active.map(s => {
+    // Since part 400 a site the summary names in leftOut has no card: the line above the cards says a test site was left
+    // out. An API before Round 15 answers no leftOut, and the test site's card says so, as part 393 drew it.
+    const leftOut = Array.isArray(data.leftOut) ? data.leftOut : null;
+    const cards = active.filter(s => !leftOut || leftOut.indexOf(String(s.id)) < 0).map(s => {
       const rec = data.bySite[String(s.id)] || null;
       const testLeftOut = !rec && (s.is_test === true || s.isTest === true);
       const got = rec || testLeftOut ? {} : { error: tr("This did not load.") };
@@ -5888,6 +5909,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     });
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
+      {leftOut && leftOut.length > 0 && <div data-cr-left-out={leftOut.join(",")} style={{ fontSize: 12, color: t.textSec, marginTop: -6, marginBottom: 12, lineHeight: 1.5 }}>{trn("{0} test site is left out of these counts, as it is of every report.|count", leftOut.length)}</div>}
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -20533,9 +20555,9 @@ const HEALTH_LIST_COLS = {
 // When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
 // needs to fix it. Every Health incident and every number's drill-down sheet carries Copy for Claude, which copies
 // one plain ASCII block in English. Since part 397 an incident's is the API's own (GET
-// /api/health/incidents/:id/brief, the API's Round 14), copied as it answers; the block below is built from the
-// page's reads for a number's drill-down sheet, which has no brief of its own yet, and for an incident whose brief
-// did not load:
+// /api/health/incidents/:id/brief, the API's Round 14), and since part 400 a number's drill-down sheet's too (GET
+// /api/health/numbers/:key/brief?day=, the API's Round 15), each copied as it answers; the block below is built from
+// the page's reads when that read fails or answers nothing:
 //   - the first line, OCSA Health brief;
 //   - an incident's id, kind, key, title, opened and closed times, what fixed it and its timeline;
 //   - an outage's monitor, reason and duration;
@@ -20545,7 +20567,9 @@ const HEALTH_LIST_COLS = {
 //   - the rows the drill-down shows, routes and counts only: a list of people, or of rows that name a site or a
 //     person, reads as how many, never a name, email, phone or badge;
 //   - the API's commit from GET /api/health (commit), and the dashboard's own build.
-// The number's name is the screen's, so it is copied only on an English screen; its key names it in every language.
+// Since part 400 the number's English name is the API's labelEn, in every language (an API before Round 15 sends
+// none, and the screen's name is copied only on an English screen); its floor is the number's own lines.minRequests;
+// and the list's people (true when its rows name people or sites) says whether its rows are written out or counted.
 // Anything outside plain ASCII in a value the API sent is written without its accent, or as a question mark.
 // The fields of a list's rows a brief carries, by the number's key. Any other list is of people, or names them.
 const HEALTH_BRIEF_COLS = {
@@ -20569,7 +20593,7 @@ const briefLine = (lines, unit) => {
   if (lines.kind === "belowShare") return "yellow under " + one(lines.yellow) + ", red under " + one(lines.red);
   return "yellow at " + one(lines.yellow) + ", red at " + one(lines.red);
 };
-function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
+function healthBrief({ incident, number, rows, rowsDay, floor, commit, people }) {
   const out = ["OCSA Health brief"];
   const x = incident;
   if (x) {
@@ -20587,7 +20611,8 @@ function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
   if (n) {
     const hist = Array.isArray(n.history) ? n.history : [];
     out.push("", "Number: " + briefValue(n.key));
-    if (getLang() === "en" && n.label) out.push("Name: " + briefValue(n.label));
+    if (n.labelEn) out.push("Name: " + briefValue(n.labelEn));
+    else if (getLang() === "en" && n.label) out.push("Name: " + briefValue(n.label));
     out.push("Unit: " + briefValue(n.unit), "Today: " + briefValue(n.value) + ", " + briefValue(n.state || "unknown"), "Yesterday: " + briefValue(n.previous),
       "7 days before, average: " + briefValue(n.weekAverage), "Lines: " + briefLine(n.lines, n.unit));
     if (floor !== null && floor !== undefined) out.push("Floor: a route counts once it served " + briefValue(floor) + " requests in the day");
@@ -20595,9 +20620,12 @@ function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
     hist.forEach(h => out.push("- " + briefValue(h && h.day) + ": " + briefValue(h && h.value) + ", " + briefValue((h && h.state) || "unknown")));
   }
   if (n && Array.isArray(rows)) {
-    const cols = HEALTH_BRIEF_COLS[n.key];
+    // The list's people, once the API answers it, decides; else a list with no columns here is taken to name people.
+    const named = typeof people === "boolean" ? people : !HEALTH_BRIEF_COLS[n.key];
+    const cols = named ? null : HEALTH_BRIEF_COLS[n.key] || keptOnce([].concat(...rows.map(r => Object.keys(r || {}).filter(k => r[k] === null || typeof r[k] !== "object"))));
     out.push("", "Behind it on " + briefValue(rowsDay) + " (" + rows.length + (rows.length === 1 ? " row" : " rows") + "):");
-    if (!cols) out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row about a person" : " rows about people") + ", names left out" : "- nothing");
+    if (named && typeof people === "boolean") out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row naming a person or a site" : " rows naming people or sites") + ", names left out" : "- nothing");
+    else if (!cols) out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row about a person" : " rows about people") + ", names left out" : "- nothing");
     else if (!rows.length) out.push("- nothing");
     else rows.forEach(r => out.push("- " + cols.map(k => k + " " + briefValue(r && r[k])).join(", ")));
   }
@@ -20607,7 +20635,13 @@ function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
 // The API's commit, GET /api/health (part 384, 5.8), and a number's floor, GET /api/health/thresholds; null when either
 // read fails or answers none.
 const healthCommitOf = (af) => af("/api/health").then(d => (d && typeof d.commit === "string" && d.commit ? d.commit : null)).catch(() => null);
-const healthFloorOf = (af, key) => af("/api/health/thresholds").then(d => { const r = (d && Array.isArray(d.thresholds) ? d.thresholds : []).find(x => x && x.key === key); return r && r.minRequests !== undefined && r.minRequests !== null ? r.minRequests : null; }).catch(() => null);
+// Since part 400 a number's floor is its own lines.minRequests (the number with a floor has answered it since the API's
+// part 382), so the brief reads no thresholds.
+const healthFloorOf = (number) => (number && number.lines && number.lines.minRequests !== undefined && number.lines.minRequests !== null ? number.lines.minRequests : null);
+// A number's brief, the API's own (GET /api/health/numbers/:key/brief?day=, text/plain), or "" when that read fails or
+// answers nothing.
+const healthNumberBriefOf = (af, key, day) => af("/api/health/numbers/" + encodeURIComponent(key) + "/brief" + (day ? "?day=" + encodeURIComponent(day) : ""), { asText: true })
+  .then(x => (typeof x === "string" && x.trim() ? x : "")).catch(() => "");
 // The button, its toast, and the box with the brief selected where the browser refuses the clipboard.
 function CopyForClaude({ t, at, build, showToast }) {
   const [busy, setBusy] = useState(false);
@@ -20637,13 +20671,14 @@ function CopyForClaude({ t, at, build, showToast }) {
 }
 function HealthListWindow({ af, t, number, day, onClose, showToast }) {
   const [items, setItems] = useState(null);
+  const [people, setPeople] = useState(null);
   const [failed, setFailed] = useState("");
   const [again, setAgain] = useState(0);
   useEffect(() => {
     let alive = true;
     setItems(null); setFailed("");
     af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : ""))
-      .then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : []); })
+      .then(d => { if (alive) { setItems(d && Array.isArray(d.items) ? d.items : []); setPeople(d && typeof d.people === "boolean" ? d.people : null); } })
       .catch(e => { if (alive) { setItems([]); setFailed(e.message || tr("This did not load.")); } });
     return () => { alive = false; };
   }, [af, number.key, day, again]);
@@ -20655,7 +20690,7 @@ function HealthListWindow({ af, t, number, day, onClose, showToast }) {
     </div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
       <div style={{ flex: "1 1 240px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Who or what is behind this number on {0}, read now.", healthDay(day))}</div>
-      {items !== null && !failed ? <CopyForClaude t={t} at={number.key} showToast={showToast} build={async () => { const [commit, floor] = await Promise.all([healthCommitOf(af), healthFloorOf(af, number.key)]); return healthBrief({ number, rows: items, rowsDay: day, floor, commit }); }} /> : null}
+      {items !== null && !failed ? <CopyForClaude t={t} at={number.key} showToast={showToast} build={async () => { const said = await healthNumberBriefOf(af, number.key, day); if (said) return said; const commit = await healthCommitOf(af); return healthBrief({ number, rows: items, rowsDay: day, floor: healthFloorOf(number), commit, people: people === null ? undefined : people }); }} /> : null}
     </div>
     {items === null ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} text={failed} />
@@ -20939,12 +20974,12 @@ function HealthIncidents({ af, t, onChanged, numbers = null, showToast }) {
   const briefFromPage = async (x) => {
     const number = x && x.kind === "number" && numbers && Array.isArray(numbers.numbers) ? numbers.numbers.find(n => n && n.key === x.key) || null : null;
     const day = numbers && numbers.day ? numbers.day : "";
-    const [commit, rows, floor] = await Promise.all([
+    const [commit, list] = await Promise.all([
       healthCommitOf(af),
-      number ? af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : "")).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
-      number ? healthFloorOf(af, number.key) : null,
+      number ? af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : "")).catch(() => null) : null,
     ]);
-    return healthBrief({ incident: x, number, rows, rowsDay: day, floor, commit });
+    const rows = list && Array.isArray(list.items) ? list.items : null;
+    return healthBrief({ incident: x, number, rows, rowsDay: day, floor: healthFloorOf(number), commit, people: list && typeof list.people === "boolean" ? list.people : undefined });
   };
   const save = once(async () => {
     const text = (writing && writing.text || "").replace(/\s+/g, " ").trim();
@@ -28595,8 +28630,11 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const issuerIsMe = !!selfId && !!(w && w.issuedBy && w.issuedBy.userId != null) && String(w.issuedBy.userId) === String(selfId);
   const subjectId = String(userId || (w && w.person && w.person.userId) || "");
   const [testSubject, setTestSubject] = useState(null);
+  // Part 400 (the API's Round 15, 8.4): every full view of a warning answers canRescind by the rescind route's own rule
+  // (helpers/discipline.js mayRescind), and that decides; the rule below is read only from an API that sends none.
+  const apiSaysRescind = !!w && typeof w.canRescind === "boolean";
   useEffect(() => {
-    if (isAdmin || !issuerIsMe || !subjectId) return undefined;
+    if (apiSaysRescind || isAdmin || !issuerIsMe || !subjectId) return undefined;
     if (self && self.test) { setTestSubject(true); return undefined; }
     const flagOf = (p) => (!p ? null : p.isTestAccount === true || p.is_test_account === true ? true : Object.prototype.hasOwnProperty.call(p, "isTestAccount") || Object.prototype.hasOwnProperty.call(p, "is_test_account") ? false : null);
     const said = flagOf(person) !== null ? flagOf(person) : flagOf((knownPeople || []).find(p => p && String(p.id) === subjectId));
@@ -28606,8 +28644,8 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
       .then(d => { const row = (d && Array.isArray(d.employees) ? d.employees : []).find(e => e && String(e.id) === subjectId); if (alive) setTestSubject(!!(row && row.is_test_account === true)); })
       .catch(() => { if (alive) setTestSubject(false); });
     return () => { alive = false; };
-  }, [af, isAdmin, issuerIsMe, subjectId, person, knownPeople, self]);
-  const mayRescind = isAdmin || (issuerIsMe && testSubject === true);
+  }, [af, apiSaysRescind, isAdmin, issuerIsMe, subjectId, person, knownPeople, self]);
+  const mayRescind = apiSaysRescind ? w.canRescind === true : isAdmin || (issuerIsMe && testSubject === true);
   const [endOpen, setEndOpen] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);

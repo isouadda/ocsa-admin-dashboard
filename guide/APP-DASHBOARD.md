@@ -2983,11 +2983,11 @@ Who can do this: anyone who can see the sites
 1. One site is kept for the robot's run-throughs on the Health page. In **Sites** (**Sitios**) its name carries **TEST** (**PRUEBA**), and so does its page.
 2. Wherever a site is picked or named, such as **Checklist Results** (**Resultados de la lista**), **Live Ops** (**Operaciones en vivo**), **Schedule** (**Horario**), a task or a report, the test site reads with (**TEST** (**PRUEBA**)) after its name, the way a test account is marked.
 3. Only admins and test accounts see the test site in a list of sites or a picker. A supervisor does not, and a change a supervisor makes there, such as to a shift at the test site, is refused in the system's own words: this is the test site, and only test accounts and admins can make changes there. A shift there still names its site in **Edit Scheduled Shift** (**Editar el turno programado**).
-4. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export. On **Checklist Results** (**Resultados de la lista**), **All sites** (**Todos los sitios**), its card says so: **This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.** (**Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. Ábralo para ver lo que se marcó ahí.**)
+4. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export. On **Checklist Results** (**Resultados de la lista**), **All sites** (**Todos los sitios**), it has no card, and the line above the cards says a test site is left out of these counts, as it is of every report. Pick it under the site to see what was checked there.
 Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
 Picture: sites-test-site
 Picture: checklist-results-test-site
-Last checked: 2026-11-12
+Last checked: 2026-11-17
 
 ## Renew the robot's sign-in (admin dashboard)
 Who can do this: the super admin renews it; anyone given the Health page can read it
@@ -3091,10 +3091,10 @@ Last checked: 2026-11-12
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. When something on the Health page turns red, click **Health** (**Salud**), then **Incidents** (**Incidentes**), and find the incident it opened. Or, on **Numbers** (**Indicadores**), click the red number to open who or what is behind it.
 2. Click **Copy for Claude** (**Copiar para Claude**). The page says **Copied for Claude. Paste it into the chat.** (**Copiado para Claude. Péguelo en el chat.**)
-3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in. On an incident it is the system's own brief, copied as the system writes it: the incident with its timeline, the number with how it is worked out, its lines, today and the 7 days before, the rows behind it, an outage's monitor, reason and how long it lasted, a run-through's last runs and the steps that failed, and the API's version. On a number's sheet it is the number with its lines and its past days, the routes and counts behind it, the API's version and the dashboard's version. When the system's brief does not load, an incident's is made from the page the same way.
+3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in. On an incident it is the system's own brief, copied as the system writes it: the incident with its timeline, the number with how it is worked out, its lines, today and the 7 days before, the rows behind it, an outage's monitor, reason and how long it lasted, a run-through's last runs and the steps that failed, and the API's version. On a number's sheet it is the system's brief for that number on the day the sheet reads: how it is worked out, its lines, today and the 7 days before, and the rows behind it. When the system's brief does not load, it is made from the page the same way, with the number's English name in any language.
 4. People behind a number are given as how many, never by name, email, phone or badge.
 If it does not work: when the browser does not let the page copy, the page says **This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.** (**Este navegador no dejó que la página copiara. El resumen está seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.**) Press those keys, then paste it into the chat.
 Words people use for this: copy for claude, send to claude, health brief, paste into the chat, red number, incident details, ask claude to fix it, copiar para claude.
 Picture: health-copy-for-claude
 Picture: health-copy-by-hand
-Last checked: 2026-11-12
+Last checked: 2026-11-17

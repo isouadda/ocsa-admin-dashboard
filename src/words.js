@@ -5894,6 +5894,11 @@ export const WORDS = {
   "Vacation": { es: "Vacaciones", fr: "Vacances" },
   "Personal day": { es: "D\u00eda personal", fr: "Journ\u00e9e personnelle" },
   "Bereavement": { es: "Duelo", fr: "Deuil" },
+  "{0} test site is left out of these counts, as it is of every report.|count": {
+    en: { one: "{0} test site is left out of these counts, as it is of every report.", other: "{0} test sites are left out of these counts, as they are of every report." },
+    es: { one: "{0} sitio de prueba queda fuera de estos conteos, como de todos los informes.", other: "{0} sitios de prueba quedan fuera de estos conteos, como de todos los informes." },
+    fr: { one: "{0} site de test est exclu de ces comptes, comme de tous les rapports.", other: "{0} sites de test sont exclus de ces comptes, comme de tous les rapports." },
+  },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
