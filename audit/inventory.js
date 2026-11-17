@@ -153,7 +153,7 @@ const WINDOWS = [
   { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [3511] },
   { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [3566] },
   { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [3575] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [28907] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [28913] },
   { id: "staff/add", page: "staff", title: "Add New Staff", lines: [3631] },
   // Step 181: the Temporary PIN window Add New Staff opens once the API has saved the person.
   { id: "staff/temporary-pin", page: "staff", title: "Temporary PIN", lines: [3305] },
@@ -210,21 +210,21 @@ const WINDOWS = [
   // the part389 suite opens it on a stub of its own (drivenBy).
   { id: "inspections/finding", page: "inspections", title: "Finding", lines: [18247], drivenBy: "part389" },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [22627] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [22635] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [22643] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [22657] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [22672] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [22683] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [22633] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [22641] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [22649] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [22663] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [22678] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [22689] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [23657] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [27578] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [27631] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [27785] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [23663] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [27584] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [27637] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [27791] },
   // Step 166: the picker Start a form opens, and the window a form is filled in.
-  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [26120] },
-  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [24495] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [27748] },
+  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [26126] },
+  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [24501] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [27754] },
   // Step 169's customer links window is gone: since Step 187 Customer links is a view of Forms
   // (#forms/links), which cases/customer-links.js drives, and its windows are claimed below. Every other
   // line here was re-anchored by the October audit (part 343) from the App.js of 24c775d, where these
@@ -233,22 +233,22 @@ const WINDOWS = [
   // Step 185: a person's questions, opened from Everyone who asked on Help insights.
   { id: "help-insights/person", page: "help-insights", title: "Their questions", lines: [11387] },
   // Step 187: a form's Version history, opened from a row of the Form builder's list.
-  { id: "form-builder/version-history", page: "form-builder", title: "Version history", lines: [24542] },
+  { id: "form-builder/version-history", page: "form-builder", title: "Version history", lines: [24548] },
 
   // Step 181: My alerts, which the shell draws from the name menu, and the phone's More menu, on any
   // page once GET /api/notifications/settings has answered.
   { id: "shell/my-alerts", page: "overview", title: "My alerts", lines: [10259] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [29898] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [29904] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [30586] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [30611] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [30645] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [30943] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [30592] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [30617] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [30651] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [30949] },
   // Round 1 (DASH-07, decision 4): a person's clearance dates, opened on the Clearances page for
   // someone HR Records is closed to, at #clearances/<id>. The shared stub has no clearances, so the
   // round1 suite drives it on the stub as the API is built (drivenBy), and the windows suite leaves it.
-  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [28109], drivenBy: "round1" },
+  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [28115], drivenBy: "round1" },
   // Round 2 (part 353): Who opened this beside an HR file, and the shell's window for a file the API
   // withheld because its log could not be written, with Try again. The round2 suite drives both on the
   // stub as the API is built at its part 352 (drivenBy), and the windows suite leaves them.
@@ -259,11 +259,11 @@ const WINDOWS = [
   { id: "staff/take-back-end", page: "staff", title: "Take back the end", lines: [2379], drivenBy: "round3" },
   // Part 366 (DASH-26): Discipline's Issue a warning picks the person before the warning window opens.
   // The findings366 suite opens it as the contract 1 supervisor and goes on to the warning window.
-  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [29363], drivenBy: "findings366" },
+  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [29369], drivenBy: "findings366" },
   // Part 361: Send welcome emails on Staff Management, which sends the welcome email to everyone who has
   // not signed in. The welcome-all suite drives it on the stub's people of audit/welcome-all-stub.js
   // (drivenBy), and the windows suite leaves it.
-  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [34226], drivenBy: "welcome-all" },
+  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [34232], drivenBy: "welcome-all" },
   // Part 368: maintenance requests. New maintenance request, a request's window with Record a response and
   // Send a follow-up, and a site's maintenance contact. The part368 suite drives each on the stub as the API
   // is built at ca4aafa (drivenBy), and the windows suite leaves them.

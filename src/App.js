@@ -22193,16 +22193,20 @@ function TrustedDevices({ af, t, showToast }) {
 }
 
 // ===== HOLIDAYS (Step 248) =====
-// OCSA-HR-002 8.2 (STEP247_CONTRACT.md version 2, section 1): the eleven federal holidays, each on the
-// day the federal government observes it, and the office's own days, the two Eids among them, whose
-// dates OCSA confirms each year. GET /api/holidays?year= answers a year's list, federal and office, by
-// date; includeRetired=1 adds the office days retired. A federal day is the handbook's and is not
-// changed here. An office day is added with POST /api/holidays and edited or retired with PATCH
+// OCSA-HR-002 Part 8.6: since part 400 (the API's Round 15, part 395) the handbook's nine paid holidays, each on the
+// day it is observed (a Saturday the Friday before, a Sunday the Monday after), and any other day the office closes.
+// GET /api/holidays?year= answers a year's list by date: the nine read kind "federal", source "handbook" and
+// federal, false for the Day After Thanksgiving, which the handbook sets by its rule; an office day reads source
+// "office". An API before Round 15 sends no source, and its kind federal is read as the handbook's.
+// includeRetired=1 adds the office days retired. A handbook day is not changed here. An office day is added with POST /api/holidays and edited or retired with PATCH
 // /api/holidays/:id; nothing is ever deleted. A refusal is drawn word for word under the field its
 // keys name, and anything else at the top. A day is read from its YYYY-MM-DD parts, never as a Date
 // made from the string, so it is the same day wherever the computer is set.
 const holidaysOf = (d) => (d && Array.isArray(d.holidays) ? d.holidays.filter(h => h && typeof h.date === "string") : null);
 const holidayDay = (d) => localDate(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+const holidayIsHandbook = (h) => !!h && (h.source === "handbook" || (h.source !== "office" && h.kind === "federal"));
+// The line under a handbook day the federal calendar does not hold, by its key.
+const holidayRuleLine = (h) => (h.key === "dayAfterThanksgiving" ? tr("Set by the handbook's rule: the Friday after Thanksgiving.") : tr("Set by the handbook's own rule."));
 const HOLIDAY_FIELDS = ["date", "name", "note"];
 function HolidaysPanel({ af, t, showToast, initial }) {
   // This year and next, by the browser's own calendar day.
@@ -22266,12 +22270,13 @@ function HolidaysPanel({ af, t, showToast, initial }) {
   const isRetired = (h) => h.active === false;
   const cols = [
     { header: tr("Date"), tdStyle: { whiteSpace: "nowrap" }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text }}>{holidayDay(h.date)}
-      {h.kind === "federal" && h.observedFrom ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Observed for {0}", holidayDay(h.observedFrom))}</div> : null}</span>) },
-    { header: tr("Holiday"), tdStyle: { minWidth: 160 }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text, fontWeight: 600 }}>{h.name}
-      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|holiday")} c={RD} /></span> : null}</span>) },
-    { header: tr("Kind"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: h => (h.kind === "federal" ? tr("Federal") : tr("Office|holiday")) },
+      {holidayIsHandbook(h) && h.observedFrom ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Observed for {0}", holidayDay(h.observedFrom))}</div> : null}</span>) },
+    { header: tr("Holiday"), tdStyle: { minWidth: 160 }, render: h => (<span data-holiday-row={holidayIsHandbook(h) ? "handbook" : "office"} data-holiday-key={h.key || undefined} style={{ color: isRetired(h) ? t.textMut : t.text, fontWeight: 600 }}>{h.name}
+      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|holiday")} c={RD} /></span> : null}
+      {holidayIsHandbook(h) && h.federal === false ? <div data-holiday-rule="" style={{ fontSize: 11, color: t.textMut, fontWeight: 400, marginTop: 2 }}>{holidayRuleLine(h)}</div> : null}</span>) },
+    { header: tr("Kind"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: h => <span data-holiday-kind={holidayIsHandbook(h) ? "handbook" : "office"}>{holidayIsHandbook(h) ? tr("Handbook|holiday") : tr("Office|holiday")}</span> },
     { header: tr("Note"), tdStyle: { minWidth: 140, color: t.textSec, overflowWrap: "anywhere" }, render: h => h.note || "" },
-    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: h => (h.kind === "federal"
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: h => (holidayIsHandbook(h)
       ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("Set by the handbook")}</span>
       : isRetired(h) ? null
       : <span>
@@ -22285,7 +22290,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
   const sw = (y) => (<button key={y} onClick={() => setYear(y)} aria-pressed={year === y} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (year === y ? GO : t.border), background: year === y ? t.goldBg : "transparent", color: year === y ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{String(y)}</button>);
   const brand = clientConfig.company.brandTag;
   return (<div data-holidays="">
-    <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("{0} observes the eleven federal holidays and the two Eids. Federal days follow the handbook. Enter each year's Eid dates here once {0} confirms them, and any other day {0} closes.", brand)}</div>
+    <div data-holidays-intro="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("{0} observes the nine paid holidays its handbook names, listed here each year as the handbook sets them. Add any other day {0} closes.", brand)}</div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 8 }}>{years.map(sw)}</div>
       <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.textSec }}>
@@ -22302,6 +22307,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{win.mode === "add" ? tr("Add a holiday") : tr("Edit holiday")}</div>
         <button onClick={() => setWin(null)} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
       </div>
+      {win.mode === "add" && <div data-holiday-window-help="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("The handbook's nine holidays are listed already. Add any other day {0} closes.", brand)}</div>}
       {refusal.text && !refusal.field && <div data-holiday-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
       <div style={{ marginBottom: 12, maxWidth: 260 }}>
         <Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" aria-label={tr("Date")} value={win.date} onChange={e => set("date", e.target.value)} style={box("date")} />{under("date")}

@@ -5846,6 +5846,11 @@ export const WORDS = {
   "Nothing to draw yet.": { es: "Todav\u00eda no hay nada que trazar.", fr: "Rien \u00e0 tracer pour l'instant." },
   "Why it was skipped: {0}": { es: "Por qu\u00e9 se omiti\u00f3: {0}", fr: "Pourquoi elle a \u00e9t\u00e9 saut\u00e9e : {0}" },
   "Card: {0}": { es: "Tarjeta: {0}", fr: "Carte : {0}" },
+  "Handbook|holiday": { es: "Del manual", fr: "Du manuel" },
+  "Set by the handbook's rule: the Friday after Thanksgiving.": { es: "Fijado por la regla del manual: el viernes despu\u00e9s de Acci\u00f3n de Gracias.", fr: "Fix\u00e9 par la r\u00e8gle du manuel : le vendredi apr\u00e8s l'Action de gr\u00e2ce." },
+  "Set by the handbook's own rule.": { es: "Fijado por la regla propia del manual.", fr: "Fix\u00e9 par la r\u00e8gle propre du manuel." },
+  "{0} observes the nine paid holidays its handbook names, listed here each year as the handbook sets them. Add any other day {0} closes.": { es: "{0} observa los nueve d\u00edas festivos pagados que nombra su manual, que se listan aqu\u00ed cada a\u00f1o como los fija el manual. Agregue cualquier otro d\u00eda en que {0} cierre.", fr: "{0} observe les neuf jours f\u00e9ri\u00e9s pay\u00e9s que nomme son manuel, list\u00e9s ici chaque ann\u00e9e comme le manuel les fixe. Ajoutez tout autre jour o\u00f9 {0} ferme." },
+  "The handbook's nine holidays are listed already. Add any other day {0} closes.": { es: "Los nueve d\u00edas festivos del manual ya est\u00e1n en la lista. Agregue cualquier otro d\u00eda en que {0} cierre.", fr: "Les neuf jours f\u00e9ri\u00e9s du manuel sont d\u00e9j\u00e0 list\u00e9s. Ajoutez tout autre jour o\u00f9 {0} ferme." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
