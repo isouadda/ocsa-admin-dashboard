@@ -1241,21 +1241,36 @@ export default function AdminDashboard() {
   const [probeRound, setProbeRound] = useState(0);
   // Whether the session's first round of probes has answered (DASH-27).
   const [probesIn, setProbesIn] = useState(false);
+  // Part 400 (the API's Round 15, 8.6): features also answers equipment, periodic, tickets, maintenance, leave and
+  // devices, each by its list route's own gate, so sign-in sets those six items from it and reads none of the six lists.
+  // A key features does not answer (an API before Round 15, or the per-person route read in its place) is read from
+  // its list as before. Maintenance requests, once features says yes, still reads its options for the most photos a
+  // request takes and the days a response is due; the item shows whatever that read answers.
   useEffect(() => {
     if (!token) { setDevicesOn(false); setEquipmentOn(false); setPeriodicOn(false); setTicketsOn(false); setMaintenance(null); setLeaveOn(false); setProbesIn(false); return undefined; }
+    if (features === null) return undefined;
+    const said = (k) => (features && typeof features[k] === "boolean" ? features[k] : null);
     // A probe that failed for any reason but a refusal is tried again with the rest after 30 seconds,
     // up to three times, so a bad moment at sign-in does not keep an item off all session (DASH-10).
     let alive = true; let soft = false; let timer = null;
     const probes = [];
-    probes.push(af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); }));
-    probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
-    probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
-    probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? { maxPhotos: Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d.responseDays } : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
-    probes.push(af("/api/leave/policies").then(d => { if (alive) setLeaveOn(!!(d && Array.isArray(d.policies))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLeaveOn(false); console.warn("Leave balances:", e.message); }));
-    probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
+    const maintOf = (d) => ({ maxPhotos: d && Number(d.maxPhotos) > 0 ? Number(d.maxPhotos) : 6, responseDays: d ? d.responseDays : undefined });
+    if (said("equipment") !== null) setEquipmentOn(said("equipment"));
+    else probes.push(af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); }));
+    if (said("periodic") !== null) setPeriodicOn(said("periodic"));
+    else probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
+    if (said("tickets") !== null) setTicketsOn(said("tickets"));
+    else probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
+    if (said("maintenance") === false) setMaintenance(null);
+    else if (said("maintenance") === true) probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(maintOf(d && Array.isArray(d.statuses) ? d : null)); }).catch(e => { if (alive) setMaintenance(maintOf(null)); console.warn("Maintenance options:", e.message); }));
+    else probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? maintOf(d) : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
+    if (said("leave") !== null) setLeaveOn(said("leave"));
+    else probes.push(af("/api/leave/policies").then(d => { if (alive) setLeaveOn(!!(d && Array.isArray(d.policies))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setLeaveOn(false); console.warn("Leave balances:", e.message); }));
+    if (said("devices") !== null) setDevicesOn(said("devices"));
+    else probes.push(af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); }));
     Promise.all(probes).then(() => { if (alive) setProbesIn(true); if (alive && soft && probeRound < 3) timer = setTimeout(() => setProbeRound(n => n + 1), 30000); });
     return () => { alive = false; clearTimeout(timer); };
-  }, [token, af, probeRound]);
+  }, [token, af, probeRound, features]);
   // The four areas features names (part 393): from features once the permissions read answers with it, else each read
   // once its list answers, a soft failure read again after 30 seconds up to three times, as the other probes are.
   const [fourIn, setFourIn] = useState(false);
@@ -2240,7 +2255,7 @@ function usePersonFind() {
     return (!!k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) || (!!k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0);
   }, [keys]);
 }
-const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
+const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} data-filter-tab={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span data-filter-tab-count={tb.id} style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
 // A table wider than its card scrolls inside the card. Its headers wrap between words when the room
 // runs short, so a long Spanish header does not hold its column wider than what it heads (Step 284).
@@ -4072,6 +4087,11 @@ const serviceLineWord = (c) => ({ office: tr("Office|service line"), schools: tr
 const siteAnswers = (s, camel, snake) => !!s && typeof s === "object" && (Object.prototype.hasOwnProperty.call(s, camel) || Object.prototype.hasOwnProperty.call(s, snake));
 const siteContractRef = (s) => { const v = s.contractReference !== undefined ? s.contractReference : s.contract_reference; return v == null ? "" : String(v); };
 const siteServiceLines = (s) => { const v = s.serviceLines !== undefined ? s.serviceLines : s.service_lines; return Array.isArray(v) ? v.map(String) : []; };
+// Part 400 (the API's Round 15, part 395): a union site. Every site read answers is_union and isUnion; PATCH
+// /api/sites/:id { isUnion } sets it (manage_sites), anything but true or false refused 400 sites.unionBoolean. Its
+// people follow their agreement, and OCSA's vacation and personal days are never offered to them.
+const siteIsUnion = (s) => !!s && (s.isUnion === true || s.is_union === true);
+const SiteUnionMark = ({ s }) => (siteIsUnion(s) ? <span data-site-union={s.id}><Bdg l={tr("Union site")} c={BL} /></span> : null);
 // The field a refusal of the site's details names: sites.badServiceLine is the service lines, a code
 // or keys naming the contract reference is that field, and anything else is the toast it always was.
 const siteDetailsRefusalField = (e) => {
@@ -4080,6 +4100,7 @@ const siteDetailsRefusalField = (e) => {
   const names = (a, b) => code.indexOf(a) >= 0 || keys.some(k => k.indexOf(a) === 0 || k.indexOf(b) === 0);
   if (code === "sites.badserviceline" || names("serviceline", "service_line")) return "serviceLines";
   if (names("contractreference", "contract_reference")) return "contractReference";
+  if (code === "sites.unionboolean" || names("isunion", "is_union")) return "isUnion";
   return "";
 };
 // Part 389: the API's Round 12 (part 382, 3.6) answers a site's task with a value its table does not take, on a
@@ -4324,7 +4345,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const [modeBusy, setModeBusy] = useState(false);
   // Every save of a site sends the updated time of the site as read (part 368, API-101), and keeps the new
   // one from the answer, so the next save sends it.
-  const siteLabels = { name: tr("Site Name"), addressLine1: tr("Address"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), primeContractor: tr("Prime Contractor"), clientName: tr("Client Name"), clientContactName: tr("Contact Name"), clientContactEmail: tr("Contact Email"), clientContactPhone: tr("Contact Phone"), contractType: tr("Contract Type"), siteNotes: tr("Site Notes"), scopeOfWork: tr("Scope of Work"), status: tr("Status") };
+  const siteLabels = { name: tr("Site Name"), addressLine1: tr("Address"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), primeContractor: tr("Prime Contractor"), clientName: tr("Client Name"), clientContactName: tr("Contact Name"), clientContactEmail: tr("Contact Email"), clientContactPhone: tr("Contact Phone"), contractType: tr("Contract Type"), siteNotes: tr("Site Notes"), scopeOfWork: tr("Scope of Work"), status: tr("Status"), isUnion: tr("Union site") };
   const siteRead = () => (siteProfile && siteProfile.site && String(siteProfile.site.id) === String(selectedSite) ? siteProfile.site : null);
   const keepSiteStamp = (r) => { const at = r && r.site ? stampOf(r.site) : null; if (at) setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, updated_at: at } } : p)); };
   const saveChecklistMode = async (next) => {
@@ -4684,6 +4705,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
               <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{s.name}</div>
               <Bdg l={siteStateOf(s.status)} c={s.status === "active" ? GR : OR} />
               {(s.is_test === true || (sites.find(x => String(x.id) === String(s.id)) || {}).is_test === true) && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}
+              <SiteUnionMark s={siteAnswers(s, "isUnion", "is_union") ? s : (sites.find(x => String(x.id) === String(s.id)) || s)} />
             </div>
             <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
             {/* Part 358: what was done at this site, on Checklist Results, yesterday picked. */}
@@ -4736,7 +4758,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
             addressLine1: s.address_line1 || "", addressLine2: s.address_line2 || "", city: s.city || "", state: s.state || "", zipCode: s.zip_code || "",
             name: s.name || "",
             ...(siteAnswers(s, "contractReference", "contract_reference") ? { contractReference: siteContractRef(s) } : {}),
-            ...(siteAnswers(s, "serviceLines", "service_lines") ? { serviceLines: siteServiceLines(s) } : {})
+            ...(siteAnswers(s, "serviceLines", "service_lines") ? { serviceLines: siteServiceLines(s) } : {}),
+            ...(siteAnswers(s, "isUnion", "is_union") ? { isUnion: siteIsUnion(s) } : {})
           })} style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>{tr("Edit Details")}</button>}
         </Crd>
 
@@ -5053,6 +5076,13 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
             </label>))}
           </div>
           {siteRefusal.field === "serviceLines" && <div data-site-refusal="serviceLines" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{siteRefusal.text}</div>}</div>}
+        {editSite.isUnion !== undefined && <div data-site-union-field="" style={{ marginBottom: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <input type="checkbox" role="switch" aria-checked={editSite.isUnion === true} data-site-union-switch="" checked={editSite.isUnion === true} onChange={e => { setSiteRefusal({ field: "", text: "" }); setEditSite({ ...editSite, isUnion: e.target.checked }); }} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
+            <span style={{ fontWeight: 600 }}>{tr("Union site")}</span>
+          </label>
+          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("People at a union site follow their agreement, and {0}'s vacation and personal days are never offered to them.", clientConfig.company.brandTag)}</div>
+          {siteRefusal.field === "isUnion" && <div data-site-refusal="isUnion" style={{ fontSize: 12, color: RD, marginTop: 6, marginLeft: 30 }}>{siteRefusal.text}</div>}</div>}
         <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>{tr("Client Contact")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={editSite.clientContactName} onChange={e => setEditSite({ ...editSite, clientContactName: e.target.value })} /></div><div><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editSite.clientContactEmail} onChange={e => setEditSite({ ...editSite, clientContactEmail: e.target.value })} /></div><div><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editSite.clientContactPhone} onChange={e => setEditSite({ ...editSite, clientContactPhone: e.target.value })} /></div></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Site Notes")}</Lbl><TArea t={t} value={editSite.siteNotes} onChange={e => setEditSite({ ...editSite, siteNotes: e.target.value })} rows={3} /></div>
@@ -5152,7 +5182,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{s.name}</span>{s.is_test === true && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
+        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{s.name}</span>{s.is_test === true && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}<SiteUnionMark s={s} /></div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
         { header: tr("Staff"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? trn("{0} staff|count", s.staff_count) : "-" },
         { header: tr("Tasks"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? trn("{0} task|count", s.task_count) : "-" },
         { header: tr("Contract"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => contractOf(s.contract_type) || "-" },
@@ -5518,7 +5548,10 @@ async function crReadAll(af, from, to) {
   if (!r || !Array.isArray(r.sites)) throw new Error(tr("This did not load."));
   const bySite = {};
   r.sites.forEach(x => { if (x && x.siteId != null) bySite[String(x.siteId)] = { notTracked: x.notTracked === true, days: Array.isArray(x.days) ? x.days : [] }; });
-  return { span, bySite };
+  // Part 400 (the API's Round 15, 8.5): leftOut [{ siteId, reason: "test" }] beside sites names the test sites the
+  // counts leave out, by id. null from an API before Round 15.
+  const leftOut = Array.isArray(r.leftOut) ? r.leftOut.filter(x => x && x.siteId != null).map(x => String(x.siteId)) : null;
+  return { span, bySite, leftOut };
 }
 // The task list's rows for a view, as shown: each day's groups, zone by zone, through the filters.
 function crRows(days, keep) {
@@ -5857,7 +5890,10 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     // (part 393, the robot's Round 1 finding 4): the summary leaves the test site out, as every report does, so its
     // card says so and opens the site, whose own record reads its checks. A week with steps due and none done is a
     // line of zeros, drawn flat with its words, never by ApexCharts (part 397, the robot's Round 3).
-    const cards = active.map(s => {
+    // Since part 400 a site the summary names in leftOut has no card: the line above the cards says a test site was left
+    // out. An API before Round 15 answers no leftOut, and the test site's card says so, as part 393 drew it.
+    const leftOut = Array.isArray(data.leftOut) ? data.leftOut : null;
+    const cards = active.filter(s => !leftOut || leftOut.indexOf(String(s.id)) < 0).map(s => {
       const rec = data.bySite[String(s.id)] || null;
       const testLeftOut = !rec && (s.is_test === true || s.isTest === true);
       const got = rec || testLeftOut ? {} : { error: tr("This did not load.") };
@@ -5873,6 +5909,7 @@ function ChecklistResultsPage({ af, t, sites = [], route = [], user, showToast }
     });
     return (<div data-checklist-results="" data-cr-view="all">{pickers}{status}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{oneDay ? tr("Each site's steps done on {0}, and the 7 days to it. Click a site to open it.", keptDay(period.from)) : tr("Each site's steps done over these days, and each day's share. Click a site to open it.")}</div>
+      {leftOut && leftOut.length > 0 && <div data-cr-left-out={leftOut.join(",")} style={{ fontSize: 12, color: t.textSec, marginTop: -6, marginBottom: 12, lineHeight: 1.5 }}>{trn("{0} test site is left out of these counts, as it is of every report.|count", leftOut.length)}</div>}
       {cards.length === 0 && <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No sites found.")}</div></Crd>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 }}>
         {cards.map(c => (<Crd key={c.s.id} t={t} onClick={() => go(String(c.s.id), period.token, "")} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -7294,9 +7331,9 @@ const LEAVE_ENTRY_WORDS = { grant: "Grant|leave", accrual: "Hours worked|leave",
 const leaveEntryWord = (k, name) => (LEAVE_ENTRY_WORDS[k] ? tr(LEAVE_ENTRY_WORDS[k]) : (name || String(k || "")));
 const LEAVE_SOURCE_WORDS = { person: "Their own policy", site: "Their site's policy", default: "The company default" };
 const leaveSourceWord = (s) => (LEAVE_SOURCE_WORDS[s] ? tr(LEAVE_SOURCE_WORDS[s]) : String(s || ""));
-const LEAVE_METHOD_WORDS = { january_1: "On January 1 each year", anniversary: "On each anniversary of the hire date", on_hire: "On the hire date", monthly: "On the first of each month", per_hours_worked: "For hours worked", manual: "Given by HR|leave method", untracked: "No balance kept" };
+const LEAVE_METHOD_WORDS = { january_1: "On January 1 each year", anniversary: "On each anniversary of the hire date", on_hire: "On the hire date", monthly: "On the first of each month", per_hours_worked: "For hours worked", manual: "Given by HR|leave method", untracked: "No balance kept", anniversary_then_january_1: "On the work anniversary each tier is reached, then each January 1" };
 const leaveMethodWord = (m) => (LEAVE_METHOD_WORDS[m] ? tr(LEAVE_METHOD_WORDS[m]) : String(m || ""));
-const LEAVE_OUTCOME_WORDS = { posted: "Posted|hours file", alreadyPosted: "Already posted", noHoursRule: "No hours rule in their policy", beforePolicyStart: "Before their policy starts", noHireDate: "No hire date on file" };
+const LEAVE_OUTCOME_WORDS = { posted: "Posted|hours file", alreadyPosted: "Already posted", noHoursRule: "No hours rule in their policy", beforePolicyStart: "Before their policy starts", noHireDate: "No hire date on file", yearCapReached: "The year's most is already earned, so nothing posted" };
 const leaveOutcomeWord = (o) => (LEAVE_OUTCOME_WORDS[o] ? tr(LEAVE_OUTCOME_WORDS[o]) : String(o || ""));
 const LEAVE_STATUSES = [["active", "Active"], ["all", "Every status"], ["pending", "pending"], ["inactive", "Inactive"], ["terminated", "Terminated"]];
 const LEAVE_ROLES = ["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "contractor"];
@@ -7304,10 +7341,54 @@ const leaveNum = (n) => Number(n || 0).toLocaleString(localeTag(), { maximumFrac
 const leaveHours = (n) => tr("{0} h", leaveNum(n));
 const leaveSigned = (n) => (Number(n) > 0 ? "+" : Number(n) < 0 ? "-" : "") + leaveHours(Math.abs(Number(n) || 0));
 // A balance as it reads: hours, and days beside them for a kind kept in days.
+// An amount of a request's leave in its unit: days and their hours for a kind kept in days (the API's requestDays,
+// balanceDays and wouldLeaveDays since Round 15), else hours.
+const leaveInUnit = (hours, days, l) => (l && l.unit === "days" && days != null ? tr("{0} days ({1})", leaveNum(days), leaveHours(hours)) : leaveHours(hours));
 const leaveBalanceText = (b) => (b && b.unit === "days" && b.balanceDays != null ? tr("{0} days ({1})", leaveNum(b.balanceDays), leaveHours(b.balanceHours)) : leaveHours(b ? b.balanceHours : 0));
+// Part 400 (the API's Round 15, part 395, OCSA-HR-002 Part 8.2): every balance the API answers carries appFigure true and,
+// first in notes, leave.note.adpOfficial, the line that says ADP holds the official balance. It is drawn once above a
+// list of balances, in the API's words, and left out of each balance's own notes.
+const LEAVE_ADP_NOTE = "leave.note.adpOfficial";
+const leaveAdpLine = (balances) => { for (const b of balances || []) { const n = (b && Array.isArray(b.notes) ? b.notes : []).find(x => x && x.code === LEAVE_ADP_NOTE && x.message); if (n) return n.message; } return ""; };
+const leaveOwnNotes = (b) => (b && Array.isArray(b.notes) ? b.notes : []).filter(n => n && n.code !== LEAVE_ADP_NOTE);
+const LeaveAdpLine = ({ t, text, style }) => (text ? <div data-leave-adp="" style={Object.assign({ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 8 }, style || {})}>{text}</div> : null);
+// The year's caps a balance carries since Round 15, in hours: yearCapHours, the most earned in a calendar year, and
+// useCapHours, the most used, past which a request is warned.
+const leaveCapLines = (b) => [b && b.yearCapHours != null ? tr("At most {0} earned a year", leaveHours(b.yearCapHours)) : "", b && b.useCapHours != null ? tr("At most {0} used a year", leaveHours(b.useCapHours)) : ""].filter(Boolean);
 const leaveToday = () => crWall(Date.now()).day;
 const leaveYear = () => Number(leaveToday().slice(0, 4));
 const leavePolicyName = (p) => (p && p.name ? p.name : "--");
+// Part 400 (the API's Round 15, part 395): every leave person head carries employmentClass, the class leave reads
+// (full_time, part_time, supplemental), null when none is on file. An API before Round 15 sends no such field, and
+// nothing is drawn for it.
+const LEAVE_CLASS_WORDS = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
+const leaveClassWord = (p) => {
+  if (!p || !Object.prototype.hasOwnProperty.call(p, "employmentClass")) return "";
+  const c = p.employmentClass;
+  return c ? (LEAVE_CLASS_WORDS[c] ? tr(LEAVE_CLASS_WORDS[c]) : String(c)) : tr("No class on file");
+};
+// Who is missing a class or a hire date (part 400): GET /api/leave/missing-classes, { people: [{ person, policy,
+// kindsNotOffered: [{ kind, kindName }] }], nextCursor }, and GET /api/leave/missing-hire-dates, { people: [{ person,
+// policy, kindsAffected }], nextCursor }, each read to its end, put together so each person is listed once with what
+// is missing. A list the API does not answer (an API before Round 15 has no missing-classes) adds nobody; null when
+// neither answered.
+async function leaveMissingPeople(af) {
+  const [classes, hires] = await Promise.all([
+    leaveEveryPage(af, "/api/leave/missing-classes", "people").catch(() => null),
+    leaveEveryPage(af, "/api/leave/missing-hire-dates", "people").catch(() => null),
+  ]);
+  if (classes === null && hires === null) return null;
+  const by = new Map();
+  const at = (x) => {
+    const id = String(x && x.person && x.person.userId != null ? x.person.userId : "");
+    if (!id) return null;
+    if (!by.has(id)) by.set(id, { person: x.person, policy: x.policy || null, noClass: false, kindsNotOffered: [], noHireDate: false, kindsAffected: [] });
+    return by.get(id);
+  };
+  (classes || []).forEach(x => { const r = at(x); if (r) { r.noClass = true; r.kindsNotOffered = Array.isArray(x.kindsNotOffered) ? x.kindsNotOffered : []; } });
+  (hires || []).forEach(x => { const r = at(x); if (r) { r.noHireDate = true; r.kindsAffected = Array.isArray(x.kindsAffected) ? x.kindsAffected : []; if (!r.policy) r.policy = x.policy || null; } });
+  return Array.from(by.values()).sort((a, b) => String(a.person.name || "").localeCompare(String(b.person.name || "")));
+}
 // The words the API says each refusal and warning in come with the answer, in the reader's language.
 const leaveRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || "") });
 // Pages a list until nextCursor is empty, for the screens that need everyone at once.
@@ -7326,7 +7407,7 @@ async function leaveEveryPage(af, path, key) {
 // A balance's parts, in a table of its own.
 function LeaveBalancesTable({ t, balances }) {
   const cols = [
-    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{(b.notes || []).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
+    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{leaveCapLines(b).map((x, i) => <div key={"cap" + i} data-leave-cap={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{x}</div>)}{leaveOwnNotes(b).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
     { header: tr("Start of year"), align: "right", render: b => leaveHours(b.startHours) },
     { header: tr("Granted"), align: "right", render: b => leaveHours(b.grantedHours) },
     { header: tr("Used"), align: "right", render: b => leaveHours(b.usedHours) },
@@ -7335,7 +7416,7 @@ function LeaveBalancesTable({ t, balances }) {
     { header: tr("Adjusted"), align: "right", render: b => leaveSigned(b.adjustedHours) },
     { header: tr("Balance"), align: "right", render: b => <span data-leave-balance={b.kind} style={{ fontWeight: 700, color: Number(b.balanceHours) < 0 ? RD : t.text }}>{leaveBalanceText(b)}</span> },
   ];
-  return <DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} />;
+  return <><LeaveAdpLine t={t} text={leaveAdpLine(balances)} /><DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} /></>;
 }
 
 // Adjust: a kind, hours plus or minus, a required reason, and since the API's part 371 the day it counts on,
@@ -7446,7 +7527,7 @@ function LeavePersonWindow({ af, t, userId, year, kinds = [], policies = [], can
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave")}</div>
-        {p && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+        {p && <div data-leave-person-head="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), leaveClassWord(p), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
       </div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
@@ -7503,6 +7584,7 @@ function PersonLeave({ af, t, userId, showToast, canOpenStaff = false }) {
       <Btn t={t} v="ghost" data-folder-leave-open="" onClick={() => setOpen(true)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Open the ledger")}</Btn>
     </div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>{(data.balances || []).map(b => <span key={b.kind} style={{ fontSize: 12, padding: "4px 10px", borderRadius: R.pill, background: t.cardAlt, color: t.text }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div>
+    <LeaveAdpLine t={t} text={leaveAdpLine(data.balances)} style={{ marginTop: 8, marginBottom: 0 }} />
     {open && <LeavePersonWindow af={af} t={t} userId={userId} year={year} kinds={kinds} policies={policies} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => setOpen(false)} onChanged={load} showToast={showToast} />}
   </div></Crd>);
 }
@@ -7510,14 +7592,27 @@ function PersonLeave({ af, t, userId, showToast, canOpenStaff = false }) {
 // The policy editor: each kind's amount, how it is given, seniority tiers, the waiting period, the carryover
 // cap, the maximum balance, a note, and the paid holidays. A save sends only what changed, the rules as a set.
 const LEAVE_METHODS = Object.keys(LEAVE_METHOD_WORDS);
-const blankRule = () => ({ kind: "paid_sick", kindName: "", newKind: false, method: "january_1", unit: "hours", amount: "40", hoursPerDay: "8", alsoOnHire: false, perHoursWorked: "", tiers: [], waitingDays: "0", carryoverCap: "", maxBalance: "", note: "" });
-const ruleForm = (r) => ({ kind: r.kind, kindName: r.kindName || "", newKind: !LEAVE_TYPE_WORDS[r.kind], method: r.method, unit: r.unit || "hours", amount: r.amount == null ? "" : String(r.amount), hoursPerDay: r.hoursPerDay == null ? "8" : String(r.hoursPerDay), alsoOnHire: !!r.alsoOnHire, perHoursWorked: r.perHoursWorked == null ? "" : String(r.perHoursWorked), tiers: (r.tiers || []).map(x => ({ years: String(x.years), amount: String(x.amount) })), waitingDays: String(r.waitingDays || 0), carryoverCap: r.carryoverCap == null ? "" : String(r.carryoverCap), maxBalance: r.maxBalance == null ? "" : String(r.maxBalance), note: r.note || "" });
+// Part 400 (the API's Round 15, part 395): a rule names the classes it applies to (classes, null for everyone), the hire
+// year's earning on a january_1 rule (hireYearPerHours: 1 hour per that many hours worked, up to the amount), and the
+// year's caps, yearCap (the most earned) and useCap (the most used, past which a request is warned). A policy the office
+// makes may name full_time, part_time, supplemental and none; union is the handbook's alone.
+const LEAVE_RULE_CLASSES = ["full_time", "part_time", "supplemental", "none"];
+const LEAVE_RULE_CLASS_WORDS = { full_time: "Full-time staff", part_time: "Part-time staff", supplemental: "Supplemental staff", none: "Staff with no class on file", union: "Staff at a union site" };
+const leaveRuleClassWord = (c) => (LEAVE_RULE_CLASS_WORDS[c] ? tr(LEAVE_RULE_CLASS_WORDS[c]) : String(c || ""));
+const leaveRuleWho = (r) => (r && Array.isArray(r.classes) && r.classes.length ? r.classes.map(leaveRuleClassWord).join(", ") : tr("Everyone|leave rule"));
+const leaveRuleAmount = (r, n) => (r && r.unit === "days" ? trn("{0} day|count", Number(n)) : leaveHours(n));
+const blankRule = () => ({ kind: "paid_sick", kindName: "", newKind: false, method: "january_1", unit: "hours", amount: "40", hoursPerDay: "8", alsoOnHire: false, perHoursWorked: "", tiers: [], waitingDays: "0", carryoverCap: "", maxBalance: "", note: "", classes: [], hireYearPerHours: "", yearCap: "", useCap: "" });
+const ruleForm = (r) => ({ kind: r.kind, kindName: r.kindName || "", newKind: !LEAVE_TYPE_WORDS[r.kind], method: r.method, unit: r.unit || "hours", amount: r.amount == null ? "" : String(r.amount), hoursPerDay: r.hoursPerDay == null ? "8" : String(r.hoursPerDay), alsoOnHire: !!r.alsoOnHire, perHoursWorked: r.perHoursWorked == null ? "" : String(r.perHoursWorked), tiers: (r.tiers || []).map(x => ({ years: String(x.years), amount: String(x.amount) })), waitingDays: String(r.waitingDays || 0), carryoverCap: r.carryoverCap == null ? "" : String(r.carryoverCap), maxBalance: r.maxBalance == null ? "" : String(r.maxBalance), note: r.note || "", classes: Array.isArray(r.classes) ? r.classes.slice() : [], hireYearPerHours: r.hireYearPerHours == null ? "" : String(r.hireYearPerHours), yearCap: r.yearCap == null ? "" : String(r.yearCap), useCap: r.useCap == null ? "" : String(r.useCap) });
 const numOrNull = (v) => (String(v).trim() === "" ? null : Number(String(v).trim()));
 const ruleBody = (r) => {
   const noAmount = r.method === "manual" || r.method === "untracked";
   const out = { kind: r.kind.trim(), method: r.method, unit: r.unit, amount: noAmount && String(r.amount).trim() === "" ? 0 : numOrNull(r.amount), hoursPerDay: r.unit === "days" ? numOrNull(r.hoursPerDay) : 8, alsoOnHire: (r.method === "january_1" || r.method === "anniversary") && !!r.alsoOnHire, tiers: noAmount ? [] : r.tiers.map(x => ({ years: numOrNull(x.years), amount: numOrNull(x.amount) })), waitingDays: Number(String(r.waitingDays).trim() || 0), carryoverCap: numOrNull(r.carryoverCap), maxBalance: numOrNull(r.maxBalance), note: r.note.trim() || null };
   if (r.newKind) out.kindName = r.kindName.trim();
   if (r.method === "per_hours_worked") out.perHoursWorked = numOrNull(r.perHoursWorked);
+  out.classes = r.classes && r.classes.length ? r.classes.slice() : null;
+  out.hireYearPerHours = r.method === "january_1" ? numOrNull(r.hireYearPerHours) : null;
+  out.yearCap = r.method === "untracked" ? null : numOrNull(r.yearCap);
+  out.useCap = r.method === "untracked" ? null : numOrNull(r.useCap);
   return out;
 };
 function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved }) {
@@ -7581,6 +7676,13 @@ function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved 
         {r.method !== "untracked" && <div><Lbl>{tr("Waiting period, in days")}</Lbl><Inp t={t} data-leave-rule="waitingDays" aria-label={tr("Waiting period, in days")} inputMode="numeric" value={r.waitingDays} onChange={e => setRule(i, "waitingDays", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} style={badAt("waitingDays") ? { borderColor: RD } : undefined} /></div>}
         {r.method !== "untracked" && <div><Lbl>{tr("Carryover cap")}</Lbl><Inp t={t} data-leave-rule="carryoverCap" aria-label={tr("Carryover cap")} inputMode="decimal" placeholder={tr("No cap")} value={r.carryoverCap} onChange={e => setRule(i, "carryoverCap", num(e.target.value))} style={badAt("carryoverCap") ? { borderColor: RD } : undefined} /></div>}
         {r.method !== "untracked" && <div><Lbl>{tr("Maximum balance")}</Lbl><Inp t={t} data-leave-rule="maxBalance" aria-label={tr("Maximum balance")} inputMode="decimal" placeholder={tr("No maximum")} value={r.maxBalance} onChange={e => setRule(i, "maxBalance", num(e.target.value))} style={badAt("maxBalance") ? { borderColor: RD } : undefined} /></div>}
+        {r.method === "january_1" && <div><Lbl>{tr("In the year of hire, 1 hour per this many hours worked")}</Lbl><Inp t={t} data-leave-rule="hireYearPerHours" aria-label={tr("In the year of hire, 1 hour per this many hours worked")} inputMode="decimal" placeholder={tr("Not earned by hours")} value={r.hireYearPerHours} onChange={e => setRule(i, "hireYearPerHours", num(e.target.value))} style={badAt("hireYearPerHours") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Most earned a year")}</Lbl><Inp t={t} data-leave-rule="yearCap" aria-label={tr("Most earned a year")} inputMode="decimal" placeholder={tr("No cap")} value={r.yearCap} onChange={e => setRule(i, "yearCap", num(e.target.value))} style={badAt("yearCap") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Most used a year")}</Lbl><Inp t={t} data-leave-rule="useCap" aria-label={tr("Most used a year")} inputMode="decimal" placeholder={tr("No cap")} value={r.useCap} onChange={e => setRule(i, "useCap", num(e.target.value))} style={badAt("useCap") ? { borderColor: RD } : undefined} /></div>}
+      </div>
+      <div data-leave-rule-classes="" style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: badAt("classes") ? RD : t.textMut, marginBottom: 4 }}>{tr("Who it is for. Tick none for everyone.")}</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{LEAVE_RULE_CLASSES.map(c => <label key={c} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 12, color: t.text, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-leave-rule-class={c} checked={r.classes.indexOf(c) >= 0} onChange={e => setRule(i, "classes", e.target.checked ? LEAVE_RULE_CLASSES.filter(x => x === c || r.classes.indexOf(x) >= 0) : r.classes.filter(x => x !== c))} /></span>{leaveRuleClassWord(c)}</label>)}</div>
       </div>
       {(r.method === "january_1" || r.method === "anniversary") && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.text, marginBottom: 6, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-leave-rule="alsoOnHire" checked={r.alsoOnHire} onChange={e => setRule(i, "alsoOnHire", e.target.checked)} /></span>{tr("A new hire also gets it on the hire date")}</label>}
       {!noAmount && <div data-leave-rule-tiers="" style={{ marginBottom: 6 }}>
@@ -7638,10 +7740,20 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
         {p.summary && p.summary.holidays && <div style={{ fontSize: 12, color: t.textSec }}>{p.summary.holidays}</div>}
         {p.grantsFrom && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Grants start on {0}.", fdLong(p.grantsFrom))}</div>}
         {p.note && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{p.note}</div>}</div>
+      {Array.isArray(p.rules) && p.rules.length > 0 && <div data-leave-policy-rules="" style={{ marginBottom: 12 }}>
+        <Lbl>{readOnly ? tr("Its rules, fixed by the handbook") : tr("Its rules")}</Lbl>
+        {p.rules.map((r, i) => <div key={i} data-leave-policy-rule={r.kind} data-leave-policy-rule-classes={Array.isArray(r.classes) ? r.classes.join(",") : ""} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid " + t.border, marginBottom: 6, fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(r.kind, r.kindName)} <span style={{ fontWeight: 400, color: t.textSec }}>{tr("For: {0}", leaveRuleWho(r))}</span></div>
+          <div>{leaveMethodWord(r.method)}{Array.isArray(r.tiers) && r.tiers.length ? ": " + r.tiers.map(x => tr("{0} from {1} years", leaveRuleAmount(r, x.amount), x.years)).join(", ") : ""}</div>
+          {r.hireYearPerHours != null && <div>{tr("In the year of hire: 1 hour per {0} hours worked, up to {1}", leaveNum(r.hireYearPerHours), leaveRuleAmount(r, r.amount))}</div>}
+          {r.yearCap != null && <div>{tr("At most {0} earned a year", leaveRuleAmount(r, r.yearCap))}</div>}
+          {r.useCap != null && <div>{tr("At most {0} used a year", leaveRuleAmount(r, r.useCap))}</div>}
+        </div>)}
+      </div>}
       <Lbl>{tr("Sites that use it")}</Lbl>
       <div data-leave-policy-sites="" style={{ marginBottom: 12 }}>{(data.sites || []).length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No site uses it.")}</div> : (data.sites || []).map(s => <div key={s.siteId} style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{s.siteName} <span style={{ fontSize: 12, color: t.textSec }}>{s.source === "site" ? (s.since ? tr("since {0}", fdLong(s.since)) : "") : tr("by the company default")}</span></div>)}</div>
       <Lbl>{tr("Who follows it")}</Lbl>
-      <div data-leave-policy-people="">{people.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nobody follows it today.")}</div> : people.map(x => <button key={x.person.userId} onClick={() => onOpenPerson(x.person.userId)} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", minHeight: 44, padding: "6px 8px", background: "none", border: "none", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, textAlign: "left", cursor: "pointer", fontFamily: FONT_BODY }}><span>{x.person.name}</span><span style={{ fontSize: 12, color: t.textSec }}>{x.person.site ? x.person.site.name : ""}{x.policy ? " | " + leaveSourceWord(x.policy.source) : ""}</span></button>)}</div>
+      <div data-leave-policy-people="">{people.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nobody follows it today.")}</div> : people.map(x => <button key={x.person.userId} onClick={() => onOpenPerson(x.person.userId)} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", minHeight: 44, padding: "6px 8px", background: "none", border: "none", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, textAlign: "left", cursor: "pointer", fontFamily: FONT_BODY }}><span>{x.person.name}</span><span style={{ fontSize: 12, color: t.textSec }}>{[leaveClassWord(x.person), x.person.site ? x.person.site.name : "", x.policy ? leaveSourceWord(x.policy.source) : ""].filter(Boolean).join(" | ")}</span></button>)}</div>
       {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}><Btn t={t} v="ghost" onClick={more}>{tr("Show more")}</Btn></div>}
     </>}
     {editing && p && <LeavePolicyEditor af={af} t={t} policy={p} kinds={kinds} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); showToast(tr("Policy saved")); load(); if (onChanged) onChanged(); }} />}
@@ -7865,7 +7977,7 @@ function SiteLeavePolicy({ af, t, siteId, showToast }) {
 // dates, and Enter starting balances. #leave/<tab>, and #leave/balances/<userId> opens a person's ledger.
 function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, canOpenStaff = false }) {
   const leave = useContext(LeaveCtx);
-  const tabs = [["balances", "Balances"], ["policies", "Policies"], ["sites", "Sites"], ["hours", "Hours files"], ["missing", "Missing hire dates"]].concat(leave.canManage ? [["starting", "Enter starting balances"]] : []);
+  const tabs = [["balances", "Balances"], ["policies", "Policies"], ["sites", "Sites"], ["hours", "Hours files"], ["missing", "Missing class or hire date"]].concat(leave.canManage ? [["starting", "Enter starting balances"]] : []);
   const tab = tabs.some(x => x[0] === route[0]) ? route[0] : "balances";
   const go = (id, more) => { if (onRoute) onRoute([id].concat(more || [])); };
   const [policies, setPolicies] = useState(null);
@@ -7887,7 +7999,7 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   const [fileList, setFileList] = useState(null);
   const [fileNext, setFileNext] = useState(null);
   const [missing, setMissing] = useState(null);
-  const [missingNext, setMissingNext] = useState(null);
+  const [missingFailed, setMissingFailed] = useState(false);
   const personId = tab === "balances" && route[1] ? String(route[1]) : "";
   const loadPolicies = useCallback(() => { af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => setPolicies([])); }, [af]);
   useEffect(() => { loadPolicies(); af("/api/leave/kinds").then(d => setKinds(Array.isArray(d && d.kinds) ? d.kinds : [])).catch(() => {}); }, [af, loadPolicies]);
@@ -7915,17 +8027,19 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   useEffect(() => { if (tab === "sites") loadSites(); }, [tab, loadSites]);
   const loadFiles = useCallback(async (cursor) => { try { const d = await af("/api/leave/hours-files?cursor=" + encodeURIComponent(cursor || "")); setFileList(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.files) ? d.files : [])); setFileNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setFileList(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
   useEffect(() => { if (tab === "hours") loadFiles(""); }, [tab, loadFiles]);
-  const loadMissing = useCallback(async (cursor) => { try { const d = await af("/api/leave/missing-hire-dates?cursor=" + encodeURIComponent(cursor || "")); setMissing(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.people) ? d.people : [])); setMissingNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setMissing(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
-  useEffect(() => { if (tab === "missing") loadMissing(""); }, [tab, loadMissing]);
+  // Read when the page opens, for the count beside its tab, and again each time the tab is opened.
+  const loadMissing = useCallback(async () => { const list = await leaveMissingPeople(af); setMissing(list || []); setMissingFailed(list === null); }, [af]);
+  useEffect(() => { loadMissing(); }, [loadMissing]);
+  useEffect(() => { if (tab === "missing") loadMissing(); }, [tab, loadMissing]);
   const pickStyle = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
   const balanceCols = [
-    { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
+    { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), leaveClassWord(r.person), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
     { header: tr("Policy"), render: r => <div style={{ fontSize: 12 }}><div style={{ color: t.text }}>{leavePolicyName(r.policy)}</div>{r.policy && <div style={{ color: t.textMut, fontSize: 11 }}>{leaveSourceWord(r.policy.source)}</div>}</div> },
     { header: tr("Balances"), render: r => <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{(r.balances || []).length === 0 ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("None kept")}</span> : r.balances.map(b => <span key={b.kind} data-leave-chip={b.kind} style={{ fontSize: 12, padding: "3px 9px", borderRadius: R.pill, background: t.cardAlt, color: Number(b.balanceHours) < 0 ? RD : t.text, whiteSpace: "nowrap" }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div> },
   ];
   return (<div data-leave-page="">
     <SecT t={t}>{tr("Leave balances")}</SecT>
-    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l) }))} />
+    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l), count: id === "missing" && missing && missing.length > 0 ? missing.length : null }))} />
     {tab === "balances" && <div data-leave-tab="balances">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 10 }}>
         <Sel t={t} data-leave-filter="year" aria-label={tr("Year")} value={String(year)} onChange={e => setYear(Number(e.target.value))} options={[leaveYear() + 1, leaveYear(), leaveYear() - 1, leaveYear() - 2].map(y => ({ v: String(y), l: String(y) }))} style={pickStyle} />
@@ -7936,7 +8050,7 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
         <Inp t={t} data-leave-filter="q" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-        <div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div>
+        <div style={{ minWidth: 0 }}><LeaveAdpLine t={t} text={leaveAdpLine([].concat(...rows.map(r => r.balances || [])))} style={{ marginBottom: 2 }} /><div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div></div>
         <Btn t={t} v="ghost" data-leave-download="" onClick={download} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}><DlI sz={14} c={t.text} /> {tr("Download CSV")}</Btn>
       </div>
       {failed && rows.length === 0 ? <Crd t={t}><LoadFailed t={t} onRetry={loadBalances} /></Crd>
@@ -7976,15 +8090,16 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
       {fileNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadFiles(fileNext)}>{tr("Show more")}</Btn></div>}
     </div>}
     {tab === "missing" && <div data-leave-tab="missing">
-      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Active people with no hire date. A grant on the hire date, a seniority tier or a waiting period cannot count for them until one is on their profile.")}</div>
-      <DataTable t={t} rowKey={x => x.person.userId} rows={missing || []} empty={missing == null ? tr("Loading...") : tr("Everyone active has a hire date.")} columns={[
-        { header: tr("Person"), render: x => <span data-leave-missing={x.person.userId} style={{ color: t.text, fontWeight: 600 }}>{x.person.name}</span> },
-        { header: tr("Site"), render: x => (x.person.site ? x.person.site.name : "--") },
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Active people with no employment class or no hire date. With no class, vacation and personal days are not offered to them. With no hire date, a grant on the hire date, a seniority tier or a waiting period cannot count for them. Set either one on their profile.")}</div>
+      {missingFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadMissing} /></Crd> : <DataTable t={t} rowKey={x => x.person.userId} rows={missing || []} empty={missing == null ? tr("Loading...") : tr("Everyone active has a class and a hire date.")} columns={[
+        { header: tr("Person"), render: x => <div data-leave-missing={x.person.userId} data-leave-missing-what={[x.noClass ? "class" : "", x.noHireDate ? "hireDate" : ""].filter(Boolean).join(",")}><div style={{ color: t.text, fontWeight: 600 }}>{x.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(x.person.role), leaveClassWord(x.person), x.person.site ? x.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
+        { header: tr("Missing|class or hire date"), render: x => <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{x.noClass && <Bdg l={tr("Employment class")} c={OR} />}{x.noHireDate && <Bdg l={tr("Hire date")} c={OR} />}</div> },
         { header: tr("Policy"), render: x => leavePolicyName(x.policy) },
-        { header: tr("What waits on it"), render: x => (x.kindsAffected || []).map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--" },
+        { header: tr("What waits on it"), render: x => <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+          {x.noClass && <div data-leave-missing-not-offered="">{tr("Not offered: {0}", x.kindsNotOffered.map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--")}</div>}
+          {x.noHireDate && <div data-leave-missing-waits="">{tr("Waiting on the hire date: {0}", x.kindsAffected.map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--")}</div>}</div> },
         { header: "", align: "right", render: x => <Btn t={t} v="ghost" data-leave-missing-open={x.person.userId} onClick={() => { window.location.hash = (canOpenStaff ? "staff/" : "hr/") + encodeURIComponent(x.person.userId); }} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Open the profile")}</Btn> },
-      ]} />
-      {missingNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadMissing(missingNext)}>{tr("Show more")}</Btn></div>}
+      ]} />}
     </div>}
     {tab === "starting" && leave.canManage && <LeaveStartingBalances af={af} t={t} showToast={showToast} />}
     {personId && <LeavePersonWindow af={af} t={t} userId={personId} year={year} kinds={kinds} policies={policies || []} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => go("balances")} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}
@@ -16090,8 +16205,18 @@ const TIME_OFF_STATUS_LABELS = { requested: "Requested|request", approved: "Appr
 // A request's type as a word (Step 291): the API's leave types, PTO among them since its Step 289
 // (STEP289_CONTRACT.md section 1.5), each in the screen's language. A type with no word here reads the
 // label the API sent, or its code.
-const LEAVE_TYPE_WORDS = { paid_sick: "Paid sick leave", unpaid: "Unpaid time off", bereavement_personal: "Bereavement and personal", jury_duty: "Jury duty", military: "Military leave", pto: "PTO (paid time off)" };
-const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_WORDS[r.leaveType]) : (r && (r.leaveTypeLabel || r.leaveType)) || "");
+// Since part 400 (the API's Round 15, part 395, OCSA-HR-002 Part 8) a new request is Vacation, Sick, Personal day,
+// Bereavement or Unpaid; PTO, bereavement and personal, jury duty and military are no longer offered, and every
+// request filed before reads as it did. A type with no word here reads the API's own leaveTypeWords in the screen's
+// language, then its label, then its code.
+const LEAVE_TYPE_WORDS = { paid_sick: "Paid sick leave", unpaid: "Unpaid time off", bereavement_personal: "Bereavement and personal", jury_duty: "Jury duty", military: "Military leave", pto: "PTO (paid time off)", vacation: "Vacation", personal: "Personal day", bereavement: "Bereavement" };
+const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_WORDS[r.leaveType])
+  : r && r.leaveTypeWords && typeof r.leaveTypeWords[getLang()] === "string" && r.leaveTypeWords[getLang()] ? r.leaveTypeWords[getLang()]
+  : (r && (r.leaveTypeLabel || r.leaveType)) || "");
+// A request filed inside its type's notice (vacation 2 weeks, a personal day 48 hours) reads insideNotice true: the
+// office decides it case by case. The unit says whether the type is taken in whole days or in hours.
+const TimeOffInsideNotice = ({ r }) => (r && r.insideNotice === true ? <span data-time-off-inside-notice="" title={tr("Filed inside its notice. Decide it case by case.")}><Bdg l={tr("Inside notice")} c={OR} /></span> : null);
+const timeOffAmount = (r) => (r && r.unit === "days" && (r.hours == null || r.hours === "") ? tr("Whole days") : timeOffHours(r ? r.hours : null));
 const timeOffStatus = (s) => tr(TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || ""));
 const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), tr("{0} to {1}", patternTime(sh.startTime), patternTime(sh.endTime)), sh.siteName].filter(Boolean).join(", ");
 const TIME_OFF_LIMIT = 200;
@@ -16280,23 +16405,26 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
     </div>
     <div style={{ marginBottom: 14 }}>
       {row("Person", req.userName)}
-      {row("Type", <span data-time-off-type={req.leaveType || ""}>{timeOffType(req)}</span>)}
+      {row("Type", <span data-time-off-type={req.leaveType || ""}>{timeOffType(req)} <TimeOffInsideNotice r={req} /></span>)}
       {row("Dates", timeOffDates(req.startsOn, req.endsOn))}
       {req.partDay ? row("Time", timeOffTimes(req)) : null}
-      {row("Hours", timeOffHours(req.hours))}
+      {req.unit ? row("Taken in", <span data-time-off-unit={req.unit}>{req.unit === "days" ? tr("Whole days") : tr("Hours")}</span>) : null}
+      {req.unit === "days" && (req.hours == null || req.hours === "") ? null : row("Hours", timeOffHours(req.hours))}
       {row("Status", timeOffStatus(req.status))}
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
+      {req.insideNotice === true && <div data-time-off-inside-notice-line="" style={{ fontSize: 12, color: OR, marginTop: 6, lineHeight: 1.5 }}>{tr("Filed inside its notice. Decide it case by case.")}</div>}
     </div>
     {leave && <div data-time-off-leave={leave.tracked ? "tracked" : "untracked"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Balance")}</Lbl>
       {!leave.tracked && leave.balanceHours == null ? <div style={{ fontSize: 12, color: t.textSec }}>{tr("No balance is kept for {0}.", leaveKindWord(leave.kind, leave.kindName))}</div> : <>
         <div data-time-off-balance="" style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{req.status === "requested"
-          ? tr("{0}: {1} now, {2} after this request of {3}.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours), leaveHours(leave.wouldLeaveHours), leaveHours(leave.requestHours))
-          : leave.givenBack ? tr("{0}: {1} given back, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
-          : leave.taken ? tr("{0}: {1} taken, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
-          : tr("{0}: {1} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours))}</div>
+          ? tr("{0}: {1} now, {2} after this request of {3}.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.balanceHours, leave.balanceDays, leave), leaveInUnit(leave.wouldLeaveHours, leave.wouldLeaveDays, leave), leaveInUnit(leave.requestHours, leave.requestDays, leave))
+          : leave.givenBack ? tr("{0}: {1} given back, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.requestHours, leave.requestDays, leave), leaveInUnit(leave.balanceHours, leave.balanceDays, leave))
+          : leave.taken ? tr("{0}: {1} taken, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.requestHours, leave.requestDays, leave), leaveInUnit(leave.balanceHours, leave.balanceDays, leave))
+          : tr("{0}: {1} now.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.balanceHours, leave.balanceDays, leave))}</div>
         {leave.policy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Policy: {0}", leave.policy.name)}{leave.usableFrom && leave.usableFrom > leaveToday() ? " | " + tr("Usable from {0}", fdLong(leave.usableFrom)) : ""}</div>}
+        <LeaveAdpLine t={t} text={leaveAdpLine([leave])} style={{ fontSize: 11, marginTop: 4, marginBottom: 0 }} />
       </>}
     </div>}
     {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
@@ -16374,10 +16502,10 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange, ope
 
   const columns = [
     { header: tr("Person"), render: r => <span style={{ color: t.text }}>{r.userName}</span> },
-    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => <span data-time-off-type={r.leaveType || ""}>{timeOffType(r)}</span> },
+    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => <span data-time-off-type={r.leaveType || ""}>{timeOffType(r)}{r.insideNotice === true ? <div style={{ marginTop: 3 }}><TimeOffInsideNotice r={r} /></div> : null}</span> },
     { header: tr("Dates"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffDates(r.startsOn, r.endsOn) },
     { header: tr("Time"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffTimes(r) },
-    { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffHours(r.hours) },
+    { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => <span data-time-off-amount={r.unit || ""}>{timeOffAmount(r)}</span> },
     { header: tr("Shifts"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => Array.isArray(r.shifts) && r.shifts.length > 0 ? r.shifts.length : tr("None|shifts") },
     { header: tr("Status"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffStatus(r.status) },
     { header: tr("Asked"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => patternDate(r.createdAt) },
@@ -20427,9 +20555,9 @@ const HEALTH_LIST_COLS = {
 // When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
 // needs to fix it. Every Health incident and every number's drill-down sheet carries Copy for Claude, which copies
 // one plain ASCII block in English. Since part 397 an incident's is the API's own (GET
-// /api/health/incidents/:id/brief, the API's Round 14), copied as it answers; the block below is built from the
-// page's reads for a number's drill-down sheet, which has no brief of its own yet, and for an incident whose brief
-// did not load:
+// /api/health/incidents/:id/brief, the API's Round 14), and since part 400 a number's drill-down sheet's too (GET
+// /api/health/numbers/:key/brief?day=, the API's Round 15), each copied as it answers; the block below is built from
+// the page's reads when that read fails or answers nothing:
 //   - the first line, OCSA Health brief;
 //   - an incident's id, kind, key, title, opened and closed times, what fixed it and its timeline;
 //   - an outage's monitor, reason and duration;
@@ -20439,7 +20567,9 @@ const HEALTH_LIST_COLS = {
 //   - the rows the drill-down shows, routes and counts only: a list of people, or of rows that name a site or a
 //     person, reads as how many, never a name, email, phone or badge;
 //   - the API's commit from GET /api/health (commit), and the dashboard's own build.
-// The number's name is the screen's, so it is copied only on an English screen; its key names it in every language.
+// Since part 400 the number's English name is the API's labelEn, in every language (an API before Round 15 sends
+// none, and the screen's name is copied only on an English screen); its floor is the number's own lines.minRequests;
+// and the list's people (true when its rows name people or sites) says whether its rows are written out or counted.
 // Anything outside plain ASCII in a value the API sent is written without its accent, or as a question mark.
 // The fields of a list's rows a brief carries, by the number's key. Any other list is of people, or names them.
 const HEALTH_BRIEF_COLS = {
@@ -20463,7 +20593,7 @@ const briefLine = (lines, unit) => {
   if (lines.kind === "belowShare") return "yellow under " + one(lines.yellow) + ", red under " + one(lines.red);
   return "yellow at " + one(lines.yellow) + ", red at " + one(lines.red);
 };
-function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
+function healthBrief({ incident, number, rows, rowsDay, floor, commit, people }) {
   const out = ["OCSA Health brief"];
   const x = incident;
   if (x) {
@@ -20481,7 +20611,8 @@ function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
   if (n) {
     const hist = Array.isArray(n.history) ? n.history : [];
     out.push("", "Number: " + briefValue(n.key));
-    if (getLang() === "en" && n.label) out.push("Name: " + briefValue(n.label));
+    if (n.labelEn) out.push("Name: " + briefValue(n.labelEn));
+    else if (getLang() === "en" && n.label) out.push("Name: " + briefValue(n.label));
     out.push("Unit: " + briefValue(n.unit), "Today: " + briefValue(n.value) + ", " + briefValue(n.state || "unknown"), "Yesterday: " + briefValue(n.previous),
       "7 days before, average: " + briefValue(n.weekAverage), "Lines: " + briefLine(n.lines, n.unit));
     if (floor !== null && floor !== undefined) out.push("Floor: a route counts once it served " + briefValue(floor) + " requests in the day");
@@ -20489,9 +20620,12 @@ function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
     hist.forEach(h => out.push("- " + briefValue(h && h.day) + ": " + briefValue(h && h.value) + ", " + briefValue((h && h.state) || "unknown")));
   }
   if (n && Array.isArray(rows)) {
-    const cols = HEALTH_BRIEF_COLS[n.key];
+    // The list's people, once the API answers it, decides; else a list with no columns here is taken to name people.
+    const named = typeof people === "boolean" ? people : !HEALTH_BRIEF_COLS[n.key];
+    const cols = named ? null : HEALTH_BRIEF_COLS[n.key] || keptOnce([].concat(...rows.map(r => Object.keys(r || {}).filter(k => r[k] === null || typeof r[k] !== "object"))));
     out.push("", "Behind it on " + briefValue(rowsDay) + " (" + rows.length + (rows.length === 1 ? " row" : " rows") + "):");
-    if (!cols) out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row about a person" : " rows about people") + ", names left out" : "- nothing");
+    if (named && typeof people === "boolean") out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row naming a person or a site" : " rows naming people or sites") + ", names left out" : "- nothing");
+    else if (!cols) out.push(rows.length ? "- " + rows.length + (rows.length === 1 ? " row about a person" : " rows about people") + ", names left out" : "- nothing");
     else if (!rows.length) out.push("- nothing");
     else rows.forEach(r => out.push("- " + cols.map(k => k + " " + briefValue(r && r[k])).join(", ")));
   }
@@ -20501,7 +20635,13 @@ function healthBrief({ incident, number, rows, rowsDay, floor, commit }) {
 // The API's commit, GET /api/health (part 384, 5.8), and a number's floor, GET /api/health/thresholds; null when either
 // read fails or answers none.
 const healthCommitOf = (af) => af("/api/health").then(d => (d && typeof d.commit === "string" && d.commit ? d.commit : null)).catch(() => null);
-const healthFloorOf = (af, key) => af("/api/health/thresholds").then(d => { const r = (d && Array.isArray(d.thresholds) ? d.thresholds : []).find(x => x && x.key === key); return r && r.minRequests !== undefined && r.minRequests !== null ? r.minRequests : null; }).catch(() => null);
+// Since part 400 a number's floor is its own lines.minRequests (the number with a floor has answered it since the API's
+// part 382), so the brief reads no thresholds.
+const healthFloorOf = (number) => (number && number.lines && number.lines.minRequests !== undefined && number.lines.minRequests !== null ? number.lines.minRequests : null);
+// A number's brief, the API's own (GET /api/health/numbers/:key/brief?day=, text/plain), or "" when that read fails or
+// answers nothing.
+const healthNumberBriefOf = (af, key, day) => af("/api/health/numbers/" + encodeURIComponent(key) + "/brief" + (day ? "?day=" + encodeURIComponent(day) : ""), { asText: true })
+  .then(x => (typeof x === "string" && x.trim() ? x : "")).catch(() => "");
 // The button, its toast, and the box with the brief selected where the browser refuses the clipboard.
 function CopyForClaude({ t, at, build, showToast }) {
   const [busy, setBusy] = useState(false);
@@ -20531,13 +20671,14 @@ function CopyForClaude({ t, at, build, showToast }) {
 }
 function HealthListWindow({ af, t, number, day, onClose, showToast }) {
   const [items, setItems] = useState(null);
+  const [people, setPeople] = useState(null);
   const [failed, setFailed] = useState("");
   const [again, setAgain] = useState(0);
   useEffect(() => {
     let alive = true;
     setItems(null); setFailed("");
     af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : ""))
-      .then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : []); })
+      .then(d => { if (alive) { setItems(d && Array.isArray(d.items) ? d.items : []); setPeople(d && typeof d.people === "boolean" ? d.people : null); } })
       .catch(e => { if (alive) { setItems([]); setFailed(e.message || tr("This did not load.")); } });
     return () => { alive = false; };
   }, [af, number.key, day, again]);
@@ -20549,7 +20690,7 @@ function HealthListWindow({ af, t, number, day, onClose, showToast }) {
     </div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
       <div style={{ flex: "1 1 240px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Who or what is behind this number on {0}, read now.", healthDay(day))}</div>
-      {items !== null && !failed ? <CopyForClaude t={t} at={number.key} showToast={showToast} build={async () => { const [commit, floor] = await Promise.all([healthCommitOf(af), healthFloorOf(af, number.key)]); return healthBrief({ number, rows: items, rowsDay: day, floor, commit }); }} /> : null}
+      {items !== null && !failed ? <CopyForClaude t={t} at={number.key} showToast={showToast} build={async () => { const said = await healthNumberBriefOf(af, number.key, day); if (said) return said; const commit = await healthCommitOf(af); return healthBrief({ number, rows: items, rowsDay: day, floor: healthFloorOf(number), commit, people: people === null ? undefined : people }); }} /> : null}
     </div>
     {items === null ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
       : failed ? <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} text={failed} />
@@ -20833,12 +20974,12 @@ function HealthIncidents({ af, t, onChanged, numbers = null, showToast }) {
   const briefFromPage = async (x) => {
     const number = x && x.kind === "number" && numbers && Array.isArray(numbers.numbers) ? numbers.numbers.find(n => n && n.key === x.key) || null : null;
     const day = numbers && numbers.day ? numbers.day : "";
-    const [commit, rows, floor] = await Promise.all([
+    const [commit, list] = await Promise.all([
       healthCommitOf(af),
-      number ? af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : "")).then(d => (d && Array.isArray(d.items) ? d.items : null)).catch(() => null) : null,
-      number ? healthFloorOf(af, number.key) : null,
+      number ? af("/api/health/numbers/" + encodeURIComponent(number.key) + "/list" + (day ? "?day=" + encodeURIComponent(day) : "")).catch(() => null) : null,
     ]);
-    return healthBrief({ incident: x, number, rows, rowsDay: day, floor, commit });
+    const rows = list && Array.isArray(list.items) ? list.items : null;
+    return healthBrief({ incident: x, number, rows, rowsDay: day, floor: healthFloorOf(number), commit, people: list && typeof list.people === "boolean" ? list.people : undefined });
   };
   const save = once(async () => {
     const text = (writing && writing.text || "").replace(/\s+/g, " ").trim();
@@ -22193,16 +22334,20 @@ function TrustedDevices({ af, t, showToast }) {
 }
 
 // ===== HOLIDAYS (Step 248) =====
-// OCSA-HR-002 8.2 (STEP247_CONTRACT.md version 2, section 1): the eleven federal holidays, each on the
-// day the federal government observes it, and the office's own days, the two Eids among them, whose
-// dates OCSA confirms each year. GET /api/holidays?year= answers a year's list, federal and office, by
-// date; includeRetired=1 adds the office days retired. A federal day is the handbook's and is not
-// changed here. An office day is added with POST /api/holidays and edited or retired with PATCH
+// OCSA-HR-002 Part 8.6: since part 400 (the API's Round 15, part 395) the handbook's nine paid holidays, each on the
+// day it is observed (a Saturday the Friday before, a Sunday the Monday after), and any other day the office closes.
+// GET /api/holidays?year= answers a year's list by date: the nine read kind "federal", source "handbook" and
+// federal, false for the Day After Thanksgiving, which the handbook sets by its rule; an office day reads source
+// "office". An API before Round 15 sends no source, and its kind federal is read as the handbook's.
+// includeRetired=1 adds the office days retired. A handbook day is not changed here. An office day is added with POST /api/holidays and edited or retired with PATCH
 // /api/holidays/:id; nothing is ever deleted. A refusal is drawn word for word under the field its
 // keys name, and anything else at the top. A day is read from its YYYY-MM-DD parts, never as a Date
 // made from the string, so it is the same day wherever the computer is set.
 const holidaysOf = (d) => (d && Array.isArray(d.holidays) ? d.holidays.filter(h => h && typeof h.date === "string") : null);
 const holidayDay = (d) => localDate(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+const holidayIsHandbook = (h) => !!h && (h.source === "handbook" || (h.source !== "office" && h.kind === "federal"));
+// The line under a handbook day the federal calendar does not hold, by its key.
+const holidayRuleLine = (h) => (h.key === "dayAfterThanksgiving" ? tr("Set by the handbook's rule: the Friday after Thanksgiving.") : tr("Set by the handbook's own rule."));
 const HOLIDAY_FIELDS = ["date", "name", "note"];
 function HolidaysPanel({ af, t, showToast, initial }) {
   // This year and next, by the browser's own calendar day.
@@ -22266,12 +22411,13 @@ function HolidaysPanel({ af, t, showToast, initial }) {
   const isRetired = (h) => h.active === false;
   const cols = [
     { header: tr("Date"), tdStyle: { whiteSpace: "nowrap" }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text }}>{holidayDay(h.date)}
-      {h.kind === "federal" && h.observedFrom ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Observed for {0}", holidayDay(h.observedFrom))}</div> : null}</span>) },
-    { header: tr("Holiday"), tdStyle: { minWidth: 160 }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text, fontWeight: 600 }}>{h.name}
-      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|holiday")} c={RD} /></span> : null}</span>) },
-    { header: tr("Kind"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: h => (h.kind === "federal" ? tr("Federal") : tr("Office|holiday")) },
+      {holidayIsHandbook(h) && h.observedFrom ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Observed for {0}", holidayDay(h.observedFrom))}</div> : null}</span>) },
+    { header: tr("Holiday"), tdStyle: { minWidth: 160 }, render: h => (<span data-holiday-row={holidayIsHandbook(h) ? "handbook" : "office"} data-holiday-key={h.key || undefined} style={{ color: isRetired(h) ? t.textMut : t.text, fontWeight: 600 }}>{h.name}
+      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|holiday")} c={RD} /></span> : null}
+      {holidayIsHandbook(h) && h.federal === false ? <div data-holiday-rule="" style={{ fontSize: 11, color: t.textMut, fontWeight: 400, marginTop: 2 }}>{holidayRuleLine(h)}</div> : null}</span>) },
+    { header: tr("Kind"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: h => <span data-holiday-kind={holidayIsHandbook(h) ? "handbook" : "office"}>{holidayIsHandbook(h) ? tr("Handbook|holiday") : tr("Office|holiday")}</span> },
     { header: tr("Note"), tdStyle: { minWidth: 140, color: t.textSec, overflowWrap: "anywhere" }, render: h => h.note || "" },
-    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: h => (h.kind === "federal"
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: h => (holidayIsHandbook(h)
       ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("Set by the handbook")}</span>
       : isRetired(h) ? null
       : <span>
@@ -22285,7 +22431,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
   const sw = (y) => (<button key={y} onClick={() => setYear(y)} aria-pressed={year === y} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (year === y ? GO : t.border), background: year === y ? t.goldBg : "transparent", color: year === y ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{String(y)}</button>);
   const brand = clientConfig.company.brandTag;
   return (<div data-holidays="">
-    <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("{0} observes the eleven federal holidays and the two Eids. Federal days follow the handbook. Enter each year's Eid dates here once {0} confirms them, and any other day {0} closes.", brand)}</div>
+    <div data-holidays-intro="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("{0} observes the nine paid holidays its handbook names, listed here each year as the handbook sets them. Add any other day {0} closes.", brand)}</div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 8 }}>{years.map(sw)}</div>
       <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.textSec }}>
@@ -22302,6 +22448,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{win.mode === "add" ? tr("Add a holiday") : tr("Edit holiday")}</div>
         <button onClick={() => setWin(null)} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
       </div>
+      {win.mode === "add" && <div data-holiday-window-help="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("The handbook's nine holidays are listed already. Add any other day {0} closes.", brand)}</div>}
       {refusal.text && !refusal.field && <div data-holiday-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
       <div style={{ marginBottom: 12, maxWidth: 260 }}>
         <Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" aria-label={tr("Date")} value={win.date} onChange={e => set("date", e.target.value)} style={box("date")} />{under("date")}
@@ -28483,8 +28630,11 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const issuerIsMe = !!selfId && !!(w && w.issuedBy && w.issuedBy.userId != null) && String(w.issuedBy.userId) === String(selfId);
   const subjectId = String(userId || (w && w.person && w.person.userId) || "");
   const [testSubject, setTestSubject] = useState(null);
+  // Part 400 (the API's Round 15, 8.4): every full view of a warning answers canRescind by the rescind route's own rule
+  // (helpers/discipline.js mayRescind), and that decides; the rule below is read only from an API that sends none.
+  const apiSaysRescind = !!w && typeof w.canRescind === "boolean";
   useEffect(() => {
-    if (isAdmin || !issuerIsMe || !subjectId) return undefined;
+    if (apiSaysRescind || isAdmin || !issuerIsMe || !subjectId) return undefined;
     if (self && self.test) { setTestSubject(true); return undefined; }
     const flagOf = (p) => (!p ? null : p.isTestAccount === true || p.is_test_account === true ? true : Object.prototype.hasOwnProperty.call(p, "isTestAccount") || Object.prototype.hasOwnProperty.call(p, "is_test_account") ? false : null);
     const said = flagOf(person) !== null ? flagOf(person) : flagOf((knownPeople || []).find(p => p && String(p.id) === subjectId));
@@ -28494,8 +28644,8 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
       .then(d => { const row = (d && Array.isArray(d.employees) ? d.employees : []).find(e => e && String(e.id) === subjectId); if (alive) setTestSubject(!!(row && row.is_test_account === true)); })
       .catch(() => { if (alive) setTestSubject(false); });
     return () => { alive = false; };
-  }, [af, isAdmin, issuerIsMe, subjectId, person, knownPeople, self]);
-  const mayRescind = isAdmin || (issuerIsMe && testSubject === true);
+  }, [af, apiSaysRescind, isAdmin, issuerIsMe, subjectId, person, knownPeople, self]);
+  const mayRescind = apiSaysRescind ? w.canRescind === true : isAdmin || (issuerIsMe && testSubject === true);
   const [endOpen, setEndOpen] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);

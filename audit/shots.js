@@ -714,7 +714,8 @@ const SHOTS = [
       await press(c, "Edit Details"); await until(c, MODAL);
       const lines = inModal(c).locator("div[role=group]");
       await lines.locator("label").filter({ hasText: c.say("Disinfection|service line") }).locator("input").check();
-      await lines.evaluate((el) => el.scrollIntoView({ block: "end" }));
+      // Part 400: the Union site switch under the service lines.
+      await inModal(c).locator("[data-site-union-field]").evaluate((el) => el.scrollIntoView({ block: "end" }));
     } },
   { name: "settings-permissions-person", entry: "Give one person a permission",
     open: "settings", ready: SHELL,
@@ -727,18 +728,14 @@ const SHOTS = [
     act: async (c) => { await btn(c, "Dark Mode").hover(); } },
   // The training day round (part 334): a request over two shifts with what happens to each chosen,
   // from its address, and the week marking the time off and the shifts under it (setStep330).
-  { name: "time-off-request", entry: "Approve or deny a time off request",
-    open: "schedule/timeoff/to-330", ready: '[data-time-off-window="to-330"] [data-affected-shift="sh-330"]',
-    act: async (c) => {
-      await c.page.locator('[data-affected-shift="sh-1"] [data-affected-action]').selectOption("reassign");
-      await click(c, '[data-affected-shift="sh-1"] [data-person-pick-field]'); await click(c, '[data-person-pick-option="u-staff-9"]');
-      await c.page.locator('[data-affected-shift="sh-330"] [data-affected-action]').selectOption("cancel");
-      await blur(c); await toTop(c, "[data-time-off-affected]", 120);
-    } },
+  // Part 400 (the API's Round 15): a vacation filed inside its 2 weeks of notice, with its reason, its mark, its unit and
+  // its balance in days with the ADP line (audit/part400-stub.js, newTypes and handbookKinds).
+  { name: "time-off-request", entry: "Approve or deny a time off request", arm: (stubs, on) => stubs.setScene400({ newTypes: on, handbookKinds: on }),
+    open: "schedule/timeoff/to-400", ready: '[data-time-off-window="to-400"] [data-time-off-inside-notice-line]' },
   { name: "schedule-time-off-week", entry: "Approve or deny a time off request",
     open: "schedule", ready: '[data-time-off-chip="to-330"]',
     act: async (c) => { await until(c, '[data-shift-chip="sh-4"][data-shift-time-off="approved"]'); } },
-  { name: "time-off-all", entry: "See past time off requests",
+  { name: "time-off-all", entry: "See past time off requests", arm: (stubs, on) => stubs.setScene400({ newTypes: on }),
     open: "schedule", ready: "text=Tomasz Wisniewski",
     act: async (c) => { await press(c, "Time off"); await until(c, "table tbody tr"); await press(c, "All|requests"); await wait(500); } },
   { name: "complaint-what-was-done", entry: "Write what was done and close a customer complaint",
@@ -1409,7 +1406,9 @@ const SHOTS = [
       await until(c, "[data-holidays] table tbody tr");
       await click(c, "[data-holiday-add]");
       await c.page.locator('[data-holiday-window] input[type="date"]').fill("2027-03-10");
-      await c.page.locator("[data-holiday-window] input").nth(1).fill("Eid al-Fitr");
+      // Part 400: a day the office closes. The Day After Thanksgiving is one of the handbook's nine since the API's Round
+      // 15, set by its rule, and an office row on it is refused (routes/holidays.js clash).
+      await c.page.locator("[data-holiday-window] input").nth(1).fill(c.lang === "es" ? "Oficina cerrada por inventario" : "Office closed for inventory");
       await c.page.locator("[data-holiday-window] textarea").fill(c.lang === "es" ? "Confirmado por escrito" : "Confirmed in writing");
     } },
   { name: "request-qr-make", entry: "Make a request QR, so anyone in the building can ask for help",
@@ -1786,22 +1785,26 @@ const SHOTS = [
     open: "issues/i-5", ready: "[data-issue-send-maintenance]",
     act: async (c) => { await click(c, "[data-issue-send-maintenance]"); await until(c, "[data-maint-new]"); } },
   // Part 368: leave balances (audit/part368-leave.js answers them in every run).
-  { name: "leave-balances", entry: "See everyone's leave balances",
+  // Part 400: a full-time person's vacation and personal days under the handbook (audit/part400-stub.js, handbookKinds).
+  { name: "leave-balances", entry: "See everyone's leave balances", arm: (stubs, on) => stubs.setScene400({ handbookKinds: on }),
     open: "leave", ready: "[data-leave-row]" },
   { name: "leave-person", entry: "Read a person's leave ledger and adjust a balance",
     open: "leave/balances/u-staff-7", ready: '[data-leave-person="u-staff-7"] [data-leave-ledger] tbody tr' },
   { name: "leave-adjust", entry: "Read a person's leave ledger and adjust a balance",
     open: "leave/balances/u-staff-6", ready: "[data-leave-adjust-open]",
     act: async (c) => { await click(c, "[data-leave-adjust-open]"); await until(c, "[data-leave-adjust-form]"); await c.page.locator('[data-leave-adjust="hours"]').fill("-2"); await c.page.locator('[data-leave-adjust="reason"]').fill(c.lang === "es" ? "Dos horas usadas antes de que la app llevara los permisos" : "Two hours used before the app kept leave"); await c.page.locator('[data-leave-adjust="effectiveOn"]').fill(seed.shift(-12)); await blur(c); } },
+  // Part 400: the handbook policy's window, its rules fixed by the handbook, with who each is for and its caps.
   { name: "leave-policies", entry: "Make or change a leave policy",
-    open: "leave/policies", ready: "[data-leave-policy-card]" },
+    open: "leave/policies", ready: '[data-leave-policy-card="lp-1"]',
+    act: async (c) => { await click(c, '[data-leave-policy-card="lp-1"]'); await until(c, "[data-leave-policy-rules]"); await toTop(c, "[data-leave-policy-rules]", 80); } },
   { name: "leave-policy-editor", entry: "Make or change a leave policy",
     open: "leave/policies", ready: '[data-leave-policy-card="lp-2"]',
     act: async (c) => { await click(c, '[data-leave-policy-card="lp-2"]'); await until(c, "[data-leave-policy-edit]"); await click(c, "[data-leave-policy-edit]"); await until(c, '[data-leave-policy-editor="lp-2"]'); } },
   { name: "leave-site-policy", entry: "Set which leave policy a site or a person follows",
     open: "leave/sites", ready: "[data-leave-site-row]",
     act: async (c) => { await click(c, '[data-leave-site-set="s-3"]'); await until(c, '[data-leave-policy-set="site"]'); } },
-  { name: "leave-hours-window", entry: "Post the payroll system's hours file",
+  // Part 400: the second person's year's cap is reached, so their line posts nothing (audit/part400-stub.js, yearCap).
+  { name: "leave-hours-window", entry: "Post the payroll system's hours file", arm: (stubs, on) => stubs.setScene400({ yearCap: on ? ["u-staff-9"] : [] }),
     open: "leave/hours", ready: "[data-leave-file-row]",
     act: async (c) => {
       await click(c, "[data-leave-file-upload]"); await until(c, "[data-leave-hours-window]");
@@ -1810,7 +1813,7 @@ const SHOTS = [
       // Part 372: Check the hours, the dry run, draws what each line would post before anything posts.
       await click(c, "[data-leave-file-check]"); await until(c, "[data-leave-file-would-post]");
     } },
-  { name: "leave-missing", entry: "Find the people with no hire date",
+  { name: "leave-missing", entry: "Find the people with no class or no hire date",
     open: "leave/missing", ready: "[data-leave-missing]" },
   { name: "leave-starting", entry: "Enter starting balances",
     open: "leave/starting", ready: "[data-leave-start-box]",
@@ -1892,11 +1895,11 @@ const SHOTS = [
   // testSite).
   { name: "sites-test-site", entry: "Tell the test site apart", arm: (stubs, on) => stubs.setScene379({ testSite: on }),
     open: "sites", ready: "[data-site-test]" },
-  // Part 393, section 3: Checklist Results' All sites with Riverbend Logistics Hub as the test site, which the summary
-  // leaves out, so its card says why it has no counts (audit/part393-stub.js, testSite).
+  // Part 400 (the API's Round 15, 8.5): Checklist Results' All sites with Riverbend Logistics Hub as the test site, which
+  // the summary names in leftOut, so it has no card and the line above the cards says so (audit/part400-stub.js).
   { name: "checklist-results-test-site", entry: "Tell the test site apart",
-    arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene379({ testSite: on }); stubs.setScene393({ testSite: on ? seed.SITES[2].id : null }); },
-    open: "checklist/all/today", ready: "[data-cr-test-site]", act: async () => { await wait(900); } },
+    arm: (stubs, on) => { stubs.setChecklist358(on); stubs.setScene379({ testSite: on }); stubs.setScene400({ testSite: on ? seed.SITES[2].id : null }); },
+    open: "checklist/all/today", ready: "[data-cr-left-out]", act: async () => { await wait(900); } },
   // Part 386, section 2: HR Records' training records, the certificate on ht-5 uploaded by the person from an
   // outside course (audit/part386-stub.js).
   { name: "training-certificate-by", entry: "Upload a training certificate from an outside course",
@@ -1959,14 +1962,16 @@ const SHOTS = [
     open: "health", ready: "[data-uptime-monitor]" },
   { name: "health-outage", entry: "See the uptime monitors and outages", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
     open: "health/incidents", ready: "[data-health-outage]" },
-  // Part 393, section 2: Copy for Claude on a number's incident, copied with its toast, and the box a browser that
-  // refuses the clipboard shows, the brief selected (audit/part393-stub.js).
+  // Part 400 (the API's Round 15, 8.1): Copy for Claude on a number's drill-down sheet, the API's brief for the number
+  // copied with its toast; and, since part 393, the box a browser that refuses the clipboard shows, the brief selected.
   { name: "health-copy-for-claude", entry: "Copy a health problem for Claude", as: "superAdmin",
-    open: "health/incidents", ready: "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']",
+    open: "health", ready: "[data-health-number='slowest_p95_ms']",
     act: async (c) => {
       await c.page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: c.origin });
+      await click(c, "[data-health-number='slowest_p95_ms']");
+      await until(c, "[data-copy-for-claude-button='slowest_p95_ms']");
       await c.d.waitToastGone(4000);
-      await click(c, "[data-copy-for-claude-button='00000000-0000-4000-8000-000000000701']");
+      await click(c, "[data-copy-for-claude-button='slowest_p95_ms']");
       await c.d.waitToast(5000);
     } },
   { name: "health-copy-by-hand", entry: "Copy a health problem for Claude", as: "superAdmin",
@@ -1978,6 +1983,17 @@ const SHOTS = [
       await until(c, "[data-copy-for-claude-text]");
       await toTop(c, "[data-health-incident='00000000-0000-4000-8000-000000000701']", 20);
     } },
+  // Part 400 (the API's Round 15): the Union site switch on a site's Edit Site Details, turned on, and the sites list with
+  // Lakeside Medical Plaza marked a union site (audit/part400-stub.js, unionSite).
+  { name: "site-union-switch", entry: "Mark a site as a union site",
+    open: "sites/" + seed.SITES[0].id, ready: "[data-site-checklist-history]",
+    act: async (c) => {
+      await press(c, "Edit Details"); await until(c, "[data-site-union-field]");
+      await inModal(c).locator("[data-site-union-switch]").check();
+      await inModal(c).locator("[data-site-union-field]").evaluate((el) => el.scrollIntoView({ block: "end" }));
+    } },
+  { name: "sites-union-site", entry: "Mark a site as a union site", arm: (stubs, on) => stubs.setScene400({ unionSite: on ? seed.SITES[1].id : [] }),
+    open: "sites", ready: "[data-site-union]" },
 ];
 
 

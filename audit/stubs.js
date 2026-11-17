@@ -2188,51 +2188,58 @@ function createStubs() {
   // `lang` is the language the call asked for, which is the language the API answers in.
   // ---- Step 247 (STEP247_CONTRACT.md version 2) -----------------------------------------------------
   // What the API's Step 247 adds, answered only once a run arms it with setStep247, so every other run
-  // sees the API it always saw. Holidays (section 1): the eleven federal days worked out for any year
-  // and observed the federal way, Saturday to the Friday before and Sunday to the Monday after, and
-  // the office's own days, which start as two invented Eid dates. One person whose employment ended,
-  // with three past sites (section 3), the second of them a school site the guard refuses. A client's
-  // concern past due that no receipt acknowledged (section 6.1), which Mark acknowledged records.
+  // sees the API it always saw. Holidays (section 1), since part 400 as the API's Round 15 (part 395) answers them at
+  // ocsa-api 3df0967 (helpers/workingDays.js holidaysFor, routes/holidays.js): the handbook's nine (OCSA-HR-002 Part
+  // 8.6), each observed the federal way, Saturday to the Friday before and Sunday to the Monday after, kind federal,
+  // source handbook and federal (false for the Day After Thanksgiving, set by its rule); and the office's own days,
+  // source office: an invented day the office closes, and the two Day After Thanksgiving rows retired at the API's
+  // merge, so the day shows once. No Eid is an office day. A write on one of the nine is 409 holidays.federal in the
+  // API's words. One person whose employment ended, with three past sites (section 3), the second of them a school
+  // site the guard refuses. A client's concern past due that no receipt acknowledged (section 6.1), which Mark
+  // acknowledged records.
   let step247 = false;
+  // helpers/words.js holidays.federal.<key>, English and Spanish.
   const HOLIDAY_NAMES = {
-    newYear: ["New Year's Day", "D\u00eda de A\u00f1o Nuevo"], mlk: ["Birthday of Martin Luther King, Jr.", "Natalicio de Martin Luther King, Jr."],
-    washington: ["Washington's Birthday", "Natalicio de Washington"], memorial: ["Memorial Day", "D\u00eda de los Ca\u00eddos"],
-    juneteenth: ["Juneteenth National Independence Day", "D\u00eda Nacional de la Independencia de Juneteenth"], independence: ["Independence Day", "D\u00eda de la Independencia"],
-    labor: ["Labor Day", "D\u00eda del Trabajo"], columbus: ["Columbus Day", "D\u00eda de Col\u00f3n"], veterans: ["Veterans Day", "D\u00eda de los Veteranos"],
-    thanksgiving: ["Thanksgiving Day", "D\u00eda de Acci\u00f3n de Gracias"], christmas: ["Christmas Day", "D\u00eda de Navidad"],
+    newYear: ["New Year's Day", "Día de Año Nuevo"], mlk: ["Martin Luther King Jr. Day", "Día de Martin Luther King Jr."],
+    memorial: ["Memorial Day", "Día de los Caídos"], juneteenth: ["Juneteenth", "Juneteenth"], independence: ["Independence Day", "Día de la Independencia"],
+    labor: ["Labor Day", "Día del Trabajo"], thanksgiving: ["Thanksgiving Day", "Día de Acción de Gracias"],
+    dayAfterThanksgiving: ["Day After Thanksgiving", "Día después de Acción de Gracias"], christmas: ["Christmas Day", "Día de Navidad"],
   };
   const dayOf = (y, m, d) => { const x = new Date(Date.UTC(y, m - 1, d)); return x.toISOString().slice(0, 10); };
   const weekdayOf = (y, m, d) => new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   const nthMonday = (y, m, wd, n) => 1 + ((wd - weekdayOf(y, m, 1) + 7) % 7) + (n - 1) * 7;
   const lastMonday = (y, m) => { const days = new Date(Date.UTC(y, m, 0)).getUTCDate(); return days - ((weekdayOf(y, m, days) - 1 + 7) % 7); };
   const observedOf = (y, m, d) => { const w = weekdayOf(y, m, d); return dayOf(y, m, d + (w === 6 ? -1 : w === 0 ? 1 : 0)); };
-  // A year's federal holidays, by the day each is observed, New Year's Day of the year after included
-  // when it is observed on December 31.
+  // A year's handbook holidays, by the day each is observed, New Year's Day of the year after included when it is
+  // observed on December 31 (helpers/workingDays.js federalFor).
   function federalHolidays(y, lang) {
     const name = (k) => HOLIDAY_NAMES[k][lang === "es" ? 1 : 0];
-    const fixed = [["newYear", y, 1, 1], ["juneteenth", y, 6, 19], ["independence", y, 7, 4], ["veterans", y, 11, 11], ["christmas", y, 12, 25], ["newYear", y + 1, 1, 1]];
-    const moving = [["mlk", 1, nthMonday(y, 1, 1, 3)], ["washington", 2, nthMonday(y, 2, 1, 3)], ["memorial", 5, lastMonday(y, 5)], ["labor", 9, nthMonday(y, 9, 1, 1)], ["columbus", 10, nthMonday(y, 10, 1, 2)], ["thanksgiving", 11, nthMonday(y, 11, 4, 4)]];
-    const out = fixed.map(([k, yy, m, d]) => { const o = observedOf(yy, m, d); return { date: o, name: name(k), kind: "federal", key: k, id: null, note: null, observedFrom: o === dayOf(yy, m, d) ? null : dayOf(yy, m, d) }; })
-      .concat(moving.map(([k, m, d]) => ({ date: dayOf(y, m, d), name: name(k), kind: "federal", key: k, id: null, note: null, observedFrom: null })));
+    const fixed = [["newYear", y, 1, 1], ["juneteenth", y, 6, 19], ["independence", y, 7, 4], ["christmas", y, 12, 25], ["newYear", y + 1, 1, 1]];
+    const thanks = nthMonday(y, 11, 4, 4);
+    const moving = [["mlk", 1, nthMonday(y, 1, 1, 3)], ["memorial", 5, lastMonday(y, 5)], ["labor", 9, nthMonday(y, 9, 1, 1)], ["thanksgiving", 11, thanks], ["dayAfterThanksgiving", 11, thanks + 1]];
+    const row = (k, date, from) => ({ date, name: name(k), kind: "federal", key: k, id: null, note: null, observedFrom: from, source: "handbook", federal: k !== "dayAfterThanksgiving" });
+    const out = fixed.map(([k, yy, m, d]) => { const o = observedOf(yy, m, d); return row(k, o, o === dayOf(yy, m, d) ? null : dayOf(yy, m, d)); })
+      .concat(moving.map(([k, m, d]) => row(k, dayOf(y, m, d), null)));
     return out.filter((h) => h.date.slice(0, 4) === String(y));
   }
   const OFFICE_HOLIDAYS = () => [
-    { id: "hol-1", date: "2026-03-20", name: "Eid al-Fitr", note: "Confirmed in writing", active: true },
-    { id: "hol-2", date: "2026-05-27", name: "Eid al-Adha", note: null, active: true },
+    { id: "hol-1", date: "2026-12-24", name: "Christmas Eve", note: "Office closed", active: true, updatedAt: "2026-11-14T16:40:00Z" },
+    { id: "hol-2", date: "2026-11-27", name: "Day After Thanksgiving", note: null, active: false, updatedAt: "2026-11-14T16:30:00Z" },
+    { id: "hol-3", date: "2027-11-26", name: "Day After Thanksgiving", note: null, active: false, updatedAt: "2026-11-14T16:30:00Z" },
   ];
   let officeHolidays = OFFICE_HOLIDAYS();
-  let holidaySeq = 2;
+  let holidaySeq = 3;
   const realDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) && dayOf(Number(v.slice(0, 4)), Number(v.slice(5, 7)), Number(v.slice(8, 10))) === v;
   const holidayRefusal = (code, status, error, keys) => ({ status, json: Object.assign({ error, code }, keys ? { keys } : {}) });
   // The holiday a POST or PATCH would write, or the refusal section 1 gives it.
   function holidayCheck(h, lang) {
     const es = lang === "es";
-    if (!realDay(h.date)) return holidayRefusal("holidays.badDetails", 400, es ? "Elija una fecha v\u00e1lida." : "Choose a real date.", ["date"]);
+    if (!realDay(h.date)) return holidayRefusal("holidays.badDetails", 400, es ? "Elija una fecha válida." : "Choose a real date.", ["date"]);
     if (!String(h.name || "").trim() || String(h.name).trim().length > 120) return holidayRefusal("holidays.badDetails", 400, es ? "Escriba un nombre de hasta 120 caracteres." : "Enter a name of up to 120 characters.", ["name"]);
     if (h.note != null && String(h.note).length > 500) return holidayRefusal("holidays.badDetails", 400, es ? "La nota admite hasta 500 caracteres." : "A note holds up to 500 characters.", ["note"]);
     const fed = federalHolidays(Number(h.date.slice(0, 4)), lang).find((x) => x.date === h.date);
-    if (fed) return holidayRefusal("holidays.federal", 409, (es ? "Ese d\u00eda ya es un d\u00eda festivo federal: " : "That day is already a federal holiday: ") + fed.name + ".");
-    if (h.active !== false && officeHolidays.some((x) => x.active && x.date === h.date && x.id !== h.id)) return holidayRefusal("holidays.duplicate", 409, es ? "Ya hay un d\u00eda festivo de la oficina en esa fecha." : "An office holiday is already on that date.");
+    if (fed) return { status: 409, json: { error: (es ? "Esa fecha ya es un día festivo: " : "That date is already a holiday: ") + fed.name, code: "holidays.federal", date: h.date, key: fed.key } };
+    if (h.active !== false && officeHolidays.some((x) => x.active && x.date === h.date && x.id !== h.id)) return holidayRefusal("holidays.duplicate", 409, es ? "Ya hay un día festivo de la oficina en esa fecha." : "An office holiday is already on that date.");
     return null;
   }
   const PAST_SITES = () => [
@@ -4469,7 +4476,7 @@ function createStubs() {
       if (!Number.isInteger(y) || y < 2020 || y > 2100) return holidayRefusal("holidays.badYear", 400, es ? "Elija un a\u00f1o de 2020 a 2100." : "Choose a year from 2020 to 2100.");
       const all = admin && query.get("includeRetired") === "1";
       const office = officeHolidays.filter((h) => h.date.slice(0, 4) === String(y) && (all || h.active))
-        .map((h) => Object.assign({ date: h.date, name: h.name, kind: "office", key: null, id: h.id, note: h.note, observedFrom: null }, all ? { active: h.active } : {}));
+        .map((h) => Object.assign({ date: h.date, name: h.name, kind: "office", key: null, id: h.id, note: h.note, observedFrom: null, updatedAt: h.updatedAt || null, source: "office", federal: false }, all ? { active: h.active } : {}));
       const fed = federalHolidays(y, lang).map((h) => Object.assign(h, all ? { active: true } : {}));
       const holidays = fed.concat(office).sort((a, b) => a.date.localeCompare(b.date) || (a.kind === b.kind ? 0 : a.kind === "federal" ? -1 : 1));
       return ok({ year: y, holidays });
@@ -6201,6 +6208,13 @@ function createStubs() {
   const part397 = require("./part397-stub")({ seed, state, ok, clone, person, findings: () => (step253 ? findings() : []), schedule: SCHEDULE });
   part397.setProbe(quietGet);
   part397.setPart389(part389);
+  // What the API's Round 15 answers for the dashboard (part 400), in audit/part400-stub.js: the API as built at
+  // ocsa-api 3df0967, over part 397's and every layer under it but the pictures, in every run. It reads the lists the
+  // six features name, the balances and the Health numbers through every layer (quietGet), and a number's brief from
+  // the part397 layer.
+  const part400 = require("./part400-stub")({ seed, state, ok, clone, person, can: (k) => part368.can(k), readsSite: (id) => part368.readsSite(id) });
+  part400.setProbe(quietGet);
+  part400.setPart397(part397);
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7388,7 +7402,8 @@ function createStubs() {
     const under389 = () => part389.route(method, path, u.searchParams, body, record.language, under386);
     const under393 = () => part393.route(method, path, u.searchParams, body, record.language, under389);
     const under397 = () => part397.route(method, path, u.searchParams, body, record.language, under393);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under397);
+    const under400 = () => part400.route(method, path, u.searchParams, body, record.language, under397);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under400);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7523,6 +7538,10 @@ function createStubs() {
     sent397: () => part397.sent(),
     model397: () => part397.model(),
     briefs397: () => part397.briefs(),
+    // Part 400: the API's Round 15 (audit/part400-stub.js), what a run sent it, and its scenes.
+    setScene400: (o) => { part400.setScene(o || {}); },
+    sent400: () => part400.sent(),
+    model400: () => part400.model(),
     sent386: () => part386.sent(),
     model386: () => part386.model(),
     sent379: () => part379.sent(),
@@ -7664,7 +7683,7 @@ function createStubs() {
       state.announcements = null; annSeq = 0;
       state.alertSettings = {};
       // Step 247 off, and its holidays, its person and its concern as they started.
-      step247 = false; officeHolidays = OFFICE_HOLIDAYS(); holidaySeq = 2; leftRehired = false; concernAck = null;
+      step247 = false; officeHolidays = OFFICE_HOLIDAYS(); holidaySeq = 3; leftRehired = false; concernAck = null;
       // Step 250 off, and its requests and request links as they started.
       step250 = false; state.requests = null; state.requestActivity = null; requestSeq = 0;
       // Step 253 off, and its findings and corrective action as they started.
@@ -7692,6 +7711,7 @@ function createStubs() {
       part389.reset();
       part393.reset();
       part397.reset();
+      part400.reset();
       pictures372.reset();
     },
     fixtures: {

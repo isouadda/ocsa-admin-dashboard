@@ -635,6 +635,9 @@ module.exports = (ctx) => {
   return {
     route,
     setScene,
+    // The capability and site rules, for the part400 layer (audit/part400-stub.js).
+    can,
+    readsSite,
     sent: () => (state.m368 ? state.m368.sent : []).concat(leave.sent()),
     model: () => m(),
     sinceRefused: (p) => round6.sinceRefused(p),

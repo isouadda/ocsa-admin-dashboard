@@ -453,12 +453,13 @@ Who can do this: admins
 3. To change one, click the site. On **General Info** (**Información general**), click **Edit Details** (**Editar los detalles**) under **Contract Details** (**Detalles del contrato**).
 4. Under **Contract reference** (**Referencia del contrato**), type the contract's number or name as the client's paperwork gives it, up to 120 characters.
 5. Under **Service lines** (**Líneas de servicio**), tick each service delivered at the site: **Office** (**Oficinas**), **Schools** (**Escuelas**), **Laboratory** (**Laboratorio**), **Industrial** (**Industrial**), **Disinfection** (**Desinfección**), **Post-construction** (**Después de obra**), **Day porter** (**Conserje de día**), **Landscaping** (**Jardinería**).
-6. Click **Save** (**Guardar**). **Contract Details** (**Detalles del contrato**) then shows the contract reference and the service lines, and the monthly client report fills them in from there.
+6. Under the service lines, **Union site** (**Sitio sindicalizado**) marks a union site, whose people follow their agreement. See Mark a site as a union site.
+7. Click **Save** (**Guardar**). **Contract Details** (**Detalles del contrato**) then shows the contract reference and the service lines, and the monthly client report fills them in from there.
 If it does not work: when a service line or the contract reference is refused, the reason shows under that field and the window stays open. Put it right and click **Save** (**Guardar**) again.
-Words people use for this: edit a site, site details, contract number, contract reference, service lines, services at a site, what we do at a site.
+Words people use for this: edit a site, site details, contract number, contract reference, service lines, services at a site, what we do at a site, union site.
 Picture: sites-add-site
 Picture: sites-edit-details
-Last checked: 2026-10-07
+Last checked: 2026-11-17
 
 ## Give one person a permission (admin dashboard)
 Who can do this: admins, and anyone given the manage permissions permission
@@ -500,31 +501,33 @@ Words people use for this: keyboard, tab key, without a mouse, where am i on the
 Last checked: 2026-09-21
 
 ## Approve or deny a time off request (admin dashboard)
-Who can do this: admins, who hold time off approval by role, and anyone given it under **Roles and Permissions** (**Roles y permisos**). Anyone else opens a request and reads it, and in place of **Approve** (**Aprobar**) and **Deny** (**Denegar**) the window says **An admin approves or denies time off.** (**Un administrador aprueba o deniega el tiempo libre.**)
+Who can do this: admins, who hold time off approval by role, and anyone given it under **Roles and Permissions** (**Roles y permisos**). Nobody decides their own request. Anyone else opens a request and reads it, and in place of **Approve** (**Aprobar**) and **Deny** (**Denegar**) the window says **An admin approves or denies time off.** (**Un administrador aprueba o deniega el tiempo libre.**)
 1. Click **Schedule** (**Horario**) in the menu on the left.
 2. On **Week** (**Semana**) and **Month** (**Mes**), time off shows on the person's day: **Time off requested** (**Tiempo libre solicitado**) in amber while it waits, and **Off** (**Libre**) in gray once approved. A shift under it is marked too. Click the time off to open its request.
 3. Or click **Time off** (**Tiempo libre**) beside **Week**, **Month** and **Patterns**. The number beside it is how many are waiting for a decision. Click a row to open the request. A notice that someone requested time off opens the request too.
-4. The request shows the person, the type in the dashboard's language, such as **PTO (paid time off)** (**PTO (tiempo libre pagado)**), the dates, the hours and their reason.
-5. Under **Shifts this affects** (**Turnos afectados**), choose for each shift **Leave it as it is** (**Dejarlo como está**), **Reassign to** (**Reasignar a**), **Post to Shift Pickup** (**Publicar en Turnos disponibles**) or **Cancel the shift** (**Cancelar el turno**). Reassign to opens a list of who can take it. See Cover a shift when someone is off.
-6. Type a **Note** (**Nota**). A note is optional when approving and required when denying.
-7. Under **Balance** (**Saldo**), the window shows the balance of the request's kind of leave now and after the request. A warning in orange above **Approve** (**Aprobar**) says when the request would take the balance below zero or falls in the waiting period after the hire date. The request can still be approved; the warning is there to read first.
-8. Click **Approve** (**Aprobar**), or **Deny** (**Denegar**). Approve sends the choices for the shifts with it, so it waits until the window has read them: until then it reads **Reading the shifts this request affects...** (**Leyendo los turnos que afecta esta solicitud...**). When they cannot be read, the window says **The shifts this request affects did not load, so Approve waits.** (**Los turnos que afecta esta solicitud no se cargaron, así que Aprobar espera.**) with **Try again** (**Intentar de nuevo**).
-9. The person gets a notice in the app carrying the dates, and reads your note in the app. To take an approval back, see Take back an approved time off request.
-Words people use for this: approve time off, approve pto, sick hours left, leave balance, paid time off, deny a day off, decide a leave request, sign off on vacation, time off queue, time off on the schedule.
+4. The request shows the person, its **Type** (**Tipo**), the dates, what it is **Taken in** (**Se toma en**), the hours and their reason. A new request is one of five types: **Vacation** (**Vacaciones**) and **Personal day** (**Día personal**), taken in **Whole days** (**Días completos**); **Paid sick leave** (**Licencia por enfermedad pagada**), in whole hours; and **Bereavement** (**Duelo**) and **Unpaid time off** (**Tiempo libre sin pago**), in hours. A request filed before reads its own type, such as **PTO (paid time off)** (**PTO (tiempo libre pagado)**).
+5. Vacation and personal days are offered to full-time staff whose site is not a union site. Vacation is asked for at least 2 weeks ahead, and a personal day at least 48 hours before the first day's shift. A request filed inside that notice carries the person's reason and the mark **Inside notice** (**Dentro del aviso**), and the window says **Filed inside its notice. Decide it case by case.** (**Se presentó dentro de su plazo de aviso. Decídala caso por caso.**) A sick request is never refused for its timing, and nobody is asked to find someone to cover.
+6. Under **Shifts this affects** (**Turnos afectados**), choose for each shift **Leave it as it is** (**Dejarlo como está**), **Reassign to** (**Reasignar a**), **Post to Shift Pickup** (**Publicar en Turnos disponibles**) or **Cancel the shift** (**Cancelar el turno**). Reassign to opens a list of who can take it. See Cover a shift when someone is off.
+7. Type a **Note** (**Nota**). A note is optional when approving and required when denying.
+8. Under **Balance** (**Saldo**), the window shows the balance of the request's kind of leave now and after the request, in days for vacation and personal days. The line under it says this is the app's figure and ADP self-service holds the official balance. A warning in orange above **Approve** (**Aprobar**) says when the request would take the balance below zero, falls in the 90 days of waiting after the hire date, or would take the year's use past its most. The request can still be approved; the warning is there to read first.
+9. Click **Approve** (**Aprobar**), or **Deny** (**Denegar**). Approve sends the choices for the shifts with it, so it waits until the window has read them: until then it reads **Reading the shifts this request affects...** (**Leyendo los turnos que afecta esta solicitud...**). When they cannot be read, the window says **The shifts this request affects did not load, so Approve waits.** (**Los turnos que afecta esta solicitud no se cargaron, así que Aprobar espera.**) with **Try again** (**Intentar de nuevo**).
+10. The person gets a notice in the app carrying the dates, and reads your note in the app. To take an approval back, see Take back an approved time off request.
 If it does not work: nobody decides their own request. A shift left as it is stays under the person, and the approved request then lists it under **Shifts to cover** (**Turnos por cubrir**). If **Time off** is grey with the line **Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.** (**Solo quienes pueden aprobar tiempo libre ven las solicitudes aquí. Pida a un administrador que lo otorgue en Roles y permisos.**), you do not have that permission yet. A shift that is already posted for pickup is outlined in red with **This shift is already posted for pickup or has a drop request waiting. Open it on Shift Pickup to change or cancel that posting first.** (**Este turno ya está publicado para tomar o tiene una solicitud de dejarlo pendiente. Ábralo en Turnos disponibles para cambiar o cancelar esa publicación primero.**) under it, and nothing is approved. Change or cancel that posting on **Shift Pickup** (**Turnos disponibles**), or choose another way for the shift, and approve again.
+Words people use for this: approve time off, approve vacation, approve a personal day, sick hours left, leave balance, paid time off, deny a day off, decide a leave request, sign off on vacation, late vacation request, inside notice, time off queue, time off on the schedule.
 Picture: time-off-request
 Picture: schedule-time-off-week
-Last checked: 2026-10-20
+Last checked: 2026-11-17
 
 ## See past time off requests (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
 1. Click **Schedule**, then **Time off**.
 2. Click **Requested**, **Approved**, **Denied**, **Cancelled** or **All**.
-3. Choose a person beside the buttons to narrow the list (type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**)), or leave it on **Everyone** (**Todos**). Each row's **Type** (**Tipo**) reads the kind of leave, **PTO (paid time off)** (**PTO (tiempo libre pagado)**) among them.
-4. Click a row to see who decided it, when, and the note they left.
-Words people use for this: who is off next week, time off history, past leave requests, who asked for a day off.
+3. Choose a person beside the buttons to narrow the list (type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**)), or leave it on **Everyone** (**Todos**).
+4. Each row's **Type** (**Tipo**) reads the kind of leave: **Vacation** (**Vacaciones**), **Personal day** (**Día personal**), **Paid sick leave** (**Licencia por enfermedad pagada**), **Bereavement** (**Duelo**) or **Unpaid time off** (**Tiempo libre sin pago**). A request filed before reads its own type, **PTO (paid time off)** (**PTO (tiempo libre pagado)**) among them. A request filed inside its notice carries **Inside notice** (**Dentro del aviso**) under its type, and one taken in whole days reads **Whole days** (**Días completos**) under **Hours** (**Horas**).
+5. Click a row to see who decided it, when, and the note they left.
+Words people use for this: who is off next week, time off history, past leave requests, who asked for a day off, vacation requests, personal days taken.
 Picture: time-off-all
-Last checked: 2026-10-07
+Last checked: 2026-11-17
 
 ## Log training for several people at once (admin dashboard)
 Who can do this: admins and supervisors
@@ -1866,16 +1869,17 @@ Last checked: 2026-10-05
 Who can do this: admins who can change settings
 OCSA observes nine paid holidays under its handbook: New Year's Day, Martin Luther King Jr. Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day, the Day After Thanksgiving and Christmas Day. The federal days follow the handbook. The Day After Thanksgiving, and any other day the office is closed, is entered here. The Eids are not OCSA holidays; staff who observe them take vacation, personal or sick time. A holiday is not a working day, so a client's concern filed before one is due a day later.
 1. Click **Settings** (**Configuración**), then the **Holidays** (**Días festivos**) tab.
-2. Pick the year at the top, this year or next. The table shows each holiday's **Date** (**Fecha**), its name under **Holiday** (**Día festivo**), its **Kind** (**Tipo**), **Federal** (**Federal**) or **Office** (**De la oficina**), and its **Note** (**Nota**). A federal holiday that falls on a Saturday is observed the Friday before, and one on a Sunday the Monday after; its date then reads Observed for and the actual day.
-3. Click **Add a holiday** (**Agregar un día festivo**). Fill in the **Date** (**Fecha**), the name under **Holiday** (**Día festivo**), such as Day After Thanksgiving, and a **Note** (**Nota**) if you like, such as when OCSA confirmed it. Click **Add holiday** (**Agregar el día festivo**).
-4. To change a day the office entered, click **Edit** (**Editar**) on its row, change it, and click **Save** (**Guardar**).
-5. To take one off, click **Retire** (**Dar de baja**) and confirm. It stops counting as a holiday and stays on record. Tick **Show retired** (**Mostrar los dados de baja**) to see it, marked **Retired** (**Dado de baja**).
-A federal holiday reads **Set by the handbook** (**Fijado por el manual**) and is not changed here.
-If it does not work: the reason is shown under the field it is about, such as a date that is already a holiday, or at the top of the window. The tab shows once the system holds the holidays.
-Words people use for this: holiday, holidays, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
+2. Pick the year at the top, this year or next. The table shows each holiday's **Date** (**Fecha**), its name under **Holiday** (**Día festivo**), its **Kind** (**Tipo**), **Handbook** (**Del manual**) or **Office** (**De la oficina**), and its **Note** (**Nota**). The handbook's nine are listed every year. One that falls on a Saturday is observed the Friday before, and one on a Sunday the Monday after; its date then reads Observed for and the actual day.
+3. The Day After Thanksgiving is one of the handbook's nine, set by its rule: it reads **Set by the handbook's rule: the Friday after Thanksgiving.** (**Fijado por la regla del manual: el viernes después de Acción de Gracias.**) under its name, and it is listed once each year.
+4. For a day the office closes, click **Add a holiday** (**Agregar un día festivo**). Fill in the **Date** (**Fecha**), the name under **Holiday** (**Día festivo**), such as Office closed for inventory, and a **Note** (**Nota**) if you like, such as when OCSA confirmed it. Click **Add holiday** (**Agregar el día festivo**).
+5. To change a day the office entered, click **Edit** (**Editar**) on its row, change it, and click **Save** (**Guardar**).
+6. To take one off, click **Retire** (**Dar de baja**) and confirm. It stops counting as a holiday and stays on record. Tick **Show retired** (**Mostrar los dados de baja**) to see it, marked **Retired** (**Dado de baja**).
+Each of the handbook's nine reads **Set by the handbook** (**Fijado por el manual**) and is not changed here.
+If it does not work: the reason is shown under the field it is about, or at the top of the window. A date that is already a holiday is refused, one of the handbook's nine among them, so a day the handbook sets is never entered twice. The tab shows once the system holds the holidays.
+Words people use for this: holiday, holidays, day off, days off, closed, office closed, observed, handbook holiday, paid holiday, day after thanksgiving, días festivos, feriado.
 Picture: holidays-year
 Picture: holidays-add-window
-Last checked: 2026-11-12
+Last checked: 2026-11-17
 
 ## Make a request QR, so anyone in the building can ask for help (admin dashboard)
 Who can do this: admins who can change settings
@@ -2564,10 +2568,11 @@ Who can do this: anyone allowed to approve and deny time off
 4. Reassign to opens a list to search by name, badge number or employee ID. People assigned to the site come first under **Assigned to this site** (**Asignados a este sitio**), then **Everyone else** (**Todos los demás**), each with their hours this week. **Overtime** (**Horas extra**) marks someone the shift would take past 40 hours, and a line under the person picked says so.
 5. On a waiting request, click **Approve** (**Aprobar**): the choices go with the approval. On an approved one, click **Save changes** (**Guardar los cambios**).
 6. A reassigned shift goes to the person picked, and they get a notice. A posted shift goes to **Shift Pickup** (**Turnos disponibles**) for staff to claim. A cancelled shift leaves a gap on the schedule.
+7. Cover is the office's to find. Someone off sick is never asked to find their own cover.
 If it does not work: a refusal shows under the shift it is about, such as someone who already has a shift then. Pick someone else and try again.
 Words people use for this: cover a shift, someone is off, find cover, reassign a shift, shift under time off, cubrir un turno.
 Picture: time-off-cover
-Last checked: 2026-10-13
+Last checked: 2026-11-17
 
 ## Keep a site's task list as a record only (admin dashboard)
 Who can do this: admins, and anyone allowed to change site records. Everyone else reads the setting.
@@ -2588,12 +2593,12 @@ Who can do this: admins, and anyone given Add people, approve registrations, cha
 4. Click **Save Changes** (**Guardar los cambios**). The profile shows the new date, and the change is recorded with the old date, the new date and who made it.
 5. The same **Hire Date** (**Fecha de contratación**) is in **Edit Staff Info** (**Editar los datos de la persona**), the pencil on the person's row in the list.
 6. A hire date once set cannot be emptied. To fix a wrong one, pick the right date, as the line under the field says: **To fix a wrong date, pick the right one.** (**Para corregir una fecha equivocada, elija la correcta.**)
-7. To find everyone with no hire date, click **Leave balances** (**Saldos de permisos**), then **Missing hire dates** (**Sin fecha de contratación**); each name opens the profile.
+7. To find everyone with no hire date or no employment class, click **Leave balances** (**Saldos de permisos**), then **Missing class or hire date** (**Sin clase o fecha de contratación**); each name opens the profile, where both are set.
 If it does not work: a date that is not a real day, or is more than a year ahead, is refused, and the reason shows in red under the field. Pick a real date and click **Save Changes** (**Guardar los cambios**) again. For someone who left and is coming back, use Rehire someone, which sets their new hire date. When someone changed the hire date since you opened the profile, the dashboard asks before saving over it.
 Words people use for this: hire date, start date, date of hire, update a hire date, change a hire date, fix a hire date, wrong hire date, wrong start date, missing hire date, when they started, fecha de contratación, fecha de ingreso.
 Picture: staff-hire-date
 Picture: staff-hire-date-refused
-Last checked: 2026-11-09
+Last checked: 2026-11-17
 
 ## Remove a report you no longer need (admin dashboard)
 Who can do this: admins remove any report made on the dashboard; anyone else removes the ones they made themselves
@@ -2780,90 +2785,96 @@ Last checked: 2026-10-20
 
 ## See everyone's leave balances (admin dashboard)
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances. Supervisors do not see leave balances.
-1. Click **Leave balances** (**Saldos de permisos**) in the side panel, under **HR Records** (**Expedientes de personal**). The page opens on **Balances** (**Saldos**): each person, the policy they follow, and their balance of each kind of leave this year, in hours, and in days for a kind kept in days.
-2. Narrow the list with the year, **All sites** (**Todos los sitios**), **Every policy** (**Todas las políticas**), **Every role** (**Todos los puestos**) and the status, or type part of a name in **Search by name** (**Buscar por nombre**) and press Enter.
-3. Click **Show more** (**Mostrar más**) at the bottom for the next people; the filters stay.
-4. Click **Download CSV** (**Descargar CSV**) for the list as a spreadsheet, one line per person and kind, with what was granted, used, given back, expired and adjusted.
-5. Click a person to open their ledger. See Read a person's leave ledger and adjust a balance.
-Words people use for this: leave balance, sick hours, paid sick leave, vacation, pto, how many days left, how many sick hours, union leave, time off balance, saldo de permisos.
+1. Click **Leave balances** (**Saldos de permisos**) in the side panel, under **HR Records** (**Expedientes de personal**). The page opens on **Balances** (**Saldos**): each person with their role, their employment class (**Full Time** (**Tiempo completo**), **Part Time** (**Tiempo parcial**), **Supplemental** (**Suplementario**) or **No class on file** (**Sin clase registrada**)) and their site, the policy they follow, and their balance of each kind of leave this year, in hours, and in days for a kind kept in days, such as **Vacation** (**Vacaciones**) and **Personal day** (**Día personal**).
+2. The line above the list says these are the app's figures and ADP self-service holds the official balance.
+3. Narrow the list with the year, **All sites** (**Todos los sitios**), **Every policy** (**Todas las políticas**), **Every role** (**Todos los puestos**) and the status, or type part of a name in **Search by name** (**Buscar por nombre**) and press Enter.
+4. Click **Show more** (**Mostrar más**) at the bottom for the next people; the filters stay.
+5. Click **Download CSV** (**Descargar CSV**) for the list as a spreadsheet, one line per person and kind, with what was granted, used, given back, expired and adjusted, and an official_balance column that names ADP.
+6. Click a person to open their ledger. See Read a person's leave ledger and adjust a balance.
+Words people use for this: leave balance, sick hours, paid sick leave, vacation, vacation days, personal days, pto, how many days left, how many sick hours, union leave, time off balance, adp, official balance, saldo de permisos.
 Picture: leave-balances
-Last checked: 2026-10-20
+Last checked: 2026-11-17
 
 ## Read a person's leave ledger and adjust a balance (admin dashboard)
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances. Adjust is for admins and anyone given Keep leave policies and balances.
 1. Click **Leave balances** (**Saldos de permisos**) and click the person. From their HR file, click **Open the ledger** (**Abrir el registro**) under **Leave balances** (**Saldos de permisos**).
-2. The window shows the policy they follow and since when, what the policy gives in plain words, each balance with its parts, and the **Ledger, newest first** (**Registro, lo más reciente primero**): every grant, hours worked, time off taken or given back, expiry and adjustment, with who made it.
-3. To correct a balance, click **Adjust** (**Ajustar**). Choose the **Kind** (**Tipo**), type the **Hours, plus or minus** (**Horas, más o menos**), for example 8 or -4, and the **Reason *** (**Motivo ***). **Date** (**Fecha**) starts on today; pick an earlier day when the change belongs to it, such as hours used before the app kept leave. Click **Save** (**Guardar**) and confirm. The adjustment is dated the day picked, follows the policy the person had that day, and names you.
-4. The balance and the ledger show the change at once.
-If it does not work: a reason is always needed, and the window says so in red without one. A day after today is refused with **Choose a day no later than today.** (**Elija un día que no sea posterior a hoy.**). A balance with no hire date on file names the profile to fix it.
-Words people use for this: leave ledger, sick hours history, correct a balance, adjust pto, add sick hours, take away vacation days, leave adjustment, backdate an adjustment, date of an adjustment.
+2. The window shows the person's role, employment class and site, the policy they follow and since when, what the policy gives in plain words, each balance with its parts, and the **Ledger, newest first** (**Registro, lo más reciente primero**): every grant, hours worked, time off taken or given back, expiry and adjustment, with who made it.
+3. Under each kind, a balance names the most its policy lets the person earn or use in a year, where the policy sets one. The line above the balances says this is the app's figure and ADP self-service holds the official balance.
+4. To correct a balance, click **Adjust** (**Ajustar**). Choose the **Kind** (**Tipo**), type the **Hours, plus or minus** (**Horas, más o menos**), for example 8 or -4, and the **Reason *** (**Motivo ***). **Date** (**Fecha**) starts on today; pick an earlier day when the change belongs to it, such as hours used before the app kept leave. Click **Save** (**Guardar**) and confirm. The adjustment is dated the day picked, follows the policy the person had that day, and names you.
+5. The balance and the ledger show the change at once.
+If it does not work: a reason is always needed, and the window says so in red without one. A day after today is refused with **Choose a day no later than today.** (**Elija un día que no sea posterior a hoy.**). A balance with no hire date on file names the profile to fix it, and a person with no class on file is not offered vacation or personal days until one is set. See Find the people with no class or no hire date.
+Words people use for this: leave ledger, sick hours history, correct a balance, adjust pto, add sick hours, take away vacation days, leave adjustment, backdate an adjustment, date of an adjustment, most a year, adp.
 Picture: leave-person
 Picture: leave-adjust
-Last checked: 2026-11-09
+Last checked: 2026-11-17
 
 ## Make or change a leave policy (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances. Anyone who can see leave balances can read the policies.
-1. Click **Leave balances** (**Saldos de permisos**), then **Policies** (**Políticas**). Each policy lists what it gives, and how many sites and people follow it. The **Company default** (**Predeterminada de la empresa**) applies to anyone their site or their own policy does not cover.
-2. The handbook's policy is marked **Read only** (**Solo lectura**): it stays as the handbook sets it.
-3. Click a policy to see its plain words, the **Sites that use it** (**Sitios que la usan**) and **Who follows it** (**Quién la sigue**). Click **Edit** (**Editar**) to change it.
-4. For a new one, click **New leave policy** (**Nueva política de permisos**) and type its **Name *** (**Nombre ***).
-5. Under **Kinds of leave** (**Tipos de permiso**), for each kind choose **How it is given** (**Cómo se asigna**), the **Amount** (**Cantidad**), whether it is **Counted in** (**Se cuenta en**) hours or days, the **Waiting period, in days** (**Período de espera, en días**), the **Carryover cap** (**Límite para pasar al año siguiente**) and the **Maximum balance** (**Saldo máximo**). **Add a tier** (**Agregar un nivel**) gives a different amount from a number of years of service. For a kind of its own, such as a union's, choose **Another kind...** (**Otro tipo...**) and type **Its code** (**Su código**) and **Its name** (**Su nombre**). **Add a kind of leave** (**Agregar un tipo de permiso**) adds another.
-6. Choose the **Paid holidays** (**Días feriados pagados**) and the day **Grants start on** (**Las asignaciones empiezan el**), and click **Save** (**Guardar**).
-Words people use for this: leave policy, union agreement, sick leave rules, pto policy, vacation policy, seniority, carryover, how many days people get.
+1. Click **Leave balances** (**Saldos de permisos**), then **Policies** (**Políticas**). Each policy lists what it gives, kind by kind, and how many sites and people follow it. The **Company default** (**Predeterminada de la empresa**) applies to anyone their site or their own policy does not cover.
+2. The handbook's policy is marked **Read only** (**Solo lectura**). Click it to read **Its rules, fixed by the handbook** (**Sus reglas, fijadas por el manual**): each rule, who it is for, how it is given, and its most a year.
+3. Under the handbook, full-time staff get **Vacation** (**Vacaciones**): 5 days on the first work anniversary, 10 from 3 years and 15 from 5 years, then the current tier each January 1; a **Personal day** (**Día personal**): 3 days on the first anniversary, then 3 each January 1; and **Paid sick leave** (**Licencia por enfermedad pagada**): in the year service starts, 1 hour per 40 hours worked up to 40 hours, then 40 hours each January 1. Vacation, personal days and their sick hours do not carry over. Part-time staff, staff with no class on file and staff at a union site with no agreement set earn paid sick leave at 1 hour per 40 hours worked, at most 40 hours earned and 40 used a year, and unused hours carry over. Supplemental staff hold no rule. Nothing is usable in the first 90 days.
+4. Click a policy to see its plain words, **Its rules** (**Sus reglas**), the **Sites that use it** (**Sitios que la usan**) and **Who follows it** (**Quién la sigue**). Click **Edit** (**Editar**) to change one the office made.
+5. For a new one, click **New leave policy** (**Nueva política de permisos**) and type its **Name *** (**Nombre ***).
+6. Under **Kinds of leave** (**Tipos de permiso**), for each kind choose **How it is given** (**Cómo se asigna**), the **Amount** (**Cantidad**), whether it is **Counted in** (**Se cuenta en**) hours or days, the **Waiting period, in days** (**Período de espera, en días**), the **Carryover cap** (**Límite para pasar al año siguiente**) and the **Maximum balance** (**Saldo máximo**). **Add a tier** (**Agregar un nivel**) gives a different amount from a number of years of service. **On the work anniversary each tier is reached, then each January 1** (**En el aniversario de trabajo en que se alcanza cada nivel, y luego cada 1 de enero**) needs a tier. For a kind given **On January 1 each year** (**El 1 de enero de cada año**), **In the year of hire, 1 hour per this many hours worked** (**En el año de contratación, 1 hora por esta cantidad de horas trabajadas**) earns it by hours worked in the year service starts. **Most earned a year** (**Máximo ganado al año**) and **Most used a year** (**Máximo usado al año**) set the year's most.
+7. Under **Who it is for. Tick none for everyone.** (**Para quién es. No marque ninguna para que sea para todas las personas.**), tick **Full-time staff** (**Personal de tiempo completo**), **Part-time staff** (**Personal de medio tiempo**), **Supplemental staff** (**Personal suplementario**) or **Staff with no class on file** (**Personal sin clase registrada**). One kind can then give each class its own rule.
+8. For a kind of its own, such as a union's, choose **Another kind...** (**Otro tipo...**) and type **Its code** (**Su código**) and **Its name** (**Su nombre**). **Add a kind of leave** (**Agregar un tipo de permiso**) adds another.
+9. Choose the **Paid holidays** (**Días feriados pagados**) and the day **Grants start on** (**Las asignaciones empiezan el**), and click **Save** (**Guardar**).
+Words people use for this: leave policy, union agreement, sick leave rules, vacation policy, personal days, seniority, carryover, how many days people get, full time, part time, supplemental.
 Picture: leave-policies
 Picture: leave-policy-editor
-Last checked: 2026-10-20
+Last checked: 2026-11-17
 
 ## Set which leave policy a site or a person follows (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances
 1. For a site: click **Leave balances** (**Saldos de permisos**), then **Sites** (**Sitios**), and click **Set the site's policy** (**Fijar la política del sitio**) on its row. Or open the site in **Sites** (**Sitios**): its **General Info** (**Información general**) tab shows its **Leave policy** (**Política de permisos**) with the same button.
 2. Choose the **Policy** (**Política**), or **The company default** (**La política predeterminada de la empresa**), the day it **Starts on** (**Empieza el**), and a note if you like. Click **Save** (**Guardar**). Everyone whose main site it is follows it from that day, unless they have their own.
-3. For a person: open their HR file in **HR Records** (**Expedientes de personal**). **Leave balances** (**Saldos de permisos**) shows the policy they follow and since when. Click **Open the ledger** (**Abrir el registro**), then **Set their own policy** (**Darle su propia política**).
-4. Choose the **Policy** (**Política**), or **Their site's policy** (**La política de su sitio**) to send them back to it, and the day it **Starts on** (**Empieza el**). Click **Save** (**Guardar**). The change is kept in their **Policy history** (**Historial de políticas**).
-Words people use for this: site leave policy, which policy does someone follow, move someone to the union policy, leave policy start date.
+3. A union site's agreement is a policy the office makes and sets here on the site. Its people follow it, and OCSA's vacation and personal days are never offered to them. See Mark a site as a union site.
+4. For a person: open their HR file in **HR Records** (**Expedientes de personal**). **Leave balances** (**Saldos de permisos**) shows the policy they follow and since when. Click **Open the ledger** (**Abrir el registro**), then **Set their own policy** (**Darle su propia política**).
+5. Choose the **Policy** (**Política**), or **Their site's policy** (**La política de su sitio**) to send them back to it, and the day it **Starts on** (**Empieza el**). Click **Save** (**Guardar**). The change is kept in their **Policy history** (**Historial de políticas**).
+Words people use for this: site leave policy, which policy does someone follow, move someone to the union policy, union agreement, leave policy start date.
 Picture: leave-site-policy
-Last checked: 2026-10-20
+Last checked: 2026-11-17
 
 ## Post the payroll system's hours file (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances. Anyone who can see leave balances can see the files posted.
 1. Click **Leave balances** (**Saldos de permisos**), then **Hours files** (**Archivos de horas**). The list shows every file posted, its periods, its lines and how many posted leave.
 2. Click **Upload an hours file** (**Cargar un archivo de horas**) and **Choose the CSV** (**Elegir el CSV**): the payroll system's hours export, with a column person (the badge number or employee ID), period_start and period_end, and hours.
 3. The window lists every line it read. A line it cannot read is marked in red; fix the file and choose it again.
-4. Click **Check the hours** (**Revisar las horas**). Each person is matched and the window shows, line by line, **What would post** (**Qué se registraría**), with a line above the table saying how many lines would post leave. Nothing has posted yet. When a line names nobody, the line says why; fix the file and choose it again.
+4. Click **Check the hours** (**Revisar las horas**). Each person is matched and the window shows, line by line, **What would post** (**Qué se registraría**), with a line above the table saying how many lines would post leave. Nothing has posted yet. When a line names nobody, the line says why; fix the file and choose it again. A person who already earned the year's most reads **The year's most is already earned, so nothing posted** (**Ya se ganó el máximo del año, así que no se registró nada**), and the hours past that most post nothing.
 5. When the lines read right, click **Post the hours** (**Registrar las horas**). Their leave for hours worked posts, and the window shows what posted for each line. The same file again posts nothing new, and checking it says so first.
-Words people use for this: hours file, payroll hours, hours worked, accrual, sick hours from hours worked, upload hours, check an hours file, preview hours.
+Words people use for this: hours file, payroll hours, hours worked, accrual, sick hours from hours worked, upload hours, check an hours file, preview hours, year's most, 40 hours a year.
 Picture: leave-hours-window
-Last checked: 2026-11-09
+Last checked: 2026-11-17
 
-## Find the people with no hire date (admin dashboard)
+## Find the people with no class or no hire date (admin dashboard)
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances
-1. Click **Leave balances** (**Saldos de permisos**), then **Missing hire dates** (**Sin fecha de contratación**).
-2. The list shows each active person with no hire date, their policy, and the leave that waits on the date: a grant on the hire date, a seniority tier or a waiting period.
-3. Click **Open the profile** (**Abrir el perfil**) and add the hire date there.
-Words people use for this: missing hire date, no hire date, start date missing, seniority not counting.
+1. Click **Leave balances** (**Saldos de permisos**), then **Missing class or hire date** (**Sin clase o fecha de contratación**). The number beside the tab says how many people are listed, and it shows as soon as the page opens.
+2. The list shows each active person once, with what is missing: **Employment class** (**Clase de empleo**), **Hire date** (**Fecha de contratación**) or both. With no class, the person is not offered vacation or personal days, and their line names those kinds. With no hire date, their line names the leave that waits on it: a grant on the hire date, a seniority tier or a waiting period.
+3. Click **Open the profile** (**Abrir el perfil**) and set what is missing there: the **Employment Type** (**Tipo de empleo**), **Full Time** (**Tiempo completo**), **Part Time** (**Tiempo parcial**) or **Supplemental** (**Suplementario**), and the **Hire Date** (**Fecha de contratación**). See Change a staff member's hire date.
+Words people use for this: missing hire date, no hire date, start date missing, seniority not counting, missing class, no employment class, full time or part time, why no vacation, why no personal days.
 Picture: leave-missing
-Last checked: 2026-10-20
+Last checked: 2026-11-17
 
 ## Enter starting balances (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances
 1. Use this once, when leave balances start, for people who already used some paid sick time this year before the dashboard kept it.
 2. Click **Leave balances** (**Saldos de permisos**), then **Enter starting balances** (**Registrar los saldos iniciales**). Everyone active is listed with the paid sick hours the dashboard holds for them now.
-3. In **Paid sick hours left today** (**Horas de enfermedad pagada que quedan hoy**), type the hours each person really has left. Leave a box empty for anyone whose balance is right.
+3. In **Paid sick hours left today** (**Horas de enfermedad pagada que quedan hoy**), type the hours each person really has left. Leave a box empty for anyone whose balance is right. ADP self-service holds the official balance, so the figure to type is the one it shows.
 4. Click **Save the starting balances** (**Guardar los saldos iniciales**). One adjustment posts for each filled box, the difference, with the reason Starting balance. Each line then says what posted, what was refused and why, or that the balance was already right.
 If it does not work: press Save again for a line that was refused. A line that already posted does not post twice.
-Words people use for this: starting balance, opening balance, sick hours left, carry in balances, set up leave balances, how many sick hours left.
+Words people use for this: starting balance, opening balance, sick hours left, carry in balances, set up leave balances, how many sick hours left, adp balance.
 Picture: leave-starting
-Last checked: 2026-10-20
+Last checked: 2026-11-17
 
 ## Take back an approved time off request (admin dashboard)
 Who can do this: admins, and anyone given time off approval, on someone else's request
 1. Open the approved request from **Schedule** (**Horario**), **Time off** (**Tiempo libre**).
 2. Click **Take back approval** (**Retirar la aprobación**) and confirm. The question says how many hours go back to the balance.
-3. The request becomes cancelled and its hours go back to the person's balance. The shifts its approval changed stay as they are.
+3. The request becomes cancelled and its hours go back to the person's balance, which reads in days for vacation and personal days. The shifts its approval changed stay as they are.
 4. The person gets a notice in the app.
-Words people use for this: take back time off, undo an approval, cancel approved pto, rescind time off, give the sick hours back.
+Words people use for this: take back time off, undo an approval, cancel approved vacation, cancel approved pto, rescind time off, give the sick hours back.
 Picture: time-off-take-back
-Last checked: 2026-10-20
+Last checked: 2026-11-17
 
 ## Save over a change someone else made (admin dashboard)
 Who can do this: anyone who edits a record in the dashboard
@@ -2983,11 +2994,11 @@ Who can do this: anyone who can see the sites
 1. One site is kept for the robot's run-throughs on the Health page. In **Sites** (**Sitios**) its name carries **TEST** (**PRUEBA**), and so does its page.
 2. Wherever a site is picked or named, such as **Checklist Results** (**Resultados de la lista**), **Live Ops** (**Operaciones en vivo**), **Schedule** (**Horario**), a task or a report, the test site reads with (**TEST** (**PRUEBA**)) after its name, the way a test account is marked.
 3. Only admins and test accounts see the test site in a list of sites or a picker. A supervisor does not, and a change a supervisor makes there, such as to a shift at the test site, is refused in the system's own words: this is the test site, and only test accounts and admins can make changes there. A shift there still names its site in **Edit Scheduled Shift** (**Editar el turno programado**).
-4. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export. On **Checklist Results** (**Resultados de la lista**), **All sites** (**Todos los sitios**), its card says so: **This is the test site. Its work is left out of these counts and of every report. Open it to see what was checked there.** (**Este es el sitio de prueba. Su trabajo queda fuera de estos conteos y de todos los informes. Ábralo para ver lo que se marcó ahí.**)
+4. Keep real staff and real work off it. Its check-offs, shifts and requests are left out of every count, report and export. On **Checklist Results** (**Resultados de la lista**), **All sites** (**Todos los sitios**), it has no card, and the line above the cards says a test site is left out of these counts, as it is of every report. Pick it under the site to see what was checked there.
 Words people use for this: test site, robot site, test account, fake site, practice site, sitio de prueba.
 Picture: sites-test-site
 Picture: checklist-results-test-site
-Last checked: 2026-11-12
+Last checked: 2026-11-17
 
 ## Renew the robot's sign-in (admin dashboard)
 Who can do this: the super admin renews it; anyone given the Health page can read it
@@ -3091,10 +3102,23 @@ Last checked: 2026-11-12
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. When something on the Health page turns red, click **Health** (**Salud**), then **Incidents** (**Incidentes**), and find the incident it opened. Or, on **Numbers** (**Indicadores**), click the red number to open who or what is behind it.
 2. Click **Copy for Claude** (**Copiar para Claude**). The page says **Copied for Claude. Paste it into the chat.** (**Copiado para Claude. Péguelo en el chat.**)
-3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in. On an incident it is the system's own brief, copied as the system writes it: the incident with its timeline, the number with how it is worked out, its lines, today and the 7 days before, the rows behind it, an outage's monitor, reason and how long it lasted, a run-through's last runs and the steps that failed, and the API's version. On a number's sheet it is the number with its lines and its past days, the routes and counts behind it, the API's version and the dashboard's version. When the system's brief does not load, an incident's is made from the page the same way.
+3. Paste it into the chat with Claude. It is one plain block in English, whatever language the screen is in. On an incident it is the system's own brief, copied as the system writes it: the incident with its timeline, the number with how it is worked out, its lines, today and the 7 days before, the rows behind it, an outage's monitor, reason and how long it lasted, a run-through's last runs and the steps that failed, and the API's version. On a number's sheet it is the system's brief for that number on the day the sheet reads: how it is worked out, its lines, today and the 7 days before, and the rows behind it. When the system's brief does not load, it is made from the page the same way, with the number's English name in any language.
 4. People behind a number are given as how many, never by name, email, phone or badge.
 If it does not work: when the browser does not let the page copy, the page says **This browser did not let the page copy. The brief is selected below: press Ctrl+C, or Command+C on a Mac, to copy it.** (**Este navegador no dejó que la página copiara. El resumen está seleccionado abajo: presione Ctrl+C, o Comando+C en una Mac, para copiarlo.**) Press those keys, then paste it into the chat.
 Words people use for this: copy for claude, send to claude, health brief, paste into the chat, red number, incident details, ask claude to fix it, copiar para claude.
 Picture: health-copy-for-claude
 Picture: health-copy-by-hand
-Last checked: 2026-11-12
+Last checked: 2026-11-17
+
+## Mark a site as a union site (admin dashboard)
+Who can do this: admins, and anyone given the permission to manage sites
+1. Click **Sites** (**Sitios**) and click the site.
+2. On **General Info** (**Información general**), click **Edit Details** (**Editar los detalles**).
+3. Turn on **Union site** (**Sitio sindicalizado**). The line under it says people at a union site follow their agreement, and OCSA's vacation and personal days are never offered to them.
+4. Click **Save** (**Guardar**). The site's page and the list of sites mark it **Union site** (**Sitio sindicalizado**).
+5. Make the agreement's leave as a policy and set it on the site: see Make or change a leave policy and Set which leave policy a site or a person follows. Until one is set, the site's people earn paid sick leave by hours worked, as the handbook gives part-time staff.
+If it does not work: when the switch is refused, the reason shows under it and the window stays open. Turn the switch off and save to take the mark away.
+Words people use for this: union, union site, union agreement, collective bargaining agreement, cba, union leave, union vacation, sitio sindicalizado.
+Picture: site-union-switch
+Picture: sites-union-site
+Last checked: 2026-11-17

@@ -231,6 +231,10 @@ const SUITES = [
   // supervisor, against the stub as the API is built at ocsa-api ff35991 (audit/part397-stub.js). Its own passes, like
   // part393.
   { name: "part397", mod: "./cases/part397", widths: [] },
+  // Round 12: the handbook's holidays, the union flag, who is missing a class or a hire date, the new types and Round
+  // 15's shapes, against the stub as the API is built at ocsa-api 3df0967 (audit/part400-stub.js). Its own passes, like
+  // part397.
+  { name: "part400", mod: "./cases/part400", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
