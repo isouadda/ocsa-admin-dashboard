@@ -7309,9 +7309,9 @@ const LEAVE_ENTRY_WORDS = { grant: "Grant|leave", accrual: "Hours worked|leave",
 const leaveEntryWord = (k, name) => (LEAVE_ENTRY_WORDS[k] ? tr(LEAVE_ENTRY_WORDS[k]) : (name || String(k || "")));
 const LEAVE_SOURCE_WORDS = { person: "Their own policy", site: "Their site's policy", default: "The company default" };
 const leaveSourceWord = (s) => (LEAVE_SOURCE_WORDS[s] ? tr(LEAVE_SOURCE_WORDS[s]) : String(s || ""));
-const LEAVE_METHOD_WORDS = { january_1: "On January 1 each year", anniversary: "On each anniversary of the hire date", on_hire: "On the hire date", monthly: "On the first of each month", per_hours_worked: "For hours worked", manual: "Given by HR|leave method", untracked: "No balance kept" };
+const LEAVE_METHOD_WORDS = { january_1: "On January 1 each year", anniversary: "On each anniversary of the hire date", on_hire: "On the hire date", monthly: "On the first of each month", per_hours_worked: "For hours worked", manual: "Given by HR|leave method", untracked: "No balance kept", anniversary_then_january_1: "On the work anniversary each tier is reached, then each January 1" };
 const leaveMethodWord = (m) => (LEAVE_METHOD_WORDS[m] ? tr(LEAVE_METHOD_WORDS[m]) : String(m || ""));
-const LEAVE_OUTCOME_WORDS = { posted: "Posted|hours file", alreadyPosted: "Already posted", noHoursRule: "No hours rule in their policy", beforePolicyStart: "Before their policy starts", noHireDate: "No hire date on file" };
+const LEAVE_OUTCOME_WORDS = { posted: "Posted|hours file", alreadyPosted: "Already posted", noHoursRule: "No hours rule in their policy", beforePolicyStart: "Before their policy starts", noHireDate: "No hire date on file", yearCapReached: "The year's most is already earned, so nothing posted" };
 const leaveOutcomeWord = (o) => (LEAVE_OUTCOME_WORDS[o] ? tr(LEAVE_OUTCOME_WORDS[o]) : String(o || ""));
 const LEAVE_STATUSES = [["active", "Active"], ["all", "Every status"], ["pending", "pending"], ["inactive", "Inactive"], ["terminated", "Terminated"]];
 const LEAVE_ROLES = ["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "contractor"];
@@ -7319,7 +7319,20 @@ const leaveNum = (n) => Number(n || 0).toLocaleString(localeTag(), { maximumFrac
 const leaveHours = (n) => tr("{0} h", leaveNum(n));
 const leaveSigned = (n) => (Number(n) > 0 ? "+" : Number(n) < 0 ? "-" : "") + leaveHours(Math.abs(Number(n) || 0));
 // A balance as it reads: hours, and days beside them for a kind kept in days.
+// An amount of a request's leave in its unit: days and their hours for a kind kept in days (the API's requestDays,
+// balanceDays and wouldLeaveDays since Round 15), else hours.
+const leaveInUnit = (hours, days, l) => (l && l.unit === "days" && days != null ? tr("{0} days ({1})", leaveNum(days), leaveHours(hours)) : leaveHours(hours));
 const leaveBalanceText = (b) => (b && b.unit === "days" && b.balanceDays != null ? tr("{0} days ({1})", leaveNum(b.balanceDays), leaveHours(b.balanceHours)) : leaveHours(b ? b.balanceHours : 0));
+// Part 400 (the API's Round 15, part 395, OCSA-HR-002 Part 8.2): every balance the API answers carries appFigure true and,
+// first in notes, leave.note.adpOfficial, the line that says ADP holds the official balance. It is drawn once above a
+// list of balances, in the API's words, and left out of each balance's own notes.
+const LEAVE_ADP_NOTE = "leave.note.adpOfficial";
+const leaveAdpLine = (balances) => { for (const b of balances || []) { const n = (b && Array.isArray(b.notes) ? b.notes : []).find(x => x && x.code === LEAVE_ADP_NOTE && x.message); if (n) return n.message; } return ""; };
+const leaveOwnNotes = (b) => (b && Array.isArray(b.notes) ? b.notes : []).filter(n => n && n.code !== LEAVE_ADP_NOTE);
+const LeaveAdpLine = ({ t, text, style }) => (text ? <div data-leave-adp="" style={Object.assign({ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 8 }, style || {})}>{text}</div> : null);
+// The year's caps a balance carries since Round 15, in hours: yearCapHours, the most earned in a calendar year, and
+// useCapHours, the most used, past which a request is warned.
+const leaveCapLines = (b) => [b && b.yearCapHours != null ? tr("At most {0} earned a year", leaveHours(b.yearCapHours)) : "", b && b.useCapHours != null ? tr("At most {0} used a year", leaveHours(b.useCapHours)) : ""].filter(Boolean);
 const leaveToday = () => crWall(Date.now()).day;
 const leaveYear = () => Number(leaveToday().slice(0, 4));
 const leavePolicyName = (p) => (p && p.name ? p.name : "--");
@@ -7372,7 +7385,7 @@ async function leaveEveryPage(af, path, key) {
 // A balance's parts, in a table of its own.
 function LeaveBalancesTable({ t, balances }) {
   const cols = [
-    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{(b.notes || []).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
+    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{leaveCapLines(b).map((x, i) => <div key={"cap" + i} data-leave-cap={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{x}</div>)}{leaveOwnNotes(b).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
     { header: tr("Start of year"), align: "right", render: b => leaveHours(b.startHours) },
     { header: tr("Granted"), align: "right", render: b => leaveHours(b.grantedHours) },
     { header: tr("Used"), align: "right", render: b => leaveHours(b.usedHours) },
@@ -7381,7 +7394,7 @@ function LeaveBalancesTable({ t, balances }) {
     { header: tr("Adjusted"), align: "right", render: b => leaveSigned(b.adjustedHours) },
     { header: tr("Balance"), align: "right", render: b => <span data-leave-balance={b.kind} style={{ fontWeight: 700, color: Number(b.balanceHours) < 0 ? RD : t.text }}>{leaveBalanceText(b)}</span> },
   ];
-  return <DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} />;
+  return <><LeaveAdpLine t={t} text={leaveAdpLine(balances)} /><DataTable t={t} columns={cols} rows={balances || []} rowKey={b => b.kind} empty={tr("No balance is kept for this person.")} /></>;
 }
 
 // Adjust: a kind, hours plus or minus, a required reason, and since the API's part 371 the day it counts on,
@@ -7549,6 +7562,7 @@ function PersonLeave({ af, t, userId, showToast, canOpenStaff = false }) {
       <Btn t={t} v="ghost" data-folder-leave-open="" onClick={() => setOpen(true)} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}>{tr("Open the ledger")}</Btn>
     </div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>{(data.balances || []).map(b => <span key={b.kind} style={{ fontSize: 12, padding: "4px 10px", borderRadius: R.pill, background: t.cardAlt, color: t.text }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div>
+    <LeaveAdpLine t={t} text={leaveAdpLine(data.balances)} style={{ marginTop: 8, marginBottom: 0 }} />
     {open && <LeavePersonWindow af={af} t={t} userId={userId} year={year} kinds={kinds} policies={policies} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => setOpen(false)} onChanged={load} showToast={showToast} />}
   </div></Crd>);
 }
@@ -7556,14 +7570,27 @@ function PersonLeave({ af, t, userId, showToast, canOpenStaff = false }) {
 // The policy editor: each kind's amount, how it is given, seniority tiers, the waiting period, the carryover
 // cap, the maximum balance, a note, and the paid holidays. A save sends only what changed, the rules as a set.
 const LEAVE_METHODS = Object.keys(LEAVE_METHOD_WORDS);
-const blankRule = () => ({ kind: "paid_sick", kindName: "", newKind: false, method: "january_1", unit: "hours", amount: "40", hoursPerDay: "8", alsoOnHire: false, perHoursWorked: "", tiers: [], waitingDays: "0", carryoverCap: "", maxBalance: "", note: "" });
-const ruleForm = (r) => ({ kind: r.kind, kindName: r.kindName || "", newKind: !LEAVE_TYPE_WORDS[r.kind], method: r.method, unit: r.unit || "hours", amount: r.amount == null ? "" : String(r.amount), hoursPerDay: r.hoursPerDay == null ? "8" : String(r.hoursPerDay), alsoOnHire: !!r.alsoOnHire, perHoursWorked: r.perHoursWorked == null ? "" : String(r.perHoursWorked), tiers: (r.tiers || []).map(x => ({ years: String(x.years), amount: String(x.amount) })), waitingDays: String(r.waitingDays || 0), carryoverCap: r.carryoverCap == null ? "" : String(r.carryoverCap), maxBalance: r.maxBalance == null ? "" : String(r.maxBalance), note: r.note || "" });
+// Part 400 (the API's Round 15, part 395): a rule names the classes it applies to (classes, null for everyone), the hire
+// year's earning on a january_1 rule (hireYearPerHours: 1 hour per that many hours worked, up to the amount), and the
+// year's caps, yearCap (the most earned) and useCap (the most used, past which a request is warned). A policy the office
+// makes may name full_time, part_time, supplemental and none; union is the handbook's alone.
+const LEAVE_RULE_CLASSES = ["full_time", "part_time", "supplemental", "none"];
+const LEAVE_RULE_CLASS_WORDS = { full_time: "Full-time staff", part_time: "Part-time staff", supplemental: "Supplemental staff", none: "Staff with no class on file", union: "Staff at a union site" };
+const leaveRuleClassWord = (c) => (LEAVE_RULE_CLASS_WORDS[c] ? tr(LEAVE_RULE_CLASS_WORDS[c]) : String(c || ""));
+const leaveRuleWho = (r) => (r && Array.isArray(r.classes) && r.classes.length ? r.classes.map(leaveRuleClassWord).join(", ") : tr("Everyone|leave rule"));
+const leaveRuleAmount = (r, n) => (r && r.unit === "days" ? trn("{0} day|count", Number(n)) : leaveHours(n));
+const blankRule = () => ({ kind: "paid_sick", kindName: "", newKind: false, method: "january_1", unit: "hours", amount: "40", hoursPerDay: "8", alsoOnHire: false, perHoursWorked: "", tiers: [], waitingDays: "0", carryoverCap: "", maxBalance: "", note: "", classes: [], hireYearPerHours: "", yearCap: "", useCap: "" });
+const ruleForm = (r) => ({ kind: r.kind, kindName: r.kindName || "", newKind: !LEAVE_TYPE_WORDS[r.kind], method: r.method, unit: r.unit || "hours", amount: r.amount == null ? "" : String(r.amount), hoursPerDay: r.hoursPerDay == null ? "8" : String(r.hoursPerDay), alsoOnHire: !!r.alsoOnHire, perHoursWorked: r.perHoursWorked == null ? "" : String(r.perHoursWorked), tiers: (r.tiers || []).map(x => ({ years: String(x.years), amount: String(x.amount) })), waitingDays: String(r.waitingDays || 0), carryoverCap: r.carryoverCap == null ? "" : String(r.carryoverCap), maxBalance: r.maxBalance == null ? "" : String(r.maxBalance), note: r.note || "", classes: Array.isArray(r.classes) ? r.classes.slice() : [], hireYearPerHours: r.hireYearPerHours == null ? "" : String(r.hireYearPerHours), yearCap: r.yearCap == null ? "" : String(r.yearCap), useCap: r.useCap == null ? "" : String(r.useCap) });
 const numOrNull = (v) => (String(v).trim() === "" ? null : Number(String(v).trim()));
 const ruleBody = (r) => {
   const noAmount = r.method === "manual" || r.method === "untracked";
   const out = { kind: r.kind.trim(), method: r.method, unit: r.unit, amount: noAmount && String(r.amount).trim() === "" ? 0 : numOrNull(r.amount), hoursPerDay: r.unit === "days" ? numOrNull(r.hoursPerDay) : 8, alsoOnHire: (r.method === "january_1" || r.method === "anniversary") && !!r.alsoOnHire, tiers: noAmount ? [] : r.tiers.map(x => ({ years: numOrNull(x.years), amount: numOrNull(x.amount) })), waitingDays: Number(String(r.waitingDays).trim() || 0), carryoverCap: numOrNull(r.carryoverCap), maxBalance: numOrNull(r.maxBalance), note: r.note.trim() || null };
   if (r.newKind) out.kindName = r.kindName.trim();
   if (r.method === "per_hours_worked") out.perHoursWorked = numOrNull(r.perHoursWorked);
+  out.classes = r.classes && r.classes.length ? r.classes.slice() : null;
+  out.hireYearPerHours = r.method === "january_1" ? numOrNull(r.hireYearPerHours) : null;
+  out.yearCap = r.method === "untracked" ? null : numOrNull(r.yearCap);
+  out.useCap = r.method === "untracked" ? null : numOrNull(r.useCap);
   return out;
 };
 function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved }) {
@@ -7627,6 +7654,13 @@ function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved 
         {r.method !== "untracked" && <div><Lbl>{tr("Waiting period, in days")}</Lbl><Inp t={t} data-leave-rule="waitingDays" aria-label={tr("Waiting period, in days")} inputMode="numeric" value={r.waitingDays} onChange={e => setRule(i, "waitingDays", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} style={badAt("waitingDays") ? { borderColor: RD } : undefined} /></div>}
         {r.method !== "untracked" && <div><Lbl>{tr("Carryover cap")}</Lbl><Inp t={t} data-leave-rule="carryoverCap" aria-label={tr("Carryover cap")} inputMode="decimal" placeholder={tr("No cap")} value={r.carryoverCap} onChange={e => setRule(i, "carryoverCap", num(e.target.value))} style={badAt("carryoverCap") ? { borderColor: RD } : undefined} /></div>}
         {r.method !== "untracked" && <div><Lbl>{tr("Maximum balance")}</Lbl><Inp t={t} data-leave-rule="maxBalance" aria-label={tr("Maximum balance")} inputMode="decimal" placeholder={tr("No maximum")} value={r.maxBalance} onChange={e => setRule(i, "maxBalance", num(e.target.value))} style={badAt("maxBalance") ? { borderColor: RD } : undefined} /></div>}
+        {r.method === "january_1" && <div><Lbl>{tr("In the year of hire, 1 hour per this many hours worked")}</Lbl><Inp t={t} data-leave-rule="hireYearPerHours" aria-label={tr("In the year of hire, 1 hour per this many hours worked")} inputMode="decimal" placeholder={tr("Not earned by hours")} value={r.hireYearPerHours} onChange={e => setRule(i, "hireYearPerHours", num(e.target.value))} style={badAt("hireYearPerHours") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Most earned a year")}</Lbl><Inp t={t} data-leave-rule="yearCap" aria-label={tr("Most earned a year")} inputMode="decimal" placeholder={tr("No cap")} value={r.yearCap} onChange={e => setRule(i, "yearCap", num(e.target.value))} style={badAt("yearCap") ? { borderColor: RD } : undefined} /></div>}
+        {r.method !== "untracked" && <div><Lbl>{tr("Most used a year")}</Lbl><Inp t={t} data-leave-rule="useCap" aria-label={tr("Most used a year")} inputMode="decimal" placeholder={tr("No cap")} value={r.useCap} onChange={e => setRule(i, "useCap", num(e.target.value))} style={badAt("useCap") ? { borderColor: RD } : undefined} /></div>}
+      </div>
+      <div data-leave-rule-classes="" style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: badAt("classes") ? RD : t.textMut, marginBottom: 4 }}>{tr("Who it is for. Tick none for everyone.")}</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{LEAVE_RULE_CLASSES.map(c => <label key={c} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 12, color: t.text, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-leave-rule-class={c} checked={r.classes.indexOf(c) >= 0} onChange={e => setRule(i, "classes", e.target.checked ? LEAVE_RULE_CLASSES.filter(x => x === c || r.classes.indexOf(x) >= 0) : r.classes.filter(x => x !== c))} /></span>{leaveRuleClassWord(c)}</label>)}</div>
       </div>
       {(r.method === "january_1" || r.method === "anniversary") && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.text, marginBottom: 6, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" data-leave-rule="alsoOnHire" checked={r.alsoOnHire} onChange={e => setRule(i, "alsoOnHire", e.target.checked)} /></span>{tr("A new hire also gets it on the hire date")}</label>}
       {!noAmount && <div data-leave-rule-tiers="" style={{ marginBottom: 6 }}>
@@ -7684,6 +7718,16 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
         {p.summary && p.summary.holidays && <div style={{ fontSize: 12, color: t.textSec }}>{p.summary.holidays}</div>}
         {p.grantsFrom && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Grants start on {0}.", fdLong(p.grantsFrom))}</div>}
         {p.note && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{p.note}</div>}</div>
+      {Array.isArray(p.rules) && p.rules.length > 0 && <div data-leave-policy-rules="" style={{ marginBottom: 12 }}>
+        <Lbl>{readOnly ? tr("Its rules, fixed by the handbook") : tr("Its rules")}</Lbl>
+        {p.rules.map((r, i) => <div key={i} data-leave-policy-rule={r.kind} data-leave-policy-rule-classes={Array.isArray(r.classes) ? r.classes.join(",") : ""} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid " + t.border, marginBottom: 6, fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(r.kind, r.kindName)} <span style={{ fontWeight: 400, color: t.textSec }}>{tr("For: {0}", leaveRuleWho(r))}</span></div>
+          <div>{leaveMethodWord(r.method)}{Array.isArray(r.tiers) && r.tiers.length ? ": " + r.tiers.map(x => tr("{0} from {1} years", leaveRuleAmount(r, x.amount), x.years)).join(", ") : ""}</div>
+          {r.hireYearPerHours != null && <div>{tr("In the year of hire: 1 hour per {0} hours worked, up to {1}", leaveNum(r.hireYearPerHours), leaveRuleAmount(r, r.amount))}</div>}
+          {r.yearCap != null && <div>{tr("At most {0} earned a year", leaveRuleAmount(r, r.yearCap))}</div>}
+          {r.useCap != null && <div>{tr("At most {0} used a year", leaveRuleAmount(r, r.useCap))}</div>}
+        </div>)}
+      </div>}
       <Lbl>{tr("Sites that use it")}</Lbl>
       <div data-leave-policy-sites="" style={{ marginBottom: 12 }}>{(data.sites || []).length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No site uses it.")}</div> : (data.sites || []).map(s => <div key={s.siteId} style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{s.siteName} <span style={{ fontSize: 12, color: t.textSec }}>{s.source === "site" ? (s.since ? tr("since {0}", fdLong(s.since)) : "") : tr("by the company default")}</span></div>)}</div>
       <Lbl>{tr("Who follows it")}</Lbl>
@@ -7984,7 +8028,7 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
         <Inp t={t} data-leave-filter="q" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-        <div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div>
+        <div style={{ minWidth: 0 }}><LeaveAdpLine t={t} text={leaveAdpLine([].concat(...rows.map(r => r.balances || [])))} style={{ marginBottom: 2 }} /><div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div></div>
         <Btn t={t} v="ghost" data-leave-download="" onClick={download} style={{ minHeight: 44, padding: "8px 14px", fontSize: 12 }}><DlI sz={14} c={t.text} /> {tr("Download CSV")}</Btn>
       </div>
       {failed && rows.length === 0 ? <Crd t={t}><LoadFailed t={t} onRetry={loadBalances} /></Crd>
@@ -16139,8 +16183,18 @@ const TIME_OFF_STATUS_LABELS = { requested: "Requested|request", approved: "Appr
 // A request's type as a word (Step 291): the API's leave types, PTO among them since its Step 289
 // (STEP289_CONTRACT.md section 1.5), each in the screen's language. A type with no word here reads the
 // label the API sent, or its code.
-const LEAVE_TYPE_WORDS = { paid_sick: "Paid sick leave", unpaid: "Unpaid time off", bereavement_personal: "Bereavement and personal", jury_duty: "Jury duty", military: "Military leave", pto: "PTO (paid time off)" };
-const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_WORDS[r.leaveType]) : (r && (r.leaveTypeLabel || r.leaveType)) || "");
+// Since part 400 (the API's Round 15, part 395, OCSA-HR-002 Part 8) a new request is Vacation, Sick, Personal day,
+// Bereavement or Unpaid; PTO, bereavement and personal, jury duty and military are no longer offered, and every
+// request filed before reads as it did. A type with no word here reads the API's own leaveTypeWords in the screen's
+// language, then its label, then its code.
+const LEAVE_TYPE_WORDS = { paid_sick: "Paid sick leave", unpaid: "Unpaid time off", bereavement_personal: "Bereavement and personal", jury_duty: "Jury duty", military: "Military leave", pto: "PTO (paid time off)", vacation: "Vacation", personal: "Personal day", bereavement: "Bereavement" };
+const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_WORDS[r.leaveType])
+  : r && r.leaveTypeWords && typeof r.leaveTypeWords[getLang()] === "string" && r.leaveTypeWords[getLang()] ? r.leaveTypeWords[getLang()]
+  : (r && (r.leaveTypeLabel || r.leaveType)) || "");
+// A request filed inside its type's notice (vacation 2 weeks, a personal day 48 hours) reads insideNotice true: the
+// office decides it case by case. The unit says whether the type is taken in whole days or in hours.
+const TimeOffInsideNotice = ({ r }) => (r && r.insideNotice === true ? <span data-time-off-inside-notice="" title={tr("Filed inside its notice. Decide it case by case.")}><Bdg l={tr("Inside notice")} c={OR} /></span> : null);
+const timeOffAmount = (r) => (r && r.unit === "days" && (r.hours == null || r.hours === "") ? tr("Whole days") : timeOffHours(r ? r.hours : null));
 const timeOffStatus = (s) => tr(TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || ""));
 const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), tr("{0} to {1}", patternTime(sh.startTime), patternTime(sh.endTime)), sh.siteName].filter(Boolean).join(", ");
 const TIME_OFF_LIMIT = 200;
@@ -16329,23 +16383,26 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
     </div>
     <div style={{ marginBottom: 14 }}>
       {row("Person", req.userName)}
-      {row("Type", <span data-time-off-type={req.leaveType || ""}>{timeOffType(req)}</span>)}
+      {row("Type", <span data-time-off-type={req.leaveType || ""}>{timeOffType(req)} <TimeOffInsideNotice r={req} /></span>)}
       {row("Dates", timeOffDates(req.startsOn, req.endsOn))}
       {req.partDay ? row("Time", timeOffTimes(req)) : null}
-      {row("Hours", timeOffHours(req.hours))}
+      {req.unit ? row("Taken in", <span data-time-off-unit={req.unit}>{req.unit === "days" ? tr("Whole days") : tr("Hours")}</span>) : null}
+      {req.unit === "days" && (req.hours == null || req.hours === "") ? null : row("Hours", timeOffHours(req.hours))}
       {row("Status", timeOffStatus(req.status))}
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
+      {req.insideNotice === true && <div data-time-off-inside-notice-line="" style={{ fontSize: 12, color: OR, marginTop: 6, lineHeight: 1.5 }}>{tr("Filed inside its notice. Decide it case by case.")}</div>}
     </div>
     {leave && <div data-time-off-leave={leave.tracked ? "tracked" : "untracked"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Balance")}</Lbl>
       {!leave.tracked && leave.balanceHours == null ? <div style={{ fontSize: 12, color: t.textSec }}>{tr("No balance is kept for {0}.", leaveKindWord(leave.kind, leave.kindName))}</div> : <>
         <div data-time-off-balance="" style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{req.status === "requested"
-          ? tr("{0}: {1} now, {2} after this request of {3}.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours), leaveHours(leave.wouldLeaveHours), leaveHours(leave.requestHours))
-          : leave.givenBack ? tr("{0}: {1} given back, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
-          : leave.taken ? tr("{0}: {1} taken, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.requestHours), leaveHours(leave.balanceHours))
-          : tr("{0}: {1} now.", leaveKindWord(leave.kind, leave.kindName), leaveHours(leave.balanceHours))}</div>
+          ? tr("{0}: {1} now, {2} after this request of {3}.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.balanceHours, leave.balanceDays, leave), leaveInUnit(leave.wouldLeaveHours, leave.wouldLeaveDays, leave), leaveInUnit(leave.requestHours, leave.requestDays, leave))
+          : leave.givenBack ? tr("{0}: {1} given back, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.requestHours, leave.requestDays, leave), leaveInUnit(leave.balanceHours, leave.balanceDays, leave))
+          : leave.taken ? tr("{0}: {1} taken, {2} now.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.requestHours, leave.requestDays, leave), leaveInUnit(leave.balanceHours, leave.balanceDays, leave))
+          : tr("{0}: {1} now.", leaveKindWord(leave.kind, leave.kindName), leaveInUnit(leave.balanceHours, leave.balanceDays, leave))}</div>
         {leave.policy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Policy: {0}", leave.policy.name)}{leave.usableFrom && leave.usableFrom > leaveToday() ? " | " + tr("Usable from {0}", fdLong(leave.usableFrom)) : ""}</div>}
+        <LeaveAdpLine t={t} text={leaveAdpLine([leave])} style={{ fontSize: 11, marginTop: 4, marginBottom: 0 }} />
       </>}
     </div>}
     {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
@@ -16423,10 +16480,10 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange, ope
 
   const columns = [
     { header: tr("Person"), render: r => <span style={{ color: t.text }}>{r.userName}</span> },
-    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => <span data-time-off-type={r.leaveType || ""}>{timeOffType(r)}</span> },
+    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => <span data-time-off-type={r.leaveType || ""}>{timeOffType(r)}{r.insideNotice === true ? <div style={{ marginTop: 3 }}><TimeOffInsideNotice r={r} /></div> : null}</span> },
     { header: tr("Dates"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffDates(r.startsOn, r.endsOn) },
     { header: tr("Time"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffTimes(r) },
-    { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffHours(r.hours) },
+    { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => <span data-time-off-amount={r.unit || ""}>{timeOffAmount(r)}</span> },
     { header: tr("Shifts"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => Array.isArray(r.shifts) && r.shifts.length > 0 ? r.shifts.length : tr("None|shifts") },
     { header: tr("Status"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffStatus(r.status) },
     { header: tr("Asked"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => patternDate(r.createdAt) },
