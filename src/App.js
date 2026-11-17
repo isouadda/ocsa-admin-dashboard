@@ -2240,7 +2240,7 @@ function usePersonFind() {
     return (!!k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) || (!!k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0);
   }, [keys]);
 }
-const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
+const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} data-filter-tab={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span data-filter-tab-count={tb.id} style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
 // A table wider than its card scrolls inside the card. Its headers wrap between words when the room
 // runs short, so a long Spanish header does not hold its column wider than what it heads (Step 284).
@@ -7323,6 +7323,37 @@ const leaveBalanceText = (b) => (b && b.unit === "days" && b.balanceDays != null
 const leaveToday = () => crWall(Date.now()).day;
 const leaveYear = () => Number(leaveToday().slice(0, 4));
 const leavePolicyName = (p) => (p && p.name ? p.name : "--");
+// Part 400 (the API's Round 15, part 395): every leave person head carries employmentClass, the class leave reads
+// (full_time, part_time, supplemental), null when none is on file. An API before Round 15 sends no such field, and
+// nothing is drawn for it.
+const LEAVE_CLASS_WORDS = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
+const leaveClassWord = (p) => {
+  if (!p || !Object.prototype.hasOwnProperty.call(p, "employmentClass")) return "";
+  const c = p.employmentClass;
+  return c ? (LEAVE_CLASS_WORDS[c] ? tr(LEAVE_CLASS_WORDS[c]) : String(c)) : tr("No class on file");
+};
+// Who is missing a class or a hire date (part 400): GET /api/leave/missing-classes, { people: [{ person, policy,
+// kindsNotOffered: [{ kind, kindName }] }], nextCursor }, and GET /api/leave/missing-hire-dates, { people: [{ person,
+// policy, kindsAffected }], nextCursor }, each read to its end, put together so each person is listed once with what
+// is missing. A list the API does not answer (an API before Round 15 has no missing-classes) adds nobody; null when
+// neither answered.
+async function leaveMissingPeople(af) {
+  const [classes, hires] = await Promise.all([
+    leaveEveryPage(af, "/api/leave/missing-classes", "people").catch(() => null),
+    leaveEveryPage(af, "/api/leave/missing-hire-dates", "people").catch(() => null),
+  ]);
+  if (classes === null && hires === null) return null;
+  const by = new Map();
+  const at = (x) => {
+    const id = String(x && x.person && x.person.userId != null ? x.person.userId : "");
+    if (!id) return null;
+    if (!by.has(id)) by.set(id, { person: x.person, policy: x.policy || null, noClass: false, kindsNotOffered: [], noHireDate: false, kindsAffected: [] });
+    return by.get(id);
+  };
+  (classes || []).forEach(x => { const r = at(x); if (r) { r.noClass = true; r.kindsNotOffered = Array.isArray(x.kindsNotOffered) ? x.kindsNotOffered : []; } });
+  (hires || []).forEach(x => { const r = at(x); if (r) { r.noHireDate = true; r.kindsAffected = Array.isArray(x.kindsAffected) ? x.kindsAffected : []; if (!r.policy) r.policy = x.policy || null; } });
+  return Array.from(by.values()).sort((a, b) => String(a.person.name || "").localeCompare(String(b.person.name || "")));
+}
 // The words the API says each refusal and warning in come with the answer, in the reader's language.
 const leaveRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || "") });
 // Pages a list until nextCursor is empty, for the screens that need everyone at once.
@@ -7461,7 +7492,7 @@ function LeavePersonWindow({ af, t, userId, year, kinds = [], policies = [], can
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave")}</div>
-        {p && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+        {p && <div data-leave-person-head="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), leaveClassWord(p), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
       </div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
@@ -7656,7 +7687,7 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
       <Lbl>{tr("Sites that use it")}</Lbl>
       <div data-leave-policy-sites="" style={{ marginBottom: 12 }}>{(data.sites || []).length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No site uses it.")}</div> : (data.sites || []).map(s => <div key={s.siteId} style={{ fontSize: 13, color: t.text, marginBottom: 4 }}>{s.siteName} <span style={{ fontSize: 12, color: t.textSec }}>{s.source === "site" ? (s.since ? tr("since {0}", fdLong(s.since)) : "") : tr("by the company default")}</span></div>)}</div>
       <Lbl>{tr("Who follows it")}</Lbl>
-      <div data-leave-policy-people="">{people.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nobody follows it today.")}</div> : people.map(x => <button key={x.person.userId} onClick={() => onOpenPerson(x.person.userId)} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", minHeight: 44, padding: "6px 8px", background: "none", border: "none", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, textAlign: "left", cursor: "pointer", fontFamily: FONT_BODY }}><span>{x.person.name}</span><span style={{ fontSize: 12, color: t.textSec }}>{x.person.site ? x.person.site.name : ""}{x.policy ? " | " + leaveSourceWord(x.policy.source) : ""}</span></button>)}</div>
+      <div data-leave-policy-people="">{people.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nobody follows it today.")}</div> : people.map(x => <button key={x.person.userId} onClick={() => onOpenPerson(x.person.userId)} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", minHeight: 44, padding: "6px 8px", background: "none", border: "none", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, textAlign: "left", cursor: "pointer", fontFamily: FONT_BODY }}><span>{x.person.name}</span><span style={{ fontSize: 12, color: t.textSec }}>{[leaveClassWord(x.person), x.person.site ? x.person.site.name : "", x.policy ? leaveSourceWord(x.policy.source) : ""].filter(Boolean).join(" | ")}</span></button>)}</div>
       {next && <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}><Btn t={t} v="ghost" onClick={more}>{tr("Show more")}</Btn></div>}
     </>}
     {editing && p && <LeavePolicyEditor af={af} t={t} policy={p} kinds={kinds} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); showToast(tr("Policy saved")); load(); if (onChanged) onChanged(); }} />}
@@ -7880,7 +7911,7 @@ function SiteLeavePolicy({ af, t, siteId, showToast }) {
 // dates, and Enter starting balances. #leave/<tab>, and #leave/balances/<userId> opens a person's ledger.
 function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, canOpenStaff = false }) {
   const leave = useContext(LeaveCtx);
-  const tabs = [["balances", "Balances"], ["policies", "Policies"], ["sites", "Sites"], ["hours", "Hours files"], ["missing", "Missing hire dates"]].concat(leave.canManage ? [["starting", "Enter starting balances"]] : []);
+  const tabs = [["balances", "Balances"], ["policies", "Policies"], ["sites", "Sites"], ["hours", "Hours files"], ["missing", "Missing class or hire date"]].concat(leave.canManage ? [["starting", "Enter starting balances"]] : []);
   const tab = tabs.some(x => x[0] === route[0]) ? route[0] : "balances";
   const go = (id, more) => { if (onRoute) onRoute([id].concat(more || [])); };
   const [policies, setPolicies] = useState(null);
@@ -7902,7 +7933,7 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   const [fileList, setFileList] = useState(null);
   const [fileNext, setFileNext] = useState(null);
   const [missing, setMissing] = useState(null);
-  const [missingNext, setMissingNext] = useState(null);
+  const [missingFailed, setMissingFailed] = useState(false);
   const personId = tab === "balances" && route[1] ? String(route[1]) : "";
   const loadPolicies = useCallback(() => { af("/api/leave/policies").then(d => setPolicies(Array.isArray(d && d.policies) ? d.policies : [])).catch(() => setPolicies([])); }, [af]);
   useEffect(() => { loadPolicies(); af("/api/leave/kinds").then(d => setKinds(Array.isArray(d && d.kinds) ? d.kinds : [])).catch(() => {}); }, [af, loadPolicies]);
@@ -7930,17 +7961,19 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   useEffect(() => { if (tab === "sites") loadSites(); }, [tab, loadSites]);
   const loadFiles = useCallback(async (cursor) => { try { const d = await af("/api/leave/hours-files?cursor=" + encodeURIComponent(cursor || "")); setFileList(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.files) ? d.files : [])); setFileNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setFileList(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
   useEffect(() => { if (tab === "hours") loadFiles(""); }, [tab, loadFiles]);
-  const loadMissing = useCallback(async (cursor) => { try { const d = await af("/api/leave/missing-hire-dates?cursor=" + encodeURIComponent(cursor || "")); setMissing(cur => (cursor ? (cur || []) : []).concat(Array.isArray(d && d.people) ? d.people : [])); setMissingNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { setMissing(cur => cur || []); showToast((e && e.message) || tr("Request failed"), "error"); } }, [af, showToast]);
-  useEffect(() => { if (tab === "missing") loadMissing(""); }, [tab, loadMissing]);
+  // Read when the page opens, for the count beside its tab, and again each time the tab is opened.
+  const loadMissing = useCallback(async () => { const list = await leaveMissingPeople(af); setMissing(list || []); setMissingFailed(list === null); }, [af]);
+  useEffect(() => { loadMissing(); }, [loadMissing]);
+  useEffect(() => { if (tab === "missing") loadMissing(); }, [tab, loadMissing]);
   const pickStyle = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
   const balanceCols = [
-    { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
+    { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), leaveClassWord(r.person), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
     { header: tr("Policy"), render: r => <div style={{ fontSize: 12 }}><div style={{ color: t.text }}>{leavePolicyName(r.policy)}</div>{r.policy && <div style={{ color: t.textMut, fontSize: 11 }}>{leaveSourceWord(r.policy.source)}</div>}</div> },
     { header: tr("Balances"), render: r => <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{(r.balances || []).length === 0 ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("None kept")}</span> : r.balances.map(b => <span key={b.kind} data-leave-chip={b.kind} style={{ fontSize: 12, padding: "3px 9px", borderRadius: R.pill, background: t.cardAlt, color: Number(b.balanceHours) < 0 ? RD : t.text, whiteSpace: "nowrap" }}>{leaveKindWord(b.kind, b.kindName)}: <b>{leaveBalanceText(b)}</b></span>)}</div> },
   ];
   return (<div data-leave-page="">
     <SecT t={t}>{tr("Leave balances")}</SecT>
-    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l) }))} />
+    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l), count: id === "missing" && missing && missing.length > 0 ? missing.length : null }))} />
     {tab === "balances" && <div data-leave-tab="balances">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 10 }}>
         <Sel t={t} data-leave-filter="year" aria-label={tr("Year")} value={String(year)} onChange={e => setYear(Number(e.target.value))} options={[leaveYear() + 1, leaveYear(), leaveYear() - 1, leaveYear() - 2].map(y => ({ v: String(y), l: String(y) }))} style={pickStyle} />
@@ -7991,15 +8024,16 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
       {fileNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadFiles(fileNext)}>{tr("Show more")}</Btn></div>}
     </div>}
     {tab === "missing" && <div data-leave-tab="missing">
-      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Active people with no hire date. A grant on the hire date, a seniority tier or a waiting period cannot count for them until one is on their profile.")}</div>
-      <DataTable t={t} rowKey={x => x.person.userId} rows={missing || []} empty={missing == null ? tr("Loading...") : tr("Everyone active has a hire date.")} columns={[
-        { header: tr("Person"), render: x => <span data-leave-missing={x.person.userId} style={{ color: t.text, fontWeight: 600 }}>{x.person.name}</span> },
-        { header: tr("Site"), render: x => (x.person.site ? x.person.site.name : "--") },
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Active people with no employment class or no hire date. With no class, vacation and personal days are not offered to them. With no hire date, a grant on the hire date, a seniority tier or a waiting period cannot count for them. Set either one on their profile.")}</div>
+      {missingFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadMissing} /></Crd> : <DataTable t={t} rowKey={x => x.person.userId} rows={missing || []} empty={missing == null ? tr("Loading...") : tr("Everyone active has a class and a hire date.")} columns={[
+        { header: tr("Person"), render: x => <div data-leave-missing={x.person.userId} data-leave-missing-what={[x.noClass ? "class" : "", x.noHireDate ? "hireDate" : ""].filter(Boolean).join(",")}><div style={{ color: t.text, fontWeight: 600 }}>{x.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(x.person.role), leaveClassWord(x.person), x.person.site ? x.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
+        { header: tr("Missing|class or hire date"), render: x => <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{x.noClass && <Bdg l={tr("Employment class")} c={OR} />}{x.noHireDate && <Bdg l={tr("Hire date")} c={OR} />}</div> },
         { header: tr("Policy"), render: x => leavePolicyName(x.policy) },
-        { header: tr("What waits on it"), render: x => (x.kindsAffected || []).map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--" },
+        { header: tr("What waits on it"), render: x => <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+          {x.noClass && <div data-leave-missing-not-offered="">{tr("Not offered: {0}", x.kindsNotOffered.map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--")}</div>}
+          {x.noHireDate && <div data-leave-missing-waits="">{tr("Waiting on the hire date: {0}", x.kindsAffected.map(k => leaveKindWord(k.kind, k.kindName)).join(", ") || "--")}</div>}</div> },
         { header: "", align: "right", render: x => <Btn t={t} v="ghost" data-leave-missing-open={x.person.userId} onClick={() => { window.location.hash = (canOpenStaff ? "staff/" : "hr/") + encodeURIComponent(x.person.userId); }} style={{ minHeight: 44, padding: "6px 12px", fontSize: 12 }}>{tr("Open the profile")}</Btn> },
-      ]} />
-      {missingNext && <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}><Btn t={t} v="ghost" onClick={() => loadMissing(missingNext)}>{tr("Show more")}</Btn></div>}
+      ]} />}
     </div>}
     {tab === "starting" && leave.canManage && <LeaveStartingBalances af={af} t={t} showToast={showToast} />}
     {personId && <LeavePersonWindow af={af} t={t} userId={personId} year={year} kinds={kinds} policies={policies || []} canManage={leave.canManage} canOpenStaff={canOpenStaff} onClose={() => go("balances")} onChanged={() => setReloadKey(k => k + 1)} showToast={showToast} />}

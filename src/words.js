@@ -5853,6 +5853,15 @@ export const WORDS = {
   "The handbook's nine holidays are listed already. Add any other day {0} closes.": { es: "Los nueve d\u00edas festivos del manual ya est\u00e1n en la lista. Agregue cualquier otro d\u00eda en que {0} cierre.", fr: "Les neuf jours f\u00e9ri\u00e9s du manuel sont d\u00e9j\u00e0 list\u00e9s. Ajoutez tout autre jour o\u00f9 {0} ferme." },
   "Union site": { es: "Sitio sindicalizado", fr: "Site syndiqu\u00e9" },
   "People at a union site follow their agreement, and {0}'s vacation and personal days are never offered to them.": { es: "Las personas de un sitio sindicalizado siguen su convenio, y nunca se les ofrecen las vacaciones ni los d\u00edas personales de {0}.", fr: "Les personnes d'un site syndiqu\u00e9 suivent leur convention, et les vacances et les journ\u00e9es personnelles de {0} ne leur sont jamais propos\u00e9es." },
+  "No class on file": { es: "Sin clase registrada", fr: "Aucune cat\u00e9gorie enregistr\u00e9e" },
+  "Missing class or hire date": { es: "Sin clase o fecha de contrataci\u00f3n", fr: "Cat\u00e9gorie ou date d'embauche manquante" },
+  "Active people with no employment class or no hire date. With no class, vacation and personal days are not offered to them. With no hire date, a grant on the hire date, a seniority tier or a waiting period cannot count for them. Set either one on their profile.": { es: "Personas activas sin clase de empleo o sin fecha de contrataci\u00f3n. Sin clase, no se les ofrecen vacaciones ni d\u00edas personales. Sin fecha de contrataci\u00f3n, no puede contar para ellas una asignaci\u00f3n en la fecha de contrataci\u00f3n, un nivel por antig\u00fcedad ni un per\u00edodo de espera. Registre cualquiera de las dos en su perfil.", fr: "Personnes actives sans cat\u00e9gorie d'emploi ou sans date d'embauche. Sans cat\u00e9gorie, les vacances et les journ\u00e9es personnelles ne leur sont pas propos\u00e9es. Sans date d'embauche, une attribution \u00e0 la date d'embauche, un palier d'anciennet\u00e9 ou une p\u00e9riode d'attente ne peut pas compter pour elles. Indiquez l'une ou l'autre dans leur profil." },
+  "Everyone active has a class and a hire date.": { es: "Todas las personas activas tienen clase y fecha de contrataci\u00f3n.", fr: "Toutes les personnes actives ont une cat\u00e9gorie et une date d'embauche." },
+  "Missing|class or hire date": { es: "Qu\u00e9 falta", fr: "Ce qui manque" },
+  "Employment class": { es: "Clase de empleo", fr: "Cat\u00e9gorie d'emploi" },
+  "Hire date": { es: "Fecha de contrataci\u00f3n", fr: "Date d'embauche" },
+  "Not offered: {0}": { es: "No se ofrece: {0}", fr: "Non propos\u00e9 : {0}" },
+  "Waiting on the hire date: {0}": { es: "En espera de la fecha de contrataci\u00f3n: {0}", fr: "En attente de la date d'embauche : {0}" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
