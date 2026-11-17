@@ -205,8 +205,10 @@ async function briefCases(ctx, lang) {
     results.check(KIND, id("guard-a-brief-that-fails-is-built-from-the-page"), missing.length === 0 && build && toast === copied(d), "missing " + say(missing) + (build ? "" : ", no Dashboard build line") + "; the toast " + say(toast));
   });
 
-  // 4. A guard: a number's drill-down sheet keeps its own brief, with no brief read (the API has none for a number yet).
-  await withDriver(ctx, { name: "drill-down", lang, persona: "superAdmin" }, async (d) => {
+  // 4. A guard: a number's drill-down sheet keeps its own brief. Since part 400 the API's Round 15 answers a number's
+  //    brief, and the sheet reads it first: the case runs as an API before Round 15 (the part400 scene beforeRound15),
+  //    whose answer to that read is a 404, and the sheet copies the block built from the page.
+  await withDriver(ctx, { name: "drill-down", lang, persona: "superAdmin", arm: (s) => s.setScene400({ beforeRound15: true }) }, async (d) => {
     await openHealth(d);
     await until(d, "[data-health-number='server_errors']", 8000);
     await letClipboard(d);
@@ -216,7 +218,7 @@ async function briefCases(ctx, lang) {
     const { text } = await copyAt(d, "server_errors");
     const read = reads(d, mark, /\/brief$/);
     const L = linesOf(text);
-    results.check(KIND, id("guard-a-drill-down-keeps-its-own-brief"), read.length === 0 && L[0] === "OCSA Health brief" && L.indexOf("Number: server_errors") >= 0 && L.every((x) => x.indexOf("Incident: ") !== 0),
+    results.check(KIND, id("guard-a-drill-down-keeps-its-own-brief"), read.every((c) => c.status === 404) && L[0] === "OCSA Health brief" && L.indexOf("Number: server_errors") >= 0 && L.every((x) => x.indexOf("Incident: ") !== 0),
       "brief reads " + read.length + "; it reads " + say(text.slice(0, 200)));
   });
 

@@ -538,7 +538,8 @@ async function step248(d, origin, p) {
     await until(d, "[data-holidays] table tbody tr");
     const list = d.page.locator("[data-holidays] table tbody tr");
     const rows = await list.count();
-    if (rows < 11) return "the year lists " + rows + " holidays";
+    // The handbook's nine and the office's own day (part 400, the API's Round 15).
+    if (rows < 10) return "the year lists " + rows + " holidays";
     await d.page.locator("[data-holiday-add]").click();
     await d.page.locator('[data-holiday-window] input[type="date"]').fill(ADDED_HOLIDAY.date);
     await d.page.locator("[data-holiday-window] input").nth(1).fill(ADDED_HOLIDAY.name);

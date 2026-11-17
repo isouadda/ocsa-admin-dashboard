@@ -168,7 +168,8 @@ module.exports = (ctx) => {
     }).filter(Boolean);
     return { lines, people, total: list.length };
   }
-  function numberPart(x) {
+  // onDay (part 400, the API's Round 15 numberBriefOf): the day whose rows it lists, else the last red day.
+  function numberPart(x, onDay) {
     const nums = read("/api/health/numbers");
     const n = nums && Array.isArray(nums.numbers) ? nums.numbers.find((y) => y && y.key === x.key) : null;
     if (!n) return { head: ["Number: " + x.key + " (no longer one of the API's numbers)"], rows: [], more: 0 };
@@ -183,7 +184,7 @@ module.exports = (ctx) => {
     before.forEach((h) => head.push("- " + h.day + ": " + valueWords(h.value) + ", " + (h.state || "unknown")));
     const opened = String(x.openedAt || "").slice(0, 10);
     const reds = [{ day, state: n.state }].concat(before).filter((h) => h.state === "red" && (!opened || h.day >= opened));
-    const rowsDay = reds.length ? reds[0].day : day;
+    const rowsDay = onDay || (reds.length ? reds[0].day : day);
     const listed = read("/api/health/numbers/" + encodeURIComponent(x.key) + "/list?day=" + rowsDay);
     const safe = safeRows(x.key, listed && Array.isArray(listed.items) ? listed.items : []);
     const rows = ["Rows behind it (" + rowsDay + "): " + (listed ? safe.total + " row" + (safe.total === 1 ? "" : "s") : "the list could not be read")
@@ -232,6 +233,12 @@ module.exports = (ctx) => {
     (Array.isArray(x.timeline) ? x.timeline : []).forEach((e) => top.push("- " + nyTime(e && e.at) + ": " + (e && e.text ? e.text : "")));
     const part = source === "uptimerobot" ? outagePart(x) : x.kind === "number" ? numberPart(x) : x.kind === "run" ? runPart(x) : { head: [], rows: [], more: 0 };
     return fit(top.concat(part.head), part.rows, part.more, ["API commit: " + COMMIT, "Made: " + nyTime(seed.NOW_ISO)]);
+  }
+  // A number's own brief (part 400, the API's Round 15, helpers/healthBrief.js numberBriefOf): no incident, the number's
+  // part for the day asked, the commit and when it was made.
+  function numberBriefOf(key, day) {
+    const part = numberPart({ key: String(key), openedAt: null }, day || null);
+    return fit(["OCSA Health brief", "A number, read from the Health page (no incident)"].concat(part.head), part.rows, part.more, ["API commit: " + COMMIT, "Made: " + nyTime(seed.NOW_ISO)]);
   }
   const TEXT = (status, text) => ({ status, bytes: Buffer.from(text, "utf8"), contentType: "text/plain; charset=utf-8", headers: { "Cache-Control": "private, no-store" }, json: text });
   // The skipped step of the failed run's skipped journey, with the robot's reason (part 384, 5.10).
@@ -396,6 +403,7 @@ module.exports = (ctx) => {
     sent: () => m().sent,
     model: () => m(),
     briefs: () => m().briefs,
+    numberBrief: numberBriefOf,
     reset: () => { model = null; },
   };
 };

@@ -212,8 +212,10 @@ async function briefCases(ctx, lang) {
   //    today, its lines and every day read, the routes behind it, the API's commit and the build; in English and
   //    plain ASCII on either screen, the toast in the screen's language.
   // Since part 397 an incident's brief is the API's own (GET /api/health/incidents/:id/brief), and the block built from
-  // the page's reads is what an API before Round 14 is given: the incident's cases run under the scene noBrief.
-  await withDriver(ctx, { name: "incident", lang, persona: "superAdmin", arm: (s) => s.setScene397({ noBrief: true }) }, async (d) => {
+  // the page's reads is what an API before Round 14 is given: the incident's cases run under the scene noBrief. Since
+  // part 400 the block names the number by the API's labelEn in every language, which an API before Round 15 does not
+  // send: the number's cases run under the part400 scene beforeRound15 too.
+  await withDriver(ctx, { name: "incident", lang, persona: "superAdmin", arm: (s) => { s.setScene397({ noBrief: true }); s.setScene400({ beforeRound15: true }); } }, async (d) => {
     await openHealth(d, "incidents");
     await until(d, "[data-copy-for-claude-button='" + NUMBER_INCIDENT + "']", 8000);
     await letClipboard(d);
@@ -245,8 +247,9 @@ async function briefCases(ctx, lang) {
   });
 
   // 3. A drill-down sheet: a list of people reads as how many, with no name, and the slowest route's carries its
-  //    floor and its routes.
-  await withDriver(ctx, { name: "drill-down", lang, persona: "superAdmin" }, async (d) => {
+  //    floor and its routes. Since part 400 a number's sheet copies the API's own brief (Round 15), and this block is what
+  //    an API before Round 15 is given: the case runs under the part400 scene beforeRound15.
+  await withDriver(ctx, { name: "drill-down", lang, persona: "superAdmin", arm: (s) => s.setScene400({ beforeRound15: true }) }, async (d) => {
     await openHealth(d);
     await until(d, "[data-health-number='never_signed_in']", 8000);
     await letClipboard(d);
