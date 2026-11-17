@@ -4072,6 +4072,11 @@ const serviceLineWord = (c) => ({ office: tr("Office|service line"), schools: tr
 const siteAnswers = (s, camel, snake) => !!s && typeof s === "object" && (Object.prototype.hasOwnProperty.call(s, camel) || Object.prototype.hasOwnProperty.call(s, snake));
 const siteContractRef = (s) => { const v = s.contractReference !== undefined ? s.contractReference : s.contract_reference; return v == null ? "" : String(v); };
 const siteServiceLines = (s) => { const v = s.serviceLines !== undefined ? s.serviceLines : s.service_lines; return Array.isArray(v) ? v.map(String) : []; };
+// Part 400 (the API's Round 15, part 395): a union site. Every site read answers is_union and isUnion; PATCH
+// /api/sites/:id { isUnion } sets it (manage_sites), anything but true or false refused 400 sites.unionBoolean. Its
+// people follow their agreement, and OCSA's vacation and personal days are never offered to them.
+const siteIsUnion = (s) => !!s && (s.isUnion === true || s.is_union === true);
+const SiteUnionMark = ({ s }) => (siteIsUnion(s) ? <span data-site-union={s.id}><Bdg l={tr("Union site")} c={BL} /></span> : null);
 // The field a refusal of the site's details names: sites.badServiceLine is the service lines, a code
 // or keys naming the contract reference is that field, and anything else is the toast it always was.
 const siteDetailsRefusalField = (e) => {
@@ -4080,6 +4085,7 @@ const siteDetailsRefusalField = (e) => {
   const names = (a, b) => code.indexOf(a) >= 0 || keys.some(k => k.indexOf(a) === 0 || k.indexOf(b) === 0);
   if (code === "sites.badserviceline" || names("serviceline", "service_line")) return "serviceLines";
   if (names("contractreference", "contract_reference")) return "contractReference";
+  if (code === "sites.unionboolean" || names("isunion", "is_union")) return "isUnion";
   return "";
 };
 // Part 389: the API's Round 12 (part 382, 3.6) answers a site's task with a value its table does not take, on a
@@ -4324,7 +4330,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   const [modeBusy, setModeBusy] = useState(false);
   // Every save of a site sends the updated time of the site as read (part 368, API-101), and keeps the new
   // one from the answer, so the next save sends it.
-  const siteLabels = { name: tr("Site Name"), addressLine1: tr("Address"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), primeContractor: tr("Prime Contractor"), clientName: tr("Client Name"), clientContactName: tr("Contact Name"), clientContactEmail: tr("Contact Email"), clientContactPhone: tr("Contact Phone"), contractType: tr("Contract Type"), siteNotes: tr("Site Notes"), scopeOfWork: tr("Scope of Work"), status: tr("Status") };
+  const siteLabels = { name: tr("Site Name"), addressLine1: tr("Address"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), primeContractor: tr("Prime Contractor"), clientName: tr("Client Name"), clientContactName: tr("Contact Name"), clientContactEmail: tr("Contact Email"), clientContactPhone: tr("Contact Phone"), contractType: tr("Contract Type"), siteNotes: tr("Site Notes"), scopeOfWork: tr("Scope of Work"), status: tr("Status"), isUnion: tr("Union site") };
   const siteRead = () => (siteProfile && siteProfile.site && String(siteProfile.site.id) === String(selectedSite) ? siteProfile.site : null);
   const keepSiteStamp = (r) => { const at = r && r.site ? stampOf(r.site) : null; if (at) setSiteProfile(p => (p && p.site ? { ...p, site: { ...p.site, updated_at: at } } : p)); };
   const saveChecklistMode = async (next) => {
@@ -4684,6 +4690,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
               <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{s.name}</div>
               <Bdg l={siteStateOf(s.status)} c={s.status === "active" ? GR : OR} />
               {(s.is_test === true || (sites.find(x => String(x.id) === String(s.id)) || {}).is_test === true) && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}
+              <SiteUnionMark s={siteAnswers(s, "isUnion", "is_union") ? s : (sites.find(x => String(x.id) === String(s.id)) || s)} />
             </div>
             <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
             {/* Part 358: what was done at this site, on Checklist Results, yesterday picked. */}
@@ -4736,7 +4743,8 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
             addressLine1: s.address_line1 || "", addressLine2: s.address_line2 || "", city: s.city || "", state: s.state || "", zipCode: s.zip_code || "",
             name: s.name || "",
             ...(siteAnswers(s, "contractReference", "contract_reference") ? { contractReference: siteContractRef(s) } : {}),
-            ...(siteAnswers(s, "serviceLines", "service_lines") ? { serviceLines: siteServiceLines(s) } : {})
+            ...(siteAnswers(s, "serviceLines", "service_lines") ? { serviceLines: siteServiceLines(s) } : {}),
+            ...(siteAnswers(s, "isUnion", "is_union") ? { isUnion: siteIsUnion(s) } : {})
           })} style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>{tr("Edit Details")}</button>}
         </Crd>
 
@@ -5053,6 +5061,13 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
             </label>))}
           </div>
           {siteRefusal.field === "serviceLines" && <div data-site-refusal="serviceLines" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{siteRefusal.text}</div>}</div>}
+        {editSite.isUnion !== undefined && <div data-site-union-field="" style={{ marginBottom: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <input type="checkbox" role="switch" aria-checked={editSite.isUnion === true} data-site-union-switch="" checked={editSite.isUnion === true} onChange={e => { setSiteRefusal({ field: "", text: "" }); setEditSite({ ...editSite, isUnion: e.target.checked }); }} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
+            <span style={{ fontWeight: 600 }}>{tr("Union site")}</span>
+          </label>
+          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("People at a union site follow their agreement, and {0}'s vacation and personal days are never offered to them.", clientConfig.company.brandTag)}</div>
+          {siteRefusal.field === "isUnion" && <div data-site-refusal="isUnion" style={{ fontSize: 12, color: RD, marginTop: 6, marginLeft: 30 }}>{siteRefusal.text}</div>}</div>}
         <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>{tr("Client Contact")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={editSite.clientContactName} onChange={e => setEditSite({ ...editSite, clientContactName: e.target.value })} /></div><div><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editSite.clientContactEmail} onChange={e => setEditSite({ ...editSite, clientContactEmail: e.target.value })} /></div><div><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editSite.clientContactPhone} onChange={e => setEditSite({ ...editSite, clientContactPhone: e.target.value })} /></div></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Site Notes")}</Lbl><TArea t={t} value={editSite.siteNotes} onChange={e => setEditSite({ ...editSite, siteNotes: e.target.value })} rows={3} /></div>
@@ -5152,7 +5167,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{s.name}</span>{s.is_test === true && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
+        { header: tr("Site"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{s.name}</span>{s.is_test === true && <span data-site-test={s.id}><Bdg l={tr("TEST")} c={OR} /></span>}<SiteUnionMark s={s} /></div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}{plansAll && phoneWide ? <div style={{ fontSize: 12, marginTop: 2 }}>{planCell(s)}</div> : null}</div></div> },
         { header: tr("Staff"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? trn("{0} staff|count", s.staff_count) : "-" },
         { header: tr("Tasks"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? trn("{0} task|count", s.task_count) : "-" },
         { header: tr("Contract"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => contractOf(s.contract_type) || "-" },

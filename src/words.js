@@ -5851,6 +5851,8 @@ export const WORDS = {
   "Set by the handbook's own rule.": { es: "Fijado por la regla propia del manual.", fr: "Fix\u00e9 par la r\u00e8gle propre du manuel." },
   "{0} observes the nine paid holidays its handbook names, listed here each year as the handbook sets them. Add any other day {0} closes.": { es: "{0} observa los nueve d\u00edas festivos pagados que nombra su manual, que se listan aqu\u00ed cada a\u00f1o como los fija el manual. Agregue cualquier otro d\u00eda en que {0} cierre.", fr: "{0} observe les neuf jours f\u00e9ri\u00e9s pay\u00e9s que nomme son manuel, list\u00e9s ici chaque ann\u00e9e comme le manuel les fixe. Ajoutez tout autre jour o\u00f9 {0} ferme." },
   "The handbook's nine holidays are listed already. Add any other day {0} closes.": { es: "Los nueve d\u00edas festivos del manual ya est\u00e1n en la lista. Agregue cualquier otro d\u00eda en que {0} cierre.", fr: "Les neuf jours f\u00e9ri\u00e9s du manuel sont d\u00e9j\u00e0 list\u00e9s. Ajoutez tout autre jour o\u00f9 {0} ferme." },
+  "Union site": { es: "Sitio sindicalizado", fr: "Site syndiqu\u00e9" },
+  "People at a union site follow their agreement, and {0}'s vacation and personal days are never offered to them.": { es: "Las personas de un sitio sindicalizado siguen su convenio, y nunca se les ofrecen las vacaciones ni los d\u00edas personales de {0}.", fr: "Les personnes d'un site syndiqu\u00e9 suivent leur convention, et les vacances et les journ\u00e9es personnelles de {0} ne leur sont jamais propos\u00e9es." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
