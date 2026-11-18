@@ -8672,7 +8672,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New message")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{officeOnly ? tr("Picking someone in the office opens your direct chat with them.") : tr("Picking someone in the office opens your direct chat with them. Picking a staff member opens their private chat with the office.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{officeOnly ? tr("Picking someone in the office opens your direct chat with them.") : tr("Picking someone in the office opens your direct chat with them. Picking a staff member opens their thread with the office.")}</div>
     <Inp t={t} type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name or badge")} aria-label={tr("Search by name or badge")} autoFocus style={{ marginBottom: 8 }} />
     {error && <div data-new-message-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 8 }}>{error}</div>}
     <div style={{ maxHeight: "calc(100vh / var(--zoom, 1) - 300px)", minHeight: 160, overflowY: "auto" }}>
@@ -9816,7 +9816,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   const [channels, setChannels] = useState([]);
   // Private lines are an active admin's and the super admin's (the API's readsPrivateLines since part
   // 346): a supervisor's GET /api/chat/dm-inbox answers [] and opening a person's line is refused
-  // chat.staffLineAdminsOnly, so for anyone else the inbox is not read, Private conversations is not
+  // chat.staffLineAdminsOnly, so for anyone else the inbox is not read, Staff to the office is not
   // drawn, and New message and the search offer only the office.
   const readsPrivate = !!(user && (user.role === "admin" || user.isSuperAdmin === true || user.is_super_admin === true));
   // Step 213: everyone the office can write to, from GET /api/chat/people, or null until it answers.
@@ -9900,6 +9900,12 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   const namedHere = named && named.channelId === sel ? named : null;
   // A direct chat is two people writing as themselves; in a private chat the office writes as one.
   const isDirect = !!activeDirect || !!(namedHere && namedHere.kind === "office");
+  // Part 405: a staff member's thread with the office. Whose thread it is comes from the inbox row
+  // (staffUserId) or the person it was just opened for; a message from anyone else is the office's and
+  // is named "<name>, for the office", and the person's own are named as theirs, on every message.
+  const staffThread = !!sel && !activeChannel && !isDirect;
+  const threadOwner = !staffThread ? "" : activeDm && activeDm.staffUserId != null ? String(activeDm.staffUserId) : namedHere && namedHere.userId != null ? String(namedHere.userId) : "";
+  const officeSide = (m) => staffThread && (threadOwner ? String(m.senderId) !== threadOwner : (m.senderRole === "admin" || m.senderRole === "supervisor"));
   const canTag = !!activeChannel;
   // The tags still in the text are the ones sent, at most ten and no repeats.
   const liveMentions = () => { const ids = []; mentions.forEach(m => { if (reply.indexOf("@" + m.name) >= 0 && ids.indexOf(m.id) < 0) ids.push(m.id); }); return ids.slice(0, 10); };
@@ -9924,7 +9930,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
       const ch = d && d.channel;
       const id = ch && (ch.id || ch.channelId);
       if (!id) throw new Error(tr("Request failed"));
-      setNamed({ channelId: String(id), name: p.name, photoUrl: p.photoUrl || null, kind: p.kind });
+      setNamed({ channelId: String(id), name: p.name, photoUrl: p.photoUrl || null, kind: p.kind, userId: p.userId });
       setNewOpen(false); setQ("");
       loadDms(); loadChannels(); loadDirect();
       await open(String(id));
@@ -9996,10 +10002,11 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
               <div style={{ width: 38, height: 38, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ChI sz={18} c={active ? GO : t.textSec} /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: c.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>{c.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(c.lastMessageAt)}</span>}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: t.textMut }}>{channelKind(c)}</span>{unreadPill(Number(c.unreadCount) || 0)}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span data-channel-kind={c.type || ""} style={{ fontSize: 11, color: t.textMut }}>{channelKind(c)}</span>{unreadPill(Number(c.unreadCount) || 0)}</div>
               </div>
             </button>); })}
-          {(directFailed || (direct && (!needle || directShown.length > 0))) && <div data-direct-messages="" style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Direct messages")}</div>}
+          {(directFailed || (direct && (!needle || directShown.length > 0))) && <><div data-direct-messages="" style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 2px" }}>{tr("Direct messages")}</div>
+            <div data-direct-messages-line="" style={{ fontSize: 11, color: t.textMut, padding: "0 10px 6px", lineHeight: 1.4 }}>{tr("Only you and the other person see these.")}</div></>}
           {directFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDirect} />}
           {!directFailed && direct && direct.length === 0 && !needle && <div style={{ padding: "4px 10px 10px", color: t.textMut, fontSize: 12 }}>{tr("No direct messages yet. New message starts one.")}</div>}
           {!directFailed && directShown.map(dm => { const active = dm.channelId === sel; return (
@@ -10011,15 +10018,16 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
               </div>
             </button>
           ); })}
-          {readsPrivate && (!needle || dmsFailed || filtered.length > 0 || noChat.length > 0 || toStart.length === 0) && <div data-private-conversations="" style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>}
+          {readsPrivate && (!needle || dmsFailed || filtered.length > 0 || noChat.length > 0 || toStart.length === 0) && <><div data-private-conversations="" data-staff-to-office="" style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 2px" }}>{tr("Staff to the office")}</div>
+            <div data-staff-to-office-line="" style={{ fontSize: 11, color: t.textMut, padding: "0 10px 6px", lineHeight: 1.4 }}>{tr("Each is one person's thread with the office. Every admin sees these and can answer.")}</div></>}
           {readsPrivate && dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
           {!dmsFailed && filtered.length === 0 && noChat.length === 0 && toStart.length === 0 && directShown.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
-            <button key={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+            <button key={dm.channelId} data-staff-thread={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.staffName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{unreadPill(Number(dm.unreadCount) || 0)}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><span data-to-office="" style={{ fontWeight: 600, color: t.textSec }}>{tr("to the office|chat thread")}</span>{" | "}{dm.lastMessage || tr("No messages yet")}</span>{unreadPill(Number(dm.unreadCount) || 0)}</div>
               </div>
             </button>
           ); })}
@@ -10028,7 +10036,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
               <Ini name={personName(p)} sz={38} color={active ? GO : t.textSec} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{personName(p)}</div>
-                <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("No private chat yet")}</div>
+                <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("No thread with the office yet")}</div>
               </div>
             </button>
           ); })}
@@ -10049,9 +10057,9 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
             {phone && <button onClick={() => setWaiting(null)} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
             <Ini name={waiting.name} sz={34} />
-            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{waiting.name}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{waiting.name}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("to the office|chat thread")}</div></div>
           </div>
-          <div data-no-chat-line="" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", color: t.textMut, fontSize: 13, lineHeight: 1.5 }}>{tr("No private chat with {0} yet. It starts the first time they open their messages in the staff app.", waiting.name)}</div>
+          <div data-no-chat-line="" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", color: t.textMut, fontSize: 13, lineHeight: 1.5 }}>{tr("{0} has no thread with the office yet. It starts the first time they open their messages in the staff app.", waiting.name)}</div>
         </>) : !sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
@@ -10062,15 +10070,15 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
             {phone && <button onClick={() => { setSel(null); setTagOpen(false); }} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
             {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : activeDirect ? activeDirect.otherName : (namedHere ? namedHere.name : ""), activeDirect ? activeDirect.otherPhotoUrl : (!activeDm && namedHere ? namedHere.photoUrl : null), 34, undefined, chatFacesAgain)}
-            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || activeDirect?.otherName || (namedHere ? namedHere.name : "") || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : isDirect ? tr("Direct message") : tr("Private message")}</div></div>
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || activeDirect?.otherName || (namedHere ? namedHere.name : "") || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : isDirect ? tr("Direct message") : tr("to the office|chat thread")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
             {msgsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={() => open(sel)} style={{ padding: 40 }} />}
             {!msgsFailed && msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
-            {msgs.map((m, i) => { const isMe = user && m.senderId === user.id ? true : (m.senderRole === "admin" || m.senderRole === "supervisor") && !activeChannel && !isDirect; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
+            {msgs.map((m, i) => { const office = officeSide(m); const isMe = user && m.senderId === user.id ? true : office; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; const named = staffThread || (!isMe && showN); return (
               <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showN ? 12 : 4, alignItems: "flex-end" }}>
                 {!isMe && showN && <Ini name={m.senderName} sz={28} color={t.textSec} />}{!isMe && !showN && <div style={{ width: 28 }} />}
-                <div style={{ maxWidth: "75%" }}>{!isMe && showN && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: t.textSec }}>{m.senderName}</div>}<div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : t.cardAlt, border: isMe ? "none" : "1px solid " + t.border, color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={m.text} mentions={m.mentions} color={isMe ? "#F8F7F4" : t.goldText} /></div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{ft(m.sentAt)}</div></div>
+                <div style={{ maxWidth: "75%" }}>{named && <div data-message-author={staffThread ? (office ? "office" : "person") : ""} style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: t.textSec, textAlign: isMe ? "right" : "left" }}>{office ? tr("{0}, for the office", m.senderName) : m.senderName}</div>}<div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : t.cardAlt, border: isMe ? "none" : "1px solid " + t.border, color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={m.text} mentions={m.mentions} color={isMe ? "#F8F7F4" : t.goldText} /></div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{ft(m.sentAt)}</div></div>
               </div>); })}
             <div ref={endRef} />
           </div>

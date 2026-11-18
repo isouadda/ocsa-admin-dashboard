@@ -686,8 +686,9 @@ const SHOTS = [
     } },
   { name: "live-ops", entry: "See who has started a shift today",
     open: "operations", ready: SHELL, act: async (c) => { await wait(800); } },
-  { name: "messages-private-chat", entry: "Message a staff member",
-    open: "chat/dm-1", ready: SHELL,
+  // Part 405: a staff member's thread with the office, a second admin's message in it beside the one signed in.
+  { name: "messages-private-chat", entry: "Message a staff member", arm: (stubs, on) => stubs.setScene405({ otherAdmin: on }),
+    open: "chat/dm-1", ready: "[data-message-author]",
     act: async (c) => { await c.page.locator('input[placeholder="' + c.say("Type a message") + '"]').fill(c.lang === "es" ? "Gracias, buen trabajo esta noche." : "Thanks, good work tonight."); } },
   { name: "reports-library", entry: "Run a report",
     open: "reports", ready: "[data-report-group]",

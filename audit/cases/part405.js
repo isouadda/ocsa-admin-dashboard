@@ -8,6 +8,9 @@
 //              guard: an untouched picker follows the read
 //   request    a client request's route chosen before a later read (after a note) is kept and saved; one saved by
 //              someone else meanwhile keeps the choice and is said
+//   messages   Staff to the office with its line, to the office on each staff thread's row and at the top of the
+//              thread, every message in a staff thread named, the office's as "<name>, for the office" whichever
+//              admin wrote it, and the line under Direct messages. A guard: every channel's row names its kind
 "use strict";
 const { createStubs } = require("../stubs");
 
@@ -163,12 +166,90 @@ async function requestCases(ctx, lang) {
   });
 }
 
+// ---- Section 2: whose messages are whose on Messages -----------------------------------------------------------------
+// The direct chats are answered once the pictures' layer is armed (Step 278), as on live.
+async function openMessages(d) {
+  await goHash(d, "chat");
+  await until(d, "[data-staff-thread], [data-private-conversations]", 8000);
+  await d.settle(500);
+}
+async function messageCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/messages/" + x;
+  const arm = (s) => { s.setStep278(true); s.setScene405({ otherAdmin: true }); };
+
+  // 6. The staff threads are headed Staff to the office, with its line.
+  await withDriver(ctx, { name: "heading", lang, arm }, async (d) => {
+    await openMessages(d);
+    const head = await textOf(d, "[data-private-conversations]");
+    const line = await textOf(d, "[data-staff-to-office-line]");
+    const wantLine = d.say("Each is one person's thread with the office. Every admin sees these and can answer.");
+    results.check(KIND, id("staff-threads-are-headed-staff-to-the-office-with-its-line"), head === d.say("Staff to the office") && line === wantLine,
+      "the heading reads " + say(head) + " and the line " + say(line) + " (want " + say(wantLine) + ")");
+  });
+
+  // 7. Each staff thread's row reads to the office beside the person's name, in its small line.
+  await withDriver(ctx, { name: "rows", lang, arm }, async (d, stubs) => {
+    const mark = d.mark();
+    await openMessages(d);
+    const inbox = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/chat/dm-inbox" && Array.isArray(c.json)).pop();
+    const want = inbox ? inbox.json.map((x) => String(x.channelId)) : [];
+    const rows = await d.page.locator("[data-staff-thread]").evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-staff-thread"), to: ((e.querySelector("[data-to-office]") || {}).textContent || "").trim() })));
+    const word = d.say("to the office|chat thread");
+    results.check(KIND, id("each-staff-thread-row-reads-to-the-office"), want.length > 0 && say(rows.map((r) => r.id)) === say(want) && rows.every((r) => r.to === word),
+      "rows " + say(rows) + " for the threads " + say(want) + " (want " + say(word) + " on each)");
+  });
+
+  // 8. In a staff thread, every message is named: the person's own by their name, the office's as "<name>, for the
+  //    office", the admin signed in and a second admin alike; the top of the thread reads to the office.
+  await withDriver(ctx, { name: "authors", lang, arm }, async (d, stubs) => {
+    await openMessages(d);
+    const mark = d.mark();
+    await d.page.evaluate(() => { window.location.hash = "chat/dm-1"; });
+    await soon(() => d.callsSince(mark).some((c) => c.method === "GET" && c.path === "/api/chat/channels/dm-1/messages"), 4000);
+    await d.settle(600);
+    const read = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/chat/channels/dm-1/messages" && Array.isArray(c.json)).pop();
+    const inbox = stubs.calls.filter((c) => c.path === "/api/chat/dm-inbox" && Array.isArray(c.json)).pop();
+    const owner = inbox ? String((inbox.json.find((x) => String(x.channelId) === "dm-1") || {}).staffUserId || "") : "";
+    const msgs = read ? read.json : [];
+    const want = msgs.map((m) => (String(m.senderId) === owner ? ["person", m.senderName] : ["office", fill(d.say("{0}, for the office"), m.senderName)]));
+    const drawn = await d.page.locator("[data-message-author]").evaluateAll((els) => els.map((e) => [e.getAttribute("data-message-author"), (e.textContent || "").trim()]));
+    const admins = new Set(msgs.filter((m) => String(m.senderId) !== owner).map((m) => String(m.senderId)));
+    const top = await d.page.evaluate((w) => Array.from(document.querySelectorAll("div")).some((x) => x.children.length === 0 && (x.textContent || "").trim() === w), d.say("to the office|chat thread"));
+    results.check(KIND, id("every-message-in-a-staff-thread-names-who-wrote-it"), msgs.length === 4 && admins.size === 2 && say(drawn) === say(want) && top,
+      "drawn " + say(drawn) + " (want " + say(want) + "); " + admins.size + " admin(s) wrote in it" + (top ? "" : "; the top of the thread does not read to the office"));
+  });
+
+  // 9. Direct messages keeps its heading, with the line under it.
+  await withDriver(ctx, { name: "direct", lang, arm }, async (d) => {
+    await openMessages(d);
+    const head = await textOf(d, "[data-direct-messages]");
+    const line = await textOf(d, "[data-direct-messages-line]");
+    const want = d.say("Only you and the other person see these.");
+    results.check(KIND, id("direct-messages-keeps-its-heading-with-its-line"), head === d.say("Direct messages") && line === want, "the heading reads " + say(head) + " and the line " + say(line));
+  });
+
+  // 10. A guard: every channel's row names its kind, site or general, as the API types it.
+  await withDriver(ctx, { name: "kinds", lang, arm }, async (d) => {
+    const mark = d.mark();
+    await openMessages(d);
+    const served = d.callsSince(mark).filter((c) => c.method === "GET" && c.path === "/api/chat/channels" && Array.isArray(c.json)).pop();
+    const chats = served ? served.json.filter((c) => c.type === "site" || c.type === "general" || c.type === "project") : [];
+    const kindWord = (c) => d.say(c.type === "site" ? "Site channel" : c.type === "project" ? "Project chat" : "General chat");
+    const rows = await d.page.locator("button").evaluateAll((els) => els.map((e) => (e.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean)));
+    const off = chats.filter((c) => !rows.some((r) => r[0] === c.name && r.indexOf(kindWord(c)) >= 0)).map((c) => c.name);
+    results.check(KIND, id("guard-every-channel-row-names-its-kind"), chats.length >= 2 && chats.some((c) => c.type === "general") && off.length === 0,
+      chats.length + " channel(s) served; " + (off.length ? "these do not name their kind: " + say(off) : "each names its kind"));
+  });
+}
+
 // ctx.only, when a runner names sections, keeps the run to them.
 async function run(ctx) {
   const want = (x) => !ctx.only || ctx.only.indexOf(x) >= 0;
   for (const lang of LANGS) {
     if (want("status")) await statusCases(ctx, lang);
     if (want("request")) await requestCases(ctx, lang);
+    if (want("messages")) await messageCases(ctx, lang);
   }
 }
 

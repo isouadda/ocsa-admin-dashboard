@@ -5901,6 +5901,14 @@ export const WORDS = {
   },
   "Someone changed this issue to {0} while it was open. Your choice is kept.": { es: "Alguien cambi\u00f3 este problema a {0} mientras estaba abierto. Se mantiene su elecci\u00f3n.", fr: "Quelqu'un a chang\u00e9 ce probl\u00e8me en {0} pendant qu'il \u00e9tait ouvert. Votre choix est conserv\u00e9." },
   "Someone saved {0} while this was open. Your choice is kept.": { es: "Alguien guard\u00f3 {0} mientras esto estaba abierto. Se mantiene su elecci\u00f3n.", fr: "Quelqu'un a enregistr\u00e9 {0} pendant que ceci \u00e9tait ouvert. Votre choix est conserv\u00e9." },
+  "Staff to the office": { es: "Del personal a la oficina", fr: "Du personnel au bureau" },
+  "Each is one person's thread with the office. Every admin sees these and can answer.": { es: "Cada una es la conversaci\u00f3n de una persona con la oficina. Todos los administradores las ven y pueden responder.", fr: "Chacun est le fil d'une personne avec le bureau. Tous les administrateurs les voient et peuvent r\u00e9pondre." },
+  "to the office|chat thread": { es: "a la oficina", fr: "au bureau" },
+  "{0}, for the office": { es: "{0}, por la oficina", fr: "{0}, pour le bureau" },
+  "Only you and the other person see these.": { es: "Solo usted y la otra persona ven estos mensajes.", fr: "Seuls vous et l'autre personne voyez ces messages." },
+  "No thread with the office yet": { es: "Todav\u00eda no hay conversaci\u00f3n con la oficina", fr: "Pas encore de fil avec le bureau" },
+  "{0} has no thread with the office yet. It starts the first time they open their messages in the staff app.": { es: "{0} todav\u00eda no tiene una conversaci\u00f3n con la oficina. Empieza la primera vez que abra sus mensajes en la aplicaci\u00f3n del personal.", fr: "{0} n'a pas encore de fil avec le bureau. Il commence la premi\u00e8re fois que la personne ouvre ses messages dans l'application du personnel." },
+  "Picking someone in the office opens your direct chat with them. Picking a staff member opens their thread with the office.": { es: "Al elegir a alguien de la oficina se abre su chat directo con esa persona. Al elegir a alguien del personal se abre su conversaci\u00f3n con la oficina.", fr: "Choisir quelqu'un du bureau ouvre votre discussion directe avec cette personne. Choisir un membre du personnel ouvre son fil avec le bureau." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
