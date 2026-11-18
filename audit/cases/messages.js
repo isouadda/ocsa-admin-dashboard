@@ -24,7 +24,7 @@ const MODAL = "div[style*='z-index: 500']";
 // What the screens have to say, by hand.
 const WORDS = {
   en: {
-    messages: "Messages", channels: "Channels", privateConvos: "Private conversations", generalChat: "General chat", siteChannel: "Site channel",
+    messages: "Messages", channels: "Channels", privateConvos: "Staff to the office", generalChat: "General chat", siteChannel: "Site channel",
     unread: "{0} unread messages", tag: "Tag someone", typeMessage: "Type a message", send: "Send", back: "Back", close: "Close",
     notSent: "Your message did not send.", notLoaded: "Messages did not load.", yourMessages: "Your messages",
     announcements: "Announcements", newAnnouncement: "New announcement", title: "Title", message: "Message", sendTo: "Send to",
@@ -38,7 +38,7 @@ const WORDS = {
     notSaved: "Your settings did not save.", notifications: "Notifications", more: "More",
   },
   es: {
-    messages: "Mensajes", channels: "Canales", privateConvos: "Conversaciones privadas", generalChat: "Chat general", siteChannel: "Canal del sitio",
+    messages: "Mensajes", channels: "Canales", privateConvos: "Del personal a la oficina", generalChat: "Chat general", siteChannel: "Canal del sitio",
     unread: "{0} mensajes sin leer", tag: "Etiquetar a alguien", typeMessage: "Escriba un mensaje", send: "Enviar", back: "Volver", close: "Cerrar",
     notSent: "Su mensaje no se envi\u00f3.", notLoaded: "Los mensajes no se cargaron.", yourMessages: "Sus mensajes",
     announcements: "Anuncios", newAnnouncement: "Nuevo anuncio", title: "T\u00edtulo", message: "Mensaje", sendTo: "Enviar a",

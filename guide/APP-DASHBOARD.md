@@ -220,7 +220,7 @@ Last checked: 2026-10-20
 Who can do this: admins and supervisors
 1. Click **Issues** (**Incidencias**). Once client requests are on, the page opens on **Staff issues** (**Incidencias del personal**); the **Client requests** (**Solicitudes de clientes**) tab is beside it. The list shows 50 issues at a time, newest first, for the state picked above it; **Show more** (**Mostrar más**) shows the next ones.
 2. Click the issue to open it.
-3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words.
+3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words. The state you pick stays picked while the issue finishes loading. If someone else changed the issue while it was open, a line under the picker says **Someone changed this issue to {0} while it was open. Your choice is kept.** (**Alguien cambió este problema a {0} mientras estaba abierto. Se mantiene su elección.**); click **Set status** (**Cambiar el estado**) to set yours.
 4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person under **Assign To *** (**Asignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and click **Assign Task** (**Asignar la tarea**). It appears on their **Assigned** tab in the portal.
 5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
 6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It takes no task: its window shows its **Follow-up** (**Seguimiento**), training or a conversation, and offers no **Assign as Task** (**Asignar como tarea**). **Choose a follow-up** (**Elegir un seguimiento**) or **Open the follow-up** (**Abrir el seguimiento**) opens it under **Inspections** (**Inspecciones**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
@@ -230,7 +230,7 @@ If a finding's window offers **Assign as Task** (**Asignar como tarea**) anyway,
 Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, building maintenance, incidencias.
 Picture: issues-issue-window
 Picture: issues-assign-task
-Last checked: 2026-11-11
+Last checked: 2026-11-18
 
 ## Create a task for a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -408,14 +408,14 @@ Last checked: 2026-11-11
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**). A number beside it counts the messages you have not read, direct messages included.
-2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**), each **Site channel** (**Canal del sitio**), and each **Project chat** (**Chat del proyecto**) for the projects you are in. Below them, **Direct messages** (**Mensajes directos**) lists your chats with other office people, and for an admin **Private conversations** (**Conversaciones privadas**) lists one per staff member. Only admins read a staff member's private line, so a supervisor's list has no private conversations.
+2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**), each **Site channel** (**Canal del sitio**), and each **Project chat** (**Chat del proyecto**) for the projects you are in. Below them, **Direct messages** (**Mensajes directos**) lists your chats with other office people, under the line **Only you and the other person see these.** (**Solo usted y la otra persona ven estos mensajes.**) For an admin, **Staff to the office** (**Del personal a la oficina**) lists one thread per staff member, each reading **to the office** (**a la oficina**) beside the person's name, under the line **Each is one person's thread with the office. Every admin sees these and can answer.** (**Cada una es la conversación de una persona con la oficina. Todos los administradores las ven y pueden responder.**) Only admins read these threads, so a supervisor's list has none.
 3. Use **Search chats and people** (**Buscar chats y personas**) to find someone by name or badge number. It finds any active person. Someone you have no chat with yet shows under **People** (**Personas**) as **Message {0}** (**Escribir a {0}**) with their name; click it and the chat opens. **New message** (**Nuevo mensaje**) at the top right does the same from a list of everyone.
-4. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert. A staff member reads what the office writes in their own private chat in the staff app.
+4. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert. A staff member reads what the office writes in their thread in the staff app. In a staff member's thread, each of their messages carries their name, and each message from the office carries the name of the admin who wrote it, as **{0}, for the office** (**{0}, por la oficina**).
 5. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words. The message is sent once, even when the first try reached the chat. Once it shows in the chat, the box empties.
-Words people use for this: message someone, chat, site chat, general chat, project chat, unread messages, find a person to message, message someone new, find by badge, write to a staff member, mensajes.
+Words people use for this: message someone, chat, site chat, general chat, project chat, staff to the office, office inbox, who answered, unread messages, find a person to message, message someone new, find by badge, write to a staff member, mensajes.
 Picture: messages-private-chat
-Last checked: 2026-10-18
+Last checked: 2026-11-18
 
 ## Ask Help a question from the dashboard (admin dashboard)
 Who can do this: admins and supervisors
@@ -906,10 +906,10 @@ Who can do this: anyone who can read the chat
 1. In **Messages** (**Mensajes**), open the general chat, a site's chat or a project's chat. In a project's chat the list holds the project's members.
 2. Type @ at the start of a word, or click the @ button beside the message box. **Tag someone** (**Etiquetar a alguien**) lists the people who can read that chat; type part of a name, a badge number or an employee ID to narrow it and click the person.
 3. Their name goes into the message. Send it; they get an alert that the message is for them, and their name shows highlighted.
-To untag someone, delete their name from the message before sending. A private conversation or a direct message has no tag button, since everyone who reads it already gets an alert for every message.
+To untag someone, delete their name from the message before sending. A staff member's thread with the office or a direct message has no tag button, since everyone who reads it already gets an alert for every message.
 Words people use for this: tag someone, mention someone, @ someone, etiquetar.
 Picture: chat-tag-someone
-Last checked: 2026-10-07
+Last checked: 2026-11-18
 
 ## See what people ask Help (admin dashboard)
 Who can do this: admins, and anyone an admin gives See Help insights
@@ -1133,23 +1133,23 @@ Last checked: 2026-10-07
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**), then **New message** (**Nuevo mensaje**) at the top right.
 2. The window lists everyone active: **Office** (**Oficina**) first, then **Staff** (**Personal**). Type in **Search by name or badge** (**Buscar por nombre o número de empleado**) to narrow it.
-3. Click the person. Someone in the office opens your direct chat with them, and for an admin a staff member opens their private chat with the office. A chat already there opens with its messages. A supervisor's window lists the office only and says **Picking someone in the office opens your direct chat with them.** (**Al elegir a alguien de la oficina se abre su chat directo con esa persona.**)
+3. Click the person. Someone in the office opens your direct chat with them, and for an admin a staff member opens their thread with the office. A chat already there opens with its messages. A supervisor's window lists the office only and says **Picking someone in the office opens your direct chat with them.** (**Al elegir a alguien de la oficina se abre su chat directo con esa persona.**)
 4. The chat opens with the message box ready. Type and press Enter.
 If it does not work: a person who is no longer active is not listed. When a line in the window says the chat could not be opened, try again; if it keeps saying so, the person may no longer be active.
 Words people use for this: new message, start a chat, message someone new, write to anyone, message a supervisor, message a staff member who has not written, nuevo mensaje.
 Picture: messages-new-window
-Last checked: 2026-10-18
+Last checked: 2026-11-18
 
 ## Message another office person directly (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Messages** (**Mensajes**). **Direct messages** (**Mensajes directos**) lists your chats with other office people, newest first, each with the last message, its time and how many you have not read.
+1. Click **Messages** (**Mensajes**). **Direct messages** (**Mensajes directos**) lists your chats with other office people, newest first, each with the last message, its time and how many you have not read. The line under it says **Only you and the other person see these.** (**Solo usted y la otra persona ven estos mensajes.**)
 2. Click one to open it. Reading it marks it read, and the number beside **Messages** (**Mensajes**) in the side panel goes down.
 3. To start one, click **New message** (**Nuevo mensaje**) and pick the person under **Office** (**Oficina**), or search their name and click **Message {0}** (**Escribir a {0}**).
 4. Type and press Enter. The top of the chat reads **Direct message** (**Mensaje directo**). A direct chat is listed for the two of you only, and the other person gets an alert.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words; the message is sent once. A direct chat has no tag button, since the other person is alerted to every message.
 Words people use for this: direct message, dm, message another admin, message a supervisor, office chat, chat between admins, mensaje directo.
 Picture: messages-direct-chat
-Last checked: 2026-09-30
+Last checked: 2026-11-18
 
 ## Record a person's school clearances (admin dashboard)
 Who can do this: admins and supervisors. A supervisor who cannot open HR Records records the dates from **Clearances** (**Autorizaciones escolares**), and the scanned copy and the Act 168 review stay with HR Records.
@@ -1867,7 +1867,7 @@ Last checked: 2026-10-05
 
 ## Enter the year's holidays (admin dashboard)
 Who can do this: admins who can change settings
-OCSA observes nine paid holidays under its handbook: New Year's Day, Martin Luther King Jr. Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day, the Day After Thanksgiving and Christmas Day. The federal days follow the handbook. The Day After Thanksgiving, and any other day the office is closed, is entered here. The Eids are not OCSA holidays; staff who observe them take vacation, personal or sick time. A holiday is not a working day, so a client's concern filed before one is due a day later.
+OCSA observes nine paid holidays under its handbook: New Year's Day, Martin Luther King Jr. Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day, the Day After Thanksgiving and Christmas Day. The federal days follow the handbook. Any other day the office is closed is entered here. The Eids are not OCSA holidays; staff who observe them take vacation, personal or sick time. A holiday is not a working day, so a client's concern filed before one is due a day later.
 1. Click **Settings** (**Configuración**), then the **Holidays** (**Días festivos**) tab.
 2. Pick the year at the top, this year or next. The table shows each holiday's **Date** (**Fecha**), its name under **Holiday** (**Día festivo**), its **Kind** (**Tipo**), **Handbook** (**Del manual**) or **Office** (**De la oficina**), and its **Note** (**Nota**). The handbook's nine are listed every year. One that falls on a Saturday is observed the Friday before, and one on a Sunday the Monday after; its date then reads Observed for and the actual day.
 3. The Day After Thanksgiving is one of the handbook's nine, set by its rule: it reads **Set by the handbook's rule: the Friday after Thanksgiving.** (**Fijado por la regla del manual: el viernes después de Acción de Gracias.**) under its name, and it is listed once each year.
@@ -1879,7 +1879,7 @@ If it does not work: the reason is shown under the field it is about, or at the 
 Words people use for this: holiday, holidays, day off, days off, closed, office closed, observed, handbook holiday, paid holiday, day after thanksgiving, días festivos, feriado.
 Picture: holidays-year
 Picture: holidays-add-window
-Last checked: 2026-11-17
+Last checked: 2026-11-18
 
 ## Make a request QR, so anyone in the building can ask for help (admin dashboard)
 Who can do this: admins who can change settings
@@ -3122,3 +3122,14 @@ Words people use for this: union, union site, union agreement, collective bargai
 Picture: site-union-switch
 Picture: sites-union-site
 Last checked: 2026-11-17
+
+## Route a client request (admin dashboard)
+Who can do this: anyone who can read reports, admins and supervisors by default
+1. Open the request on the **Client requests** (**Solicitudes de clientes**) tab of **Issues** (**Incidencias**).
+2. Under **Route** (**Clasificación**), pick how the office handled it: **Within scope** (**Dentro del alcance**), **Minor extra, absorbed** (**Extra menor, absorbido**), **Chargeable** (**Facturable**), **Out of scope** (**Fuera del alcance**), **Change of service** (**Cambio de servicio**) or **Declined** (**Rechazada**).
+3. Under **Absorbed minutes** (**Minutos absorbidos**), type the minutes of extra work the office took on, from 0 to 600.
+4. Click **Save** (**Guardar**). The route shows among the request's details, and the activity says who routed it.
+If it does not work: what you picked stays in the panel until you click **Save** (**Guardar**), even when you add a note or move the request on first. If someone else saved a route while the request was open, the panel says **Someone saved {0} while this was open. Your choice is kept.** (**Alguien guardó {0} mientras esto estaba abierto. Se mantiene su elección.**); click **Save** (**Guardar**) to keep yours.
+Words people use for this: route a request, within scope, chargeable, out of scope, change of service, minutes absorbed, extra work, clasificación.
+Picture: client-request-route
+Last checked: 2026-11-18
