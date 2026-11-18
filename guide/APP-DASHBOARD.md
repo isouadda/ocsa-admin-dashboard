@@ -1867,7 +1867,7 @@ Last checked: 2026-10-05
 
 ## Enter the year's holidays (admin dashboard)
 Who can do this: admins who can change settings
-OCSA observes nine paid holidays under its handbook: New Year's Day, Martin Luther King Jr. Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day, the Day After Thanksgiving and Christmas Day. The federal days follow the handbook. The Day After Thanksgiving, and any other day the office is closed, is entered here. The Eids are not OCSA holidays; staff who observe them take vacation, personal or sick time. A holiday is not a working day, so a client's concern filed before one is due a day later.
+OCSA observes nine paid holidays under its handbook: New Year's Day, Martin Luther King Jr. Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day, the Day After Thanksgiving and Christmas Day. The federal days follow the handbook. Any other day the office is closed is entered here. The Eids are not OCSA holidays; staff who observe them take vacation, personal or sick time. A holiday is not a working day, so a client's concern filed before one is due a day later.
 1. Click **Settings** (**Configuración**), then the **Holidays** (**Días festivos**) tab.
 2. Pick the year at the top, this year or next. The table shows each holiday's **Date** (**Fecha**), its name under **Holiday** (**Día festivo**), its **Kind** (**Tipo**), **Handbook** (**Del manual**) or **Office** (**De la oficina**), and its **Note** (**Nota**). The handbook's nine are listed every year. One that falls on a Saturday is observed the Friday before, and one on a Sunday the Monday after; its date then reads Observed for and the actual day.
 3. The Day After Thanksgiving is one of the handbook's nine, set by its rule: it reads **Set by the handbook's rule: the Friday after Thanksgiving.** (**Fijado por la regla del manual: el viernes después de Acción de Gracias.**) under its name, and it is listed once each year.
@@ -1879,7 +1879,7 @@ If it does not work: the reason is shown under the field it is about, or at the 
 Words people use for this: holiday, holidays, day off, days off, closed, office closed, observed, handbook holiday, paid holiday, day after thanksgiving, días festivos, feriado.
 Picture: holidays-year
 Picture: holidays-add-window
-Last checked: 2026-11-17
+Last checked: 2026-11-18
 
 ## Make a request QR, so anyone in the building can ask for help (admin dashboard)
 Who can do this: admins who can change settings
