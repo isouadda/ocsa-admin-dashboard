@@ -1437,6 +1437,14 @@ const SHOTS = [
   { name: "client-request-approve", entry: "Approve a client request and assign it",
     open: "issues/requests/rq-2", ready: "[data-request-approve]",
     act: async (c) => { await click(c, "[data-request-approve]"); await until(c, "[data-request-approve-form]"); await show(c, "[data-request-approve-form]"); } },
+  // Part 405: the route panel of a request being worked, a route picked and minutes typed, not saved yet.
+  { name: "client-request-route", entry: "Route a client request",
+    open: "issues/requests/rq-3", ready: "[data-request-route] select",
+    act: async (c) => {
+      await c.page.locator("[data-request-route] select").selectOption("minor_extra");
+      await c.page.locator("[data-request-route] input").fill("20");
+      await show(c, "[data-request-route]");
+    } },
   { name: "client-request-decline", entry: "Decline a client request",
     open: "issues/requests/rq-1", ready: "[data-request-decline]",
     act: async (c) => {

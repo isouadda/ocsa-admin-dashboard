@@ -6215,6 +6215,9 @@ function createStubs() {
   const part400 = require("./part400-stub")({ seed, state, ok, clone, person, can: (k) => part368.can(k), readsSite: (id) => part368.readsSite(id) });
   part400.setProbe(quietGet);
   part400.setPart397(part397);
+  // Part 405 (Round 13): when a read lands and what someone else did meanwhile, in audit/part405-stub.js: an issue's
+  // read held back, a client request's route saved by someone else, a second admin in a staff member's thread.
+  const part405 = require("./part405-stub")({ seed, clone });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7403,7 +7406,8 @@ function createStubs() {
     const under393 = () => part393.route(method, path, u.searchParams, body, record.language, under389);
     const under397 = () => part397.route(method, path, u.searchParams, body, record.language, under393);
     const under400 = () => part400.route(method, path, u.searchParams, body, record.language, under397);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under400);
+    const under405 = () => part405.route(method, path, u.searchParams, body, record.language, under400);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under405);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7542,6 +7546,10 @@ function createStubs() {
     setScene400: (o) => { part400.setScene(o || {}); },
     sent400: () => part400.sent(),
     model400: () => part400.model(),
+    // Part 405: its scenes, the held read let go, and the issues whose read was held.
+    setScene405: (o) => { part405.setScene(o || {}); },
+    release405: () => { part405.release(); },
+    held405: () => part405.held(),
     sent386: () => part386.sent(),
     model386: () => part386.model(),
     sent379: () => part379.sent(),
@@ -7712,6 +7720,7 @@ function createStubs() {
       part393.reset();
       part397.reset();
       part400.reset();
+      part405.reset();
       pictures372.reset();
     },
     fixtures: {

@@ -136,6 +136,8 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       return;
     }
     if (answer.delayMs) await new Promise((r) => setTimeout(r, answer.delayMs));
+    // A read a case holds back (part 405) is answered once the case lets it go.
+    if (answer.hold) await answer.hold;
     // One route answers a PDF rather than JSON, which the page fetches as a blob.
     if (answer.pdf) {
       await route.fulfill({

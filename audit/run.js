@@ -235,6 +235,10 @@ const SUITES = [
   // 15's shapes, against the stub as the API is built at ocsa-api 3df0967 (audit/part400-stub.js). Its own passes, like
   // part397.
   { name: "part400", mod: "./cases/part400", widths: [] },
+  // Part 405 (Round 13): a status chosen before the issue's read lands, the client request's route kept through a later
+  // read, and whose messages are whose on Messages, against the stub as the API is built at ocsa-api d84a449 with the
+  // part405 layer (audit/part405-stub.js). Its own passes, like part400's.
+  { name: "part405", mod: "./cases/part405", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

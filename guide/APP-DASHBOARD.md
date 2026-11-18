@@ -220,7 +220,7 @@ Last checked: 2026-10-20
 Who can do this: admins and supervisors
 1. Click **Issues** (**Incidencias**). Once client requests are on, the page opens on **Staff issues** (**Incidencias del personal**); the **Client requests** (**Solicitudes de clientes**) tab is beside it. The list shows 50 issues at a time, newest first, for the state picked above it; **Show more** (**Mostrar más**) shows the next ones.
 2. Click the issue to open it.
-3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words.
+3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words. The state you pick stays picked while the issue finishes loading. If someone else changed the issue while it was open, a line under the picker says **Someone changed this issue to {0} while it was open. Your choice is kept.** (**Alguien cambió este problema a {0} mientras estaba abierto. Se mantiene su elección.**); click **Set status** (**Cambiar el estado**) to set yours.
 4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person under **Assign To *** (**Asignar a ***), where you can type a name, badge number or employee ID in **Search by name, badge number or employee ID** (**Buscar por nombre, número de empleado o ID de la persona**), and click **Assign Task** (**Asignar la tarea**). It appears on their **Assigned** tab in the portal.
 5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
 6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It takes no task: its window shows its **Follow-up** (**Seguimiento**), training or a conversation, and offers no **Assign as Task** (**Asignar como tarea**). **Choose a follow-up** (**Elegir un seguimiento**) or **Open the follow-up** (**Abrir el seguimiento**) opens it under **Inspections** (**Inspecciones**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
@@ -230,7 +230,7 @@ If a finding's window offers **Assign as Task** (**Asignar como tarea**) anyway,
 Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, building maintenance, incidencias.
 Picture: issues-issue-window
 Picture: issues-assign-task
-Last checked: 2026-11-11
+Last checked: 2026-11-18
 
 ## Create a task for a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -3122,3 +3122,14 @@ Words people use for this: union, union site, union agreement, collective bargai
 Picture: site-union-switch
 Picture: sites-union-site
 Last checked: 2026-11-17
+
+## Route a client request (admin dashboard)
+Who can do this: anyone who can read reports, admins and supervisors by default
+1. Open the request on the **Client requests** (**Solicitudes de clientes**) tab of **Issues** (**Incidencias**).
+2. Under **Route** (**Clasificación**), pick how the office handled it: **Within scope** (**Dentro del alcance**), **Minor extra, absorbed** (**Extra menor, absorbido**), **Chargeable** (**Facturable**), **Out of scope** (**Fuera del alcance**), **Change of service** (**Cambio de servicio**) or **Declined** (**Rechazada**).
+3. Under **Absorbed minutes** (**Minutos absorbidos**), type the minutes of extra work the office took on, from 0 to 600.
+4. Click **Save** (**Guardar**). The route shows among the request's details, and the activity says who routed it.
+If it does not work: what you picked stays in the panel until you click **Save** (**Guardar**), even when you add a note or move the request on first. If someone else saved a route while the request was open, the panel says **Someone saved {0} while this was open. Your choice is kept.** (**Alguien guardó {0} mientras esto estaba abierto. Se mantiene su elección.**); click **Save** (**Guardar**) to keep yours.
+Words people use for this: route a request, within scope, chargeable, out of scope, change of service, minutes absorbed, extra work, clasificación.
+Picture: client-request-route
+Last checked: 2026-11-18

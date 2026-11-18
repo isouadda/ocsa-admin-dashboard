@@ -6167,6 +6167,13 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
   const [note, setNote] = useState("");
   const [sendToClient, setSendToClient] = useState(false);
   const [routeDraft, setRouteDraft] = useState({ route: "", absorbedMinutes: "" });
+  // Part 405: the route and the minutes a person has changed and not saved are theirs. Every read after a
+  // note, a step or a decision used to put the request's own back; it now does only while they are
+  // untouched since the last read or Save, and one that shows them changed on the server says so.
+  const routeTouched = useRef(false);
+  const routeBase = useRef(null);
+  const [routeMoved, setRouteMoved] = useState(null);
+  const editRoute = (k, v) => { routeTouched.current = true; setRouteDraft(p => ({ ...p, [k]: v })); };
   const [busy, setBusy] = useState("");
   const [refusal, setRefusal] = useState({ at: "", text: "", keys: [] });
   const [said, setSaid] = useState("");
@@ -6181,7 +6188,10 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
         if (!mounted.current) return;
         if (!d || !d.request) { setFailed(tr("This did not load.")); return; }
         setData(d);
-        setRouteDraft({ route: d.request.route || "", absorbedMinutes: d.request.absorbedMinutes == null ? "" : String(d.request.absorbedMinutes) });
+        const got = { route: d.request.route || "", absorbedMinutes: d.request.absorbedMinutes == null ? "" : String(d.request.absorbedMinutes) };
+        const was = routeBase.current;
+        if (!routeTouched.current || !was) { routeBase.current = got; setRouteDraft(got); setRouteMoved(null); }
+        else setRouteMoved(got.route !== was.route || got.absorbedMinutes !== was.absorbedMinutes ? got : null);
       })
       .catch(e => { if (mounted.current) setFailed(e.message || tr("This did not load.")); });
   }, [af, id]);
@@ -6213,7 +6223,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
   const decline = () => send("decline", base + "/decline", "POST", { reason: reason.trim() });
   const progress = (action) => send(action, base + "/progress", "POST", { action, note: note.trim() || undefined }, () => setNote(""));
   const addNote = () => send("note", base + "/notes", "POST", { note: note.trim(), sendToClient: !!sendToClient }, (d) => { setNote(""); setSendToClient(false); setSaid(d && d.emailed ? tr("Note saved and emailed to the person who asked.") : tr("Note saved.")); });
-  const saveRoute = () => send("route", base + "/request", "PATCH", { route: routeDraft.route || null, absorbedMinutes: routeDraft.absorbedMinutes === "" ? null : Number(routeDraft.absorbedMinutes) });
+  const saveRoute = () => send("route", base + "/request", "PATCH", { route: routeDraft.route || null, absorbedMinutes: routeDraft.absorbedMinutes === "" ? null : Number(routeDraft.absorbedMinutes) }, () => { routeTouched.current = false; });
   const under = (name) => (refusal.at === name && refusal.text ? <div data-request-refusal={name} role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal.text}</div> : null);
   const small = { minHeight: 44, padding: "10px 14px", fontSize: 12 };
   const cellSt = { fontSize: 11, color: t.textMut };
@@ -6314,9 +6324,10 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
       {r.canRoute && <div data-request-route="" style={{ padding: 12, border: "1px solid " + t.border, borderRadius: 8, marginBottom: 12 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>{tr("Route|request")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div><Lbl>{tr("Route|request")}</Lbl><Sel t={t} aria-label={tr("Route|request")} value={routeDraft.route} onChange={e => setRouteDraft({ ...routeDraft, route: e.target.value })} options={[{ v: "", l: tr("Not routed yet") }].concat(REQUEST_ROUTES.map(x => ({ v: x[0], l: tr(x[1]) })))} /></div>
-          <div><Lbl>{tr("Absorbed minutes")}</Lbl><Inp t={t} type="number" min={0} max={600} aria-label={tr("Absorbed minutes")} value={routeDraft.absorbedMinutes} onChange={e => setRouteDraft({ ...routeDraft, absorbedMinutes: e.target.value })} /></div>
+          <div><Lbl>{tr("Route|request")}</Lbl><Sel t={t} aria-label={tr("Route|request")} value={routeDraft.route} onChange={e => editRoute("route", e.target.value)} options={[{ v: "", l: tr("Not routed yet") }].concat(REQUEST_ROUTES.map(x => ({ v: x[0], l: tr(x[1]) })))} /></div>
+          <div><Lbl>{tr("Absorbed minutes")}</Lbl><Inp t={t} type="number" min={0} max={600} aria-label={tr("Absorbed minutes")} value={routeDraft.absorbedMinutes} onChange={e => editRoute("absorbedMinutes", e.target.value)} /></div>
         </div>
+        {routeMoved && <div data-request-route-moved="" role="status" style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.5 }}>{tr("Someone saved {0} while this was open. Your choice is kept.", [requestRouteWord(routeMoved.route) || tr("Not routed yet"), routeMoved.absorbedMinutes !== "" ? trn("{0} minutes absorbed|count", Number(routeMoved.absorbedMinutes)) : ""].filter(Boolean).join(", "))}</div>}
         {under("route")}
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
           <Btn t={t} v="ghost" onClick={saveRoute} disabled={!!busy} style={small}>{busy === "route" ? tr("Saving...") : tr("Save")}</Btn>
@@ -6584,6 +6595,20 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
   // API's words; any other refusal is toasted as before.
   const [statusDraft, setStatusDraft] = useState("");
   const [statusRefusal, setStatusRefusal] = useState("");
+  // Part 405 (the robot's first run on live, Nov 18): the status a person picks is theirs. statusPicked says
+  // whether they changed the picker since the window opened, or since their last Set status, and statusBase
+  // is the issue's own status the window knew then. A read that lands later moves the picker only while it
+  // is untouched; one that shows the issue moved on the server keeps the pick and names what it is now.
+  const statusPicked = useRef(false);
+  const statusBase = useRef("");
+  const [statusMoved, setStatusMoved] = useState("");
+  const freshStatus = (s) => { statusPicked.current = false; statusBase.current = s || ""; setStatusDraft(s || ""); setStatusMoved(""); };
+  const statusRead = (s) => {
+    const now = s || "";
+    if (!statusPicked.current) { freshStatus(now); return; }
+    if (!statusBase.current) { statusBase.current = now; return; }
+    setStatusMoved(now && now !== statusBase.current ? now : "");
+  };
   // Part 368: Send to building maintenance. maintSend is the new request's start, GET
   // /api/maintenance-requests/from-issue/:issueId's prefill with the issue's photos and the site's contacts,
   // while its window is open. The issue's read carries maintenanceRequests, the requests it was sent as.
@@ -6611,9 +6636,9 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
     if (d && Array.isArray(d.issuePhotos)) setMaintSend(cur => (cur ? { ...cur, issuePhotos: d.issuePhotos } : cur));
   };
   const openIssue = async (iss) => {
-    setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); setStatusDraft(iss.status || ""); setStatusRefusal("");
+    setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); freshStatus(iss.status); setStatusRefusal("");
     setMaintSend(null); setMaintSaid(""); setMaintLinks(null);
-    if (findingsOn || maintenance) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); } } catch (e) { console.warn("Issue:", e.message); } }
+    if (findingsOn || maintenance) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue && (!selRef.current || String(selRef.current.id) === String(iss.id))) { setView(d.issue); statusRead(d.issue.status); } } catch (e) { console.warn("Issue:", e.message); } }
     try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(Array.isArray(a) ? a : []); } catch (e) { setActivity([]); }
     try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(Array.isArray(p) ? p : []); } catch (e) { setAllPhotos([]); }
   };
@@ -6648,7 +6673,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
     const cur = selRef.current;
     if (!cur || cur.id == null) return undefined;
     let alive = true;
-    af("/api/issues/" + encodeURIComponent(cur.id)).then(d => { if (alive && d && d.issue && selRef.current && String(selRef.current.id) === String(cur.id)) { setView(d.issue); setStatusDraft(d.issue.status || ""); } }).catch(e => console.warn("Issue:", e.message));
+    af("/api/issues/" + encodeURIComponent(cur.id)).then(d => { if (alive && d && d.issue && selRef.current && String(selRef.current.id) === String(cur.id)) { setView(d.issue); statusRead(d.issue.status); } }).catch(e => console.warn("Issue:", e.message));
     return () => { alive = false; };
   }, [findingsOn]);
   const doVerify = async () => {
@@ -6657,7 +6682,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
     const note = verify.note.trim();
     try {
       const d = await af("/api/issues/" + encodeURIComponent(sel.id) + "/verify", { method: "POST", body: note ? { note } : {} });
-      if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); }
+      if (d && d.issue) { setView(d.issue); freshStatus(d.issue.status); }
       setVerify({ note: "", refusal: "", busy: false }); showToast(tr("Verified")); load(true);
     } catch (e) {
       const code = String((e && e.code) || "");
@@ -6676,6 +6701,8 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
   const sevOf = (s) => sevWord[s] || s;
   const upd = async (id, s) => {
     setStatusRefusal("");
+    // Set status sends the pick, so a read that lands after it may move the picker again.
+    statusPicked.current = false; if (shown && String(shown.id) === String(id)) statusBase.current = shown.status || ""; setStatusMoved("");
     try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(true); closeSel(); }
     catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose" || e.code === "issues.request.decideFirst")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
   };
@@ -6778,10 +6805,11 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => closeSel()}>{tr("Close")}</Btn>
       </div>
       {issueStatusChoices(shown).length > 0 && <div data-issue-status="" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
-        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} value={statusDraft} onChange={e => { setStatusDraft(e.target.value); setStatusRefusal(""); }} options={issueStatusChoices(shown).map(x => ({ v: x, l: stateOf(x) }))} /></div>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} value={statusDraft} onChange={e => { statusPicked.current = true; setStatusDraft(e.target.value); setStatusRefusal(""); }} options={issueStatusChoices(shown).map(x => ({ v: x, l: stateOf(x) }))} /></div>
         <Btn t={t} v="ghost" onClick={() => upd(shown.id, statusDraft)} disabled={!statusDraft || statusDraft === shown.status} style={{ minHeight: 44 }}>{tr("Set status")}</Btn>
       </div>}
       {issueStatusChoices(shown).length === 0 && isClientIssue(shown) && <div style={{ fontSize: 12, color: t.textMut, marginTop: 12, lineHeight: 1.5 }}>{tr("A request waiting for approval or declined is decided on the Client requests tab.")}</div>}
+      {statusMoved && issueStatusChoices(shown).length > 0 && <div data-issue-status-moved={statusMoved} role="status" style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.5 }}>{tr("Someone changed this issue to {0} while it was open. Your choice is kept.", stateOf(statusMoved))}</div>}
       {statusRefusal && <div data-issue-status-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{statusRefusal}</div>}
       </div></Mdl>}
     {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>

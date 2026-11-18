@@ -5899,6 +5899,8 @@ export const WORDS = {
     es: { one: "{0} sitio de prueba queda fuera de estos conteos, como de todos los informes.", other: "{0} sitios de prueba quedan fuera de estos conteos, como de todos los informes." },
     fr: { one: "{0} site de test est exclu de ces comptes, comme de tous les rapports.", other: "{0} sites de test sont exclus de ces comptes, comme de tous les rapports." },
   },
+  "Someone changed this issue to {0} while it was open. Your choice is kept.": { es: "Alguien cambi\u00f3 este problema a {0} mientras estaba abierto. Se mantiene su elecci\u00f3n.", fr: "Quelqu'un a chang\u00e9 ce probl\u00e8me en {0} pendant qu'il \u00e9tait ouvert. Votre choix est conserv\u00e9." },
+  "Someone saved {0} while this was open. Your choice is kept.": { es: "Alguien guard\u00f3 {0} mientras esto estaba abierto. Se mantiene su elecci\u00f3n.", fr: "Quelqu'un a enregistr\u00e9 {0} pendant que ceci \u00e9tait ouvert. Votre choix est conserv\u00e9." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
