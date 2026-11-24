@@ -1125,7 +1125,9 @@ export default function AdminDashboard() {
     if (id === "cases") return casesOn;
     if (id === "hr") return hrRecordsOn;
     if (id === "signatures") return hrRecordsOn || signaturesLive;
-    if (id === "announcements") return hasCap("send_announcements");
+    // Part 413 (the API's Round 17, 2.5): a test office account sends to the active test accounts alone, without
+    // send_announcements.
+    if (id === "announcements") return hasCap("send_announcements") || !!(user && user.isTestAccount === true);
     // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
     // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
     if (id === "help-insights") return hasCap("view_help_insights");
@@ -1264,7 +1266,11 @@ export default function AdminDashboard() {
     else probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
     if (said("tickets") !== null) setTicketsOn(said("tickets"));
     else probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
-    if (said("maintenance") === false) setMaintenance(null);
+    // Part 413 (the API's Round 18, 3.5): features.maintenance is { maxPhotos, responseDays } or false; the object is
+    // the options themselves, so the separate options read is skipped.
+    const maintObj = features && features.maintenance && typeof features.maintenance === "object" && !Array.isArray(features.maintenance) ? features.maintenance : null;
+    if (maintObj) setMaintenance(maintOf(maintObj));
+    else if (said("maintenance") === false) setMaintenance(null);
     else if (said("maintenance") === true) probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(maintOf(d && Array.isArray(d.statuses) ? d : null)); }).catch(e => { if (alive) setMaintenance(maintOf(null)); console.warn("Maintenance options:", e.message); }));
     else probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? maintOf(d) : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
     if (said("leave") !== null) setLeaveOn(said("leave"));
@@ -1946,7 +1952,7 @@ export default function AdminDashboard() {
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
-        {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} testOffice={!!(user && user.isTestAccount === true)} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {/* Everyone reads every document (Step 306), so the page is the API's to answer, whoever opens it. */}
         {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
@@ -2914,7 +2920,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // What the timeline, its record window and the printed pages name an action, a kind of record and
   // a field with. Each is the API's own name: one with a word here is drawn as that word, and any
   // other as the name with its underscores as spaces, which is what the page has always drawn.
-  const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent"), recognized: tr("named Employee of the Month"), recognition_removed: tr("Employee of the Month taken down") };
+  const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent"), recognized: tr("named Employee of the Month"), recognition_removed: tr("Employee of the Month taken down"), profile_photo_removed: tr("profile photo removed") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
   const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
@@ -2925,6 +2931,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     if (!e) return "";
     if (e.actionType === "recognized") return m ? tr("Named Employee of the Month for {0}", monthWordsOf(m)) : tr("Named Employee of the Month");
     if (e.actionType === "recognition_removed") return m ? tr("Employee of the Month for {0} taken down", monthWordsOf(m)) : tr("Employee of the Month taken down");
+    if (e.actionType === "profile_photo_removed") return tr("Profile photo removed");
     return "";
   };
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
@@ -3264,15 +3271,22 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     if (file.size > 20 * 1024 * 1024) { showToast(tr("Photo must be under 20MB"), "error"); return; }
     setPhotoUploading(true);
     try {
-      const compressed = await compressImage(file, 800, 0.85);
-      const r = await uf(compressed, "profile-photos");
-      await af("/api/users/profile/photo", { method: "POST", body: { userId: userId, photoUrl: r.url } });
+      await uploadPersonPhoto(uf, af, file, userId);
       showToast(tr("Photo updated"));
       openProfile(userId); load(); loadStaff();
     } catch (e) { showToast(e.message, "error"); }
     setPhotoUploading(false);
   };
 
+  // Part 413 (the API's Round 18, 3.8): an admin removes anyone's photo, DELETE /api/users/profile/photo { userId }, asked
+  // first; the answer's words are the toast.
+  const removePhoto = async (u) => {
+    if (!window.confirm(tr("Remove {0}'s profile photo? Their initials show in its place.", (u.firstName || "") + " " + (u.lastName || "")))) return;
+    setPhotoUploading(true);
+    try { const d = await af("/api/users/profile/photo", { method: "DELETE", body: { userId: u.id } }); showToast((d && d.message) || tr("Photo removed")); openProfile(u.id); load(); loadStaff(); }
+    catch (e) { showToast(e.message, "error"); }
+    setPhotoUploading(false);
+  };
   // The profile editor's fields as the profile was read, which the editor opens with and the save is held
   // to. A record whose personal details the API held back (part 360, finding API-74) opens with none of
   // them, so no save can send them back.
@@ -3367,6 +3381,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f, u.id); }} />
             </label>
             {photoUploading && <div style={{ position: "absolute", top: 0, left: 0, width: 84, height: 84, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#F8F7F4" }}>...</div>}
+            {!!(user && user.role === "admin") && u.profilePhotoUrl && <button data-profile-photo-remove="" onClick={() => removePhoto(u)} disabled={photoUploading} style={{ position: "absolute", top: 92, left: "50%", transform: "translateX(-50%)", minHeight: 44, padding: "0 8px", background: "none", border: "none", color: RD, fontSize: 11, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", whiteSpace: "nowrap" }}>{tr("Remove photo")}</button>}
           </div>}
         name={u.firstName + " " + u.lastName}
         idCode={u.employeeId}
@@ -7404,8 +7419,11 @@ const leavePolicyName = (p) => (p && p.name ? p.name : "--");
 // Part 400 (the API's Round 15, part 395): every leave person head carries employmentClass, the class leave reads
 // (full_time, part_time, supplemental), null when none is on file. An API before Round 15 sends no such field, and
 // nothing is drawn for it.
-const LEAVE_CLASS_WORDS = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
+// Part 413 (the API's Round 18, 3.1): every head also carries leaveClass, the class the person's leave follows, union
+// and none included; it is drawn in place of employmentClass when the answer carries it.
+const LEAVE_CLASS_WORDS = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental", union: "Union site|leave class", none: "No class on file" };
 const leaveClassWord = (p) => {
+  if (p && Object.prototype.hasOwnProperty.call(p, "leaveClass") && p.leaveClass) return LEAVE_CLASS_WORDS[p.leaveClass] ? tr(LEAVE_CLASS_WORDS[p.leaveClass]) : String(p.leaveClass);
   if (!p || !Object.prototype.hasOwnProperty.call(p, "employmentClass")) return "";
   const c = p.employmentClass;
   return c ? (LEAVE_CLASS_WORDS[c] ? tr(LEAVE_CLASS_WORDS[c]) : String(c)) : tr("No class on file");
@@ -7432,6 +7450,16 @@ async function leaveMissingPeople(af) {
   (hires || []).forEach(x => { const r = at(x); if (r) { r.noHireDate = true; r.kindsAffected = Array.isArray(x.kindsAffected) ? x.kindsAffected : []; if (!r.policy) r.policy = x.policy || null; } });
   return Array.from(by.values()).sort((a, b) => String(a.person.name || "").localeCompare(String(b.person.name || "")));
 }
+// Part 413 (the API's Round 18, 3.6): each missing list answers total beside people, so the tab's count is one read of
+// each, { classes, hireDates }, null for a list that answered no total (an API before Round 18), which is then read
+// whole as before.
+async function leaveMissingTotals(af) {
+  const one = (path) => af(path + "?limit=1&cursor=").then(d => (d && typeof d.total === "number" ? d.total : null)).catch(() => null);
+  const [classes, hireDates] = await Promise.all([one("/api/leave/missing-classes"), one("/api/leave/missing-hire-dates")]);
+  return { classes, hireDates };
+}
+// Each balance's rule, line { text, note, classes } | null (the API's Round 18, 3.1), in the API's words.
+const LeaveRuleLine = ({ t, b }) => (b && b.line && b.line.text ? <div data-leave-line={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{b.line.text}{b.line.note ? " " + b.line.note : ""}</div> : null);
 // The words the API says each refusal and warning in come with the answer, in the reader's language.
 const leaveRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || "") });
 // Pages a list until nextCursor is empty, for the screens that need everyone at once.
@@ -7450,7 +7478,7 @@ async function leaveEveryPage(af, path, key) {
 // A balance's parts, in a table of its own.
 function LeaveBalancesTable({ t, balances }) {
   const cols = [
-    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{leaveCapLines(b).map((x, i) => <div key={"cap" + i} data-leave-cap={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{x}</div>)}{leaveOwnNotes(b).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
+    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}<LeaveRuleLine t={t} b={b} />{leaveCapLines(b).map((x, i) => <div key={"cap" + i} data-leave-cap={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{x}</div>)}{leaveOwnNotes(b).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
     { header: tr("Start of year"), align: "right", render: b => leaveHours(b.startHours) },
     { header: tr("Granted"), align: "right", render: b => leaveHours(b.grantedHours) },
     { header: tr("Used"), align: "right", render: b => leaveHours(b.usedHours) },
@@ -7570,7 +7598,8 @@ function LeavePersonWindow({ af, t, userId, year, kinds = [], policies = [], can
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave")}</div>
-        {p && <div data-leave-person-head="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), leaveClassWord(p), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+        {p && <div data-leave-person-head="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), p.leaveClassText ? "" : leaveClassWord(p), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+        {p && p.leaveClassText && <div data-leave-class-text={p.leaveClass || ""} style={{ fontSize: 12, color: t.text, marginTop: 4 }}>{p.leaveClassText}</div>}
       </div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
@@ -8072,8 +8101,11 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   useEffect(() => { if (tab === "hours") loadFiles(""); }, [tab, loadFiles]);
   // Read when the page opens, for the count beside its tab, and again each time the tab is opened.
   const loadMissing = useCallback(async () => { const list = await leaveMissingPeople(af); setMissing(list || []); setMissingFailed(list === null); }, [af]);
-  useEffect(() => { loadMissing(); }, [loadMissing]);
+  // The count beside the tab: one read of each list's total; a list with no total is read whole as before.
+  const [missingTotals, setMissingTotals] = useState(null);
+  useEffect(() => { let alive = true; leaveMissingTotals(af).then(x => { if (!alive) return; if (x.classes === null || x.hireDates === null) { setMissingTotals(null); loadMissing(); } else setMissingTotals(x); }); return () => { alive = false; }; }, [af, loadMissing]);
   useEffect(() => { if (tab === "missing") loadMissing(); }, [tab, loadMissing]);
+  const missingCount = missingTotals ? missingTotals.classes + missingTotals.hireDates : (missing ? missing.length : 0);
   const pickStyle = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
   const balanceCols = [
     { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), leaveClassWord(r.person), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
@@ -8082,7 +8114,8 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   ];
   return (<div data-leave-page="">
     <SecT t={t}>{tr("Leave balances")}</SecT>
-    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l), count: id === "missing" && missing && missing.length > 0 ? missing.length : null }))} />
+    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l), count: id === "missing" && missingCount > 0 ? missingCount : null }))} />
+    {tab === "missing" && missingTotals && <div data-leave-missing-totals={missingTotals.classes + "," + missingTotals.hireDates} style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("{0} with no class on file, {1} with no hire date.", missingTotals.classes, missingTotals.hireDates)}</div>}
     {tab === "balances" && <div data-leave-tab="balances">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 10 }}>
         <Sel t={t} data-leave-filter="year" aria-label={tr("Year")} value={String(year)} onChange={e => setYear(Number(e.target.value))} options={[leaveYear() + 1, leaveYear(), leaveYear() - 1, leaveYear() - 2].map(y => ({ v: String(y), l: String(y) }))} style={pickStyle} />
@@ -10113,7 +10146,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
 // puts it in each person's language. The page draws nothing until the API lists announcements: a 404
 // hides the form, and any other failure says so.
 const announcementCodes = { "announcements.titleRequired": "title", "announcements.titleTooLong": "title", "announcements.bodyRequired": "body", "announcements.bodyTooLong": "body", "announcements.audienceEmpty": "audience", "announcements.siteNotFound": "audience" };
-function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpts, lkMap, route = [] }) {
+function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpts, lkMap, route = [], testOffice = false }) {
   const [list, setList] = useState([]);
   const [listState, setListState] = useState("loading");
   const [title, setTitle] = useState("");
@@ -10144,15 +10177,20 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
     af("/api/announcements/" + encodeURIComponent(id)).then(d => { if (alive) setOpenOne(d && d.announcement ? d.announcement : null); }).catch(() => { if (alive) setOpenOne(null); });
     return () => { alive = false; };
   }, [route[0], list, af]);
-  const audienceReady = aud === "all" || (aud === "site" && siteId) || (aud === "role" && role) || (aud === "users" && userIds.length > 0);
-  const previewQuery = () => "?type=" + aud + (aud === "site" ? "&siteId=" + encodeURIComponent(siteId) : aud === "role" ? "&role=" + encodeURIComponent(role) : aud === "users" ? "&userIds=" + userIds.map(encodeURIComponent).join(",") : "");
+  // Part 413 (the API's Round 17, 2.5): a test office account's audience is the active test accounts, every one, and no
+  // other: the API sends to a list of active test accounts alone and refuses anything else from a test sender.
+  const testIds = testOffice ? allStaff.filter(p => p && p.isTestAccount === true && (!p.status || p.status === "active") && p.role !== "client_contact").map(p => String(p.id)) : [];
+  const audNow = testOffice ? "users" : aud;
+  const idsNow = testOffice ? testIds : userIds;
+  const audienceReady = testOffice ? testIds.length > 0 : (aud === "all" || (aud === "site" && siteId) || (aud === "role" && role) || (aud === "users" && userIds.length > 0));
+  const previewQuery = () => "?type=" + audNow + (audNow === "site" ? "&siteId=" + encodeURIComponent(siteId) : audNow === "role" ? "&role=" + encodeURIComponent(role) : audNow === "users" ? "&userIds=" + idsNow.map(encodeURIComponent).join(",") : "");
   useEffect(() => {
     if (listState !== "ready" || !audienceReady) { setPreview(null); return; }
     let alive = true;
     const h = setTimeout(() => { af("/api/announcements/preview" + previewQuery()).then(d => { if (alive) setPreview(d && typeof d === "object" ? d : null); }).catch(() => { if (alive) setPreview(null); }); }, 300);
     return () => { alive = false; clearTimeout(h); };
-  }, [listState, aud, siteId, role, userIds.join(",")]);
-  const audienceBody = () => (aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
+  }, [listState, audNow, siteId, role, idsNow.join(",")]);
+  const audienceBody = () => (testOffice ? { type: "users", userIds: testIds } : aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
   // Each announcement carries a clientId made once, at its first press, and kept until it is sent or its
   // words or people change (part 368, the API's part 365, finding API-108): a press again after the
   // browser gave up is answered with the first announcement and sends nothing twice, so Send stays on,
@@ -10215,10 +10253,11 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Message")}</Lbl><TArea t={t} rows={4} value={body} maxLength={500} onChange={e => setBody(e.target.value)} aria-label={tr("Message")} />
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Written once; each person gets it in their language.")}</div>{errLine("body")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Send to")}</Lbl>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>{choice("all", tr("Everyone"))}{choice("site", tr("One site's people"))}{choice("role", tr("A role"))}{choice("users", tr("Chosen people"))}</div>
-          {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ minHeight: 44 }} />}
-          {aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
-          {aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
+          {testOffice && <div data-announcement-test-audience={testIds.length} style={{ fontSize: 13, color: t.text, lineHeight: 1.5, padding: 10, borderRadius: 8, border: "1px solid " + t.border, marginBottom: 8 }}>{testIds.length ? trn("The test accounts: {0}|count", testIds.length) : tr("There is no active test account to send to.")}<div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("A test office account sends to the active test accounts alone.")}</div></div>}
+          {!testOffice && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>{choice("all", tr("Everyone"))}{choice("site", tr("One site's people"))}{choice("role", tr("A role"))}{choice("users", tr("Chosen people"))}</div>}
+          {!testOffice && aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ minHeight: 44 }} />}
+          {!testOffice && aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
+          {!testOffice && aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
             <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
             <div style={{ maxHeight: 220, overflowY: "auto" }}>
               {people.map(p => { const on = userIds.indexOf(p.id) >= 0; return (<label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 6px", cursor: "pointer", fontSize: 13, color: t.text }}>
@@ -11369,6 +11408,7 @@ function LibraryList({ af, t }) {
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: t.textMut, marginTop: 3 }}>
       {x.version != null && String(x.version) !== "" && <span>{tr("Version {0}", x.version)}</span>}
       {Array.isArray(x.locales) && x.locales.indexOf("es") >= 0 && <span data-library-spanish="" style={{ color: t.textSec }}>{tr("Also in Spanish")}</span>}
+      {x.isTest === true && <span data-library-test=""><Bdg l={tr("TEST")} c={OR} /></span>}
     </div>
     {match && <div data-library-match={match.ref} style={{ fontSize: 12, color: t.textSec, marginTop: 4, overflowWrap: "anywhere" }}>{tr("Found in {0}", [match.ref ? tr("Section {0}", match.ref) : "", match.title].filter(Boolean).join(", "))}</div>}
   </button>);
@@ -16793,7 +16833,10 @@ const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_W
   : (r && (r.leaveTypeLabel || r.leaveType)) || "");
 // A request filed inside its type's notice (vacation 2 weeks, a personal day 48 hours) reads insideNotice true: the
 // office decides it case by case. The unit says whether the type is taken in whole days or in hours.
-const TimeOffInsideNotice = ({ r }) => (r && r.insideNotice === true ? <span data-time-off-inside-notice="" title={tr("Filed inside its notice. Decide it case by case.")}><Bdg l={tr("Inside notice")} c={OR} /></span> : null);
+// Part 413 (the API's Round 18, 3.3): every request carries insideNoticeText, the API's own line in the request's language,
+// drawn in place of the dashboard's words once it is there.
+const insideNoticeLine = (r) => (r && typeof r.insideNoticeText === "string" && r.insideNoticeText ? r.insideNoticeText : tr("Filed inside its notice. Decide it case by case."));
+const TimeOffInsideNotice = ({ r }) => (r && r.insideNotice === true ? <span data-time-off-inside-notice="" title={insideNoticeLine(r)}><Bdg l={tr("Inside notice")} c={OR} /></span> : null);
 const timeOffAmount = (r) => (r && r.unit === "days" && (r.hours == null || r.hours === "") ? tr("Whole days") : timeOffHours(r ? r.hours : null));
 const timeOffStatus = (s) => tr(TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || ""));
 const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), tr("{0} to {1}", patternTime(sh.startTime), patternTime(sh.endTime)), sh.siteName].filter(Boolean).join(", ");
@@ -16991,7 +17034,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       {row("Status", timeOffStatus(req.status))}
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
-      {req.insideNotice === true && <div data-time-off-inside-notice-line="" style={{ fontSize: 12, color: OR, marginTop: 6, lineHeight: 1.5 }}>{tr("Filed inside its notice. Decide it case by case.")}</div>}
+      {req.insideNotice === true && <div data-time-off-inside-notice-line="" data-time-off-inside-notice-api={req.insideNoticeText ? "true" : "false"} style={{ fontSize: 12, color: OR, marginTop: 6, lineHeight: 1.5 }}>{insideNoticeLine(req)}</div>}
     </div>
     {leave && <div data-time-off-leave={leave.tracked ? "tracked" : "untracked"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Balance")}</Lbl>
@@ -17004,6 +17047,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
         {leave.policy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Policy: {0}", leave.policy.name)}{leave.usableFrom && leave.usableFrom > leaveToday() ? " | " + tr("Usable from {0}", fdLong(leave.usableFrom)) : ""}</div>}
         <LeaveAdpLine t={t} text={leaveAdpLine([leave])} style={{ fontSize: 11, marginTop: 4, marginBottom: 0 }} />
       </>}
+      {Array.isArray(leave.days) && leave.days.some(x => x && x.holiday) && <div data-time-off-holidays="" style={{ marginTop: 6 }}>{leave.days.filter(x => x && x.holiday).map(x => <div key={x.date} data-time-off-holiday={x.date} style={{ fontSize: 12, color: t.text }}>{tr("{0} is {1}.", fdLong(x.date), x.holiday.name || "")}</div>)}</div>}
     </div>}
     {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Shifts on these days")}</Lbl>
@@ -19055,24 +19099,41 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
   // A refusal of the kind (400 inspections.badKind) is drawn under Kind in whichever template window is
   // open, since only one is open at a time. Any other refusal is the toast it always was.
   const [kindRefusal, setKindRefusal] = useState("");
-  const refuseTemplate = (e) => { if (e && e.code === "inspections.badKind") setKindRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); };
+  // Part 413 (the API's Round 17, part 407): a template is tied to one site or none (site_id) and may be marked test
+  // (is_test), and the editor sends siteId and isTest once the list answers them; a 400 inspections.badDetails names the
+  // field it refused, drawn under it.
+  const [tplRefusal, setTplRefusal] = useState(null);
+  const refuseTemplate = (e) => { if (e && e.code === "inspections.badKind") setKindRefusal(e.message || tr("Request failed")); else if (e && e.code === "inspections.badDetails" && refusalKeys(e).some(k => k === "siteId" || k === "isTest")) setTplRefusal({ text: e.message || tr("Request failed"), keys: refusalKeys(e) }); else showToast(e.message, "error"); };
   // Rename (Step 185): PUT /api/inspections/templates/:id takes { name, description } and writes
   // both, so the description goes back as it is, or the table would lose it. A template that carries
   // its kind sends the kind too, as it is or as changed here, for the same reason.
   const [renameTpl, setRenameTpl] = useState(null);
-  const openRename = (tp) => { setKindRefusal(""); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "", kind: typeof tp.kind === "string" ? tp.kind : undefined }); };
+  const openRename = (tp) => { setKindRefusal(""); setTplRefusal(null); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "", kind: typeof tp.kind === "string" ? tp.kind : undefined, siteId: tp.site_id != null ? String(tp.site_id) : "", isTest: tp.is_test === true }); };
   const saveRename = async () => {
     const name = String(renameTpl.name || "").trim();
     if (!name) { showToast(tr("Name required"), "error"); return; }
     setKindRefusal("");
     try {
       const body = { name, description: renameTpl.description || "" }; if (renameTpl.kind !== undefined) body.kind = renameTpl.kind;
+      if (tplSitesLive) { body.siteId = renameTpl.siteId || null; body.isTest = !!renameTpl.isTest; }
+      setTplRefusal(null);
       await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body });
       showToast(tr("Saved")); setRenameTpl(null); loadTemplates();
       if (selectedTemplate && selectedTemplate.id === renameTpl.id) openTemplate(renameTpl.id);
     } catch (e) { refuseTemplate(e); }
   };
-  const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor" });
+  const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor", siteId: "", isTest: false });
+  // The list answers site_id and is_test on every row since the API's Round 17.
+  const tplSitesLive = (templates || []).some(tp => tp && (Object.prototype.hasOwnProperty.call(tp, "site_id") || Object.prototype.hasOwnProperty.call(tp, "is_test")));
+  const tplSiteOf = (tp) => (tp && tp.site_id != null ? (sites || []).find(x => String(x.id) === String(tp.site_id)) || { id: tp.site_id, name: tp.site_name || "" } : null);
+  const tplIsTest = (tp) => !!tp && (tp.is_test === true || (tplSiteOf(tp) && (tplSiteOf(tp).is_test === true || tplSiteOf(tp).isTest === true)));
+  const tplSiteFields = (form, set) => (tplSitesLive ? <>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-template-site="" value={form.siteId || ""} onChange={e => { setTplRefusal(null); set({ ...form, siteId: e.target.value }); }} options={[{ v: "", l: tr("Every site") }].concat((sites || []).map(x => ({ v: String(x.id), l: siteShown(x) })))} />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A template tied to a site is offered there alone.")}</div>
+      {tplRefusal && tplRefusal.keys.indexOf("siteId") >= 0 && <div role="alert" data-template-refusal="siteId" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{tplRefusal.text}</div>}</div>
+    <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, marginBottom: 14, fontSize: 13, color: t.text }}><input type="checkbox" data-template-test="" checked={!!form.isTest} onChange={e => { setTplRefusal(null); set({ ...form, isTest: e.target.checked }); }} />{tr("Test template, for the test accounts only")}</label>
+    {tplRefusal && tplRefusal.keys.indexOf("isTest") >= 0 && <div role="alert" data-template-refusal="isTest" style={{ fontSize: 12, color: RD, marginTop: -8, marginBottom: 12 }}>{tplRefusal.text}</div>}
+  </> : null);
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
   // Step 314: Include the safety walk, on by default, goes as withSafety.
@@ -19189,8 +19250,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
     setKindRefusal("");
     try {
       const body = { name: newTplForm.name, description: newTplForm.description }; if (kindsLive) body.kind = newTplForm.kind;
+      if (tplSitesLive) { body.siteId = newTplForm.siteId || null; body.isTest = !!newTplForm.isTest; }
+      setTplRefusal(null);
       await af("/api/inspections/templates", { method: "POST", body });
-      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "", kind: "supervisor" }); loadTemplates();
+      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "", kind: "supervisor", siteId: "", isTest: false }); loadTemplates();
     } catch (e) { refuseTemplate(e); }
   };
 
@@ -19613,6 +19676,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={renameTpl.name} onChange={e => setRenameTpl({ ...renameTpl, name: e.target.value })} autoFocus /></div>
         {renameTpl.kind !== undefined && <div style={{ marginBottom: 16 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={renameTpl.kind} onChange={e => { setKindRefusal(""); setRenameTpl({ ...renameTpl, kind: e.target.value }); }} options={INSPECTION_KINDS.indexOf(renameTpl.kind) >= 0 ? inspectionKindOpts() : [{ v: renameTpl.kind, l: inspectionKindWord(renameTpl.kind) }, ...inspectionKindOpts()]} />
           {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
+        {tplSiteFields(renameTpl, setRenameTpl)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setRenameTpl(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveRename}>{tr("Save")}</Btn></div>
       </div></Mdl>}
       {/* TEMPLATES TAB */}
@@ -19631,6 +19695,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
                     </div>}
                   </div>
                   {tp.kind && <div style={{ marginBottom: 6 }}><Bdg l={inspectionKindWord(tp.kind)} c={tp.kind === "audit" ? BL : GO} /></div>}
+                  {tplSitesLive && <div data-template-row-site={tp.site_id != null ? String(tp.site_id) : ""} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 11, color: t.textSec, marginBottom: 6 }}><span>{tplSiteOf(tp) ? tplSiteOf(tp).name : tr("Every site")}</span>{tplIsTest(tp) && <span data-template-test-mark=""><Bdg l={tr("TEST")} c={OR} /></span>}</div>}
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
                 </Crd>
@@ -19948,6 +20013,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
         {kindsLive && <div style={{ marginBottom: 14 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={newTplForm.kind} onChange={e => { setKindRefusal(""); setNewTplForm({ ...newTplForm, kind: e.target.value }); }} options={inspectionKindOpts()} />
           {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder={tr("Optional: describe what this template covers")} /></div>
+        {tplSiteFields(newTplForm, setNewTplForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={createTemplate}>{tr("Create Template")}</Btn></div>
       </div></Mdl>}
 
@@ -21099,6 +21165,7 @@ const healthCell = (kind, v, t) => {
   if (kind === "trigger") return healthTriggerWord(v);
   if (kind === "outcome") return <Bdg l={healthOutcomeWord(v)} c={healthOutcomeInk(v, t)} />;
   if (kind === "role") return roleWord(v);
+  if (kind === "lang") return langLabel(String(v));
   if (kind === "yesno") return v === true ? tr("Yes") : tr("No");
   if (kind === "warning") return warningStepWord(v);
   if (kind === "finalMail") return v && v.status ? tr(HEALTH_FINAL_MAIL[v.status] || v.status) : "--";
@@ -21128,6 +21195,10 @@ const HEALTH_LIST_COLS = {
   runs_failed: [["journey", "Journey"], ["outcome", "Outcome", "outcome"], ["durationMs", "Length", "ms"]],
   monitors_down: [["name", "Monitor"], ["state", "State"], ["down", "Down", "yesno"]],
   robot_trust_days_left: [["account", "Test account"], ["device", "Device"], ["endsAt", "Ends", "when"], ["daysLeft", "Days left"]],
+  // Part 413: the staff app's own notes of task lists that failed (the API's Round 17), per site; and the lesson screens
+  // still waiting for their voice (Round 20).
+  task_list_offline: [["site", "Site"], ["offline", "No signal"], ["timeout", "Timed out"], ["server", "Server error"], ["refused", "Refused|task list"], ["people", "People"]],
+  narration_waiting: [["topic", "Lesson"], ["screen", "Screen"], ["locale", "Language", "lang"], ["chars", "Characters"]],
 };
 // ===== COPY FOR CLAUDE (part 393, the owner's word of Nov 11) =====
 // When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
@@ -21380,6 +21451,23 @@ function HealthNumbers({ af, t, data, failed, onRetry, showToast }) {
 // Run now's refusals in plain words, by their codes, for an answer that carries none.
 const HEALTH_RUN_NOW_WORDS = { "health.runNowBusy": "A run-through was just asked for. Wait two minutes before asking again.", "health.runNowOff": "Run now is not set up on this server yet.", "health.runNowFailed": "GitHub did not start the run-through. Try again in a few minutes." };
 // A skipped step carries the robot's reason (part 384, reason; the robot's Round 3 finding 3), drawn under it.
+// Part 413 (the API's Round 17, 3.1): what the robot covered of both apps, as it reported it. A run's own read answers
+// coverage whole, { apps: { staff, dashboard: { full, stop, read, notYet } }, notYet: [{ id, screen, round }] }; the paged
+// list answers { apps, notYetCount }; null for a run that reported none.
+const HEALTH_COVERAGE_APPS = [["staff", "Staff app"], ["dashboard", "Dashboard"]];
+const healthCoverageCounts = (c) => (c && typeof c === "object" ? tr("{0} end to end, {1} to the last step, {2} read, {3} not yet", Number(c.full) || 0, Number(c.stop) || 0, Number(c.read) || 0, Number(c.notYet) || 0) : "--");
+const healthCoverageLine = (cov) => (cov && cov.apps ? HEALTH_COVERAGE_APPS.filter(([k]) => cov.apps[k]).map(([k, l]) => tr(l) + ": " + healthCoverageCounts(cov.apps[k])).join("; ") : "");
+function HealthCoverage({ t, coverage }) {
+  if (!coverage || !coverage.apps) return <div data-health-coverage="none" style={{ fontSize: 12, color: t.textMut, marginBottom: 12 }}>{tr("This run reported no coverage.")}</div>;
+  const notYet = Array.isArray(coverage.notYet) ? coverage.notYet : [];
+  return (<div data-health-coverage={notYet.length} style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("What the run covered")}</div>
+    {HEALTH_COVERAGE_APPS.filter(([k]) => coverage.apps[k]).map(([k, l]) => <div key={k} data-health-coverage-app={k} style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}><b style={{ color: t.text }}>{tr(l)}:</b> {healthCoverageCounts(coverage.apps[k])}</div>)}
+    {notYet.length > 0 && <details style={{ marginTop: 8 }}><summary style={{ cursor: "pointer", fontSize: 12, color: t.goldText, fontWeight: 600, minHeight: 44, display: "flex", alignItems: "center" }}>{trn("{0} not covered yet|count", notYet.length)}</summary>
+      {notYet.map((x, i) => <div key={i} data-health-not-yet={x.id} style={{ fontSize: 12, color: t.textSec, padding: "4px 0", borderTop: "1px solid " + t.border, overflowWrap: "anywhere" }}>{x.screen ? x.screen + ": " : ""}{x.id}{x.round != null ? " (" + tr("round {0}", x.round) + ")" : ""}</div>)}
+    </details>}
+  </div>);
+}
 function HealthRunWindow({ af, t, runId, onClose }) {
   const [d, setD] = useState(null);
   const [failed, setFailed] = useState("");
@@ -21400,6 +21488,7 @@ function HealthRunWindow({ af, t, runId, onClose }) {
         {healthNum(run.appOpenMs) !== null ? <div>{tr("App open time")}: {healthValueText(run.appOpenMs, "ms")}</div> : null}
         {run.runUrl ? <div><a href={run.runUrl} target="_blank" rel="noopener noreferrer" style={{ color: t.goldText, fontWeight: 600 }}>{tr("Open the run on GitHub")}</a></div> : null}
       </div>
+      {Object.prototype.hasOwnProperty.call(run, "coverage") && <HealthCoverage t={t} coverage={run.coverage} />}
       {(d.journeys || []).map((j, ji) => (<Crd key={ji} t={t} style={{ marginBottom: 10, padding: 12 }}><div data-health-journey={j.name} data-health-journey-outcome={j.outcome}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{j.name}</div>
@@ -21509,7 +21598,7 @@ function HealthRuns({ af, t, onAsked }) {
     { header: tr("Outcome"), render: r => <Bdg l={healthOutcomeWord(r.outcome)} c={healthOutcomeInk(r.outcome, t)} /> },
     { header: tr("Journeys"), render: r => { const j = r.journeys || {}; return tr("{0} passed, {1} failed, {2} skipped", j.passed || 0, j.failed || 0, j.skipped || 0); } },
     { header: tr("Each app's commit"), tdStyle: { fontSize: 12, color: t.textSec }, render: r => healthCommits(r.commits) },
-  ];
+  ].concat((rows || []).some(r => r && Object.prototype.hasOwnProperty.call(r, "coverage")) ? [{ header: tr("Covered"), tdStyle: { fontSize: 12, color: t.textSec, minWidth: 180 }, render: r => (r.coverage && r.coverage.apps ? <span data-health-run-coverage={r.coverage.notYetCount != null ? String(r.coverage.notYetCount) : ""}>{healthCoverageLine(r.coverage)}{r.coverage.notYetCount != null ? <div style={{ color: t.textMut }}>{trn("{0} not covered yet|count", Number(r.coverage.notYetCount) || 0)}</div> : null}</span> : "--") }] : []);
   return (<div data-health-runs="">
     <Crd t={t} style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>

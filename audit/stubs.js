@@ -6221,6 +6221,7 @@ function createStubs() {
   // Part 413 (Round 14): the API as built at ocsa-api 06b6d1b (#171) for Employee of the Month, shout-outs, the training
   // admin and what the API's Rounds 17, 18 and 21 gave the dashboard, in audit/part413-stub.js.
   const part413 = require("./part413-stub")({ seed, state, clone, person, PNG_BYTES, PDF_BYTES });
+  part413.setProbe(quietGet);
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {

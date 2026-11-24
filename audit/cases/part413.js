@@ -11,6 +11,10 @@
 //   shoutouts   a supervisor posts through the people route, one who shares no site refused, a second take-down's 409,
 //               the line in three languages, and a test office account kept to test records
 //   named       Who gets told lists the recognition notices; the roles screen names the two capabilities
+//   shapes      section 3, each item with its own case: templates with their site and test mark, the Library's test
+//               document, a run's coverage and the two new Health numbers, a test office account's announcement, the
+//               missing count from the totals, a person's class sentence and each balance's line, a request's notice
+//               line and holiday, an admin removing a photo, and sign-in reading maintenance from features
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -50,6 +54,7 @@ async function withDriver(ctx, o, fn) {
   stubs.setApiAsBuilt(true);
   stubs.setStep353(true);
   stubs.setStep364(true);
+  stubs.setScene413({ round21: true });
   if (o.arm) o.arm(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: o.viewport || "wide", lang: o.lang || "en" });
   d.page.setDefaultTimeout(8000);
@@ -413,6 +418,135 @@ async function namedCases(ctx, lang) {
   });
 }
 
+
+// ---- Section 3: what the API's Rounds 17, 18 and 21 gave the dashboard ----------------------------------------------
+async function shapesCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/shapes/" + x;
+
+  // 3.1 Inspection templates: a row shows its site and the test mark, and New Template sends siteId and isTest.
+  await withDriver(ctx, { name: "templates", lang, arm: (s) => s.setScene413({ templates413: { "tp-1": { siteId: "s-1", isTest: true } } }) }, async (d) => {
+    await goHash(d, "inspections");
+    await click(d, "[data-inspections-tab='templates']");
+    await until(d, "[data-template-row-site]", 6000);
+    const site = await textOf(d, "[data-template-row-site='s-1']");
+    const mark = await has(d, "[data-template-row-site='s-1'] [data-template-test-mark]");
+    const other = await textOf(d, "[data-template-row-site='']");
+    await d.page.getByRole("button", { name: d.say("New Template") }).first().click({ timeout: 4000 });
+    await d.settle(300);
+    await d.page.getByPlaceholder(d.say("e.g. Standard Office Cleaning")).fill("Robot check template");
+    await d.page.locator("[data-template-site]").selectOption("s-3");
+    await d.page.locator("[data-template-test]").check();
+    const before = d.mark();
+    await d.page.getByRole("button", { name: d.say("Create Template") }).first().click({ timeout: 4000 });
+    await d.settle(600);
+    const sent = writes(d, before, "POST", /^\/api\/inspections\/templates$/).map((c) => c.body);
+    results.check(KIND, id("a-template-names-its-site-and-test-mark-and-sends-them"), /Harbor Point Center/.test(site) && mark && other === d.say("Every site") && sent.length === 1 && sent[0].siteId === "s-3" && sent[0].isTest === true,
+      "row " + say(site) + ", test mark " + mark + ", untied row " + say(other) + ", sent " + say(sent));
+  });
+
+  // 3.2 The Library marks a test document.
+  await withDriver(ctx, { name: "library", lang }, async (d) => {
+    await goHash(d, "library");
+    await until(d, "[data-library-doc='OCSA-TST-001']", 8000);
+    const marked = await has(d, "[data-library-doc='OCSA-TST-001'] [data-library-test]");
+    const others = await d.page.locator("[data-library-doc]:not([data-library-doc='OCSA-TST-001']) [data-library-test]").count();
+    results.check(KIND, id("the-library-marks-a-test-document"), marked && others === 0, "marked " + marked + ", other documents marked " + others);
+  });
+
+  // 3.3 Health: each run's coverage on the list and whole in its window, and the two new numbers with their lists.
+  await withDriver(ctx, { name: "health", lang, persona: "superAdmin" }, async (d) => {
+    await goHash(d, "health/runs");
+    await until(d, "[data-health-run-coverage]", 8000);
+    const cell = await textOf(d, "[data-health-run-coverage]");
+    const count = await attr(d, "[data-health-run-coverage]", "data-health-run-coverage");
+    await click(d, "[data-health-run-row]");
+    await until(d, "[data-health-coverage]", 6000);
+    const apps = await d.page.locator("[data-health-coverage-app]").count();
+    const notYet = await attr(d, "[data-health-coverage]", "data-health-coverage");
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await goHash(d, "health");
+    const wantLabel = lang === "es" ? "Listas de tareas que no cargaron sin señal" : "Task lists that failed to load with no signal";
+    const label = await soon(async () => (await d.page.locator("body").innerText()).indexOf(wantLabel) >= 0, 6000);
+    results.check(KIND, id("a-run-reads-its-coverage-and-the-new-numbers-show"), /70/.test(cell) && /446/.test(cell) && count === "2" && apps === 2 && notYet === "2" && label,
+      "the list's cell " + say(cell) + " (" + say(count) + " not yet), the window's apps " + apps + " and not yet " + say(notYet) + ", the offline number by its words " + label);
+  });
+
+  // 3.4 Announcements: a test office account's audience is the active test accounts alone.
+  await withDriver(ctx, { name: "announcement", lang, arm: (s) => s.setScene413({ testOffice: true }) }, async (d) => {
+    await goHash(d, "announcements");
+    await until(d, "[data-announcement-test-audience]", 8000);
+    const n = await attr(d, "[data-announcement-test-audience]", "data-announcement-test-audience");
+    const choices = await d.page.getByRole("button", { name: d.say("Everyone"), exact: true }).count();
+    await d.page.getByLabel(d.say("Title"), { exact: true }).fill("Robot check notice").catch(() => {});
+    await d.page.getByLabel(d.say("Message"), { exact: true }).fill("A notice for the test accounts.").catch(() => {});
+    const before = d.mark();
+    await click(d, "[data-announcement-send]");
+    const sent = writes(d, before, "POST", /^\/api\/announcements$/).map((c) => c.body && c.body.audience);
+    results.check(KIND, id("a-test-office-account-announces-to-the-test-accounts"), n === "1" && choices === 0 && sent.length === 1 && sent[0].type === "users" && say(sent[0].userIds) === say(["u-staff-10"]),
+      "audience " + say(n) + ", Everyone offered " + choices + ", sent " + say(sent));
+  });
+
+  // 3.5 Leave: the missing tab's count from one read of each list's total; a person's class in the API's sentence and
+  // each balance's rule line.
+  await withDriver(ctx, { name: "leave-totals", lang }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "leave");
+    await until(d, "[data-filter-tab-count='missing']", 8000);
+    await d.settle(500);
+    const missingReads = reads(d, mark, /^\/api\/leave\/missing-(classes|hire-dates)$/).map((c) => c.query);
+    const count = await textOf(d, "[data-filter-tab-count='missing']");
+    results.check(KIND, id("the-missing-count-is-one-read-of-each-total"), missingReads.length === 2 && missingReads.every((q) => /limit=1(&|$)/.test(q)) && /^\d+$/.test(count) && Number(count) > 0,
+      "reads " + say(missingReads) + ", the count " + say(count));
+  });
+  await withDriver(ctx, { name: "leave-person", lang }, async (d) => {
+    await goHash(d, "leave/balances/u-staff-6");
+    await until(d, "[data-leave-class-text]", 8000);
+    const text = await textOf(d, "[data-leave-class-text]");
+    const want = lang === "es" ? "Su tiempo libre sigue las reglas del personal de tiempo completo." : "Their time off follows the rules for full-time staff.";
+    const line = await textOf(d, "[data-leave-line='paid_sick']");
+    const wantLine = lang === "es" ? "1 hora por cada 40 horas trabajadas" : "1 hour for every 40 hours worked";
+    results.check(KIND, id("a-persons-class-and-each-balances-rule-read-in-the-apis-words"), text === want && line.indexOf(wantLine) === 0, "class " + say(text) + ", sick line " + say(line));
+  });
+
+  // 3.6 Time off: the API's inside-notice line, and a day that is a holiday named.
+  await withDriver(ctx, { name: "time-off", lang, arm: (s) => { s.setScene400({ newTypes: true, handbookKinds: true }); s.setScene413({ holidayOnFirstDay: true }); } }, async (d) => {
+    await goHash(d, "schedule/timeoff/to-400");
+    await until(d, "[data-time-off-window='to-400']", 8000);
+    await d.settle(400);
+    const line = await textOf(d, "[data-time-off-inside-notice-line]");
+    const want = lang === "es" ? "Se pidió con menos aviso del que pide la política. La oficina lo decide caso por caso." : "Asked with less notice than the policy asks. The office decides it case by case.";
+    const holiday = await textOf(d, "[data-time-off-holiday]");
+    const wantDay = lang === "es" ? "Día de los Caídos" : "Memorial Day";
+    results.check(KIND, id("a-request-reads-the-apis-notice-line-and-its-holiday"), line === want && holiday.indexOf(wantDay) >= 0, "line " + say(line) + ", holiday " + say(holiday));
+  });
+
+  // 3.7 Staff: an admin removes someone's photo, and the timeline reads the removal in plain words.
+  await withDriver(ctx, { name: "photo", lang, arm: (s) => s.setScene413({ photoOn: "u-staff-7", timeline413: true }) }, async (d) => {
+    await goHash(d, "staff/u-staff-7");
+    await until(d, "[data-profile-photo-remove]", 8000);
+    d.page.once("dialog", (dlg) => dlg.accept());
+    const before = d.mark();
+    await click(d, "[data-profile-photo-remove]");
+    await d.settle(500);
+    const sent = writes(d, before, "DELETE", /^\/api\/users\/profile\/photo$/).map((c) => c.body);
+    await d.page.getByRole("button", { name: d.say("Timeline"), exact: true }).first().click({ timeout: 6000 }).catch(() => {});
+    await until(d, "[data-timeline-action='profile_photo_removed']", 6000);
+    const words = await textOf(d, "[data-timeline-action='profile_photo_removed']");
+    results.check(KIND, id("an-admin-removes-a-photo-and-the-timeline-says-so"), sent.length === 1 && sent[0].userId === "u-staff-7" && words === d.say("Profile photo removed"), "sent " + say(sent) + ", timeline " + say(words));
+  });
+
+  // 3.8 Sign-in: features.maintenance as the options themselves skips the options read.
+  await withDriver(ctx, { name: "features", lang, persona: null, arm: (s) => s.setScene413({ maintenanceObject: true }) }, async (d) => {
+    const mark = d.mark();
+    await d.signIn("admin");
+    await d.settle(1200);
+    const options = reads(d, mark, /^\/api\/maintenance-requests\/options$/).length;
+    const item = await d.page.locator("text=" + d.say("Maintenance requests")).count();
+    results.check(KIND, id("sign-in-reads-maintenance-from-features"), options === 0 && item > 0, "options read " + options + " time(s), the item " + (item > 0 ? "shown" : "missing"));
+  });
+}
+
 async function run(ctx) {
   const only = (process.env.PART413_ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
   const want = (k) => !only.length || only.indexOf(k) >= 0;
@@ -422,6 +556,7 @@ async function run(ctx) {
     if (want("wall")) await wallCases(ctx, lang);
     if (want("shoutouts")) await shoutoutCases(ctx, lang);
     if (want("named")) await namedCases(ctx, lang);
+    if (want("shapes")) await shapesCases(ctx, lang);
   }
 }
 

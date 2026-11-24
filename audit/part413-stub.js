@@ -34,7 +34,10 @@
 //   Scenes: testOffice (the signed-in person is a test office account, as the robot's Test Supervisor is), translated
 //   (every award's Spanish and French have arrived), staleTeam (a person the people route offers the supervisor whom the
 //   post then refuses 403 recognition.notYourTeam), removedElsewhere (a shout-out someone else took down after the list
-//   was read), noWall (no past awards), wallSize (how many past awards the wall holds, 14 by default).
+//   was read), noWall (no past awards), wallSize (how many past awards the wall holds, 14 by default). Every answer of a
+//   route that is not a recognition route (Who gets told, the roles screen, the photo, the timeline's words and section
+//   3's shapes) changes only under the scene round21, which the part413 suite arms, so the older suites read the stub as
+//   they always have.
 //
 // Every value is invented: the people's reasons, the months, the lines and the counts.
 "use strict";
@@ -432,13 +435,230 @@ module.exports = (ctx) => {
     return null;
   }
 
+  // ---- Section 3: what the API's Rounds 17, 18 and 21 gave the dashboard ---------------------------------------
+  let probe = null;
+  const read = (path, lng) => { const a = probe ? probe(path, lng || "en") : null; return a && a.status === 200 ? a.json : null; };
+  const W3 = {
+    "inspections.badDetails": ["Some details are missing or not valid.", "Faltan algunos datos o no son válidos."],
+    "timeOff.insideNotice": ["Asked with less notice than the policy asks. The office decides it case by case.", "Se pidió con menos aviso del que pide la política. La oficina lo decide caso por caso."],
+    "profile.photoRemoved": ["Photo removed", "Foto eliminada"],
+    "leave.classTextPerson.full_time": ["Their time off follows the rules for full-time staff.", "Su tiempo libre sigue las reglas del personal de tiempo completo."],
+    "leave.classTextPerson.part_time": ["Their time off follows the rules for part-time staff.", "Su tiempo libre sigue las reglas del personal de medio tiempo."],
+    "leave.classTextPerson.supplemental": ["Their time off follows the rules for supplemental staff.", "Su tiempo libre sigue las reglas del personal suplementario."],
+    "leave.classTextPerson.none": ["Their employment class is not on file, so only sick, bereavement and unpaid time off are offered.", "Su clase de empleo no está registrada, así que solo se ofrecen permisos por enfermedad, duelo y tiempo sin goce de sueldo."],
+    "health.number.task_list_offline": ["Task lists that failed to load with no signal", "Listas de tareas que no cargaron sin señal"],
+    "health.number.narration_waiting": ["Lesson screens waiting for their voice", "Pantallas de lecciones sin su voz todavía"],
+  };
+  const say3 = (lang, key) => T(lang, W3[key][0], W3[key][1]);
+  // Templates: site_id and is_test on every row (the scene templates413 ties t-1 to a site), written by POST and PUT.
+  const tplMarks = () => { if (!m().tpl) m().tpl = Object.assign({}, clone(sc().templates413 || {})); return m().tpl; };
+  function templatesRoute(method, path, query, body, lang, base) {
+    const b = body && typeof body === "object" ? body : {};
+    const markRow = (r) => { const mk = tplMarks()[String(r.id)] || {}; return Object.assign({}, r, { site_id: mk.siteId || null, is_test: mk.isTest === true }); };
+    if (path === "/api/inspections/templates" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map(markRow);
+      return a;
+    }
+    const one = /^\/api\/inspections\/templates(?:\/([^/]+))?$/.exec(path);
+    if (one && (method === "POST" || (method === "PUT" && one[1]))) {
+      const keys = [];
+      if (b.siteId !== undefined && b.siteId !== null && !(state.sites || []).some((x) => String(x.id) === String(b.siteId))) keys.push("siteId");
+      if (b.isTest !== undefined && typeof b.isTest !== "boolean") keys.push("isTest");
+      if (keys.length) { sent("template-refused", { keys }); return bad(400, "inspections.badDetails", say3(lang, "inspections.badDetails"), { keys }); }
+      const a = base();
+      if (a && a.status < 300) {
+        const id = one[1] ? decodeURIComponent(one[1]) : String((a.json && (a.json.id || (a.json.template && a.json.template.id))) || "new");
+        const mk = tplMarks()[id] || {};
+        if (b.siteId !== undefined) mk.siteId = b.siteId;
+        if (b.isTest !== undefined) mk.isTest = b.isTest;
+        tplMarks()[id] = mk;
+        sent("template", { method, id, siteId: b.siteId, isTest: b.isTest });
+      }
+      return a;
+    }
+    return null;
+  }
+  // The Library: the robot's test document, isTest on its own item, for an admin.
+  function libraryRoute(method, path, query, body, lang, base) {
+    const a = base();
+    if (!a || a.status !== 200 || !a.json || !Array.isArray(a.json.documents)) return a;
+    const p = me();
+    if (!p || p.role !== "admin") return a;
+    const q = (query.get("q") || "").trim().toLowerCase();
+    const doc = { docCode: "OCSA-TST-001", title: "[TEST] Robot document", folder: "OTHER", folderName: T(lang, "Other", "Otros"), version: "1", locales: ["en", "es"], isTest: true };
+    if (q && "ocsa-tst-001 [test] robot document".indexOf(q) < 0) return a;
+    a.json = Object.assign({}, a.json, { documents: a.json.documents.concat([doc]) });
+    return a;
+  }
+  // Health: coverage on the runs, and the two numbers of Rounds 17 and 20.
+  const COVERAGE = { apps: { staff: { full: 70, stop: 15, read: 25, notYet: 58 }, dashboard: { full: 21, stop: 0, read: 74, notYet: 446 } }, notYet: [{ id: "dash:page:recognition", screen: "Employee of the Month", round: 8 }, { id: "dash:window:CoursesPanel:onClose", screen: "Training", round: 8 }] };
+  function healthRoute(method, path, query, body, lang, base) {
+    if (path === "/api/health/runs" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.runs)) a.json = Object.assign({}, a.json, { runs: a.json.runs.map((r, i) => Object.assign({}, r, { coverage: i === 0 ? { apps: clone(COVERAGE.apps), notYetCount: COVERAGE.notYet.length } : null })) });
+      return a;
+    }
+    const rm = /^\/api\/health\/runs\/([^/]+)$/.exec(path);
+    if (rm && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && a.json.run) {
+        const first = read("/api/health/runs?_raw413=1", lang);
+        const isFirst = first && Array.isArray(first.runs) && first.runs[0] && first.runs[0].id === a.json.run.id;
+        a.json = Object.assign({}, a.json, { run: Object.assign({}, a.json.run, { coverage: isFirst ? clone(COVERAGE) : null }) });
+      }
+      return a;
+    }
+    if (path === "/api/health/numbers" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.numbers) && a.json.numbers.length) {
+        const like = a.json.numbers[0];
+        const add = [["task_list_offline", 12, "yellow", "work"], ["narration_waiting", 3, "yellow", "training"]].filter(([k]) => !a.json.numbers.some((n) => n.key === k))
+          .map(([k, v, st, g]) => Object.assign({}, like, { key: k, label: say3(lang, "health.number." + k), labelEn: W3["health.number." + k][0], group: g, unit: "count", value: v, state: st, history: [] }));
+        a.json = Object.assign({}, a.json, { numbers: a.json.numbers.concat(add) });
+      }
+      return a;
+    }
+    const lm = /^\/api\/health\/numbers\/(task_list_offline|narration_waiting)\/list$/.exec(path);
+    if (lm && method === "GET") {
+      const items = lm[1] === "task_list_offline"
+        ? [{ siteId: "s-1", site: "Harbor Point Center", offline: 9, timeout: 2, server: 0, refused: 1, people: 4 }, { siteId: "s-3", site: "Riverbend Logistics Hub", offline: 3, timeout: 0, server: 1, refused: 0, people: 2 }]
+        : [{ topicId: "tp-1", topic: "Using The Staff App", versionId: "lv-9", screen: "welcome", locale: "es", chars: 182 }, { topicId: "tp-1", topic: "Using The Staff App", versionId: "lv-9", screen: "start-shift", locale: "en", chars: 240 }];
+      return okj({ key: lm[1], day: query.get("day") || TODAY, items, people: lm[1] === "task_list_offline" });
+    }
+    return null;
+  }
+  // Announcements: a test office account's audience of the active test accounts alone.
+  function announcementsRoute(method, path, query, body, lang, base) {
+    if (!sc().testOffice) return null;
+    const testIds = activeStaff().filter((p) => testAccount(p.id)).map((p) => String(p.id));
+    const onlyTest = (ids) => Array.isArray(ids) && ids.length > 0 && ids.every((x) => testIds.indexOf(String(x)) >= 0);
+    if (path === "/api/announcements/preview" && method === "GET") {
+      const ids = String(query.get("userIds") || "").split(",").filter(Boolean);
+      if (query.get("type") !== "users" || !onlyTest(ids)) return refuse(lang, 403, "testCrew.realRecord", { testRecordsOnly: true });
+      return okj({ count: ids.length, people: ids.map((id) => ({ id, name: personView(id).firstName + " " + personView(id).lastName })) });
+    }
+    if (path === "/api/announcements" && method === "POST") {
+      const b = body && typeof body === "object" ? body : {};
+      const aud = b.audience || {};
+      if (aud.type !== "users" || !onlyTest(aud.userIds)) { sent("announcement-refused", { audience: aud }); return refuse(lang, 403, "testCrew.realRecord", { testRecordsOnly: true }); }
+      sent("announcement", { audience: aud });
+      m().seq += 1;
+      return made({ announcement: { id: "an-413-" + m().seq, title: b.title, body: b.body, audience: aud, createdAt: TODAY + "T21:30:00Z", sentCount: aud.userIds.length } });
+    }
+    return null;
+  }
+  // Leave: total on the missing lists; leaveClass, leaveClassText and each balance's line.
+  const classOfPerson = (id) => { const p = staffOf(id); const c = p ? p.employmentType : null; return ["full_time", "part_time", "supplemental"].indexOf(c) >= 0 ? c : "none"; };
+  const LEAVE_LINES = {
+    paid_sick: ["1 hour for every 40 hours worked, at most 40 earned a year", "1 hora por cada 40 horas trabajadas, como máximo 40 ganadas al año"],
+    vacation: ["Granted in full on the work anniversary each tier is reached, then the current tier each January 1", "Se otorga completo en el aniversario de trabajo en que se alcanza cada nivel, y luego el nivel actual cada 1 de enero"],
+  };
+  const withLine = (bl, lang) => (bl && typeof bl === "object" ? Object.assign({}, bl, { line: LEAVE_LINES[bl.kind] ? { text: T(lang, LEAVE_LINES[bl.kind][0], LEAVE_LINES[bl.kind][1]), note: null, classes: ["part_time", "none", "union"] } : null }) : bl);
+  const withLeaveClass = (head) => (head && head.userId != null ? Object.assign({}, head, { leaveClass: classOfPerson(head.userId) }) : head);
+  function leaveRoute(method, path, query, body, lang, base) {
+    if ((path === "/api/leave/missing-classes" || path === "/api/leave/missing-hire-dates") && method === "GET") {
+      if (query.get("_raw413")) return base();
+      const a = base();
+      if (!a || a.status !== 200 || !a.json || !Array.isArray(a.json.people) || sc().noMissingTotals) return a;
+      let total = 0; let cursor = ""; let guard = 0;
+      do { const d = read(path + "?_raw413=1&limit=200&cursor=" + encodeURIComponent(cursor), lang); if (!d || !Array.isArray(d.people)) break; total += d.people.length; cursor = d.nextCursor || ""; guard += 1; } while (cursor && guard < 20);
+      a.json = Object.assign({}, a.json, { total });
+      sent(path === "/api/leave/missing-classes" ? "missing-classes-read" : "missing-hire-dates-read", { query: query.toString() });
+      return a;
+    }
+    if (path === "/api/leave/balances" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.people)) a.json = Object.assign({}, a.json, { people: a.json.people.map((x) => Object.assign({}, x, { person: withLeaveClass(x.person), balances: (x.balances || []).map((bl) => withLine(bl, lang)) })) });
+      return a;
+    }
+    const pm = /^\/api\/leave\/people\/([^/]+)$/.exec(path);
+    if (pm && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && a.json.person) {
+        const head = withLeaveClass(a.json.person);
+        const c = head.leaveClass || "none";
+        a.json = Object.assign({}, a.json, { person: Object.assign({}, head, { leaveClassText: say3(lang, "leave.classTextPerson." + c) }), balances: (a.json.balances || []).map((bl) => withLine(bl, lang)) });
+      }
+      return a;
+    }
+    return null;
+  }
+  // Time off: the API's inside-notice words on every request, and each day's holiday on a request's leave.
+  const withNotice = (r, lang) => (r && typeof r === "object" && r.insideNotice === true ? Object.assign({}, r, { insideNoticeText: say3(lang, "timeOff.insideNotice"), insideNoticeWords: { en: W3["timeOff.insideNotice"][0], es: W3["timeOff.insideNotice"][1], fr: "Demandé avec moins de préavis que la politique ne le demande. Le bureau décide au cas par cas." } }) : (r && typeof r === "object" ? Object.assign({}, r, { insideNoticeText: null, insideNoticeWords: null }) : r));
+  function timeOffRoute(method, path, query, body, lang, base) {
+    if (path === "/api/time-off" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && Array.isArray(a.json)) a.json = a.json.map((r) => withNotice(r, lang));
+      else if (a && a.status === 200 && a.json && Array.isArray(a.json.requests)) a.json = Object.assign({}, a.json, { requests: a.json.requests.map((r) => withNotice(r, lang)) });
+      return a;
+    }
+    const one = /^\/api\/time-off\/([^/]+)$/.exec(path);
+    if (one && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && a.json.request) {
+        const r = a.json.request;
+        const out = Object.assign({}, a.json, { request: withNotice(r, lang) });
+        if (a.json.leave && typeof a.json.leave === "object") {
+          const from = String(r.startsOn || r.start_date || r.startDate || "").slice(0, 10);
+          const to = String(r.endsOn || r.end_date || r.endDate || from).slice(0, 10);
+          let days = Array.isArray(a.json.leave.days) ? clone(a.json.leave.days) : [];
+          if (!days.length && from) { let d = from; let g = 0; while (d <= to && g < 31) { days.push({ date: d, hours: 8, from: "noShift" }); const x = new Date(d + "T12:00:00Z"); x.setUTCDate(x.getUTCDate() + 1); d = x.toISOString().slice(0, 10); g += 1; } }
+          days = days.map((d, i) => Object.assign({}, d, { holiday: sc().holidayOnFirstDay && i === 0 ? { key: "memorialDay", name: T(lang, "Memorial Day", "Día de los Caídos") } : null }));
+          out.leave = Object.assign({}, a.json.leave, { days });
+        }
+        a.json = out;
+      }
+      return a;
+    }
+    return null;
+  }
+  // DELETE /api/users/profile/photo { userId } by an admin.
+  function photoRemoveRoute(method, path, query, body, lang) {
+    if (path !== "/api/users/profile/photo" || method !== "DELETE") return null;
+    const b = body && typeof body === "object" ? body : {};
+    const p = me() || {};
+    if (b.userId != null && String(b.userId) !== String(p.id) && p.role !== "admin") return bad(403, "profile.photoOwnOnly", T(lang, "You can only change your own photo.", "Solo puede cambiar su propia foto."));
+    const target = b.userId != null ? String(b.userId) : String(p.id);
+    m().photos[target] = null;
+    sent("photo-removed", { userId: target });
+    return okj({ message: say3(lang, "profile.photoRemoved"), code: "profile.photoRemoved", profilePhotoUrl: null });
+  }
+  // /me/permissions: features.maintenance as the options themselves (the API's Round 18, 3.5).
+  function featuresRoute(method, path, query, body, lang, base) {
+    const a = base();
+    if (sc().maintenanceObject && a && a.status === 200 && a.json && a.json.features && typeof a.json.features === "object") a.json = Object.assign({}, a.json, { features: Object.assign({}, a.json.features, { maintenance: { maxPhotos: 4, responseDays: 3 } }) });
+    return a;
+  }
+  // The staff profile: a photo the run set or removed.
+  function profileRoute(method, path, query, body, lang, base) {
+    const a = base();
+    const id = decodeURIComponent(path.split("/").pop());
+    if (a && a.status === 200 && a.json && a.json.user && Object.prototype.hasOwnProperty.call(m().photos, id)) a.json = Object.assign({}, a.json, { user: Object.assign({}, a.json.user, { profilePhotoUrl: m().photos[id] }) });
+    else if (a && a.status === 200 && a.json && a.json.user && sc().photoOn && String(sc().photoOn) === id) a.json = Object.assign({}, a.json, { user: Object.assign({}, a.json.user, { profilePhotoUrl: PHOTO }) });
+    return a;
+  }
+
   function route(method, path, query, body, lang, base) {
-    if (path === "/api/notification-recipients" || /^\/api\/users\/[^/]+\/permissions$/.test(path)) { const r = listsRoute(method, path, query, body, lang, base); if (r) return r; }
+    // Section 3's answers are the API's since Rounds 17, 18 and 21; the older suites read the stub as it was, so they
+    // answer under the scene round21 alone, which the part413 suite arms.
+    const r21 = !!sc().round21;
+    if (r21 && /^\/api\/inspections\/templates/.test(path)) { const r = templatesRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (r21 && path === "/api/library" && method === "GET") return libraryRoute(method, path, query, body, lang, base);
+    if (r21 && /^\/api\/health\//.test(path) && !query.get("_raw413")) { const r = healthRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (/^\/api\/announcements/.test(path)) { const r = announcementsRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (r21 && /^\/api\/leave\//.test(path)) { const r = leaveRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (r21 && /^\/api\/time-off/.test(path)) { const r = timeOffRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (path === "/api/users/profile/photo" && method === "DELETE") return photoRemoveRoute(method, path, query, body, lang);
+    if (r21 && path === "/api/users/me/permissions" && method === "GET") return featuresRoute(method, path, query, body, lang, base);
+    if (r21 && /^\/api\/users\/profile\/[^/]+$/.test(path) && method === "GET") return profileRoute(method, path, query, body, lang, base);
+    if (r21 && (path === "/api/notification-recipients" || /^\/api\/users\/[^/]+\/permissions$/.test(path))) { const r = listsRoute(method, path, query, body, lang, base); if (r) return r; }
     if (/^\/api\/users\/timeline\//.test(path)) { const r = timelineRoute(method, path, query, body, lang, base); if (r) return r; }
     if (path === "/api/auth/login" || path === "/api/auth/me" || path === "/api/auth/verify-code" || path === "/api/auth/second-step") return signInRoute(method, path, query, body, lang, base);
+    // The recognition routes are new and every run reads them as the API answers them.
     if (/^\/api\/recognition\/shoutouts(\/|$)/.test(path)) { const r = shoutoutsRoute(method, path, query, body, lang); if (r) return r; }
     if (/^\/api\/recognition\//.test(path)) { const r = awardsRoute(method, path, query, body, lang); if (r) return r; }
-    if (path === "/api/uploads" || path === "/api/users/profile/photo" || path === "/api/users") { const r = photoRoute(method, path, query, body, lang, base); if (r) return r; }
+    if (r21 && (path === "/api/uploads" || path === "/api/users/profile/photo" || path === "/api/users")) { const r = photoRoute(method, path, query, body, lang, base); if (r) return r; }
     return base();
   }
 
@@ -449,6 +669,7 @@ module.exports = (ctx) => {
     sent: () => clone(m().sent),
     certificates: () => clone(m().certificates),
     model: () => m(),
+    setProbe: (fn) => { probe = fn; },
     reset: () => { model = null; },
   };
 };
