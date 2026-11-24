@@ -7,6 +7,10 @@
 //               initials in a gold circle), an earlier month that tells nobody, the month taken, edit in the month and
 //               the API's refusal once it has closed, take down with a reason, the certificate in each language, the
 //               reason in three languages with Translating, and the timeline's plain words
+//   wall        the team wall paged to its end, and an award taken down marked on it
+//   shoutouts   a supervisor posts through the people route, one who shares no site refused, a second take-down's 409,
+//               the line in three languages, and a test office account kept to test records
+//   named       Who gets told lists the recognition notices; the roles screen names the two capabilities
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -210,10 +214,10 @@ async function awardCases(ctx, lang) {
   // 9. The certificate in each language: the winner's own (locale sent empty), English, Spanish and French.
   await withDriver(ctx, { name: "certificate", lang, arm: (s) => s.setScene413({ standingAward: { id: "aw-now", userId: "u-staff-6" } }) }, async (d, stubs) => {
     await goHash(d, "recognition");
-    await until(d, "[data-award-certificate-open]", 8000);
+    await until(d, "[data-award='aw-now'] [data-award-certificate-open]", 8000);
     for (const pick of ["", "en", "es", "fr"]) {
-      await d.page.locator("[data-award-certificate-lang]").selectOption(pick);
-      await click(d, "[data-award-certificate-open]");
+      await d.page.locator("[data-award='aw-now'] [data-award-certificate-lang]").selectOption(pick);
+      await click(d, "[data-award='aw-now'] [data-award-certificate-open]");
       await d.settle(300);
     }
     const asked = stubs.certificates413().map((c) => c.locale);
@@ -248,12 +252,176 @@ async function awardCases(ctx, lang) {
   });
 }
 
+
+// ---- Section 2: the team wall and shout-outs ------------------------------------------------------------------------
+async function wallCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/wall/" + x;
+
+  // 1. The wall pages through nextCursor to its end: 12, then the last 2, newest month first.
+  await withDriver(ctx, { name: "wall", lang }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "recognition");
+    await until(d, "[data-award-wall] [data-award]", 8000);
+    const first = await d.page.locator("[data-award-wall] [data-award]").count();
+    const months = await d.page.locator("[data-award-wall] [data-award]").evaluateAll((els) => els.map((e) => e.getAttribute("data-award-month")));
+    await click(d, "[data-show-more='award-wall']");
+    await soon(async () => (await d.page.locator("[data-award-wall] [data-award]").count()) > first, 4000);
+    const all = await d.page.locator("[data-award-wall] [data-award]").count();
+    const end = await attr(d, "[data-award-wall]", "data-award-wall-end");
+    const more = await has(d, "[data-show-more='award-wall']");
+    const pages = reads(d, mark, /^\/api\/recognition\/awards$/).map((c) => c.query);
+    const sorted = months.every((x, i) => i === 0 || months[i - 1] >= x);
+    const test = await has(d, "[data-award='aw-test-1']");
+    results.check(KIND, id("the-wall-pages-to-its-end"), first === 12 && all === 14 && end === "true" && !more && sorted && !test && pages.length === 2 && /cursor=(&|$)/.test(pages[0]) && /cursor=c12/.test(pages[1]),
+      "first page " + first + ", in all " + all + ", the end " + say(end) + (more ? ", Show more still there" : "") + ", newest first " + sorted + (test ? ", the test award shown" : "") + ", reads " + say(pages));
+  });
+
+  // 2. An award taken down is kept on the wall, marked taken down, with its reason.
+  await withDriver(ctx, { name: "taken-down", lang, arm: (s) => s.setScene413({ standingAward: { id: "aw-now", userId: "u-staff-6" } }) }, async (d) => {
+    await goHash(d, "recognition");
+    await until(d, "[data-award-remove]", 8000);
+    await click(d, "[data-award-remove]");
+    await d.page.locator("[data-award-remove-reason]").fill("Posted for the wrong person.");
+    await click(d, "[data-award-remove-go]");
+    await until(d, "[data-award-wall] [data-award='aw-now']", 4000);
+    const marked = await attr(d, "[data-award-wall] [data-award='aw-now']", "data-award-removed");
+    const why = await textOf(d, "[data-award-wall] [data-award='aw-now'] [data-award-removed-reason]");
+    results.check(KIND, id("a-taken-down-award-is-marked-on-the-wall"), marked === "true" && /Posted for the wrong person/.test(why), "marked " + say(marked) + ", reason " + say(why));
+  });
+}
+
+const SO_WIN = "[data-shoutout-window='post']";
+async function openShoutouts(d) {
+  await goHash(d, "recognition/shoutouts");
+  await until(d, "[data-shoutouts]", 8000);
+}
+async function shoutoutCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/shoutouts/" + x;
+
+  // 1. A supervisor posts a shout-out through the people route: only the people sharing a site, the site one of
+  // theirs, the line counted, and the post sends the three.
+  await withDriver(ctx, { name: "supervisor", lang, persona: "supervisor" }, async (d) => {
+    await openShoutouts(d);
+    const awardTab = await has(d, "[data-recognition-tab='award']");
+    const mark = d.mark();
+    await click(d, "[data-shoutout-post-open]");
+    await until(d, SO_WIN + " [data-shoutout-person]", 6000);
+    const offered = await d.page.locator(SO_WIN + " [data-shoutout-person]").evaluateAll((els) => els.map((e) => e.getAttribute("data-shoutout-person")));
+    const asked = reads(d, mark, /^\/api\/recognition\/shoutouts\/people$/).length;
+    const staff = reads(d, mark, /^\/api\/users$/).length;
+    await click(d, SO_WIN + " [data-shoutout-person='u-staff-5']");
+    const site = await d.page.locator(SO_WIN + " [data-shoutout-site]").inputValue().catch(() => "");
+    await d.page.locator(SO_WIN + " [data-shoutout-line]").fill("Thanks for covering the clinic on Sunday.");
+    const count = await attr(d, SO_WIN + " [data-shoutout-line-count]", "data-shoutout-line-count");
+    const before = d.mark();
+    await click(d, SO_WIN + " [data-shoutout-post]");
+    const sent = writes(d, before, "POST", /^\/api\/recognition\/shoutouts$/).map((c) => c.body);
+    const listed = await until(d, "[data-shoutout^='so-new-']", 3000);
+    results.check(KIND, id("a-supervisor-posts-through-the-people-route"), !awardTab && asked >= 1 && staff === 0 && say(offered.slice().sort()) === say(["u-staff-5", "u-staff-8"]) && site === "s-2" && count === "41"
+      && sent.length === 1 && sent[0].userId === "u-staff-5" && sent[0].siteId === "s-2" && sent[0].line === "Thanks for covering the clinic on Sunday." && listed,
+      (awardTab ? "the award tab is offered to a supervisor; " : "") + "people read " + asked + " time(s), the staff list " + staff + ", offered " + say(offered) + ", site " + say(site) + ", count " + say(count) + ", sent " + say(sent) + ", listed " + listed);
+  });
+
+  // 2. Refused for one who does not share a site: the API's 403 recognition.notYourTeam in its words.
+  await withDriver(ctx, { name: "not-your-team", lang, persona: "supervisor", arm: (s) => s.setScene413({ staleTeam: "u-staff-9" }) }, async (d) => {
+    await openShoutouts(d);
+    await click(d, "[data-shoutout-post-open]");
+    await until(d, SO_WIN + " [data-shoutout-person='u-staff-9']", 6000);
+    await click(d, SO_WIN + " [data-shoutout-person='u-staff-9']");
+    await d.page.locator(SO_WIN + " [data-shoutout-line]").fill("Great work on the loading dock.");
+    await click(d, SO_WIN + " [data-shoutout-post]");
+    const said = await textOf(d, SO_WIN + " [data-shoutout-refusal]");
+    const want = lang === "es" ? "Solo puede dar un reconocimiento a alguien que trabaje en uno de sus sitios." : "You can give a shout-out only to someone who works at one of your sites.";
+    results.check(KIND, id("one-who-shares-no-site-is-refused-in-the-apis-words"), said === want, "drew " + say(said));
+  });
+
+  // 3. A second take-down answers 409 recognition.shoutoutAlreadyRemoved, drawn in the API's words.
+  await withDriver(ctx, { name: "second-take-down", lang, arm: (s) => s.setScene413({ removedElsewhere: "so-2" }) }, async (d) => {
+    await openShoutouts(d);
+    await until(d, "[data-shoutout='so-2'] [data-shoutout-remove]", 6000);
+    await click(d, "[data-shoutout='so-2'] [data-shoutout-remove]");
+    await click(d, "[data-shoutout-remove-go]");
+    const said = await textOf(d, "[data-shoutout-remove-refusal]");
+    const want = lang === "es" ? "Este reconocimiento ya se retiró." : "This shout-out was already taken down.";
+    results.check(KIND, id("a-second-take-down-reads-the-apis-409"), said === want, "drew " + say(said));
+  });
+
+  // 4. The office reads each shout-out's line in English, Spanish and French (lineWords).
+  await withDriver(ctx, { name: "line-words", lang }, async (d) => {
+    await openShoutouts(d);
+    await until(d, "[data-shoutout='so-1']", 6000);
+    const en = await textOf(d, "[data-shoutout='so-1'] [data-award-reason='en']");
+    const es = await textOf(d, "[data-shoutout='so-1'] [data-award-reason='es']");
+    const fr = await textOf(d, "[data-shoutout='so-1'] [data-award-reason='fr']");
+    results.check(KIND, id("the-office-reads-the-line-in-three-languages"), /loading dock/.test(en) && /muelle de carga/.test(es) && /quai de chargement/.test(fr), "read " + say([en, es, fr]));
+  });
+
+  // 5. A test office account reads and posts test records alone: the wall and the list hold only the test ones, and
+  // naming a real person is refused in the API's words.
+  await withDriver(ctx, { name: "test-office", lang, arm: (s) => s.setScene413({ testOffice: true }) }, async (d) => {
+    await goHash(d, "recognition");
+    await until(d, "[data-award-wall] [data-award]", 8000);
+    const wall = await d.page.locator("[data-award-wall] [data-award]").evaluateAll((els) => els.map((e) => e.getAttribute("data-award")));
+    await openShoutouts(d);
+    await until(d, "[data-shoutout]", 6000);
+    const list = await d.page.locator("[data-shoutout]").evaluateAll((els) => els.map((e) => e.getAttribute("data-shoutout")));
+    await goHash(d, "recognition");
+    await until(d, "[data-award-post-open]", 6000);
+    await click(d, "[data-award-post-open]");
+    await pickPerson(d, "u-staff-5");
+    await typeReason(d, "A real person named by a test office account.");
+    await post(d);
+    const said = await textOf(d, POST_WIN + " [data-award-refusal]");
+    const want = lang === "es" ? "Una cuenta de prueba no puede cambiar un registro real." : "A test account cannot change a real record.";
+    results.check(KIND, id("a-test-office-account-keeps-to-test-records"), say(wall) === say(["aw-test-1"]) && say(list) === say(["so-test-1"]) && said === want,
+      "wall " + say(wall) + ", shout-outs " + say(list) + ", the post drew " + say(said));
+  });
+}
+
+// ---- Section 2: Who gets told and the roles screen ------------------------------------------------------------------
+async function namedCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/named/" + x;
+
+  // 1. Who gets told lists the three recognition notices (and the course certificate's) by name, each saying who it
+  // goes to, with nothing to add.
+  await withDriver(ctx, { name: "who-gets-told", lang }, async (d) => {
+    await goHash(d, "settings");
+    await click(d, "[data-settings-tab='recipients']");
+    await until(d, "[data-notice-type='recognition_award']", 6000);
+    const want = { recognition_award: "The Employee of the Month is posted", recognition_reactions: "The Employee of the Month is told how many people congratulated them", recognition_shoutout: "Someone gets a shout-out", training_certificate: "A course's certificate is ready" };
+    const got = {};
+    for (const k of Object.keys(want)) got[k] = { name: await textOf(d, "[data-notice-type='" + k + "']"), named: await has(d, "[data-notice-named='" + k + "']") };
+    const okAll = Object.keys(want).every((k) => got[k].name === d.say(want[k]) && got[k].named);
+    results.check(KIND, id("who-gets-told-lists-the-recognition-notices"), okAll, "read " + say(got));
+  });
+
+  // 2. The roles screen names manage_recognition and post_shoutouts by the API's words.
+  await withDriver(ctx, { name: "roles", lang }, async (d) => {
+    await d.goto("settings");
+    await d.settle(400);
+    await d.clickText(d.say("Roles and Permissions"), { exact: true });
+    await d.settle(300);
+    const picked = await d.pickPerson(ctx.seed.STAFF[4].name);
+    await d.settle(400);
+    const body = await d.page.locator("body").innerText();
+    const a = lang === "es" ? "Empleado del Mes" : "Employee of the Month";
+    const b = lang === "es" ? "Publicar reconocimientos" : "Post shout-outs";
+    results.check(KIND, id("the-roles-screen-names-the-two-capabilities"), picked && body.indexOf(a) >= 0 && body.indexOf(b) >= 0, "picked " + picked + ", " + say(a) + " " + (body.indexOf(a) >= 0) + ", " + say(b) + " " + (body.indexOf(b) >= 0));
+  });
+}
+
 async function run(ctx) {
   const only = (process.env.PART413_ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
   const want = (k) => !only.length || only.indexOf(k) >= 0;
   for (const lang of LANGS) {
     if (process.env.AUDIT_LANG && process.env.AUDIT_LANG !== lang) continue;
     if (want("award")) await awardCases(ctx, lang);
+    if (want("wall")) await wallCases(ctx, lang);
+    if (want("shoutouts")) await shoutoutCases(ctx, lang);
+    if (want("named")) await namedCases(ctx, lang);
   }
 }
 

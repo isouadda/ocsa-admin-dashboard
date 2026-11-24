@@ -11936,8 +11936,8 @@ function AwardCertificate({ t, token, award, showToast }) {
 // reactions, and what the office can do with it.
 function AwardCard({ t, token, award, canEdit = false, onEdit, onRemove, showToast, onStale, big = false }) {
   const removed = award && award.removed;
-  return (<Crd t={t} style={{ padding: big ? 20 : 14, opacity: removed ? 0.75 : 1 }}>
-    <div data-award={award.id} data-award-month={award.month} data-award-removed={removed ? "true" : undefined} style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+  return (<Crd t={t} style={{ padding: big ? 20 : 14, opacity: removed ? 0.75 : 1 }}><div data-award={award.id} data-award-month={award.month} data-award-removed={removed ? "true" : undefined}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       <AwardFace person={award.person} sz={big ? 84 : 56} readKey={"award:" + award.id} onStale={onStale} />
       <div style={{ flex: "1 1 260px", minWidth: 0 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -11958,17 +11958,213 @@ function AwardCard({ t, token, award, canEdit = false, onEdit, onRemove, showToa
       {onRemove && <Btn t={t} v="ghost" data-award-remove="" onClick={() => onRemove(award)} style={{ color: RD }}>{tr("Take down")}</Btn>}
     </div>}
     {!removed && !canEdit && onEdit && <div data-award-edit-closed="" style={{ fontSize: 11, color: t.textMut, marginTop: 8 }}>{tr("Editing closes when the award's month ends.")}</div>}
-  </Crd>);
+  </div></Crd>);
 }
 
-// The page. This month's award, or a clear empty state with Post this month's winner; and once something is posted,
-// how many people were told.
-function RecognitionPage({ af, uf, token, t, allStaff = [], showToast, canManage = false }) {
+// The team wall (part 413, 2.1): every past winner, newest month first, read a page at a time through nextCursor until
+// it is null; this month's standing winner is shown above it. The API's wall answers the standing awards alone; an
+// award this office took down in this session is kept on it, marked taken down, where its month falls.
+const WALL_PAGE = 12;
+function AwardWall({ af, t, token, showToast, taken = [], refreshKey = 0 }) {
+  const [rows, setRows] = useState(null);
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af(pagedPath("/api/recognition/awards", { limit: WALL_PAGE }, "")); setRows(Array.isArray(d && d.awards) ? d.awards : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { setRows([]); setNext(""); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load, refreshKey]);
+  const more = async () => {
+    if (!next || busy) return;
+    setBusy(true);
+    try { const d = await af(pagedPath("/api/recognition/awards", { limit: WALL_PAGE }, next)); setRows(have => pagedAppend(have, Array.isArray(d && d.awards) ? d.awards : [], a => a.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setBusy(false);
+  };
+  // What the wall draws: the API's rows but this month's standing award, which the page shows above it, and the ones
+  // taken down here, newest month first.
   const thisMonth = thisMonthOf();
+  const shown = useMemo(() => {
+    const list = (rows || []).filter(a => !taken.some(x => x.id === a.id) && !(a.month === thisMonth && !a.removed)).concat(taken);
+    return list.slice().sort((a, b) => (a.month === b.month ? String(b.id).localeCompare(String(a.id)) : String(b.month).localeCompare(String(a.month))));
+  }, [rows, taken, thisMonth]);
+  return (<div data-award-wall={shown.length} data-award-wall-end={rows !== null && !next ? "true" : "false"} style={{ marginTop: 24 }}>
+    <SecT t={t}>{tr("Team wall")}</SecT>
+    {rows === null ? <div style={{ padding: 20, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : shown.length === 0 ? <div data-award-wall-empty="" style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No past winners yet.")}</div>
+      : <div style={{ display: "grid", gap: 10 }}>{shown.map(a => <AwardCard key={a.id} t={t} token={token} award={a} showToast={showToast} onStale={load} />)}</div>}
+    <ShowMore t={t} next={next} busy={busy} onMore={more} at="award-wall" />
+  </div>);
+}
+
+// ===== SHOUT-OUTS (part 413, 2.2; the API's Round 19 and Round 21's people route) =====
+// A holder of post_shoutouts (admins and supervisors by role) names one active staff member at a site, in 200
+// characters. The person picker reads GET /api/recognition/shoutouts/people, which answers only the people the caller
+// may name, each with the sites the two share, so the site is one of those. The list is the last 30 days; a shout-out
+// is taken down by its poster or by manage_recognition, and a second take-down's 409 is drawn in the API's words.
+const SHOUTOUT_LINE_MAX = 200;
+function ShoutoutPeoplePicker({ af, t, value, onPick }) {
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState(null);
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const asked = useRef(0);
+  const read = useCallback(async (needle, cursor) => {
+    const n = ++asked.current;
+    setBusy(true); setFailed("");
+    try {
+      const d = await af(pagedPath("/api/recognition/shoutouts/people", { q: needle.trim(), limit: 20 }, cursor || ""));
+      if (n !== asked.current) return;
+      const list = Array.isArray(d && d.people) ? d.people : [];
+      setRows(have => (cursor ? pagedAppend(have, list, p => p.id) : list)); setNext(d && d.nextCursor ? String(d.nextCursor) : "");
+    } catch (e) { if (n === asked.current) { setRows([]); setNext(""); setFailed(e.message || tr("Request failed")); } }
+    if (n === asked.current) setBusy(false);
+  }, [af]);
+  useEffect(() => { const h = setTimeout(() => read(q, ""), q ? 250 : 0); return () => clearTimeout(h); }, [q, read]);
+  return (<div data-shoutout-people="">
+    <Inp t={t} aria-label={tr("Search by name")} data-shoutout-people-search="" placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} maxLength={80} />
+    <div role="listbox" aria-label={tr("Person")} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, maxHeight: 240, overflowY: "auto" }}>
+      {rows === null ? <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+        : failed ? <div role="alert" style={{ padding: 12, fontSize: 12, color: RD }}>{failed}</div>
+        : rows.length === 0 ? <div data-shoutout-people-none="" style={{ padding: 12, fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>
+        : rows.map(p => <button key={p.id} type="button" role="option" aria-selected={String(value) === String(p.id)} data-shoutout-person={p.id} onClick={() => onPick(p)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 12px", border: "none", borderBottom: "1px solid " + t.border, background: String(value) === String(p.id) ? t.goldBg : "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", textAlign: "left" }}>
+          <AwardFace person={p} sz={28} />
+          <span style={{ flex: 1, minWidth: 0 }}>{awardNameOf(p)}</span>
+          <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{(p.sites || []).map(s => s.name).join(", ")}</span>
+        </button>)}
+    </div>
+    <ShowMore t={t} next={next} busy={busy} onMore={() => read(q, next)} at="shoutout-people" />
+  </div>);
+}
+function ShoutoutPostWindow({ af, t, onClose, onPosted }) {
+  const [who, setWho] = useState(null);
+  const [siteId, setSiteId] = useState("");
+  const [line, setLine] = useState("");
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const sites = who && Array.isArray(who.sites) ? who.sites : [];
+  const pick = (p) => { setWho(p); setRefusal(null); setSiteId(p && Array.isArray(p.sites) && p.sites.length === 1 ? String(p.sites[0].id) : ""); };
+  const post = guard(async () => {
+    setRefusal(null);
+    try { const d = await af("/api/recognition/shoutouts", { method: "POST", body: { userId: String(who.id), line: line.trim(), siteId } }); onPosted((d && d.shoutout) || null); }
+    catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-shoutout-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["userId", "line", "siteId"].some(k => refusal.keys.indexOf(k) >= 0);
+  return (<Mdl t={t} name="shoutout-post" onClose={() => { if (!busy) onClose(); }} tall><div style={{ padding: 20 }} data-shoutout-window="post">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Give a shout-out")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
+      {who ? <div data-shoutout-picked={who.id} style={{ display: "flex", alignItems: "center", gap: 10 }}><AwardFace person={who} sz={36} /><span style={{ flex: 1, fontSize: 14, color: t.text, fontWeight: 600 }}>{awardNameOf(who)}</span><button onClick={() => pick(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Change")}</button></div>
+        : <ShoutoutPeoplePicker af={af} t={t} value="" onPick={pick} />}
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Only the people you work with are listed, each with the sites you share.")}</div>{under("userId")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-shoutout-site="" value={siteId} disabled={!who} onChange={e => { setSiteId(e.target.value); setRefusal(null); }} options={[{ v: "", l: tr("Choose a site") }].concat(sites.map(s => ({ v: String(s.id), l: s.name })))} />{under("siteId")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Shout-out")}</Lbl><TArea t={t} rows={3} aria-label={tr("Shout-out")} data-shoutout-line="" value={line} maxLength={SHOUTOUT_LINE_MAX} onChange={e => { setLine(e.target.value); setRefusal(null); }} />
+      <div data-shoutout-line-count={line.length} style={{ fontSize: 11, color: line.length >= SHOUTOUT_LINE_MAX ? OR : t.textMut, marginTop: 4, textAlign: "right" }}>{tr("{0} of {1} characters", line.length, SHOUTOUT_LINE_MAX)}</div>{under("line")}</div>
+    {loose && <div role="alert" data-shoutout-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-shoutout-post="" disabled={busy || !who || !siteId || !line.trim()} onClick={post}>{busy ? tr("Posting...") : tr("Post")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+function ShoutoutRemoveWindow({ af, t, shoutout, onClose, onRemoved }) {
+  const [reason, setReason] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [guard, busy] = useBusyGuard();
+  const go = guard(async () => {
+    setRefusal("");
+    try { const d = await af("/api/recognition/shoutouts/" + encodeURIComponent(shoutout.id) + "/remove", { method: "POST", body: reason.trim() ? { reason: reason.trim() } : {} }); onRemoved((d && d.shoutout) || shoutout); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+  });
+  return (<Mdl t={t} name="shoutout-remove" onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-shoutout-window="remove">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Take down this shout-out")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("For {0} at {1}. It is kept on record and leaves what staff see.", awardNameOf(shoutout.person), shoutout.site ? siteShown(shoutout.site) : "")}</div>
+    <Lbl>{tr("Why it is taken down (optional)")}</Lbl>
+    <TArea t={t} rows={2} aria-label={tr("Why it is taken down (optional)")} data-shoutout-remove-reason="" value={reason} maxLength={AWARD_REASON_MAX} onChange={e => setReason(e.target.value)} />
+    {refusal && <div role="alert" data-shoutout-remove-refusal="" style={{ fontSize: 13, color: RD, marginTop: 8, lineHeight: 1.5 }}>{refusal}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-shoutout-remove-go="" disabled={busy} onClick={go}>{busy ? tr("Saving...") : tr("Take it down")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// One shout-out: the person, the site, the line (each language as the API answers lineWords for the office), who
+// posted it and when, the reactions, and Take down for whoever may.
+function ShoutoutRow({ t, s, onRemove }) {
+  const w = s.lineWords || null;
+  return (<Crd t={t} style={{ padding: 14 }}>
+    <div data-shoutout={s.id} data-shoutout-removed={s.removed ? "true" : undefined} style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <AwardFace person={s.person} sz={40} />
+      <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{awardNameOf(s.person)}</span>
+          {s.isTest === true && <Bdg l={tr("TEST")} c={OR} />}
+          {s.removed && <Bdg l={tr("Taken down")} c={RD} />}
+        </div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[s.site ? siteShown(s.site) : "", s.postedAt ? fd(s.postedAt) : "", s.postedBy ? tr("Posted by {0}", awardNameOf(s.postedBy)) : ""].filter(Boolean).join(" . ")}</div>
+        <div style={{ marginTop: 8 }}>{w ? <AwardReasonWords t={t} words={w} /> : <div style={{ fontSize: 13, color: t.text, overflowWrap: "anywhere" }}>{s.line}</div>}</div>
+        <div style={{ marginTop: 8 }}><AwardReactions t={t} reactions={s.reactions} /></div>
+      </div>
+      {s.canRemove && !s.removed && onRemove && <Btn t={t} v="ghost" data-shoutout-remove="" onClick={() => onRemove(s)} style={{ color: RD }}>{tr("Take down")}</Btn>}
+    </div>
+  </Crd>);
+}
+function ShoutoutsPanel({ af, t, canPost = false, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const [win, setWin] = useState(null);
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af(pagedPath("/api/recognition/shoutouts", { limit: 20 }, "")); setRows(Array.isArray(d && d.shoutouts) ? d.shoutouts : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { setRows([]); setNext(""); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const more = async () => {
+    if (!next || busy) return;
+    setBusy(true);
+    try { const d = await af(pagedPath("/api/recognition/shoutouts", { limit: 20 }, next)); setRows(have => pagedAppend(have, Array.isArray(d && d.shoutouts) ? d.shoutouts : [], s => s.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setBusy(false);
+  };
+  const posted = (s) => { setWin(null); showToast(tr("Shout-out posted")); if (s) setRows(have => [s].concat((have || []).filter(x => x.id !== s.id))); else load(); };
+  const removed = (s) => { setWin(null); showToast(tr("Shout-out taken down")); setRows(have => (have || []).filter(x => x.id !== s.id)); };
+  return (<div data-shoutouts={rows ? rows.length : ""}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ fontSize: 13, color: t.textSec }}>{tr("Shout-outs from the last 30 days.")}</div>
+      {canPost && <Btn t={t} data-shoutout-post-open="" onClick={() => setWin({ kind: "post" })}>{tr("Give a shout-out")}</Btn>}
+    </div>
+    {rows === null ? <div style={{ padding: 20, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : rows.length === 0 ? <div data-shoutouts-empty="" style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No shout-outs in the last 30 days.")}</div>
+      : <div style={{ display: "grid", gap: 10 }}>{rows.map(s => <ShoutoutRow key={s.id} t={t} s={s} onRemove={x => setWin({ kind: "remove", shoutout: x })} />)}</div>}
+    <ShowMore t={t} next={next} busy={busy} onMore={more} at="shoutouts" />
+    {win && win.kind === "post" && <ShoutoutPostWindow af={af} t={t} onClose={() => setWin(null)} onPosted={posted} />}
+    {win && win.kind === "remove" && <ShoutoutRemoveWindow af={af} t={t} shoutout={win.shoutout} onClose={() => setWin(null)} onRemoved={removed} />}
+  </div>);
+}
+
+// The page (part 413). Two tabs: Employee of the Month, for a holder of manage_recognition, with this month's award or a
+// clear empty state with Post this month's winner, how many people were told once something is posted, and the team
+// wall; and Shout-outs, for a holder of post_shoutouts or manage_recognition. #recognition/shoutouts opens Shout-outs.
+function RecognitionPage({ af, uf, token, t, allStaff = [], showToast, canManage = false, canPost = false, route = [], onRoute }) {
+  const thisMonth = thisMonthOf();
+  const tabs = [].concat(canManage ? [{ id: "award", l: tr("Employee of the Month") }] : [], canManage || canPost ? [{ id: "shoutouts", l: tr("Shout-outs") }] : []);
+  const wantTab = route[0] === "shoutouts" ? "shoutouts" : "award";
+  const tab = tabs.some(x => x.id === wantTab) ? wantTab : (tabs[0] ? tabs[0].id : "");
+  const setTab = (id) => { if (onRoute) onRoute(id === "shoutouts" ? ["shoutouts"] : []); };
   const [cur, setCur] = useState(undefined);
   const [failed, setFailed] = useState("");
   const [win, setWin] = useState(null);
   const [told, setTold] = useState(null);
+  // Awards taken down here, kept on the wall marked so; and a count that reads the wall again after a post.
+  const [taken, setTaken] = useState([]);
+  const [wallKey, setWallKey] = useState(0);
   // The award GET /current answers when it is this month's; the first days of a month answer last month's, which
   // leaves this month empty for the office.
   const loadCurrent = useCallback(async () => {
@@ -11983,19 +12179,26 @@ function RecognitionPage({ af, uf, token, t, allStaff = [], showToast, canManage
     const n = Number(d && d.told) || 0;
     setTold({ n, month: a ? a.month : "" });
     if (a && a.month === thisMonth) setCur(a);
+    else setWallKey(k => k + 1);
     showToast(n > 0 ? trn("Sent to {0} people|count", n) : tr("Posted on the team wall. Nobody was told."));
   };
   const saved = (a) => { setWin(null); if (a) setCur(a); showToast(tr("Saved")); };
-  const removed = (a) => { setWin(null); setCur(null); setTold(null); showToast(tr("Taken down. The month is free for another award.")); };
-  if (!canManage) return null;
+  const removed = (a) => { setWin(null); setCur(null); setTold(null); if (a) setTaken(have => [a].concat(have.filter(x => x.id !== a.id))); setWallKey(k => k + 1); showToast(tr("Taken down. The month is free for another award.")); };
   return (<div data-recognition-page="">
-    <SecT t={t}>{tr("This month: {0}", monthWordsOf(thisMonth))}</SecT>
-    {told && <div data-award-told={told.n} role="status" style={{ fontSize: 13, color: told.n > 0 ? GR : t.textSec, marginBottom: 12 }}>{told.n > 0 ? trn("Sent to {0} people|count", told.n) : tr("Posted on the team wall for {0}. Nobody was told.", monthWordsOf(told.month))}</div>}
-    {cur === undefined ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
-      : failed ? <LoadFailed t={t} text={failed} onRetry={loadCurrent} />
-      : cur ? <AwardCard t={t} token={token} award={cur} big canEdit={cur.month === thisMonth} onEdit={a => setWin({ kind: "edit", award: a })} onRemove={a => setWin({ kind: "remove", award: a })} showToast={showToast} onStale={loadCurrent} />
-      : <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div data-award-empty="" style={{ fontSize: 14, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("Nobody is Employee of the Month for {0} yet.", monthWordsOf(thisMonth))}</div><Btn t={t} data-award-post-open="" onClick={() => setWin({ kind: "post" })}>{tr("Post this month's winner")}</Btn></Crd>}
-    {cur && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-award-post-earlier="" onClick={() => setWin({ kind: "post", month: monthBefore(thisMonth) })}>{tr("Post an earlier month")}</Btn></div>}
+    {tabs.length > 1 && <div role="tablist" data-recognition-tabs="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+      {tabs.map(x => <button key={x.id} role="tab" aria-selected={tab === x.id} data-recognition-tab={x.id} onClick={() => setTab(x.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (tab === x.id ? GO : t.border), background: tab === x.id ? t.goldBg : "transparent", color: tab === x.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.l}</button>)}
+    </div>}
+    {tab === "award" && <div data-recognition-view="award">
+      <SecT t={t}>{tr("This month: {0}", monthWordsOf(thisMonth))}</SecT>
+      {told && <div data-award-told={told.n} role="status" style={{ fontSize: 13, color: told.n > 0 ? GR : t.textSec, marginBottom: 12 }}>{told.n > 0 ? trn("Sent to {0} people|count", told.n) : tr("Posted on the team wall for {0}. Nobody was told.", monthWordsOf(told.month))}</div>}
+      {cur === undefined ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+        : failed ? <LoadFailed t={t} text={failed} onRetry={loadCurrent} />
+        : cur ? <AwardCard t={t} token={token} award={cur} big canEdit={cur.month === thisMonth} onEdit={a => setWin({ kind: "edit", award: a })} onRemove={a => setWin({ kind: "remove", award: a })} showToast={showToast} onStale={loadCurrent} />
+        : <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div data-award-empty="" style={{ fontSize: 14, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("Nobody is Employee of the Month for {0} yet.", monthWordsOf(thisMonth))}</div><Btn t={t} data-award-post-open="" onClick={() => setWin({ kind: "post" })}>{tr("Post this month's winner")}</Btn></Crd>}
+      {cur && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-award-post-earlier="" onClick={() => setWin({ kind: "post", month: monthBefore(thisMonth) })}>{tr("Post an earlier month")}</Btn></div>}
+      <AwardWall af={af} t={t} token={token} showToast={showToast} taken={taken} refreshKey={wallKey} />
+    </div>}
+    {tab === "shoutouts" && <div data-recognition-view="shoutouts"><ShoutoutsPanel af={af} t={t} canPost={canPost || canManage} showToast={showToast} /></div>}
     {win && win.kind === "post" && <AwardPostWindow af={af} uf={uf} t={t} people={allStaff} startMonth={win.month || ""} onClose={() => setWin(null)} onPosted={posted} />}
     {win && win.kind === "edit" && <AwardEditWindow af={af} t={t} award={win.award} people={allStaff} onClose={() => setWin(null)} onSaved={saved} />}
     {win && win.kind === "remove" && <AwardRemoveWindow af={af} t={t} award={win.award} onClose={() => setWin(null)} onRemoved={removed} />}
@@ -12032,6 +12235,13 @@ const NOTICE_TYPE_LABELS = {
   signature_overdue: "A signature has waited three working days",
   signature_signed: "Someone signed a warning on their phone",
   health_alert: "Health alerts and the morning health email",
+  // Part 413 (the API's Rounds 19 and 20): the Employee of the Month to every active staff account, the winner's count
+  // of the people who congratulated them, a shout-out to the person it names, and a course's certificate to the person
+  // who earned it. Each goes to the people its route names; nobody is set for them here.
+  recognition_award: "The Employee of the Month is posted",
+  recognition_reactions: "The Employee of the Month is told how many people congratulated them",
+  recognition_shoutout: "Someone gets a shout-out",
+  training_certificate: "A course's certificate is ready",
 };
 // Who a kind of notice the API names its own recipients for (named) goes to, said in place of the
 // controls that add people, which the API refuses for it (recipients.namedType).
@@ -12042,6 +12252,10 @@ const NAMED_NOTICE_WHO = {
   signature_overdue: "Goes to the person who sent it to sign. When they are no longer an admin or a supervisor, every admin is told. Nobody is added here.",
   signature_signed: "Goes to the person who sent the warning to sign. When they are no longer an admin or a supervisor, every admin is told. Nobody is added here.",
   health_alert: "Set on the Health page, under Who is told and when.",
+  recognition_award: "Goes to every active staff member, and to the winner in their own words. Nobody is added here.",
+  recognition_reactions: "Goes to the winner on the bell, at most once a day. Nobody is added here.",
+  recognition_shoutout: "Goes to the person the shout-out names. Nobody is added here.",
+  training_certificate: "Goes to the person who finished the course, on the bell. Nobody is added here.",
 };
 const FORM_TITLE_LABELS = {
   "OCSA-FRM-005": "Daily Service Log",
@@ -22326,6 +22540,9 @@ const CAPABILITY_LABELS = {
   record_injuries: "Keep the injury log",
   // Step 208: the Quotes page, routes/quotes (STEP207_CONTRACT.md, section 5).
   build_quotes: "Build quotes",
+  // Part 413: the API's Round 19 (part 411), by the API's own words for each.
+  manage_recognition: "Employee of the Month",
+  post_shoutouts: "Post shout-outs",
   // Step 332, against the API's Step 327: employment changes, HR Records and Cases, each its own.
   manage_employment: "Add people, approve registrations, change employment and roles",
   read_hr_records: "Read HR records",

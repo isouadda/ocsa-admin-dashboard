@@ -398,7 +398,42 @@ module.exports = (ctx) => {
     return okj({ entries: rows, nextCursor: null });
   }
 
+  // ---- Who gets told and the roles screen (helpers/notify.js TYPES, middleware/capabilities.js) ------------------
+  // The four kinds of notice the API's Rounds 19 and 20 name their own people for, and the two capabilities of Round 19,
+  // with the English names the API sends.
+  const NAMED_413 = [
+    { type: "recognition_award", label: "The Employee of the Month is posted", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "recognition_reactions", label: "The Employee of the Month is told how many people congratulated them", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "recognition_shoutout", label: "Someone gets a shout-out", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "training_certificate", label: "A course's certificate is ready", keyed: false, named: true, allowOutsideEmail: false, emailCarriesDetail: false },
+  ];
+  const CAPS_413 = [
+    { key: "manage_recognition", label: T("en", "Employee of the Month", "Empleado del Mes"), group: "Staff", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "post_shoutouts", label: T("en", "Post shout-outs", "Publicar reconocimientos"), group: "Staff", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+  ];
+  function listsRoute(method, path, query, body, lang, base) {
+    if (path === "/api/notification-recipients" && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.types)) {
+        const have = new Set(a.json.types.map((x) => x.type));
+        a.json = Object.assign({}, a.json, { types: a.json.types.concat(NAMED_413.filter((x) => !have.has(x.type))) });
+      }
+      return a;
+    }
+    if (/^\/api\/users\/[^/]+\/permissions$/.test(path) && method === "GET") {
+      const a = base();
+      if (a && a.status === 200 && a.json && Array.isArray(a.json.capabilities)) {
+        const have = new Set(a.json.capabilities.map((x) => x.key));
+        const caps = CAPS_413.map((c) => Object.assign({}, c, { label: c.key === "manage_recognition" ? T(lang, "Employee of the Month", "Empleado del Mes") : T(lang, "Post shout-outs", "Publicar reconocimientos") }));
+        a.json = Object.assign({}, a.json, { capabilities: a.json.capabilities.concat(caps.filter((c) => !have.has(c.key))) });
+      }
+      return a;
+    }
+    return null;
+  }
+
   function route(method, path, query, body, lang, base) {
+    if (path === "/api/notification-recipients" || /^\/api\/users\/[^/]+\/permissions$/.test(path)) { const r = listsRoute(method, path, query, body, lang, base); if (r) return r; }
     if (/^\/api\/users\/timeline\//.test(path)) { const r = timelineRoute(method, path, query, body, lang, base); if (r) return r; }
     if (path === "/api/auth/login" || path === "/api/auth/me" || path === "/api/auth/verify-code" || path === "/api/auth/second-step") return signInRoute(method, path, query, body, lang, base);
     if (/^\/api\/recognition\/shoutouts(\/|$)/.test(path)) { const r = shoutoutsRoute(method, path, query, body, lang); if (r) return r; }
