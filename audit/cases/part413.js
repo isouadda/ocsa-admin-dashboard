@@ -44,14 +44,38 @@ async function goHash(d, h) {
   await d.settle(700);
 }
 const has = async (d, sel) => (await d.page.locator(sel).count()) > 0;
-const until = async (d, sel, ms) => { await d.page.locator(sel).first().waitFor({ timeout: ms || 6000 }).catch(() => {}); return has(d, sel); };
+const until = async (d, sel, ms) => { await d.page.locator(sel).first().waitFor({ timeout: d.missed ? 800 : ms || 6000 }).catch(() => {}); return has(d, sel); };
 const attr = async (d, sel, name) => { const l = d.page.locator(sel).first(); return (await l.count()) > 0 ? l.getAttribute(name) : null; };
 const textOf = async (d, sel) => { const l = d.page.locator(sel).first(); return (await l.count()) > 0 ? (await l.innerText()).trim() : ""; };
 const writes = (d, mark, method, re) => d.callsSince(mark).filter((c) => c.method === method && re.test(c.path));
 const reads = (d, mark, re) => d.callsSince(mark).filter((c) => c.method === "GET" && re.test(c.path));
 const thrown = (d, from) => d.pageErrors.slice(from || 0).filter((e) => !/^console: Failed to load resource/.test(e));
 const soon = async (fn, ms) => { const end = Date.now() + (ms || 4000); while (Date.now() < end) { if (await fn()) return true; await wait(100); } return !!(await fn()); };
-const click = async (d, sel) => { await d.page.locator(sel).first().click({ timeout: 4000 }); await d.settle(400); };
+const click = async (d, sel) => { await d.page.locator(sel).first().click({ timeout: d.missed ? 800 : 4000 }); await d.settle(400); };
+// A step that cannot be taken (on main, the button or field is not there) is noted and skipped, and the waits after it
+// are short, so every check of the driver still reports what it saw under its own name and none throws. Reads pass
+// through as they are.
+const ACTIONS = ["click", "fill", "selectOption", "check", "uncheck", "setInputFiles", "dragTo", "press", "type"];
+const CHAINS = ["first", "last", "nth", "filter", "locator"];
+function soften(d, loc) {
+  return new Proxy(loc, {
+    get(target, prop) {
+      if (ACTIONS.indexOf(prop) >= 0) return async (...a) => { try { return await target[prop](...a); } catch (e) { if (!d.missed) d.page.setDefaultTimeout(1000); d.missed = (d.missed || 0) + 1; return null; } };
+      if (CHAINS.indexOf(prop) >= 0) return (...a) => soften(d, target[prop](...a));
+      const v = target[prop];
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  });
+}
+function softPage(d, page) {
+  return new Proxy(page, {
+    get(target, prop) {
+      if (prop === "locator") return (...a) => soften(d, target.locator(...a));
+      const v = target[prop];
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  });
+}
 const monthWords = (lang, ym) => { const p = ym.split("-").map(Number); return new Intl.DateTimeFormat(localeTagFor(lang), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(p[0], p[1] - 1, 1))); };
 
 // One driver on a stub of its own, armed with the API as built, Round 2's file log and part 364.
@@ -65,6 +89,7 @@ async function withDriver(ctx, o, fn) {
   if (o.arm) o.arm(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: o.viewport || "wide", lang: o.lang || "en" });
   d.page.setDefaultTimeout(8000);
+  d.page = softPage(d, d.page);
   try {
     if (o.persona !== null) await d.signIn(o.persona || "admin");
     await fn(d, stubs);
