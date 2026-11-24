@@ -667,9 +667,9 @@ async function trainingCases(ctx, lang) {
     await typeIn(d, "[data-course-field='names.es']", "Seguridad B\u00e1sica");
     const mark = d.mark();
     await click(d, "[data-course-save]");
-    await until(d, "[data-course-note='names.en']", 5000);
+    await until(d, "[data-window='course'] [data-course-note='names.en']", 5000);
     const post = writes(d, mark, "POST", /^\/api\/training\/courses$/).pop();
-    const note = await textOf(d, "[data-course-note='names.en']");
+    const note = await textOf(d, "[data-window='course'] [data-course-note='names.en']");
     const stillOpen = await has(d, "[data-window='course']");
     await typeIn(d, "[data-course-field='names.en']", "Safety Basics");
     const mark2 = d.mark();
@@ -719,7 +719,7 @@ async function trainingCases(ctx, lang) {
     await d.closeModal();
     const listed = await d.page.locator("[data-course='cr-1'] [data-course-row-chapter]").evaluateAll((els) => els.map((e) => e.getAttribute("data-course-row-chapter")));
     const want = ["tp-3", "tp-1", "tp-2"];
-    results.check(KIND, id("chapters-are-ordered-by-dragging-and-by-up-and-down"), say(dragged) === say(["tp-1", "tp-2"]) && say(keyed) === say(want) && !!put && put.status === 200 && say(put.body && put.body.topicIds) === say(want) && notes >= 3 && note === NOTE_TITLE[lang] && say(listed) === say(want),
+    results.check(KIND, id("chapters-are-ordered-by-dragging-and-by-up-and-down"), say(dragged) === say(["tp-1", "tp-2"]) && say(keyed) === say(want) && !!put && put.status === 200 && say(put.body && put.body.topicIds) === say(want) && notes >= 3 && note === d.say("English") + ": " + NOTE_TITLE[lang] && say(listed) === say(want),
       "dragged " + say(dragged) + ", then " + say(keyed) + "; the PUT " + (put ? put.status + " " + say(put.body) : "never went") + "; " + notes + " note(s), the first " + say(note) + "; the list " + say(listed));
   });
 

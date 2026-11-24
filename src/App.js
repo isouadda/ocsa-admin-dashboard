@@ -33096,7 +33096,8 @@ const courseAudienceWord = (a) => { const x = COURSE_AUDIENCES.find(o => o.v ===
 const COURSE_CHAPTERS_MAX = 40;
 // The notes the API answers by path, { path: [note] }, each in the screen's language.
 const notesByPath = (notes) => { const m = {}; (Array.isArray(notes) ? notes : []).forEach(n => { if (n && n.path) (m[lessonPathOf(n.path)] = m[lessonPathOf(n.path)] || []).push(n); }); return m; };
-const GentleNotes = ({ t, notes, path }) => ((notes[path] || []).length ? <div data-course-note={path} style={{ fontSize: 11, color: t.goldText, marginTop: 4, lineHeight: 1.4 }}>{notes[path].map((n, i) => <div key={i}>{lessonProblemText(n)}</div>)}</div> : null);
+// named: the language the note is about, said first where the note is not under that language's own field.
+const GentleNotes = ({ t, notes, path, named = false }) => { const l = named ? LESSON_LANGS.find(x => path.slice(-3) === "." + x.id) : null; return ((notes[path] || []).length ? <div data-course-note={path} style={{ fontSize: 11, color: t.goldText, marginTop: 4, lineHeight: 1.4 }}>{notes[path].map((n, i) => <div key={i}>{l ? tr("{0}: {1}", tr(l.word), lessonProblemText(n)) : lessonProblemText(n)}</div>)}</div> : null); };
 // Three texts side by side in the course window, each with its note.
 function CourseTexts({ t, label, path, value, onChange, notes, multiline = false, refused }) {
   return (<div data-course-path={path} style={{ marginBottom: 12 }}>
@@ -33204,7 +33205,7 @@ function CourseChaptersWindow({ af, t, course, topics = [], onClose, onSaved }) 
         <span style={{ flex: "0 0 28px", fontSize: 12, color: t.textMut, textAlign: "right" }}>{i + 1}.</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, color: t.text, overflowWrap: "anywhere" }}>{nameOf(id)}</div>
-          {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"topics." + i + ".names." + l} />)}
+          {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"topics." + i + ".names." + l} named />)}
           {refusal && refusal.keys.indexOf("topicIds[" + i + "]") >= 0 && <div role="alert" style={{ fontSize: 12, color: RD }}>{refusal.text}</div>}
         </div>
         <button aria-label={tr("Move {0} up", nameOf(id))} data-course-chapter-up={id} disabled={i === 0} onClick={() => move(i, i - 1)} style={small}>&uarr;</button>
@@ -33257,7 +33258,7 @@ function TrainingCourses({ af, t, showToast }) {
           {c.promoted && <Bdg l={tr("Promoted")} c={GR} />}
           {c.active === false && <Bdg l={tr("Retired")} c={RD} />}
         </div>
-        {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"names." + l} />)}
+        {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"names." + l} named />)}
         <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{(c.topics || []).length ? <ol style={{ margin: "4px 0 0 18px", padding: 0 }}>{c.topics.map((x, i) => <li key={x.topicId} data-course-row-chapter={x.topicId} style={{ color: x.active === false ? t.textMut : t.textSec }}>{x.name || x.key}</li>)}</ol> : tr("No chapters yet.")}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
           <Btn t={t} v="ghost" data-course-edit={c.id} onClick={() => setWin({ kind: "course", course: c })}>{tr("Edit")}</Btn>

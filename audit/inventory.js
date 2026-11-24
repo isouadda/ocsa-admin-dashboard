@@ -270,7 +270,7 @@ const WINDOWS = [
   // Part 361: Send welcome emails on Staff Management, which sends the welcome email to everyone who has
   // not signed in. The welcome-all suite drives it on the stub's people of audit/welcome-all-stub.js
   // (drivenBy), and the windows suite leaves it.
-  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [35744], drivenBy: "welcome-all" },
+  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [35745], drivenBy: "welcome-all" },
   // Part 368: maintenance requests. New maintenance request, a request's window with Record a response and
   // Send a follow-up, and a site's maintenance contact. The part368 suite drives each on the stub as the API
   // is built at ca4aafa (drivenBy), and the windows suite leaves them.
@@ -295,11 +295,11 @@ const WINDOWS = [
   { id: "recognition/shoutout-post", page: "recognition", title: "Give a shout-out", lines: [12094], drivenBy: "part413" },
   { id: "recognition/shoutout-remove", page: "recognition", title: "Take down this shout-out", lines: [12119], drivenBy: "part413" },
   // Part 413, section 5: the training admin.
-  { id: "hr/course", page: "hr", title: "New course", lines: [33152], drivenBy: "part413" },
-  { id: "hr/course-chapters", page: "hr", title: "Chapters of", lines: [33198], drivenBy: "part413" },
-  { id: "hr/player-preview", page: "hr", title: "Preview", lines: [33370], drivenBy: "part413" },
-  { id: "hr/reset-everyone", page: "hr", title: "Reset everyone's tries", lines: [33633], drivenBy: "part413" },
-  { id: "settings/certificate-signer", page: "settings", title: "Change the signer", lines: [33729], drivenBy: "part413" },
+  { id: "hr/course", page: "hr", title: "New course", lines: [33153], drivenBy: "part413" },
+  { id: "hr/course-chapters", page: "hr", title: "Chapters of", lines: [33199], drivenBy: "part413" },
+  { id: "hr/player-preview", page: "hr", title: "Preview", lines: [33371], drivenBy: "part413" },
+  { id: "hr/reset-everyone", page: "hr", title: "Reset everyone's tries", lines: [33634], drivenBy: "part413" },
+  { id: "settings/certificate-signer", page: "settings", title: "Change the signer", lines: [33730], drivenBy: "part413" },
 ];
 
 // ---------------------------------------------------------------------------

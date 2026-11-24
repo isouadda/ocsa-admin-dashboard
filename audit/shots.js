@@ -60,6 +60,25 @@ const show = async (c, sel) => { await c.page.locator(sel).first().scrollIntoVie
 // A drawn signature in the box, the way the audit's driver draws one.
 const sign = async (c) => { await c.d.drawSignature(); };
 // A topic's lesson editor: the draft already open, or a new one from the live lesson.
+// Part 413: the spill topic's player draft, opened when the session made it, else made with one screen and one check.
+const playerDraft = async (c) => {
+  await row(c, "[data-training-catalog] table tbody tr", { en: "Spill response", es: "Respuesta a derrames" });
+  await click(c, '[data-topic-tab="lesson"]'); await until(c, "[data-topic-lesson]");
+  if (await c.page.locator("[data-lesson-open-draft]").count()) await click(c, "[data-lesson-open-draft]");
+  else await click(c, "[data-lesson-new='player']");
+  await until(c, "[data-player-editor]");
+  if (await c.page.locator("[data-player-screen]").count()) return;
+  await click(c, "[data-player-screen-add]");
+  await c.page.locator("[data-lesson-path='screens.0.say.en'] textarea").fill("Wear gloves before you clean a spill.");
+  await c.page.locator("[data-lesson-path='screens.0.say.es'] textarea").fill("P\u00f3ngase guantes antes de limpiar un derrame.");
+  await click(c, "[data-player-check-add]");
+  await c.page.locator("[data-lesson-path='checks.0.prompt.en'] input").fill("What do you put on first?");
+  await c.page.locator("[data-lesson-path='checks.0.options.0.text.en'] input").fill("Gloves");
+  await c.page.locator("[data-lesson-path='checks.0.options.1.text.en'] input").fill("A hat");
+  await c.page.locator("[data-player-correct='0:0']").check();
+  await c.page.locator("[data-lesson-path='acknowledgement.en'] textarea").fill("I watched the lesson and answered its questions.");
+  await click(c, "[data-player-save]"); await wait(600);
+};
 const openLesson = async (c, topic) => {
   await row(c, "[data-training-catalog] table tbody tr", topic);
   await click(c, '[data-topic-tab="lesson"]');
@@ -77,6 +96,9 @@ const HELP_ANSWER = {
 const HELP_QUESTION = { en: "How do I print the evidence pack?", es: "\u00bfC\u00f3mo imprimo el paquete de evidencias?" };
 // The shell is up once the side panel's items are drawn, and a window is the one at z-index 500.
 const SHELL = "[data-nav-item]";
+// Part 413: the API's Rounds 17 to 21 as audit/part413-stub.js answers them under the scene round21, for a picture of a
+// screen that shows what they added; more names other scenes of the same stub, set and cleared with it.
+const r21 = (more) => (stubs, on) => stubs.setScene413(Object.assign({ round21: on }, on ? (more || {}) : Object.keys(more || {}).reduce((o, k) => Object.assign(o, { [k]: Array.isArray(more[k]) ? [] : null }), {})));
 // A browser that can take alerts on this computer, answered by the page itself, the way audit/smoke.js
 // answers it: nothing is subscribed until Turn on alerts on this computer is pressed (Step 333).
 const fakePush = async (c) => {
@@ -443,7 +465,7 @@ const SHOTS = [
   { name: "notifications-panel", entry: "See your notifications",
     open: "overview", ready: SHELL,
     act: async (c) => { await click(c, 'button[title="' + c.say("Notifications") + '"]'); await until(c, "div[role=dialog]"); } },
-  { name: "settings-who-gets-told", entry: "Change who gets told about reports and requests",
+  { name: "settings-who-gets-told", entry: "Change who gets told about reports and requests", arm: r21(),
     open: "settings", ready: SHELL,
     act: async (c) => {
       await press(c, "Who gets told");
@@ -677,7 +699,7 @@ const SHOTS = [
       await blur(c);
       await show(c, "[data-schedule-walk-line]");
     } },
-  { name: "inspections-new-template", entry: "Create an inspection template",
+  { name: "inspections-new-template", entry: "Create an inspection template", arm: r21(),
     open: "inspections", ready: SHELL,
     act: async (c) => {
       await wait(400); await press(c, "New Template"); await until(c, MODAL);
@@ -718,7 +740,7 @@ const SHOTS = [
       // Part 400: the Union site switch under the service lines.
       await inModal(c).locator("[data-site-union-field]").evaluate((el) => el.scrollIntoView({ block: "end" }));
     } },
-  { name: "settings-permissions-person", entry: "Give one person a permission",
+  { name: "settings-permissions-person", entry: "Give one person a permission", arm: r21(),
     open: "settings", ready: SHELL,
     act: async (c) => { await press(c, "Roles and Permissions"); await wait(500); await choose(c, "Tomasz Wisniewski"); await wait(600); } },
   { name: "settings-role-reference", entry: "See what each role can do, or print it",
@@ -731,9 +753,9 @@ const SHOTS = [
   // from its address, and the week marking the time off and the shifts under it (setStep330).
   // Part 400 (the API's Round 15): a vacation filed inside its 2 weeks of notice, with its reason, its mark, its unit and
   // its balance in days with the ADP line (audit/part400-stub.js, newTypes and handbookKinds).
-  { name: "time-off-request", entry: "Approve or deny a time off request", arm: (stubs, on) => stubs.setScene400({ newTypes: on, handbookKinds: on }),
+  { name: "time-off-request", entry: "Approve or deny a time off request", arm: (stubs, on) => { stubs.setScene400({ newTypes: on, handbookKinds: on }); r21()(stubs, on); },
     open: "schedule/timeoff/to-400", ready: '[data-time-off-window="to-400"] [data-time-off-inside-notice-line]' },
-  { name: "schedule-time-off-week", entry: "Approve or deny a time off request",
+  { name: "schedule-time-off-week", entry: "Approve or deny a time off request", arm: r21(),
     open: "schedule", ready: '[data-time-off-chip="to-330"]',
     act: async (c) => { await until(c, '[data-shift-chip="sh-4"][data-shift-time-off="approved"]'); } },
   { name: "time-off-all", entry: "See past time off requests", arm: (stubs, on) => stubs.setScene400({ newTypes: on }),
@@ -1504,18 +1526,18 @@ const SHOTS = [
       await c.page.locator('[data-tell-client-field="prevention"]').fill(isEs ? "El muelle est\u00e1 ahora en la ronda semanal." : "The dock is now on the weekly walk.");
       await top(c, "[data-tell-client-form]", 30);
     } },
-  { name: "training-gaps", entry: "See training gaps by role and site",
+  { name: "training-gaps", entry: "See training gaps by role and site", arm: r21({ outOfTries: [{ userId: "u-staff-7", topicId: "tp-1" }] }),
     open: "training/gaps", ready: "[data-gaps-person]" },
   { name: "training-gaps-missing", entry: "See who has no record of a training",
     open: "training/gaps", ready: "[data-gaps-person]",
     act: async (c) => { await c.page.locator('[data-gaps-filter="status"]').selectOption("missing"); await wait(400); await until(c, "[data-gaps-person]"); } },
-  { name: "training-gaps-person", entry: "See training gaps by role and site",
+  { name: "training-gaps-person", entry: "See training gaps by role and site", arm: r21({ outOfTries: [{ userId: "u-staff-7", topicId: "tp-1" }] }),
     open: "training/gaps", ready: "[data-gaps-person]",
     act: async (c) => { await click(c, "[data-gaps-person]"); await until(c, "[data-person-training] [data-training-item]"); } },
-  { name: "training-lesson-versions", entry: "Write and publish a training lesson",
+  { name: "training-lesson-versions", entry: "Write and publish a training lesson", arm: r21(),
     open: "training/catalog", ready: "[data-training-catalog] table tbody tr",
     act: async (c) => { await row(c, "[data-training-catalog] table tbody tr", TOPIC.spill); await click(c, '[data-topic-tab="lesson"]'); await until(c, "[data-topic-lesson] tbody tr"); } },
-  { name: "training-lesson-editor", entry: "Write and publish a training lesson",
+  { name: "training-lesson-editor", entry: "Write and publish a training lesson", arm: r21(),
     open: "training/catalog", ready: "[data-training-catalog] table tbody tr",
     act: async (c) => { await openLesson(c, TOPIC.spill); } },
   { name: "training-record-print", entry: "Print a training record for an assessor",
@@ -1797,9 +1819,9 @@ const SHOTS = [
   // Part 400: a full-time person's vacation and personal days under the handbook (audit/part400-stub.js, handbookKinds).
   { name: "leave-balances", entry: "See everyone's leave balances", arm: (stubs, on) => stubs.setScene400({ handbookKinds: on }),
     open: "leave", ready: "[data-leave-row]" },
-  { name: "leave-person", entry: "Read a person's leave ledger and adjust a balance",
+  { name: "leave-person", entry: "Read a person's leave ledger and adjust a balance", arm: r21(),
     open: "leave/balances/u-staff-7", ready: '[data-leave-person="u-staff-7"] [data-leave-ledger] tbody tr' },
-  { name: "leave-adjust", entry: "Read a person's leave ledger and adjust a balance",
+  { name: "leave-adjust", entry: "Read a person's leave ledger and adjust a balance", arm: r21(),
     open: "leave/balances/u-staff-6", ready: "[data-leave-adjust-open]",
     act: async (c) => { await click(c, "[data-leave-adjust-open]"); await until(c, "[data-leave-adjust-form]"); await c.page.locator('[data-leave-adjust="hours"]').fill("-2"); await c.page.locator('[data-leave-adjust="reason"]').fill(c.lang === "es" ? "Dos horas usadas antes de que la app llevara los permisos" : "Two hours used before the app kept leave"); await c.page.locator('[data-leave-adjust="effectiveOn"]').fill(seed.shift(-12)); await blur(c); } },
   // Part 400: the handbook policy's window, its rules fixed by the handbook, with who each is for and its caps.
@@ -1822,7 +1844,7 @@ const SHOTS = [
       // Part 372: Check the hours, the dry run, draws what each line would post before anything posts.
       await click(c, "[data-leave-file-check]"); await until(c, "[data-leave-file-would-post]");
     } },
-  { name: "leave-missing", entry: "Find the people with no class or no hire date",
+  { name: "leave-missing", entry: "Find the people with no class or no hire date", arm: r21(),
     open: "leave/missing", ready: "[data-leave-missing]" },
   { name: "leave-starting", entry: "Enter starting balances",
     open: "leave/starting", ready: "[data-leave-start-box]",
@@ -1876,10 +1898,10 @@ const SHOTS = [
   // numbers, a failed run-through's window with its step's error and screenshot, who is told and the lines,
   // and the reports kept.
   // Part 393: the numbers under the uptime monitors (audit/part393-stub.js, the scene uptime), the numbers in view.
-  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin", arm: (stubs, on) => stubs.setScene393({ uptime: on }),
+  { name: "health-numbers", entry: "Read the Health page", as: "superAdmin", arm: (stubs, on) => { stubs.setScene393({ uptime: on }); r21()(stubs, on); },
     open: "health", ready: "[data-health-number='server_errors']",
     act: async (c) => { await until(c, "[data-uptime-monitor]"); await toTop(c, "[data-health-numbers]", 150); } },
-  { name: "health-run", entry: "Read the Health page", as: "superAdmin",
+  { name: "health-run", entry: "Read the Health page", as: "superAdmin", arm: r21(),
     open: "health/runs", ready: "[data-health-run-row]",
     act: async (c) => { await click(c, "[data-health-run-row='00000000-0000-4000-8000-000000000902']"); await until(c, "[data-health-run] [data-health-step-error]"); await wait(400); } },
   { name: "health-reports", entry: "Make a health report", as: "superAdmin",
@@ -2003,6 +2025,76 @@ const SHOTS = [
     } },
   { name: "sites-union-site", entry: "Mark a site as a union site", arm: (stubs, on) => stubs.setScene400({ unionSite: on ? seed.SITES[1].id : [] }),
     open: "sites", ready: "[data-site-union]" },
+  // Part 413 (Round 14): Employee of the Month and shout-outs (audit/part413-stub.js), and the training admin under the
+  // scene round21. Every person, reason and line is the stub's own, invented.
+  { name: "recognition-post", entry: "Post the Employee of the Month", arm: (stubs, on) => stubs.setScene413({ noWall: on }),
+    open: "recognition", ready: "[data-award-post-open]",
+    act: async (c) => {
+      await click(c, "[data-award-post-open]"); await until(c, "[data-award-window='post']");
+      await click(c, "[data-award-window='post'] [data-award-person] [data-person-pick-field]");
+      await click(c, "[data-award-window='post'] [data-person-pick-option='u-staff-7']");
+      await c.page.locator("[data-award-window='post'] [data-award-reason-input]").fill("Covered three extra shifts during the storm and kept every floor ready.");
+      await wait(400);
+    } },
+  { name: "recognition-award", entry: "Post the Employee of the Month", arm: (stubs, on) => stubs.setScene413({ standingAward: on ? { id: "aw-now", userId: "u-staff-6" } : null, translated: on }),
+    open: "recognition", ready: "[data-award='aw-now']" },
+  { name: "recognition-edit", entry: "Change or take down the Employee of the Month", arm: (stubs, on) => stubs.setScene413({ standingAward: on ? { id: "aw-now", userId: "u-staff-6" } : null, translated: on }),
+    open: "recognition", ready: "[data-award='aw-now'] [data-award-edit]",
+    act: async (c) => { await click(c, "[data-award='aw-now'] [data-award-edit]"); await until(c, "[data-window='award-edit']"); await wait(300); } },
+  { name: "recognition-certificate", entry: "Print the Employee of the Month certificate", arm: (stubs, on) => stubs.setScene413({ standingAward: on ? { id: "aw-now", userId: "u-staff-6" } : null, translated: on }),
+    open: "recognition", ready: "[data-award='aw-now'] [data-award-certificate-lang]",
+    act: async (c) => { await show(c, "[data-award='aw-now'] [data-award-certificate-open]"); } },
+  { name: "recognition-wall", entry: "See past winners on the team wall",
+    open: "recognition", ready: "[data-award-wall] [data-award]",
+    act: async (c) => { await toTop(c, "[data-award-wall]", 120); } },
+  { name: "recognition-shoutout-post", entry: "Give a shout-out", as: "supervisor",
+    open: "recognition/shoutouts", ready: "[data-shoutout-post-open]",
+    act: async (c) => {
+      await click(c, "[data-shoutout-post-open]"); await until(c, "[data-shoutout-window='post'] [data-shoutout-person]");
+      await click(c, "[data-shoutout-window='post'] [data-shoutout-person='u-staff-5']");
+      await c.page.locator("[data-shoutout-window='post'] [data-shoutout-line]").fill("Thanks for covering the clinic on Sunday.");
+      await wait(300);
+    } },
+  { name: "recognition-shoutouts", entry: "Give a shout-out",
+    open: "recognition/shoutouts", ready: "[data-shoutouts] [data-shoutout]" },
+  { name: "recognition-shoutout-remove", entry: "Take down a shout-out",
+    open: "recognition/shoutouts", ready: "[data-shoutouts] [data-shoutout-remove]",
+    act: async (c) => { await click(c, "[data-shoutouts] [data-shoutout-remove]"); await until(c, "[data-window='shoutout-remove']"); await c.page.locator("[data-window='shoutout-remove'] [data-shoutout-remove-reason]").fill("Posted twice."); } },
+  { name: "training-courses", entry: "Make a training course and put its chapters in order", arm: r21(),
+    open: "training/courses", ready: "[data-course='cr-1']" },
+  { name: "training-course-chapters", entry: "Make a training course and put its chapters in order", arm: r21(),
+    open: "training/courses", ready: "[data-course-chapters-open='cr-1']",
+    act: async (c) => { await click(c, "[data-course-chapters-open='cr-1']"); await until(c, "[data-window='course-chapters'] [data-course-chapter]"); await wait(300); } },
+  { name: "training-player-editor", entry: "Write a player lesson with screens and checks", arm: r21(),
+    open: "training/catalog", ready: "[data-training-catalog] table tbody tr",
+    act: async (c) => { await playerDraft(c); await toTop(c, "[data-player-screen='0']", 60); } },
+  { name: "training-player-preview", entry: "Write a player lesson with screens and checks", arm: r21(),
+    open: "training/catalog", ready: "[data-training-catalog] table tbody tr",
+    act: async (c) => { await playerDraft(c); await click(c, "[data-player-preview-open]"); await until(c, "[data-window='player-preview'] [data-player-phone]"); await wait(300); } },
+  { name: "training-signed-out", entry: "Choose the chapter new staff watch before they sign in", arm: r21(),
+    open: "training/catalog", ready: "[data-training-catalog] table tbody tr",
+    act: async (c) => { await row(c, "[data-training-catalog] table tbody tr", { en: "Site orientation", es: "Orientaci\u00f3n en el sitio" }); await until(c, "[data-topic-signed-out='on']"); await show(c, "[data-topic-signed-out]"); } },
+  { name: "settings-certificate-signer", entry: "Change who signs the certificates", arm: r21(),
+    open: "settings", ready: "[data-settings-tab='training']",
+    act: async (c) => {
+      await click(c, "[data-settings-tab='training']"); await until(c, "[data-certificate-signer]");
+      await click(c, "[data-signer-change]"); await until(c, "[data-window='certificate-signer']");
+      await c.page.locator("[data-signer-field='name']").fill("Sample Signer");
+      await c.page.locator("[data-course-field='title.en']").fill("Operations Manager");
+      await c.page.locator("[data-course-field='title.es']").fill("Gerente de operaciones");
+      await click(c, "[data-signer-save]"); await until(c, "[data-signer-confirm]");
+      await c.page.locator("[data-signer-confirm]").scrollIntoViewIfNeeded();
+    } },
+  { name: "training-out-of-tries", entry: "Reset a person's tries at a lesson", arm: r21({ outOfTries: [{ userId: "u-staff-7", topicId: "tp-1" }] }),
+    open: "training/gaps", ready: "[data-out-of-tries] [data-out-of-tries-row]" },
+  { name: "training-reset-everyone", entry: "Reset a person's tries at a lesson", arm: r21({ outOfTries: [{ userId: "u-staff-7", topicId: "tp-1" }] }),
+    open: "training/gaps", ready: "[data-reset-everyone-open]",
+    act: async (c) => { await click(c, "[data-reset-everyone-open]"); await until(c, "[data-window='reset-everyone']"); await c.page.locator("[data-reset-everyone-typed]").fill("RESET"); } },
+  { name: "hr-course-certificate", entry: "Open or resend a person's course certificate", arm: r21(),
+    open: "hr/u-staff-7", ready: "[data-certificate-resend='tc-1']",
+    act: async (c) => { await show(c, "[data-certificate-resend='tc-1']"); } },
+  { name: "staff-photo-remove", entry: "Remove a person's profile photo", arm: r21({ photoOn: "u-staff-7" }),
+    open: "staff/u-staff-7", ready: "[data-profile-photo-remove]" },
 ];
 
 
