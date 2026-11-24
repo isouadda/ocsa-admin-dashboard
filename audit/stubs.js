@@ -6218,6 +6218,9 @@ function createStubs() {
   // Part 405 (Round 13): when a read lands and what someone else did meanwhile, in audit/part405-stub.js: an issue's
   // read held back, a client request's route saved by someone else, a second admin in a staff member's thread.
   const part405 = require("./part405-stub")({ seed, clone });
+  // Part 413 (Round 14): the API as built at ocsa-api 06b6d1b (#171) for Employee of the Month, shout-outs, the training
+  // admin and what the API's Rounds 17, 18 and 21 gave the dashboard, in audit/part413-stub.js.
+  const part413 = require("./part413-stub")({ seed, state, clone, person, PNG_BYTES, PDF_BYTES });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7350,7 +7353,11 @@ function createStubs() {
     // added later without it fails the run by name.
     record.locale = asked.length === 1 ? asked[0] : null;
     const signedIn = !!(headers && headers.authorization);
-    if (signedIn && (asked.length !== 1 || LOCALES.indexOf(asked[0]) < 0)) {
+    // Part 413: the Employee of the Month's certificate is drawn in the language its locale names, English, Spanish
+    // or French, and in the winner's own language when it names none (locale= empty); the screen's language still
+    // rides on Accept-Language. That one route may name those four.
+    const ownLocale = /^\/api\/recognition\/awards\/[^/]+\/certificate\.pdf$/.test(path) && asked.length === 1 && ["", "en", "es", "fr"].indexOf(asked[0]) >= 0;
+    if (signedIn && !ownLocale && (asked.length !== 1 || LOCALES.indexOf(asked[0]) < 0)) {
       language.unnamed.push({ method, path, said: asked.length ? asked.join(", ") : null });
       record.status = 400;
       return { status: 400, json: { error: "A signed-in call names its language once, as locale=en or locale=es" } };
@@ -7407,7 +7414,8 @@ function createStubs() {
     const under397 = () => part397.route(method, path, u.searchParams, body, record.language, under393);
     const under400 = () => part400.route(method, path, u.searchParams, body, record.language, under397);
     const under405 = () => part405.route(method, path, u.searchParams, body, record.language, under400);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under405);
+    const under413 = () => part413.route(method, path, u.searchParams, body, record.language, under405);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under413);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7550,6 +7558,11 @@ function createStubs() {
     setScene405: (o) => { part405.setScene(o || {}); },
     release405: () => { part405.release(); },
     held405: () => part405.held(),
+    // Part 413: its scenes, what a run sent it, the certificates asked for, and its model.
+    setScene413: (o) => { part413.setScene(o || {}); },
+    sent413: () => part413.sent(),
+    certificates413: () => part413.certificates(),
+    model413: () => part413.model(),
     sent386: () => part386.sent(),
     model386: () => part386.model(),
     sent379: () => part379.sent(),
@@ -7721,6 +7734,7 @@ function createStubs() {
       part397.reset();
       part400.reset();
       part405.reset();
+      part413.reset();
       pictures372.reset();
     },
     fixtures: {

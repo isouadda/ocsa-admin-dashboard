@@ -425,7 +425,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave", "health"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave", "health", "recognition"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -438,8 +438,8 @@ const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"
 // name yet keeps today's behavior: Cases, HR Records and the employment controls read the API's own
 // answer for those three (capNamed in the shell), never these defaults.
 const CAP_ROLE_DEFAULTS = {
-  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true, file_maintenance_requests: true, manage_leave_balances: true },
-  supervisor: { file_maintenance_requests: true, manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true, file_maintenance_requests: true, manage_leave_balances: true, manage_recognition: true, post_shoutouts: true },
+  supervisor: { file_maintenance_requests: true, manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true, post_shoutouts: true },
   staff: {},
 };
 // The owner's decision 1 (Round 1, Oct 15, 2026): nobody without manage_employment sees a dollar figure,
@@ -1147,6 +1147,9 @@ export default function AdminDashboard() {
     if (id === "library") return libraryOn;
     if (id === "maintenance") return !!maintenance;
     if (id === "leave") return leaveOn;
+    // Employee of the Month (part 413): holders of manage_recognition (admins by role) post the award; holders of
+    // post_shoutouts (admins and supervisors by role) post shout-outs on its Shout-outs tab.
+    if (id === "recognition") return hasCap("manage_recognition") || hasCap("post_shoutouts");
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -1622,6 +1625,7 @@ export default function AdminDashboard() {
   const TkI = p => <Ic d="M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" {...p} />;
   const CkrI = p => <Ic d="M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" {...p} />;
   const HltI = p => <Ic d="M22 12h-4l-3 9L9 3l-3 9H2" {...p} />;
+  const AwdI = p => <Ic d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
@@ -1645,6 +1649,7 @@ export default function AdminDashboard() {
       // it opens the Training area as #hr/training does. Since Step 332 it stays for a supervisor the
       // API answers read_hr_records false, who keeps Training, Sign-offs and Gaps without HR Records.
       { id: "training", l: tr("Training"), i: ClpI },
+      ...(canOpenPage("recognition") ? [{ id: "recognition", l: tr("Employee of the Month"), i: AwdI }] : []),
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
       ...(canOpenPage("cases") ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
@@ -1675,7 +1680,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances"), health: tr("Health") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances"), health: tr("Health"), recognition: tr("Employee of the Month") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1936,6 +1941,7 @@ export default function AdminDashboard() {
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "health" && (canOpenPage("health") ? <HealthPage af={af} t={t} token={token} allStaff={allStaff} route={route} onRoute={replaceRoute} showToast={showToast} /> : capsPending ? <CapsPendingNotice t={t} /> : <HealthRefused t={t} onBack={() => setPage("overview")} />)}
+        {page === "recognition" && (canOpenPage("recognition") ? <RecognitionPage af={af} uf={uf} token={token} t={t} allStaff={allStaff} sites={sites} showToast={showToast} canManage={hasCap("manage_recognition")} canPost={hasCap("post_shoutouts")} route={route} onRoute={replaceRoute} /> : capsPending ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Employee of the Month opens for the people who post it and for those who post shout-outs. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
         {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} token={token} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -2908,10 +2914,19 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // What the timeline, its record window and the printed pages name an action, a kind of record and
   // a field with. Each is the API's own name: one with a word here is drawn as that word, and any
   // other as the name with its underscores as spaces, which is what the page has always drawn.
-  const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
+  const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent"), recognized: tr("named Employee of the Month"), recognition_removed: tr("Employee of the Month taken down") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
   const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
+  // An entry the API writes in English alone, drawn in the screen's language from its own facts (part 413): named
+  // Employee of the Month, and that award taken down, each with the month its metadata names.
+  const plainEntry = (e) => {
+    const m = e && e.metadata && typeof e.metadata.month === "string" ? e.metadata.month : "";
+    if (!e) return "";
+    if (e.actionType === "recognized") return m ? tr("Named Employee of the Month for {0}", monthWordsOf(m)) : tr("Named Employee of the Month");
+    if (e.actionType === "recognition_removed") return m ? tr("Employee of the Month for {0} taken down", monthWordsOf(m)) : tr("Employee of the Month taken down");
+    return "";
+  };
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
   // Any other key the API writes is read as words, and through the table when it has them (Step 196).
   const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
@@ -3508,7 +3523,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
                 <TimelineRow t={t} entryId={entry.id} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{entry.description || actionOf(entry.actionType)}</div>
+                      <div data-timeline-action={entry.actionType || ""} style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{plainEntry(entry) || entry.description || actionOf(entry.actionType)}</div>
                       <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })}{entry.actorName && entry.actorName !== (u.firstName + " " + u.lastName) ? " " + tr("by {0}", entry.actorName) : ""}</div>
                     </div>
                     <div style={{ fontSize: 9, color: dotColor, background: dotColor + "15", padding: "2px 6px", borderRadius: 4, flexShrink: 0, textTransform: "capitalize" }}>{entityOf(entry.entityType)}</div>
@@ -11674,6 +11689,319 @@ function HelpInsightsPage({ af, t, sites = [], getOpts }) {
     {person && <HelpPersonWindow af={af} t={t} person={person} query={query} onClose={() => setPerson(null)} />}
   </div>);
 }
+// ===== EMPLOYEE OF THE MONTH (part 413; the API's Round 19, part 411, and Round 21, part 416) =====
+// The office picks the winner directly: no nominations and no votes. A holder of manage_recognition (admins by
+// role) posts the month's award (POST /api/recognition/awards { userId, month, reason, siteId? }), edits it during
+// its own month (PATCH, 409 recognition.monthClosed after), takes it down with a reason (POST .../remove; the award
+// is kept and its month frees up) and prints its certificate (GET .../certificate.pdf?locale=). Every refusal is
+// drawn in the API's words. The reason is answered in English, Spanish and French (reasonWords), the Spanish and
+// French null until the API's translation lands.
+const AWARD_REASON_MAX = 280;
+const AWARD_LANGS = [{ id: "en", word: "English" }, { id: "es", word: "Spanish" }, { id: "fr", word: "French" }];
+// The company's month today, "YYYY-MM", and the month before one.
+const thisMonthOf = () => todayISO().slice(0, 7);
+const monthBefore = (m) => { const p = String(m || "").split("-").map(Number); if (!p[0] || !p[1]) return ""; const y = p[1] === 1 ? p[0] - 1 : p[0]; const mo = p[1] === 1 ? 12 : p[1] - 1; return y + "-" + String(mo).padStart(2, "0"); };
+// "YYYY-MM" as the screen's language writes a month: March 2026, marzo de 2026.
+const monthWordsOf = (m) => {
+  const parts = String(m || "").split("-").map(Number);
+  if (!parts[0] || !parts[1]) return String(m || "");
+  try { return new Intl.DateTimeFormat(localeTag(), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(parts[0], parts[1] - 1, 1))); } catch (e) { return String(m); }
+};
+// An award's month as its answer names it, else as the screen writes it.
+const awardMonthOf = (a) => (a && a.monthName ? a.monthName : monthWordsOf(a && a.month));
+const awardNameOf = (p) => (p ? [p.firstName, p.lastName].filter(Boolean).join(" ") : "");
+// The reactions staff can give, in the staff app's order. The faces are the staff app's own pictures; the words are
+// the dashboard's.
+const AWARD_REACTIONS = [
+  { key: "clap", face: "\ud83d\udc4f", word: "Applause" },
+  { key: "star", face: "\u2b50", word: "Star" },
+  { key: "heart", face: "\u2764\ufe0f", word: "Heart" },
+  { key: "fire", face: "\ud83d\udd25", word: "Fire" },
+  { key: "muscle", face: "\ud83d\udcaa", word: "Strength" },
+];
+// A person on the award: their photo, or their initials in a gold circle as the staff app draws them.
+function AwardFace({ person, sz = 64, readKey, onStale }) {
+  const p = person || {};
+  const ini = String(p.initials || ((p.firstName || "").charAt(0) + (p.lastName || "").charAt(0)) || "?").toUpperCase();
+  const circle = <div data-award-initials={ini} aria-hidden="true" style={{ width: sz, height: sz, borderRadius: "50%", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_HEAD, fontWeight: 700, fontSize: Math.round(sz * 0.36), letterSpacing: ".5px", flexShrink: 0 }}>{ini}</div>;
+  if (!p.photoUrl) return circle;
+  return <FreshImg data-award-photo="" src={p.photoUrl} readKey={readKey} onStale={onStale} fallback={circle} alt="" style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", border: "2px solid " + GO, flexShrink: 0 }} />;
+}
+// The reason in each language as the API answers it (reasonWords), Translating where a language has not arrived.
+function AwardReasonWords({ t, award, words }) {
+  const w = words || (award && award.reasonWords) || { en: award ? award.reason : "" };
+  return (<div data-award-reason-words="" style={{ display: "grid", gap: 6 }}>
+    {AWARD_LANGS.map(l => <div key={l.id} data-award-reason={l.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13, lineHeight: 1.5 }}>
+      <span style={{ flex: "0 0 64px", fontSize: 11, fontWeight: 600, color: t.textMut }}>{tr(l.word)}</span>
+      {w[l.id] ? <span style={{ color: t.text, overflowWrap: "anywhere", minWidth: 0 }}>{w[l.id]}</span>
+        : <span data-award-translating="" style={{ color: t.textMut, fontStyle: "italic" }}>{tr("Translating")}</span>}
+    </div>)}
+  </div>);
+}
+// How many people reacted, by reaction, and in all. Who reacted is never answered.
+function AwardReactions({ t, reactions }) {
+  const r = reactions || {};
+  const counts = r.counts || {};
+  const total = Number(r.total) || 0;
+  return (<div data-award-reactions={total} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: t.textSec }}>
+    {AWARD_REACTIONS.map(x => <span key={x.key} data-award-reaction={x.key} title={tr(x.word)} aria-label={tr(x.word) + " " + (Number(counts[x.key]) || 0)} style={{ display: "inline-flex", gap: 4, alignItems: "center", padding: "2px 8px", borderRadius: R.pill, background: t.hover }}><span aria-hidden="true">{x.face}</span>{Number(counts[x.key]) || 0}</span>)}
+    <span data-award-reactions-total="" style={{ fontWeight: 600 }}>{trn("{0} reaction|count", total)}</span>
+  </div>);
+}
+// What staff will see: the photo or initials, the name, the month, the reason and the site.
+function AwardPreview({ t, person, month, reason, site }) {
+  return (<div data-award-preview="" style={{ border: "1px solid " + GO, borderRadius: R.md, padding: 16, background: t.goldBg, textAlign: "center" }}>
+    <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>{tr("Employee of the Month")}</div>
+    <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><AwardFace person={person} sz={72} /></div>
+    <div data-award-preview-name="" style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text }}>{awardNameOf(person) || tr("Choose a person")}</div>
+    <div data-award-preview-month="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{monthWordsOf(month)}{site ? " . " + site : ""}</div>
+    <div data-award-preview-reason="" style={{ fontSize: 13, color: t.text, marginTop: 10, lineHeight: 1.5, overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>{reason || <span style={{ color: t.textMut }}>{tr("The reason shows here.")}</span>}</div>
+  </div>);
+}
+// A refusal under the field its keys name, or under the whole window.
+const awardRefusalOf = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: (e && e.code) || "" });
+// A photo for the person: an iPhone's HEIC goes to the API as it is (the API makes it a JPEG); anything else is made
+// smaller here first, as Staff Management's photo is.
+const isHeicFile = (f) => !!f && (/^image\/hei[cf]$/i.test(f.type || "") || /\.(heic|heif)$/i.test(f.name || ""));
+async function uploadPersonPhoto(uf, af, file, userId) {
+  const sendable = isHeicFile(file) ? file : await compressImage(file, 800, 0.85);
+  const up = await uf(sendable, "profile-photos");
+  const photoUrl = (up && (up.url || up.path)) || "";
+  await af("/api/users/profile/photo", { method: "POST", body: { userId, photoUrl } });
+  return (up && up.url) || photoUrl;
+}
+
+// Post this month's winner, or an earlier month for the wall.
+function AwardPostWindow({ af, uf, t, people = [], startMonth = "", onClose, onPosted }) {
+  const thisMonth = thisMonthOf();
+  const [f, setF] = useState({ userId: "", month: startMonth || thisMonth, reason: "", siteId: "" });
+  const [photo, setPhoto] = useState({ busy: false, url: "", said: "" });
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const active = people.filter(p => p && p.role !== "client_contact" && (!p.status || p.status === "active"));
+  const person = active.find(p => String(p.id) === String(f.userId)) || null;
+  const personSites = person && Array.isArray(person.sites) ? person.sites.map(s => ({ id: String(s.siteId != null ? s.siteId : s.id), name: s.siteName || s.name || "" })).filter(s => s.id) : [];
+  const site = personSites.find(s => s.id === f.siteId) || null;
+  const earlier = f.month && f.month < thisMonth;
+  const hasPhoto = !!(photo.url || (person && person.profilePhotoUrl));
+  const face = person ? { firstName: person.firstName, lastName: person.lastName, photoUrl: photo.url || person.profilePhotoUrl || null } : null;
+  const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setRefusal(null); };
+  const pickPerson = (id) => { setF(x => ({ ...x, userId: id, siteId: "" })); setPhoto({ busy: false, url: "", said: "" }); setRefusal(null); };
+  const addPhoto = async (file) => {
+    if (!file || !person) return;
+    if (file.size > 20 * 1024 * 1024) { setPhoto(x => ({ ...x, said: tr("Photo must be under 20MB") })); return; }
+    setPhoto({ busy: true, url: "", said: "" });
+    try { const url = await uploadPersonPhoto(uf, af, file, person.id); setPhoto({ busy: false, url, said: "" }); }
+    catch (e) { setPhoto({ busy: false, url: "", said: e.message || tr("Request failed") }); }
+  };
+  const post = guard(async () => {
+    setRefusal(null);
+    try {
+      const body = { userId: String(f.userId), month: f.month, reason: f.reason.trim() };
+      if (f.siteId) body.siteId = f.siteId;
+      const d = await af("/api/recognition/awards", { method: "POST", body });
+      onPosted(d || {});
+    } catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-award-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["userId", "month", "reason", "siteId"].some(k => refusal.keys.indexOf(k) >= 0);
+  const ready = !!person && !!f.month && f.reason.trim().length > 0 && f.reason.length <= AWARD_REASON_MAX && !photo.busy;
+  return (<Mdl t={t} name="award-post" onClose={() => { if (!busy) onClose(); }} tall><div style={{ padding: 20 }} data-award-window="post">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post this month's winner")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl><PersonPick t={t} aria-label={tr("Person")} data-award-person="" value={f.userId} onChange={e => pickPerson(e.target.value)} options={[{ v: "", l: tr("Choose a person") }].concat(active.map(p => ({ v: String(p.id), l: ((p.firstName || "") + " " + (p.lastName || "")).trim() || p.name || "" })))} />{under("userId")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Month")}</Lbl><Inp t={t} type="month" aria-label={tr("Month")} data-award-month-pick="" value={f.month} max={thisMonth} onChange={e => set("month", e.target.value)} />
+      {earlier && <div data-award-earlier="" style={{ fontSize: 12, color: OR, marginTop: 4, lineHeight: 1.5 }}>{tr("An earlier month goes on the team wall and tells nobody.")}</div>}
+      {under("month")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Reason")}</Lbl><TArea t={t} rows={3} aria-label={tr("Reason")} data-award-reason-input="" value={f.reason} maxLength={AWARD_REASON_MAX} onChange={e => set("reason", e.target.value)} />
+      <div data-award-reason-count={f.reason.length} style={{ fontSize: 11, color: f.reason.length >= AWARD_REASON_MAX ? OR : t.textMut, marginTop: 4, textAlign: "right" }}>{tr("{0} of {1} characters", f.reason.length, AWARD_REASON_MAX)}</div>{under("reason")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-award-site="" value={f.siteId} disabled={!person} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("No site|award") }].concat(personSites.map(s => ({ v: s.id, l: s.name })))} />
+      {person && personSites.length === 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("This person has no active site.")}</div>}{under("siteId")}</div>
+    {person && <div data-award-photo-panel="" style={{ marginBottom: 14, padding: 12, border: "1px solid " + t.border, borderRadius: R.md }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <AwardFace person={face} sz={48} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{hasPhoto ? tr("Profile photo") : tr("No photo yet")}</div>
+          {!hasPhoto && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, lineHeight: 1.5 }}>{tr("It becomes their profile photo. Have their okay first.")}</div>}
+        </div>
+      </div>
+      {!hasPhoto && <div style={{ marginTop: 10 }}>
+        <label style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, cursor: photo.busy ? "default" : "pointer" }}>
+          {photo.busy ? tr("Uploading...") : tr("Add a photo")}
+          <input type="file" data-award-photo-file="" aria-label={tr("Add a photo")} accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif" disabled={photo.busy} onChange={e => { const fl = e.target.files && e.target.files[0]; e.target.value = ""; addPhoto(fl); }} style={{ display: "none" }} />
+        </label>
+      </div>}
+      {photo.url && <div data-award-photo-added="" style={{ fontSize: 12, color: GR, marginTop: 6 }}>{tr("Photo added to their profile.")}</div>}
+      {photo.said && <div role="alert" data-award-photo-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{photo.said}</div>}
+    </div>}
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("What staff will see")}</Lbl><AwardPreview t={t} person={face} month={f.month} reason={f.reason.trim()} site={site ? site.name : ""} /></div>
+    {loose && <div role="alert" data-award-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-award-post="" disabled={!ready || busy} onClick={post}>{busy ? tr("Posting...") : tr("Post")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// Change the reason, the site, or the office's own Spanish or French, during the award's own month.
+function AwardEditWindow({ af, t, award, people = [], onClose, onSaved }) {
+  const w = award.reasonWords || {};
+  const person = people.find(p => String(p.id) === String(award.person && award.person.id)) || null;
+  const personSites = person && Array.isArray(person.sites) ? person.sites.map(s => ({ id: String(s.siteId != null ? s.siteId : s.id), name: s.siteName || s.name || "" })).filter(s => s.id) : [];
+  const siteNow = award.site ? String(award.site.id) : "";
+  const choices = personSites.some(s => s.id === siteNow) || !siteNow ? personSites : personSites.concat([{ id: siteNow, name: award.site.name || "" }]);
+  const [f, setF] = useState({ reason: w.en || award.reason || "", siteId: siteNow, es: w.es || "", fr: w.fr || "" });
+  // A language given back to the translation is sent as null.
+  const [back, setBack] = useState({ es: false, fr: false });
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setRefusal(null); };
+  const save = guard(async () => {
+    setRefusal(null);
+    const body = {};
+    if (f.reason.trim() !== String(w.en || award.reason || "")) body.reason = f.reason.trim();
+    if (f.siteId !== siteNow) body.siteId = f.siteId || null;
+    if (back.es) body.reasonEs = null; else if (f.es.trim() !== String(w.es || "")) body.reasonEs = f.es.trim();
+    if (back.fr) body.reasonFr = null; else if (f.fr.trim() !== String(w.fr || "")) body.reasonFr = f.fr.trim();
+    if (!Object.keys(body).length) { onClose(); return; }
+    try { const d = await af("/api/recognition/awards/" + encodeURIComponent(award.id), { method: "PATCH", body }); onSaved(d && d.award); }
+    catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-award-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["reason", "siteId", "reasonEs", "reasonFr"].some(k => refusal.keys.indexOf(k) >= 0);
+  const langBox = (id, key, label) => <div style={{ marginBottom: 12 }}><Lbl>{label}</Lbl>
+    {back[id] ? <div data-award-given-back={id} style={{ fontSize: 12, color: t.textSec, padding: "10px 0" }}>{tr("Given back to the translation. It arrives after you save.")}</div>
+      : <TArea t={t} rows={2} aria-label={label} data-award-reason-lang={id} value={f[id]} onChange={e => set(id, e.target.value)} placeholder={tr("Translating")} />}
+    <button data-award-give-back={id} onClick={() => setBack(x => ({ ...x, [id]: !x[id] }))} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{back[id] ? tr("Keep the office's own wording") : tr("Give it back to the translation")}</button>
+    {under(key)}</div>;
+  return (<Mdl t={t} name="award-edit" onClose={() => { if (!busy) onClose(); }} tall><div style={{ padding: 20 }} data-award-window="edit">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit the Employee of the Month")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("{0}, {1}. Changes can be made during the award's own month. Nobody is told again.", awardNameOf(award.person), awardMonthOf(award))}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Reason")}</Lbl><TArea t={t} rows={3} aria-label={tr("Reason")} data-award-reason-input="" value={f.reason} maxLength={AWARD_REASON_MAX} onChange={e => set("reason", e.target.value)} />
+      <div data-award-reason-count={f.reason.length} style={{ fontSize: 11, color: t.textMut, marginTop: 4, textAlign: "right" }}>{tr("{0} of {1} characters", f.reason.length, AWARD_REASON_MAX)}</div>{under("reason")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-award-site="" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("No site|award") }].concat(choices.map(s => ({ v: s.id, l: s.name })))} />{under("siteId")}</div>
+    {langBox("es", "reasonEs", tr("Spanish"))}
+    {langBox("fr", "reasonFr", tr("French"))}
+    {loose && <div role="alert" data-award-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-award-save="" disabled={busy || !f.reason.trim()} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// Take the award down, with a reason. The award is kept, and its month takes a new award.
+function AwardRemoveWindow({ af, t, award, onClose, onRemoved }) {
+  const [reason, setReason] = useState("");
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const go = guard(async () => {
+    setRefusal(null);
+    try { const d = await af("/api/recognition/awards/" + encodeURIComponent(award.id) + "/remove", { method: "POST", body: { reason: reason.trim() } }); onRemoved((d && d.award) || null); }
+    catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  return (<Mdl t={t} name="award-remove" onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-award-window="remove">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Take down the Employee of the Month")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("{0}, {1}. The award is kept on record and leaves what staff see. The month is free for another award.", awardNameOf(award.person), awardMonthOf(award))}</div>
+    <Lbl>{tr("Why it is taken down")}</Lbl>
+    <TArea t={t} rows={3} aria-label={tr("Why it is taken down")} data-award-remove-reason="" value={reason} maxLength={AWARD_REASON_MAX} onChange={e => { setReason(e.target.value); setRefusal(null); }} />
+    {refusal && <div role="alert" data-award-refusal={refusal.keys.join(",")} style={{ fontSize: 12, color: RD, marginTop: 6, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-award-remove-go="" disabled={busy || !reason.trim()} onClick={go}>{busy ? tr("Saving...") : tr("Take it down")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The certificate, opened to print in the language chosen. With no language chosen the call carries locale= empty,
+// since every other call carries the screen's language, and the API draws it in the winner's own language.
+function AwardCertificate({ t, token, award, showToast }) {
+  const [lang, setLang] = useState("");
+  const [busy, setBusy] = useState(false);
+  const open = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const f = await apiDownload("/api/recognition/awards/" + encodeURIComponent(award.id) + "/certificate.pdf?locale=" + encodeURIComponent(lang), token, "employee-of-the-month-" + award.month + ".pdf");
+      showFileBlob(f.blob, f.filename);
+    } catch (e) { if (showToast) showToast(e.message, "error"); }
+    setBusy(false);
+  };
+  return (<div data-award-certificate="" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ minWidth: 190 }}><Sel t={t} aria-label={tr("Certificate language")} data-award-certificate-lang="" value={lang} onChange={e => setLang(e.target.value)} options={[{ v: "", l: tr("The winner's own language") }].concat(AWARD_LANGS.map(l => ({ v: l.id, l: tr(l.word) })))} /></div>
+    <Btn t={t} v="ghost" data-award-certificate-open="" disabled={busy} onClick={open}>{busy ? tr("Opening...") : tr("Certificate")}</Btn>
+  </div>);
+}
+
+// One award as the office reads it: the face, the name, the month, the site, the reason in each language, the
+// reactions, and what the office can do with it.
+function AwardCard({ t, token, award, canEdit = false, onEdit, onRemove, showToast, onStale, big = false }) {
+  const removed = award && award.removed;
+  return (<Crd t={t} style={{ padding: big ? 20 : 14, opacity: removed ? 0.75 : 1 }}>
+    <div data-award={award.id} data-award-month={award.month} data-award-removed={removed ? "true" : undefined} style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <AwardFace person={award.person} sz={big ? 84 : 56} readKey={"award:" + award.id} onStale={onStale} />
+      <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div data-award-name="" style={{ fontFamily: FONT_HEAD, fontSize: big ? 19 : 15, fontWeight: 600, color: t.text }}>{awardNameOf(award.person)}</div>
+          {award.isTest === true && <Bdg l={tr("TEST")} c={OR} />}
+          {removed && <span data-award-taken-down=""><Bdg l={tr("Taken down")} c={RD} /></span>}
+        </div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[awardMonthOf(award), award.site ? siteShown(award.site) : ""].filter(Boolean).join(" . ")}</div>
+        <div style={{ marginTop: 10 }}><AwardReasonWords t={t} award={award} /></div>
+        {removed && <div data-award-removed-reason="" style={{ fontSize: 12, color: RD, marginTop: 8, lineHeight: 1.5 }}>{tr("Taken down: {0}", removed.reason || "")}</div>}
+        <div style={{ marginTop: 10 }}><AwardReactions t={t} reactions={award.reactions} /></div>
+        {award.postedBy && award.postedBy.name && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Posted by {0}", award.postedBy.name)}</div>}
+      </div>
+    </div>
+    {!removed && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
+      <AwardCertificate t={t} token={token} award={award} showToast={showToast} />
+      {canEdit && <Btn t={t} v="ghost" data-award-edit="" onClick={() => onEdit(award)}>{tr("Edit")}</Btn>}
+      {onRemove && <Btn t={t} v="ghost" data-award-remove="" onClick={() => onRemove(award)} style={{ color: RD }}>{tr("Take down")}</Btn>}
+    </div>}
+    {!removed && !canEdit && onEdit && <div data-award-edit-closed="" style={{ fontSize: 11, color: t.textMut, marginTop: 8 }}>{tr("Editing closes when the award's month ends.")}</div>}
+  </Crd>);
+}
+
+// The page. This month's award, or a clear empty state with Post this month's winner; and once something is posted,
+// how many people were told.
+function RecognitionPage({ af, uf, token, t, allStaff = [], showToast, canManage = false }) {
+  const thisMonth = thisMonthOf();
+  const [cur, setCur] = useState(undefined);
+  const [failed, setFailed] = useState("");
+  const [win, setWin] = useState(null);
+  const [told, setTold] = useState(null);
+  // The award GET /current answers when it is this month's; the first days of a month answer last month's, which
+  // leaves this month empty for the office.
+  const loadCurrent = useCallback(async () => {
+    setFailed("");
+    try { const d = await af("/api/recognition/current"); const a = d && d.award; setCur(a && a.month === thisMonth ? a : null); }
+    catch (e) { setCur(null); setFailed(e.message || tr("Request failed")); }
+  }, [af, thisMonth]);
+  useEffect(() => { if (canManage) loadCurrent(); }, [canManage, loadCurrent]);
+  const posted = (d) => {
+    const a = d && d.award;
+    setWin(null);
+    const n = Number(d && d.told) || 0;
+    setTold({ n, month: a ? a.month : "" });
+    if (a && a.month === thisMonth) setCur(a);
+    showToast(n > 0 ? trn("Sent to {0} people|count", n) : tr("Posted on the team wall. Nobody was told."));
+  };
+  const saved = (a) => { setWin(null); if (a) setCur(a); showToast(tr("Saved")); };
+  const removed = (a) => { setWin(null); setCur(null); setTold(null); showToast(tr("Taken down. The month is free for another award.")); };
+  if (!canManage) return null;
+  return (<div data-recognition-page="">
+    <SecT t={t}>{tr("This month: {0}", monthWordsOf(thisMonth))}</SecT>
+    {told && <div data-award-told={told.n} role="status" style={{ fontSize: 13, color: told.n > 0 ? GR : t.textSec, marginBottom: 12 }}>{told.n > 0 ? trn("Sent to {0} people|count", told.n) : tr("Posted on the team wall for {0}. Nobody was told.", monthWordsOf(told.month))}</div>}
+    {cur === undefined ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={loadCurrent} />
+      : cur ? <AwardCard t={t} token={token} award={cur} big canEdit={cur.month === thisMonth} onEdit={a => setWin({ kind: "edit", award: a })} onRemove={a => setWin({ kind: "remove", award: a })} showToast={showToast} onStale={loadCurrent} />
+      : <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div data-award-empty="" style={{ fontSize: 14, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("Nobody is Employee of the Month for {0} yet.", monthWordsOf(thisMonth))}</div><Btn t={t} data-award-post-open="" onClick={() => setWin({ kind: "post" })}>{tr("Post this month's winner")}</Btn></Crd>}
+    {cur && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-award-post-earlier="" onClick={() => setWin({ kind: "post", month: monthBefore(thisMonth) })}>{tr("Post an earlier month")}</Btn></div>}
+    {win && win.kind === "post" && <AwardPostWindow af={af} uf={uf} t={t} people={allStaff} startMonth={win.month || ""} onClose={() => setWin(null)} onPosted={posted} />}
+    {win && win.kind === "edit" && <AwardEditWindow af={af} t={t} award={win.award} people={allStaff} onClose={() => setWin(null)} onSaved={saved} />}
+    {win && win.kind === "remove" && <AwardRemoveWindow af={af} t={t} award={win.award} onClose={() => setWin(null)} onRemoved={removed} />}
+  </div>);
+}
+
 // ===== WHO GETS TOLD: the people and addresses told about each kind of report =====
 const RECIPIENTS_INTRO = "Choose who hears about each kind of report. People get an email and a notice in the app. Outside addresses get email only. When nobody is set, every admin gets a notice in the app.";
 const HR_CASE_NOTE = "Used by Speak Up. People only, never outside addresses. Nothing uses this until the Speak Up update.";
