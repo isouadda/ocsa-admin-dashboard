@@ -18,6 +18,10 @@
 //   robot       section 4, each item with its own case: Supplies asks no labels as it opens, New message says No one
 //               matches., a test office account reads the test lines, windows and tabs carry hooks, and the list
 //               searches carry data-list-search and filter before paging
+//   training    section 5: courses made with a Title Case note shown gently, a key already used, chapters ordered by
+//               dragging and by Up and Down; a player draft written, its problem at its field, a tap target drawn and
+//               saved, the preview and publish; the setup chapter's switch; the certificate signer; Reset tries for one
+//               person and for everyone; a course certificate in HR Records; and the narration number's list
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -352,7 +356,7 @@ async function shoutoutCases(ctx, lang) {
     await click(d, "[data-shoutout='so-2'] [data-shoutout-remove]");
     await click(d, "[data-shoutout-remove-go]");
     const said = await textOf(d, "[data-shoutout-remove-refusal]");
-    const want = lang === "es" ? "Este reconocimiento ya se retiró." : "This shout-out was already taken down.";
+    const want = lang === "es" ? "Este reconocimiento ya se retir\u00f3." : "This shout-out was already taken down.";
     results.check(KIND, id("a-second-take-down-reads-the-apis-409"), said === want, "drew " + say(said));
   });
 
@@ -469,7 +473,7 @@ async function shapesCases(ctx, lang) {
     const notYet = await attr(d, "[data-health-coverage]", "data-health-coverage");
     await d.page.keyboard.press("Escape").catch(() => {});
     await goHash(d, "health");
-    const wantLabel = lang === "es" ? "Listas de tareas que no cargaron sin señal" : "Task lists that failed to load with no signal";
+    const wantLabel = lang === "es" ? "Listas de tareas que no cargaron sin se\u00f1al" : "Task lists that failed to load with no signal";
     const label = await soon(async () => (await d.page.locator("body").innerText()).indexOf(wantLabel) >= 0, 6000);
     results.check(KIND, id("a-run-reads-its-coverage-and-the-new-numbers-show"), /70/.test(cell) && /446/.test(cell) && count === "2" && apps === 2 && notYet === "2" && label,
       "the list's cell " + say(cell) + " (" + say(count) + " not yet), the window's apps " + apps + " and not yet " + say(notYet) + ", the offline number by its words " + label);
@@ -518,9 +522,9 @@ async function shapesCases(ctx, lang) {
     await until(d, "[data-time-off-window='to-400']", 8000);
     await d.settle(400);
     const line = await textOf(d, "[data-time-off-inside-notice-line]");
-    const want = lang === "es" ? "Se pidió con menos aviso del que pide la política. La oficina lo decide caso por caso." : "Asked with less notice than the policy asks. The office decides it case by case.";
+    const want = lang === "es" ? "Se pidi\u00f3 con menos aviso del que pide la pol\u00edtica. La oficina lo decide caso por caso." : "Asked with less notice than the policy asks. The office decides it case by case.";
     const holiday = await textOf(d, "[data-time-off-holiday]");
-    const wantDay = lang === "es" ? "Día de los Caídos" : "Memorial Day";
+    const wantDay = lang === "es" ? "D\u00eda de los Ca\u00eddos" : "Memorial Day";
     results.check(KIND, id("a-request-reads-the-apis-notice-line-and-its-holiday"), line === want && holiday.indexOf(wantDay) >= 0, "line " + say(line) + ", holiday " + say(holiday));
   });
 
@@ -627,6 +631,296 @@ async function robotCases(ctx, lang) {
   });
 }
 
+// ---- Section 5: the training admin ------------------------------------------------------------------------------
+const PNG_ONE = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+const TOPIC_NAMES = { "tp-1": { en: "Spill response", es: "Respuesta a derrames" }, "tp-2": { en: "Site orientation", es: "Orientaci\u00f3n en el sitio" }, "tp-3": { en: "Ladder use", es: "Uso de escaleras" } };
+const NOTE_TITLE = { en: "Write this name in Title Case: every word starts with a capital letter, except small joining words.", es: "Escriba este nombre con may\u00fasculas iniciales: cada palabra empieza con may\u00fascula, salvo las palabras cortas de enlace." };
+const API5 = {
+  duplicateCourseKey: { en: "Another course already uses this key.", es: "Otro curso ya usa esta clave." },
+  signedOutTaken: { en: "Another topic already opens without signing in. Only one can.", es: "Otro tema ya se abre sin iniciar sesi\u00f3n. Solo uno puede." },
+  targetCount: { en: "Mark 1 to 10 right spots on the picture.", es: "Marque de 1 a 10 lugares correctos en la imagen." },
+  badDetails: { en: "Some details are missing or not valid", es: "Faltan algunos datos o no son v\u00e1lidos" },
+};
+async function openTopic(d, lang, topicId) {
+  await goHash(d, "hr/training/catalog");
+  await until(d, "[data-training-catalog] table tbody tr", 8000);
+  await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: TOPIC_NAMES[topicId][lang] }).first().click().catch(() => {});
+  return until(d, "[data-topic-details]", 6000);
+}
+async function typeIn(d, sel, v) { await d.page.locator(sel).first().fill(v); }
+
+async function trainingCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/training/" + x;
+
+  // 5.1 Courses: the tab lists each course with its chapters in order; a new course whose name is not in Title Case is
+  // saved, its note is drawn beside the name in the API's words and the window stays open; fixing it closes the window.
+  await withDriver(ctx, { name: "courses", lang }, async (d) => {
+    await goHash(d, "hr/training/courses");
+    await until(d, "[data-training-courses='2']", 8000);
+    const listed = await d.page.locator("[data-course]").count();
+    const order = await d.page.locator("[data-course='cr-1'] [data-course-row-chapter]").evaluateAll((els) => els.map((e) => e.getAttribute("data-course-row-chapter")));
+    await click(d, "[data-course-new]");
+    await until(d, "[data-window='course']", 5000);
+    await typeIn(d, "[data-course-field='key']", "safety_basics");
+    await typeIn(d, "[data-course-field='names.en']", "safety basics");
+    await typeIn(d, "[data-course-field='names.es']", "Seguridad B\u00e1sica");
+    const mark = d.mark();
+    await click(d, "[data-course-save]");
+    await until(d, "[data-course-note='names.en']", 5000);
+    const post = writes(d, mark, "POST", /^\/api\/training\/courses$/).pop();
+    const note = await textOf(d, "[data-course-note='names.en']");
+    const stillOpen = await has(d, "[data-window='course']");
+    await typeIn(d, "[data-course-field='names.en']", "Safety Basics");
+    const mark2 = d.mark();
+    await click(d, "[data-course-save]");
+    await soon(async () => !(await has(d, "[data-window='course']")), 5000);
+    const patch = writes(d, mark2, "PATCH", /^\/api\/training\/courses\/cr-new-1$/).pop();
+    const closed = !(await has(d, "[data-window='course']"));
+    const after = await d.page.locator("[data-course]").count();
+    results.check(KIND, id("a-course-is-made-and-its-title-case-note-is-shown-gently"), listed === 2 && say(order) === say(["tp-2", "tp-1"]) && !!post && post.status === 201 && post.body && post.body.key === "safety_basics" && post.body.audience === "staff" && note === NOTE_TITLE[lang] && stillOpen && !!patch && patch.status === 200 && say(Object.keys(patch.body || {})) === say(["names"]) && closed && after === 3,
+      "listed " + listed + " with chapters " + say(order) + "; the POST " + (post ? post.status + " " + say(post.body) : "never went") + ", its note " + say(note) + ", open " + stillOpen + "; the fix " + (patch ? patch.status + " " + say(patch.body) : "never went") + ", closed " + closed + ", " + after + " course(s)");
+  });
+
+  // 5.2 A key another course uses is refused 409 training.duplicateCourseKey, in the API's words, at the key field.
+  await withDriver(ctx, { name: "course-key", lang }, async (d) => {
+    await goHash(d, "hr/training/courses");
+    await until(d, "[data-course-new]", 8000);
+    await click(d, "[data-course-new]");
+    await typeIn(d, "[data-course-field='key']", "staff_app");
+    await typeIn(d, "[data-course-field='names.en']", "Another Course");
+    await click(d, "[data-course-save]");
+    await until(d, "[data-course-refusal='key']", 5000);
+    const words = await textOf(d, "[data-course-refusal='key']");
+    results.check(KIND, id("a-key-already-used-is-refused-at-the-key-field"), words === API5.duplicateCourseKey[lang] && (await has(d, "[data-window='course']")), "the key field reads " + say(words));
+  });
+
+  // 5.3 Chapters: dragged into place, then moved with Up and Down, one added, and saved as a set in that order; each
+  // chapter's Title Case note is drawn beside it and the window stays open to show them.
+  await withDriver(ctx, { name: "chapters", lang }, async (d) => {
+    await goHash(d, "hr/training/courses");
+    await until(d, "[data-course-chapters-open='cr-1']", 8000);
+    await click(d, "[data-course-chapters-open='cr-1']");
+    await until(d, "[data-window='course-chapters'] [data-course-chapter='tp-1']", 5000);
+    await d.page.locator("[data-course-chapter='tp-1']").dragTo(d.page.locator("[data-course-chapter='tp-2']")).catch(() => {});
+    await d.settle(200);
+    const dragged = await d.page.locator("[data-course-chapter]").evaluateAll((els) => els.map((e) => e.getAttribute("data-course-chapter")));
+    await d.page.locator("[data-course-chapter-pick]").first().selectOption("tp-3");
+    await click(d, "[data-course-chapter-add]");
+    await click(d, "[data-course-chapter-up='tp-3']");
+    await click(d, "[data-course-chapter-down='tp-1']");
+    const keyed = await d.page.locator("[data-course-chapter]").evaluateAll((els) => els.map((e) => e.getAttribute("data-course-chapter")));
+    const mark = d.mark();
+    await click(d, "[data-course-chapters-save]");
+    await until(d, "[data-course-note='topics.0.names.en']", 5000);
+    const put = writes(d, mark, "PUT", /^\/api\/training\/courses\/cr-1\/topics$/).pop();
+    const notes = await d.page.locator("[data-window='course-chapters'] [data-course-note]").count();
+    const note = await textOf(d, "[data-window='course-chapters'] [data-course-note]");
+    await d.closeModal();
+    const listed = await d.page.locator("[data-course='cr-1'] [data-course-row-chapter]").evaluateAll((els) => els.map((e) => e.getAttribute("data-course-row-chapter")));
+    const want = ["tp-3", "tp-1", "tp-2"];
+    results.check(KIND, id("chapters-are-ordered-by-dragging-and-by-up-and-down"), say(dragged) === say(["tp-1", "tp-2"]) && say(keyed) === say(want) && !!put && put.status === 200 && say(put.body && put.body.topicIds) === say(want) && notes >= 3 && note === NOTE_TITLE[lang] && say(listed) === say(want),
+      "dragged " + say(dragged) + ", then " + say(keyed) + "; the PUT " + (put ? put.status + " " + say(put.body) : "never went") + "; " + notes + " note(s), the first " + say(note) + "; the list " + say(listed));
+  });
+
+  // 5.4 A player draft on a safety topic (Spill response): New player draft opens the editor; a screen with a video, a
+  // choice check and a tap check are written; Save sends the content, and the API's problem for a tap check with no
+  // target is drawn at its field; a target drawn by dragging on the picture is saved and the draft has no problem left;
+  // Translate fills the Spanish; Preview plays it in a phone frame; Publish goes.
+  await withDriver(ctx, { name: "player", lang }, async (d) => {
+    await openTopic(d, lang, "tp-1");
+    await click(d, "[data-topic-tab='lesson']");
+    await until(d, "[data-lesson-new='player']", 6000);
+    const mark0 = d.mark();
+    await click(d, "[data-lesson-new='player']");
+    await until(d, "[data-player-editor]", 6000);
+    const made = writes(d, mark0, "POST", /^\/api\/training\/lessons\/tp-1\/draft$/).pop();
+    await click(d, "[data-player-screen-add]");
+    await typeIn(d, "[data-lesson-path='screens.0.say.en'] textarea", "Wear gloves before you clean a spill.");
+    await d.page.locator("[data-player-media-kind='0']").first().selectOption("video");
+    await d.page.locator("[data-player-upload='screen-video-0']").setInputFiles({ name: "gloves.mp4", mimeType: "video/mp4", buffer: Buffer.from("00000020667479706d703432", "hex") });
+    await until(d, "[data-player-screen-video='0']", 5000);
+    const video = await has(d, "[data-player-screen-video='0']");
+    await click(d, "[data-player-check-add]");
+    await typeIn(d, "[data-lesson-path='checks.0.prompt.en'] input", "What do you put on first?");
+    await typeIn(d, "[data-lesson-path='checks.0.options.0.text.en'] input", "Gloves");
+    await typeIn(d, "[data-lesson-path='checks.0.options.1.text.en'] input", "A hat");
+    await d.page.locator("[data-player-correct='0:0']").check();
+    await click(d, "[data-player-check-add]");
+    await d.page.locator("[data-player-check-kind='1']").first().selectOption("tap");
+    await typeIn(d, "[data-lesson-path='checks.1.prompt.en'] input", "Tap the gloves.");
+    await d.page.locator("[data-player-upload='tap-1']").setInputFiles({ name: "gloves.png", mimeType: "image/png", buffer: PNG_ONE });
+    await until(d, "[data-tap-picture]", 5000);
+    await typeIn(d, "[data-lesson-path='acknowledgement.en'] textarea", "I watched the lesson.");
+    const mark1 = d.mark();
+    await click(d, "[data-player-save]");
+    await until(d, "[data-lesson-field-problem='checks.1.targets']", 5000);
+    const save1 = writes(d, mark1, "PATCH", /^\/api\/training\/lesson-drafts\/pl-1$/).pop();
+    const problem = await textOf(d, "[data-lesson-field-problem='checks.1.targets']");
+    await d.page.locator("[data-tap-picture]").first().evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await d.settle(200);
+    const box = await d.page.locator("[data-tap-picture]").first().boundingBox();
+    if (box) {
+      await d.page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.3);
+      await d.page.mouse.down();
+      await d.page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.45, { steps: 6 });
+      await d.page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.7, { steps: 6 });
+      await d.page.mouse.up();
+    }
+    await d.settle(200);
+    const targets = await d.page.locator("[data-tap-target]").count();
+    const mark2 = d.mark();
+    await click(d, "[data-player-save]");
+    await d.settle(400);
+    const save2 = writes(d, mark2, "PATCH", /^\/api\/training\/lesson-drafts\/pl-1$/).pop();
+    const c2 = save2 && save2.body && save2.body.content;
+    const tg = c2 && c2.checks && c2.checks[1] && c2.checks[1].targets && c2.checks[1].targets[0];
+    const targetOk = !!tg && Math.abs(tg.x - 0.2) < 0.05 && Math.abs(tg.y - 0.3) < 0.05 && Math.abs(tg.w - 0.4) < 0.05 && Math.abs(tg.h - 0.4) < 0.05;
+    const shapeOk = !!c2 && c2.screens.length === 1 && c2.screens[0].media.kind === "video" && /^video\//.test(c2.screens[0].media.path) && c2.checks[0].kind === "choice" && c2.checks[0].correct === "a" && c2.checks[0].after === c2.screens[0].key && c2.checks[1].kind === "tap" && /^lessons\//.test((c2.checks[1].image || {}).path || "");
+    const left = await d.page.locator("[data-lesson-problem]").count();
+    const mark4 = d.mark();
+    await click(d, "[data-player-translate]");
+    await d.settle(300);
+    const translated = writes(d, mark4, "POST", /^\/api\/training\/lesson-drafts\/pl-1\/translate$/).pop();
+    const esSay = await d.page.locator("[data-lesson-path='screens.0.say.es'] textarea").first().inputValue().catch(() => "");
+    await click(d, "[data-player-preview-open]");
+    await until(d, "[data-window='player-preview'] [data-player-phone]", 5000);
+    const steps = await attr(d, "[data-player-preview]", "data-player-preview");
+    const first = await attr(d, "[data-player-preview-screen]", "data-player-preview-screen");
+    await click(d, "[data-player-preview-next]");
+    const check = await attr(d, "[data-player-preview-check]", "data-player-preview-check");
+    await click(d, "[data-player-preview-close]");
+    const mark3 = d.mark();
+    await click(d, "[data-player-publish]");
+    await d.settle(400);
+    const pub = writes(d, mark3, "POST", /^\/api\/training\/lesson-drafts\/pl-1\/publish$/).pop();
+    results.check(KIND, id("a-player-draft-is-written-saved-and-shows-its-problem-at-the-field"), !!made && made.body && made.body.kind === "player" && video && !!save1 && save1.status === 200 && problem === API5.targetCount[lang] && shapeOk,
+      "the draft " + (made ? say(made.body) : "never made") + ", video " + video + ", the first save " + (save1 ? save1.status : "never went") + " with the target problem " + say(problem) + ", content " + (shapeOk ? "as written" : say(c2).slice(0, 300)));
+    results.check(KIND, id("a-tap-target-drawn-by-dragging-is-saved"), targets === 1 && targetOk, targets + " target(s) drawn, saved " + say(tg));
+    results.check(KIND, id("the-preview-plays-the-draft-in-a-phone-frame-and-it-publishes"), left === 0 && !!translated && say(translated.body) === say({ overwrite: false }) && esSay === "Wear gloves before you clean a spill. (es)" && steps === "3" && !!c2 && first === c2.screens[0].key && check === c2.checks[0].key && !!pub && pub.status === 200,
+      left + " problem(s) left, Translate " + (translated ? say(translated.body) : "never went") + " gave " + say(esSay) + "; the preview " + say([steps, first, check]) + "; publish " + (pub ? pub.status : "never went"));
+  });
+
+  // 5.5 The setup chapter's switch: a second topic is refused 409 training.signedOutTaken in the API's words, with the
+  // topic that holds it named; switched off there, it switches on here.
+  await withDriver(ctx, { name: "signed-out", lang }, async (d, stubs) => {
+    await openTopic(d, lang, "tp-1");
+    await until(d, "[data-topic-signed-out]", 5000);
+    const before = await attr(d, "[data-topic-signed-out]", "data-topic-signed-out");
+    await click(d, "[data-topic-signed-out-switch]");
+    await until(d, "[data-topic-signed-out-refusal]", 5000);
+    const words = await textOf(d, "[data-topic-signed-out-refusal]");
+    const want = API5.signedOutTaken[lang] + " " + fill(d.say("{0} opens before sign-in now."), TOPIC_NAMES["tp-2"][lang]);
+    await openTopic(d, lang, "tp-2");
+    await until(d, "[data-topic-signed-out='on']", 5000);
+    await click(d, "[data-topic-signed-out-switch]");
+    await until(d, "[data-topic-signed-out='off']", 5000);
+    await openTopic(d, lang, "tp-1");
+    await until(d, "[data-topic-signed-out='off']", 5000);
+    const mark = d.mark();
+    await click(d, "[data-topic-signed-out-switch]");
+    await until(d, "[data-topic-signed-out='on']", 5000);
+    const patch = writes(d, mark, "PATCH", /^\/api\/training\/topics\/tp-1$/).pop();
+    const now = await attr(d, "[data-topic-signed-out]", "data-topic-signed-out");
+    const role = await attr(d, "[data-topic-signed-out-switch]", "role");
+    results.check(KIND, id("the-setup-chapter-switch-names-the-topic-that-holds-it"), before === "off" && words === want && !!patch && say(patch.body) === say({ opensSignedOut: true }) && patch.status === 200 && now === "on" && role === "switch" && stubs.model413().s5.signedOut === "tp-1",
+      "before " + say(before) + ", the refusal " + say(words) + " (want " + say(want) + "), the PATCH " + (patch ? patch.status + " " + say(patch.body) : "never went") + ", now " + say(now));
+  });
+
+  // 5.6 The certificate signer (Settings, Training): asked first with the new name; a missing title refused at its field;
+  // the new signer saved with the signature PNG and shown.
+  await withDriver(ctx, { name: "signer", lang }, async (d) => {
+    await goHash(d, "settings");
+    await until(d, "[data-settings-tab='training']", 8000);
+    await click(d, "[data-settings-tab='training']");
+    await until(d, "[data-signer-none]", 5000);
+    const none = await has(d, "[data-signer-none]");
+    await click(d, "[data-signer-change]");
+    await until(d, "[data-window='certificate-signer']", 5000);
+    await typeIn(d, "[data-signer-field='name']", "Test Signer");
+    await d.page.locator("[data-signer-signature-file]").setInputFiles({ name: "signature.png", mimeType: "image/png", buffer: PNG_ONE });
+    await until(d, "[data-signer-signature-preview]", 4000);
+    await click(d, "[data-signer-save]");
+    await until(d, "[data-signer-confirm]", 4000);
+    const asked = await textOf(d, "[data-signer-confirm]");
+    const mark = d.mark();
+    await click(d, "[data-signer-confirm-go]");
+    await until(d, "[data-signer-refusal='title']", 5000);
+    const refused = await textOf(d, "[data-signer-refusal='title']");
+    const first = writes(d, mark, "PUT", /^\/api\/training\/certificate-signer$/).pop();
+    await typeIn(d, "[data-course-field='title.en']", "Operations Manager");
+    await click(d, "[data-signer-save]");
+    await until(d, "[data-signer-confirm-go]", 4000);
+    const mark2 = d.mark();
+    await click(d, "[data-signer-confirm-go]");
+    await until(d, "[data-signer-name]", 5000);
+    const put = writes(d, mark2, "PUT", /^\/api\/training\/certificate-signer$/).pop();
+    const name = await textOf(d, "[data-signer-name]");
+    const sig = await attr(d, "[data-signer-signature]", "data-signer-signature");
+    results.check(KIND, id("the-signer-window-asks-first-and-refuses-a-missing-title-at-its-field"), none && asked.indexOf(fill(d.say("Make {0} the signer of every certificate from now on?"), "Test Signer")) >= 0 && !!first && first.status === 400 && refused === API5.badDetails[lang],
+      "none at first " + none + ", asked " + say(asked) + ", the first PUT " + (first ? first.status : "never went") + " with " + say(refused));
+    results.check(KIND, id("a-new-signer-is-saved-with-the-signature-and-shown"), !!put && put.status === 200 && put.body && put.body.name === "Test Signer" && put.body.title && put.body.title.en === "Operations Manager" && /^data:image\/png;base64,/.test(put.body.signature || "") && name === "Test Signer" && sig === "on-file",
+      "the PUT " + (put ? put.status + " " + say(Object.assign({}, put.body, { signature: put.body && put.body.signature ? "(png)" : null })) : "never went") + ", the panel " + say([name, sig]));
+  });
+
+  // 5.7 Reset tries: one person's tries at one topic (asked first), then Reset everyone's tries behind RESET typed.
+  await withDriver(ctx, { name: "reset-tries", lang, arm: (s) => s.setScene413({ outOfTries: [{ userId: "u-staff-7", topicId: "tp-1" }, { userId: "u-staff-9", topicId: "tp-3" }] }) }, async (d) => {
+    await goHash(d, "hr/training/gaps");
+    await until(d, "[data-out-of-tries='3']", 8000);
+    const rows = await attr(d, "[data-out-of-tries]", "data-out-of-tries");
+    const mark = d.mark();
+    await click(d, "[data-out-of-tries] [data-reset-tries='u-staff-7:tp-1']");
+    const asked = (await d.confirms()).pop() || "";
+    await until(d, "[data-out-of-tries='2']", 5000);
+    const one = writes(d, mark, "POST", /^\/api\/training\/attempts\/reset-tries$/).pop();
+    const toast = await d.waitToast(5000).then(() => d.toast()).catch(() => null);
+    await click(d, "[data-reset-everyone-open]");
+    await until(d, "[data-window='reset-everyone']", 4000);
+    const outCount = await attr(d, "[data-reset-everyone]", "data-reset-everyone");
+    await typeIn(d, "[data-reset-everyone-typed]", "reset");
+    const lowerHeld = await d.page.locator("[data-reset-everyone-go]").first().isDisabled();
+    await typeIn(d, "[data-reset-everyone-typed]", "RESET");
+    const mark2 = d.mark();
+    await click(d, "[data-reset-everyone-go]");
+    await until(d, "[data-out-of-tries='0']", 5000);
+    const all = writes(d, mark2, "POST", /^\/api\/training\/attempts\/reset-tries$/).pop();
+    results.check(KIND, id("one-person-s-tries-are-reset-after-asking"), rows === "3" && !!one && say(one.body) === say({ userId: "u-staff-7", topicId: "tp-1" }) && one.status === 200 && asked.indexOf(TOPIC_NAMES["tp-1"][lang]) >= 0 && !!toast && toast.indexOf(d.sayCount ? d.sayCount("{0} failed try voided and kept on record.|count", 3) : "3") >= 0,
+      "rows " + say(rows) + ", asked " + say(asked) + ", the POST " + (one ? one.status + " " + say(one.body) : "never went") + ", the toast " + say(toast));
+    results.check(KIND, id("reset-everyone-waits-for-reset-typed"), outCount === "1" && lowerHeld && !!all && say(all.body) === say({ all: true }) && all.status === 200 && (await has(d, "[data-out-of-tries='0']")),
+      "the window counts " + say(outCount) + ", lower case held " + lowerHeld + ", the POST " + (all ? all.status + " " + say(all.body) : "never went"));
+  });
+
+  // 5.8 HR Records: a course certificate opens through the certificates route and is sent again after asking.
+  await withDriver(ctx, { name: "hr-certificate", lang }, async (d) => {
+    await goHash(d, "hr/u-staff-7");
+    await until(d, "[data-certificate-resend='tc-1']", 8000);
+    const label = (await textOf(d, "body")).indexOf(d.say("Course certificates")) >= 0;
+    const mark = d.mark();
+    await d.page.locator("[data-folder-open='ed-cert-1']").first().click().catch(() => {});
+    await d.settle(600);
+    const pdf = reads(d, mark, /^\/api\/training\/certificates\/tc-1\/pdf$/).pop();
+    const mark2 = d.mark();
+    await click(d, "[data-certificate-resend='tc-1']");
+    const asked = (await d.confirms()).pop() || "";
+    const toast = await d.waitToast(5000).then(() => d.toast()).catch(() => null);
+    const resend = writes(d, mark2, "POST", /^\/api\/training\/certificates\/tc-1\/resend$/).pop();
+    results.check(KIND, id("a-course-certificate-opens-and-is-sent-again-from-hr-records"), label && !!pdf && pdf.status === 200 && asked.length > 0 && !!resend && resend.status === 200 && toast === d.say("The certificate was emailed."),
+      "the category " + (label ? "named" : "not named") + ", the PDF " + (pdf ? pdf.status : "never read") + ", asked " + say(asked) + ", the resend " + (resend ? resend.status : "never went") + ", the toast " + say(toast));
+  });
+
+  // 5.9 Health: the lesson screens waiting for their voice, each with its language and length.
+  await withDriver(ctx, { name: "narration", lang, persona: "superAdmin" }, async (d) => {
+    await goHash(d, "health");
+    await until(d, "[data-health-number='narration_waiting']", 8000);
+    await d.page.locator("[data-health-number='narration_waiting']").first().click().catch(() => {});
+    await until(d, "[data-health-list='narration_waiting'] td", 6000);
+    const list = await textOf(d, "[data-health-list='narration_waiting']");
+    const heads = await d.page.locator("[data-health-list='narration_waiting'] th").allInnerTexts();
+    results.check(KIND, id("health-lists-the-lesson-screens-waiting-for-their-voice"), heads.map((x) => x.trim().toLowerCase()).indexOf(d.say("Characters").toLowerCase()) >= 0 && list.indexOf("182") >= 0 && list.indexOf("Espa\u00f1ol") >= 0,
+      "the columns " + say(heads) + ", the list " + say(list.slice(0, 200)));
+  });
+}
+
 async function run(ctx) {
   const only = (process.env.PART413_ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
   const want = (k) => !only.length || only.indexOf(k) >= 0;
@@ -638,6 +932,7 @@ async function run(ctx) {
     if (want("named")) await namedCases(ctx, lang);
     if (want("shapes")) await shapesCases(ctx, lang);
     if (want("robot")) await robotCases(ctx, lang);
+    if (want("training")) await trainingCases(ctx, lang);
   }
 }
 

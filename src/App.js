@@ -23161,6 +23161,10 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     af("/api/settings/support-contact").then(d => { if (alive) setSupportContact(d && typeof d === "object" && !Array.isArray(d) ? d : null); }).catch(e => { if (alive) setSupportContact(null); console.warn("Support contact:", e.message); });
     return () => { alive = false; };
   }, [af]);
+  // Part 413 (the API's Round 20, 6.4): the certificate signer, once GET /api/training/certificate-signer answers, which
+  // it does for admins.
+  const [signerLive, setSignerLive] = useState(false);
+  useEffect(() => { let alive = true; af("/api/training/certificate-signer").then(d => { if (alive) setSignerLive(!!d && Object.prototype.hasOwnProperty.call(d, "signer")); }).catch(() => { if (alive) setSignerLive(false); }); return () => { alive = false; }; }, [af]);
   const [selCat, setSelCat] = useState(null);
   // Each tab is a capability's: Company, Who gets told and Holidays are manage settings, the two lookups
   // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
@@ -23175,6 +23179,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "holidays", label: tr("Holidays"), open: canManageSettings && !!holidays },
     { id: "devices", label: tr("Trusted devices"), open: devicesOn },
     { id: "support", label: tr("App support contact"), open: !!supportContact },
+    { id: "training", label: tr("Training"), open: signerLive },
   ];
   const tabs = TABS.filter(x => x.open);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
@@ -23337,6 +23342,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
 
       {tab === "support" && supportContact && <SupportContactPanel af={af} t={t} showToast={showToast} initial={supportContact} />}
+      {tab === "training" && signerLive && <CertificateSignerPanel af={af} t={t} showToast={showToast} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -23528,13 +23534,15 @@ const HR_CATEGORY_OPTS = [
   { v: "operational", l: "Operational" },
   { v: "safety", l: "Safety / Incident" },
   { v: "disciplinary", l: "Disciplinary" },
+  // Part 413 (the API's Round 20, 6.6): the API files each course certificate here itself; nobody picks it.
+  { v: "training_certificate", l: "Course certificates" },
   { v: "other", l: "Other" },
 ];
 // Step 232: Disciplinary is a folder category once the API's Step 228 holds it, which files the old
 // warning forms there; the shell sets this when the discipline routes answer. Until then the pickers
 // do not offer it, though a document already filed there still reads its word.
 let disciplinaryCategoryLive = false;
-const hrCategoryPickable = (c, current) => c.v !== "disciplinary" || disciplinaryCategoryLive || current === "disciplinary";
+const hrCategoryPickable = (c, current) => (c.v !== "disciplinary" || disciplinaryCategoryLive || current === "disciplinary") && (c.v !== "training_certificate" || current === "training_certificate");
 
 const HR_CATEGORY_LABEL = (v) => (HR_CATEGORY_OPTS.find(c => c.v === v) || { l: v }).l;
 
@@ -23544,6 +23552,7 @@ const hrCategoryColor = (k) => ({
   hr_onboarding: BL,
   hr_ongoing: "#1ABC9C",
   training: GR,
+  training_certificate: GO,
   tax: OR,
   benefits: PU,
   legal: RD,
@@ -29762,6 +29771,9 @@ function FolderFindingFollowUps({ t, list }) {
     </div></Crd>}
   </>);
 }
+// What a certificate's mail did, in plain words.
+const CERTIFICATE_MAIL_WORDS = { sent: "The certificate was emailed.", failed: "The email did not go. Try again later.", no_email: "This person has no working email on file, so nothing was sent." };
+const certificateMailWord = (st) => tr(CERTIFICATE_MAIL_WORDS[st] || "The certificate was emailed.");
 function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, sites = [], focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
@@ -29856,6 +29868,20 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     return <Bdg l={tr("Valid")} c={GR} />;
   };
 
+  // Part 413 (the API's Round 20, 6.6): each course certificate is an employee document of category training_certificate.
+  // With its certificate's id on the item (certificateId, which the API does not send yet), it opens through GET
+  // /api/training/certificates/:id/pdf and is sent again with POST /api/training/certificates/:id/resend, asked first;
+  // without it, it opens as every document does.
+  const certIdOf = (it) => (it && (it.certificateId || (it.certificate && it.certificate.id)) ? String(it.certificateId || it.certificate.id) : "");
+  const openCourseCertificate = async (id) => {
+    try { const f = await apiDownload("/api/training/certificates/" + encodeURIComponent(id) + "/pdf", token, "certificate.pdf"); showFileBlob(f.blob, f.filename); }
+    catch (e) { if (!fileWithheld(e, () => openCourseCertificate(id))) showToast(e.message, "error"); }
+  };
+  const resendCertificate = async (id, title) => {
+    if (!window.confirm(tr("Email {0} to the person again, with the PDF?", title || tr("this certificate")))) return;
+    try { const d = await af("/api/training/certificates/" + encodeURIComponent(id) + "/resend", { method: "POST", body: {} }); showToast(certificateMailWord(d && d.mailStatus)); }
+    catch (e) { showToast(e.message, "error"); }
+  };
   // Step 291: the signed acknowledgment page the API files for a person when they sign a document
   // (STEP289_CONTRACT.md section 1.2), a document of the folder that carries signedPage: { docCode,
   // docVersion, locale, signedAt }. The contract names no key, so signed_page is read too. Its type
@@ -30029,7 +30055,10 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
                     {/* Action buttons */}
                     {it.source === "document" && (
-                      <button onClick={() => viewDoc(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open file")}</button>
+                      <button data-folder-open={it.source_id} onClick={() => (it.category === "training_certificate" && certIdOf(it) ? openCourseCertificate(certIdOf(it)) : viewDoc(it.source_id))} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open file")}</button>
+                    )}
+                    {it.source === "document" && it.category === "training_certificate" && certIdOf(it) && (
+                      <button data-certificate-resend={certIdOf(it)} onClick={() => resendCertificate(certIdOf(it), it.title)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Resend")}</button>
                     )}
                     {it.source === "document" && <WhoOpened af={af} t={t} kind="employee_document" id={it.source_id} name={it.title || ""} />}
                     {it.source === "document" && (
@@ -30802,6 +30831,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const timeLive = useTrainingLive(af, "time");
   // Step 273: the Matrix tab, once GET /api/training/matrix answers, which it does for management.
   const matrixLive = useTrainingLive(af, "matrix");
+  // Part 413: the Courses tab, once GET /api/training/courses/manage answers, which it does for admins.
+  const coursesLive = useTrainingLive(af, "courses");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -31056,7 +31087,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : [], matrixLive ? [{ id: "matrix", l: tr("Matrix|training") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : [], matrixLive ? [{ id: "matrix", l: tr("Matrix|training") }] : [], coursesLive ? [{ id: "courses", l: tr("Courses") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -31171,8 +31202,10 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
+      {tab === "training" && trCur === "courses" && <TrainingCourses af={af} t={t} showToast={showToast} />}
       {signaturesPage && <SecT t={t}>{tr("Waiting for signatures")}</SecT>}
       {tab === "signatures" && signaturesLive && <SignatureRequests af={af} t={t} token={token} sites={sites} showToast={showToast} isAdmin={isAdmin} selfId={selfId} focusId={signaturesRoute && route[1] ? String(route[1]) : ""} onFocusDone={() => { if (onRoute && signaturesRoute && route[1]) onRoute(["signatures"]); }} />}
+      {tab === "training" && trCur === "gaps" && isAdmin && <TrainingOutOfTries af={af} t={t} isAdmin={isAdmin} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -31945,6 +31978,8 @@ const TRAINING_PROBES = {
   // The matrix is the heaviest read the training routes answer, so it is asked the same way, with a
   // format it refuses (management only; a supervisor reads their own sites).
   matrix: ["/api/training/matrix?format=probe", () => false, (e) => !!e && e.status === 400 && e.code === "training.badDetails"],
+  // Part 413, against the API's Round 20 (part 415): the courses the office keeps, which answer admins alone.
+  courses: ["/api/training/courses/manage", (d) => !!(d && Array.isArray(d.courses))],
 };
 const trainingProbes = {};
 // A probe passes on the answer its test accepts, or, for a probe that names one, on the refusal it
@@ -32195,7 +32230,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
         {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} categories={categories} topics={topics} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
-        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} categories={categories} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
+        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} categories={categories} topics={topics} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
         {tp && view === "who" && <TopicWhoNeedsIt af={af} t={t} tp={tp} isAdmin={isAdmin} people={people} onSaved={saved} />}
         {tp && view === "lesson" && versions && <TopicLesson af={af} t={t} token={token} tp={tp} isAdmin={isAdmin} versions={versions} onReload={loadVersions} showToast={showToast} guard={guard} />}
       </div>
@@ -32203,7 +32238,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
   </Mdl>);
 }
 
-function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, showToast }) {
+function TopicDetails({ af, t, tp, isAdmin, categories = null, topics = [], onEdit, onSaved, showToast }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState("");
   const setActive = async (active) => {
@@ -32232,6 +32267,7 @@ function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, 
     {categories && row(tr("Order|topic"), tp.sortOrder != null ? String(tp.sortOrder) : "")}
     {categories && row(tr("Signed off by checklist"), tp.signoffTopicId ? <span data-topic-signoff={tp.signoffTopicId}>{tp.signoffTopicName || String(tp.signoffTopicId)}</span> : tr("None|checklist"))}
     {row(tr("Who it is for"), topicWhoLine(tp) || tr("Nobody yet"))}
+    <TopicSignedOutSwitch af={af} t={t} tp={tp} topics={topics} isAdmin={isAdmin} onSaved={onSaved} />
     {refusal && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
     {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
       <Btn t={t} data-topic-edit="" onClick={onEdit}>{tr("Edit")}</Btn>
@@ -32596,7 +32632,7 @@ function useTrainingItems(af, userId, on = true) {
 // prints one.
 // Since Step 263 an item whose record carries a certificate opens it: certificateOf gives the record's
 // id, onCertificate opens it.
-function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null, certificateByOf: byOf = null }) {
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null, certificateByOf: byOf = null, onResetTries = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
@@ -32608,6 +32644,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
       {certificateOf && whoOpenedOf && certificateOf(it) && whoOpenedOf(certificateOf(it))}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
       {signoffByOf(it) && <div data-item-covered={signoffByOf(it).topicId || ""} style={{ marginTop: 4 }}>{coveredBy(it)}</div>}
+      {onResetTries && gapNeedsSession(it) && <Btn t={t} v="ghost" data-reset-tries={it.topicId} onClick={() => onResetTries(it)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12, marginTop: 6 }}>{tr("Reset tries")}</Btn>}
       {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
         <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
         {a.voidedAt && <Bdg l={tr("Void|status")} c={RD} />}
@@ -32662,7 +32699,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
         {step262 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}><Btn t={t} v="ghost" data-certificate-upload="" onClick={() => setUploading(true)}>{tr("Upload a certificate")}</Btn></div>}
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} certificateByOf={certificateByOfItem} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} onResetTries={isAdmin ? async (it) => { try { const x = await resetTriesOf(af, userId, it.topicId, (p && p.name) || name, it.name); if (x) { showToast(resetTriesSaid(x)); reload(); } } catch (e) { showToast(e.message, "error"); } } : null} certificateOf={certificateOf} onCertificate={openCertificate} certificateByOf={certificateByOfItem} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
       </div>
     </div>
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
@@ -33049,6 +33086,668 @@ const lessonImageWhy = (f) => (!f ? "" : LESSON_IMAGE_TYPES.indexOf(f.type) < 0 
 const LESSON_TYPES = [{ v: "quiz", l: "Quiz" }, { v: "observation", l: "Observation checklist" }];
 const lessonTypeWord = (k) => { const x = LESSON_TYPES.find(o => o.v === (k || "quiz")); return x ? tr(x.l) : String(k || ""); };
 
+// ===== THE TRAINING ADMIN (part 413; the API's Round 20, part 415) =====
+// Admins only, as the API decides (the lesson routes' gate). Course and chapter names are shown in Title Case as they
+// are stored: the dashboard never changes their case. A name that does not read in Title Case is answered as a note
+// (training.note.notTitleCase) and drawn beside the field it names as a gentle note, never as a block.
+const T3 = (x) => ({ en: (x && typeof x.en === "string") ? x.en : "", es: (x && typeof x.es === "string") ? x.es : "", fr: (x && typeof x.fr === "string") ? x.fr : "" });
+const COURSE_AUDIENCES = [{ v: "staff", l: "Staff|audience" }, { v: "office", l: "Office|audience" }];
+const courseAudienceWord = (a) => { const x = COURSE_AUDIENCES.find(o => o.v === a); return x ? tr(x.l) : String(a || ""); };
+const COURSE_CHAPTERS_MAX = 40;
+// The notes the API answers by path, { path: [note] }, each in the screen's language.
+const notesByPath = (notes) => { const m = {}; (Array.isArray(notes) ? notes : []).forEach(n => { if (n && n.path) (m[lessonPathOf(n.path)] = m[lessonPathOf(n.path)] || []).push(n); }); return m; };
+const GentleNotes = ({ t, notes, path }) => ((notes[path] || []).length ? <div data-course-note={path} style={{ fontSize: 11, color: t.goldText, marginTop: 4, lineHeight: 1.4 }}>{notes[path].map((n, i) => <div key={i}>{lessonProblemText(n)}</div>)}</div> : null);
+// Three texts side by side in the course window, each with its note.
+function CourseTexts({ t, label, path, value, onChange, notes, multiline = false, refused }) {
+  return (<div data-course-path={path} style={{ marginBottom: 12 }}>
+    <Lbl>{label}</Lbl>
+    {LESSON_LANGS.map(l => <div key={l.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
+      <span style={{ flex: "0 0 64px", fontSize: 11, color: l.id === "en" ? t.text : t.textMut, fontWeight: l.id === "en" ? 600 : 400, paddingTop: 13 }}>{tr(l.word)}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {multiline ? <TArea t={t} rows={2} aria-label={label + ", " + tr(l.word)} data-course-field={path + "." + l.id} value={value[l.id]} onChange={e => onChange({ ...value, [l.id]: e.target.value })} />
+          : <Inp t={t} aria-label={label + ", " + tr(l.word)} data-course-field={path + "." + l.id} value={value[l.id]} onChange={e => onChange({ ...value, [l.id]: e.target.value })} />}
+        <GentleNotes t={t} notes={notes} path={path + "." + l.id} />
+      </div>
+    </div>)}
+    {refused}
+  </div>);
+}
+// New course, or edit one: the key (new only), names and summary in the three languages, audience, certificate,
+// promoted, sort order and, on an edit, active. 409 training.duplicateCourseKey and 400 training.badDetails keys are
+// drawn at their fields; the answer's notes beside the names they name, and the window stays open to show them.
+function CourseWindow({ af, t, course = null, onClose, onSaved }) {
+  const isNew = !course;
+  const [cur, setCur] = useState(course);
+  const [f, setF] = useState(() => ({ key: course ? course.key : "", names: T3(course && course.names), summary: T3(course && course.summary), audience: course ? course.audience : "staff", certificate: !!(course && course.certificate), promoted: !!(course && course.promoted), sortOrder: course && course.sortOrder != null ? String(course.sortOrder) : "100", active: course ? course.active !== false : true }));
+  const [refusal, setRefusal] = useState(null);
+  const [savedOnce, setSavedOnce] = useState(false);
+  const [guard, busy] = useBusyGuard();
+  const notes = notesByPath(cur && cur.notes);
+  const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setRefusal(null); };
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const save = guard(async () => {
+    setRefusal(null);
+    const order = Number(String(f.sortOrder).trim());
+    try {
+      let d;
+      if (isNew && !cur) d = await af("/api/training/courses", { method: "POST", body: { key: f.key.trim(), names: f.names, summary: f.summary, audience: f.audience, certificate: f.certificate, promoted: f.promoted, sortOrder: order } });
+      else {
+        const body = {};
+        if (!same(f.names, T3(cur.names))) body.names = f.names;
+        if (!same(f.summary, T3(cur.summary))) body.summary = f.summary;
+        if (f.audience !== cur.audience) body.audience = f.audience;
+        if (f.certificate !== !!cur.certificate) body.certificate = f.certificate;
+        if (f.promoted !== !!cur.promoted) body.promoted = f.promoted;
+        if (order !== Number(cur.sortOrder)) body.sortOrder = order;
+        if (f.active !== (cur.active !== false)) body.active = f.active;
+        if (!Object.keys(body).length) { onClose(); return; }
+        d = await af("/api/training/courses/" + encodeURIComponent(cur.id), { method: "PATCH", body });
+      }
+      const c = d && d.course;
+      if (c) { setCur(c); setSavedOnce(true); onSaved(c); if (!(Array.isArray(c.notes) && c.notes.length)) onClose(); }
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), keys: trainingKeysOf(e), code: (e && e.code) || "" }); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-course-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["key", "names", "summary", "audience", "certificate", "promoted", "sortOrder", "active"].some(k => refusal.keys.indexOf(k) >= 0);
+  return (<Mdl name="course" t={t} tall onClose={() => { if (!busy) onClose(); }}><div data-course-window={cur ? cur.id : "new"} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isNew && !cur ? tr("New course") : tr("Edit course")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {isNew && !cur ? <div style={{ marginBottom: 12 }}><Lbl>{tr("Key|course")}</Lbl><Inp t={t} aria-label={tr("Key|course")} data-course-field="key" value={f.key} onChange={e => set("key", e.target.value)} placeholder="staff_app" />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Lowercase letters, digits and _, starting with a letter. It cannot change later.")}</div>{under("key")}</div>
+      : <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Key: {0}", cur.key)}</div>}
+    <CourseTexts t={t} label={tr("Name")} path="names" value={f.names} onChange={v => set("names", v)} notes={notes} refused={under("names")} />
+    <CourseTexts t={t} label={tr("Summary")} path="summary" value={f.summary} onChange={v => set("summary", v)} notes={notes} multiline refused={under("summary")} />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Who it is for")}</Lbl><Sel t={t} aria-label={tr("Who it is for")} data-course-field="audience" value={f.audience} onChange={e => set("audience", e.target.value)} options={COURSE_AUDIENCES.map(o => ({ v: o.v, l: tr(o.l) }))} />{under("audience")}</div>
+      <div><Lbl>{tr("Order|course")}</Lbl><Inp t={t} type="number" min={0} max={10000} aria-label={tr("Order|course")} data-course-field="sortOrder" value={f.sortOrder} onChange={e => set("sortOrder", e.target.value)} />{under("sortOrder")}</div>
+    </div>
+    <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, fontSize: 13, color: t.text }}><input type="checkbox" data-course-field="certificate" checked={f.certificate} onChange={e => set("certificate", e.target.checked)} />{tr("Gives a certificate when every chapter is done")}</label>
+    <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, fontSize: 13, color: t.text }}><input type="checkbox" data-course-field="promoted" checked={f.promoted} onChange={e => set("promoted", e.target.checked)} />{tr("Promoted to current staff")}</label>
+    {!(isNew && !cur) && <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, fontSize: 13, color: t.text }}><input type="checkbox" data-course-field="active" checked={f.active} onChange={e => set("active", e.target.checked)} />{tr("Active|course")}</label>}
+    {loose && <div role="alert" data-course-refusal="" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal.text}</div>}
+    {savedOnce && <div data-course-saved="" role="status" style={{ fontSize: 12, color: GR, marginTop: 10 }}>{tr("Saved. The notes beside a name are suggestions; nothing is refused for them.")}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{savedOnce ? tr("Close") : tr("Cancel")}</Btn>
+      <Btn t={t} data-course-save="" disabled={busy || !f.names.en.trim() || (isNew && !cur && !f.key.trim())} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// A course's chapters: pick topics and put them in order, by dragging or by Up and Down for a keyboard, 40 at most,
+// replaced as a set (PUT /api/training/courses/:id/topics { topicIds }).
+function CourseChaptersWindow({ af, t, course, topics = [], onClose, onSaved }) {
+  const [cur, setCur] = useState(course);
+  const [ids, setIds] = useState(() => (course.topics || []).map(x => String(x.topicId)));
+  const [pick, setPick] = useState("");
+  const [drag, setDrag] = useState(-1);
+  const [refusal, setRefusal] = useState(null);
+  const [savedOnce, setSavedOnce] = useState(false);
+  const [guard, busy] = useBusyGuard();
+  const notes = notesByPath(cur && cur.notes);
+  const nameOf = (id) => { const own = (cur.topics || []).find(x => String(x.topicId) === id); if (own && own.name) return own.name; const tp = topics.find(x => String(x.id) === id); return tp ? tp.name : id; };
+  const move = (i, j) => { if (j < 0 || j >= ids.length || i === j) return; const a = ids.slice(); const [x] = a.splice(i, 1); a.splice(j, 0, x); setIds(a); setRefusal(null); };
+  const add = () => { if (!pick || ids.indexOf(pick) >= 0 || ids.length >= COURSE_CHAPTERS_MAX) return; setIds(ids.concat([pick])); setPick(""); setRefusal(null); };
+  const save = guard(async () => {
+    setRefusal(null);
+    try {
+      const d = await af("/api/training/courses/" + encodeURIComponent(cur.id) + "/topics", { method: "PUT", body: { topicIds: ids } });
+      const c = d && d.course;
+      if (c) { setCur(c); setIds((c.topics || []).map(x => String(x.topicId))); setSavedOnce(true); onSaved(c); if (!(Array.isArray(c.notes) && c.notes.some(n => /^topics/.test(String(n.path))))) onClose(); }
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), keys: trainingKeysOf(e) }); }
+  });
+  const offered = topics.filter(x => x && x.active !== false && ids.indexOf(String(x.id)) < 0);
+  const small = { minWidth: 44, minHeight: 44, background: "none", border: "1px solid " + t.border, borderRadius: R.sm, color: t.text, cursor: "pointer", fontSize: 14 };
+  return (<Mdl name="course-chapters" t={t} tall onClose={() => { if (!busy) onClose(); }}><div data-course-chapters={cur.id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Chapters of {0}", cur.name)}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Drag a chapter to move it, or use Up and Down. A course holds {0} chapters at most.", COURSE_CHAPTERS_MAX)}</div>
+    <div role="list" data-course-chapter-list={ids.length}>
+      {ids.map((id, i) => <div key={id} role="listitem" data-course-chapter={id} draggable onDragStart={() => setDrag(i)} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (drag >= 0) move(drag, i); setDrag(-1); }}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 6, border: "1px solid " + (drag === i ? GO : t.border), borderRadius: R.sm, background: t.card, cursor: "grab" }}>
+        <span style={{ flex: "0 0 28px", fontSize: 12, color: t.textMut, textAlign: "right" }}>{i + 1}.</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: t.text, overflowWrap: "anywhere" }}>{nameOf(id)}</div>
+          {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"topics." + i + ".names." + l} />)}
+          {refusal && refusal.keys.indexOf("topicIds[" + i + "]") >= 0 && <div role="alert" style={{ fontSize: 12, color: RD }}>{refusal.text}</div>}
+        </div>
+        <button aria-label={tr("Move {0} up", nameOf(id))} data-course-chapter-up={id} disabled={i === 0} onClick={() => move(i, i - 1)} style={small}>&uarr;</button>
+        <button aria-label={tr("Move {0} down", nameOf(id))} data-course-chapter-down={id} disabled={i === ids.length - 1} onClick={() => move(i, i + 1)} style={small}>&darr;</button>
+        <button aria-label={tr("Take {0} out of the course", nameOf(id))} data-course-chapter-remove={id} onClick={() => { setIds(ids.filter(x => x !== id)); setRefusal(null); }} style={{ ...small, color: RD }}>&times;</button>
+      </div>)}
+      {ids.length === 0 && <div style={{ fontSize: 13, color: t.textMut, padding: "8px 0" }}>{tr("No chapters yet.")}</div>}
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+      <div style={{ flex: "1 1 240px", minWidth: 0 }}><Sel t={t} aria-label={tr("Add a chapter")} data-course-chapter-pick="" value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Add a chapter") }].concat(offered.map(x => ({ v: String(x.id), l: x.name })))} /></div>
+      <Btn t={t} v="ghost" data-course-chapter-add="" disabled={!pick || ids.length >= COURSE_CHAPTERS_MAX} onClick={add}>{tr("Add")}</Btn>
+    </div>
+    {refusal && !refusal.keys.some(k => /^topicIds\[/.test(k)) && <div role="alert" data-course-refusal="topicIds" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal.text}</div>}
+    {savedOnce && <div role="status" style={{ fontSize: 12, color: GR, marginTop: 10 }}>{tr("Saved. The notes beside a name are suggestions; nothing is refused for them.")}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{savedOnce ? tr("Close") : tr("Cancel")}</Btn>
+      <Btn t={t} data-course-chapters-save="" disabled={busy} onClick={save}>{busy ? tr("Saving...") : tr("Save the order")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// The Courses tab: every course, active or not, with its audience, whether it gives a certificate, promoted, active
+// and its chapters in order; New course, Edit and Chapters.
+function TrainingCourses({ af, t, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [topics, setTopics] = useState([]);
+  const [win, setWin] = useState(null);
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af("/api/training/courses/manage"); setRows(Array.isArray(d && d.courses) ? d.courses : []); }
+    catch (e) { setRows([]); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { af("/api/training/topics").then(d => setTopics(Array.isArray(d && d.topics) ? d.topics : [])).catch(() => setTopics([])); }, [af]);
+  const saved = (c) => { setRows(have => { const list = have || []; return list.some(x => x.id === c.id) ? list.map(x => (x.id === c.id ? c : x)) : list.concat([c]); }); showToast(tr("Course saved")); };
+  return (<div data-training-courses={rows ? rows.length : ""}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, flex: "1 1 280px" }}>{tr("A course groups and orders trainings, and can give a certificate. It is never a requirement: who must take a training stays on each topic.")}</div>
+      <Btn t={t} data-course-new="" onClick={() => setWin({ kind: "course", course: null })}>{tr("New course")}</Btn>
+    </div>
+    {rows === null ? <div style={{ padding: 20, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : rows.length === 0 ? <div data-courses-empty="" style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No courses yet.")}</div>
+      : <div style={{ display: "grid", gap: 10 }}>{rows.map(c => { const notes = notesByPath(c.notes); return (<Crd key={c.id} t={t} style={{ padding: 14, opacity: c.active === false ? 0.7 : 1 }}><div data-course={c.id}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span data-course-name="" style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{c.name}</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{c.key}</span>
+          <Bdg l={courseAudienceWord(c.audience)} c={BL} />
+          {c.certificate && <Bdg l={tr("Certificate")} c={GO} />}
+          {c.promoted && <Bdg l={tr("Promoted")} c={GR} />}
+          {c.active === false && <Bdg l={tr("Retired")} c={RD} />}
+        </div>
+        {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"names." + l} />)}
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{(c.topics || []).length ? <ol style={{ margin: "4px 0 0 18px", padding: 0 }}>{c.topics.map((x, i) => <li key={x.topicId} data-course-row-chapter={x.topicId} style={{ color: x.active === false ? t.textMut : t.textSec }}>{x.name || x.key}</li>)}</ol> : tr("No chapters yet.")}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <Btn t={t} v="ghost" data-course-edit={c.id} onClick={() => setWin({ kind: "course", course: c })}>{tr("Edit")}</Btn>
+          <Btn t={t} v="ghost" data-course-chapters-open={c.id} onClick={() => setWin({ kind: "chapters", course: c })}>{tr("Chapters")}</Btn>
+        </div>
+      </div></Crd>); })}</div>}
+    {win && win.kind === "course" && <CourseWindow af={af} t={t} course={win.course} onClose={() => setWin(null)} onSaved={saved} />}
+    {win && win.kind === "chapters" && <CourseChaptersWindow af={af} t={t} course={win.course} topics={topics} onClose={() => setWin(null)} onSaved={saved} />}
+  </div>);
+}
+
+// ===== THE PLAYER LESSON EDITOR (part 413; the API's Round 20, section 2) =====
+// A player lesson is short screens a voice reads aloud, each followed by checks answered one at a time. The editor holds
+// the title, the acknowledgement line, the screens (key, what the voice says, an optional caption, and media: a picture,
+// a video with an optional poster and a video per language, or none) and the checks (key, the screen it follows, its kind,
+// the prompt, the screens it replays, and its options or picture choices with alt text and the right answer, or for a tap
+// check its picture with the target boxes drawn on it by dragging). Every text is English, Spanish and French side by side.
+// Save sends PATCH /api/training/lesson-drafts/:id { content }, and each of the answer's problems and notes is drawn at the
+// field its path names. Pictures and videos go up through POST /api/training/lesson-images. Preview plays draft.preview,
+// the screens and checks as a learner reads them, in a phone-size frame.
+const PLAYER_VIDEO_MAX = 25 * 1024 * 1024;
+const PLAYER_VIDEO_TYPES = ["video/mp4", "video/webm"];
+const playerVideoWhy = (f) => (!f ? "" : PLAYER_VIDEO_TYPES.indexOf(f.type) < 0 && !/\.(mp4|webm)$/i.test(f.name || "") ? tr("Choose an MP4 or WebM video.") : f.size > PLAYER_VIDEO_MAX ? tr("The video is over 25 MB.") : "");
+const PLAYER_CHECK_KINDS = [{ v: "choice", l: "Choose an answer" }, { v: "picture", l: "Choose a picture" }, { v: "tap", l: "Tap the picture" }];
+const PLAYER_MEDIA_KINDS = [{ v: "none", l: "None|media" }, { v: "image", l: "Picture" }, { v: "video", l: "Video" }];
+const playerPic = (p) => ({ path: (p && p.path) || null, svg: (p && p.svg) || null });
+const playerScreenOf = (key) => ({ key, say: L3E(), caption: L3E(), media: { kind: "none" } });
+const playerOptionsOf = (kind) => (kind === "picture" ? [{ value: "a", image: playerPic(null), alt: L3E() }, { value: "b", image: playerPic(null), alt: L3E() }] : [{ value: "a", text: L3E() }, { value: "b", text: L3E() }]);
+const playerCheckOf = (key, after) => ({ key, after: after || "", kind: "choice", prompt: L3E(), replay: after ? [after] : [], options: playerOptionsOf("choice"), correct: "", image: playerPic(null), targets: [] });
+function playerContentOf(c) {
+  const x = c && typeof c === "object" ? c : {};
+  return {
+    title: T3(x.title), acknowledgement: T3(x.acknowledgement),
+    screens: (Array.isArray(x.screens) ? x.screens : []).map(sc => ({ key: String(sc.key || ""), say: T3(sc.say), caption: T3(sc.caption), media: sc.media && typeof sc.media === "object" ? { kind: sc.media.kind || "none", path: sc.media.path || null, svg: sc.media.svg || null, poster: sc.media.poster || null, locales: Object.assign({}, sc.media.locales || {}) } : { kind: "none" } })),
+    checks: (Array.isArray(x.checks) ? x.checks : []).map(ck => ({
+      key: String(ck.key || ""), after: String(ck.after || ""), kind: ck.kind || "choice", prompt: T3(ck.prompt), replay: Array.isArray(ck.replay) ? ck.replay.map(String) : [],
+      options: Array.isArray(ck.options) ? ck.options.map(o => (ck.kind === "picture" ? { value: String(o.value || ""), image: playerPic(o.image), alt: T3(o.alt) } : { value: String(o.value || ""), text: T3(o.text) })) : playerOptionsOf(ck.kind || "choice"),
+      correct: ck.correct != null ? String(ck.correct) : "", image: playerPic(ck.image), targets: Array.isArray(ck.targets) ? ck.targets.map(b => ({ x: Number(b.x) || 0, y: Number(b.y) || 0, w: Number(b.w) || 0, h: Number(b.h) || 0 })) : [],
+    })),
+  };
+}
+const picBody = (p) => (p && p.svg ? { svg: p.svg } : p && p.path ? { path: p.path } : {});
+const r4 = (n) => Math.round(Number(n) * 10000) / 10000;
+const mediaBody = (m) => {
+  if (m.kind === "image") return Object.assign({ kind: "image" }, picBody(m));
+  if (m.kind === "video") { const out = { kind: "video", path: m.path || "" }; if (m.poster) out.poster = m.poster; const loc = {}; ["es", "fr"].forEach(l => { if (m.locales && m.locales[l]) loc[l] = m.locales[l]; }); if (Object.keys(loc).length) out.locales = loc; return out; }
+  return { kind: "none" };
+};
+const anyText3 = (x) => !!(x && (x.en || x.es || x.fr));
+function playerBodyOf(c) {
+  const out = { acknowledgement: c.acknowledgement };
+  if (anyText3(c.title)) out.title = c.title;
+  out.screens = c.screens.map(sc => { const s0 = { key: sc.key.trim(), say: sc.say, media: mediaBody(sc.media) }; if (anyText3(sc.caption)) s0.caption = sc.caption; return s0; });
+  out.checks = c.checks.map(ck => {
+    const k = { key: ck.key.trim(), after: ck.after, kind: ck.kind, prompt: ck.prompt, replay: ck.replay };
+    if (ck.kind === "choice") { k.options = ck.options.map(o => ({ value: o.value, text: o.text || L3E() })); k.correct = ck.correct; }
+    if (ck.kind === "picture") { k.options = ck.options.map(o => ({ value: o.value, image: picBody(o.image), alt: o.alt || L3E() })); k.correct = ck.correct; }
+    if (ck.kind === "tap") { k.image = picBody(ck.image); k.targets = ck.targets.map(b => ({ x: r4(b.x), y: r4(b.y), w: r4(b.w), h: r4(b.h) })); }
+    return k;
+  });
+  return out;
+}
+// The target boxes of a tap check, drawn on its picture by dragging, each also set by its numbers for a keyboard.
+function TapTargets({ t, src, targets, onChange, probs, path }) {
+  const boxRef = useRef(null);
+  const [drawing, setDrawing] = useState(null);
+  const at = (e) => { const r = boxRef.current.getBoundingClientRect(); const cx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); const cy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)); return { x: cx, y: cy }; };
+  const down = (e) => { if (!boxRef.current) return; e.preventDefault(); const p = at(e); setDrawing({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }); };
+  const moveTo = (e) => { if (!drawing) return; const p = at(e); setDrawing(d => ({ ...d, x1: p.x, y1: p.y })); };
+  const up = () => {
+    if (!drawing) return;
+    const b = { x: Math.min(drawing.x0, drawing.x1), y: Math.min(drawing.y0, drawing.y1), w: Math.abs(drawing.x1 - drawing.x0), h: Math.abs(drawing.y1 - drawing.y0) };
+    setDrawing(null);
+    if (b.w >= 0.02 && b.h >= 0.02) onChange(targets.concat([b]));
+  };
+  const live = drawing ? { x: Math.min(drawing.x0, drawing.x1), y: Math.min(drawing.y0, drawing.y1), w: Math.abs(drawing.x1 - drawing.x0), h: Math.abs(drawing.y1 - drawing.y0) } : null;
+  const pct = (n) => (Number(n) * 100).toFixed(2) + "%";
+  const setOne = (i, k, v) => { const n = Number(v) / 100; if (!Number.isFinite(n)) return; onChange(targets.map((b, j) => (j === i ? { ...b, [k]: Math.min(1, Math.max(0, n)) } : b))); };
+  return (<div data-tap-targets={targets.length} data-lesson-path={path + ".targets"}>
+    {src ? <div ref={boxRef} data-tap-picture="" onPointerDown={down} onPointerMove={moveTo} onPointerUp={up} onPointerLeave={up} style={{ position: "relative", display: "block", width: "100%", maxWidth: 420, cursor: "crosshair", touchAction: "none", userSelect: "none", border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden", background: "#FFFFFF" }}>
+      <img src={src} alt={tr("The picture to tap")} draggable={false} style={{ display: "block", width: "100%", height: "auto" }} />
+      {targets.map((b, i) => <div key={i} data-tap-target={i} style={{ position: "absolute", left: pct(b.x), top: pct(b.y), width: pct(b.w), height: pct(b.h), border: "2px solid " + GO, background: "rgba(231,176,23,0.18)", pointerEvents: "none" }}><span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: NAVY, background: GO, borderRadius: 4, padding: "0 4px" }}>{i + 1}</span></div>)}
+      {live && <div data-tap-drawing="" style={{ position: "absolute", left: pct(live.x), top: pct(live.y), width: pct(live.w), height: pct(live.h), border: "2px dashed " + GO, pointerEvents: "none" }} />}
+    </div> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Upload the picture first, then drag on it to draw each place that counts as right.")}</div>}
+    {src && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Drag on the picture to draw a target. Each box counts as a right tap.")}</div>}
+    {targets.map((b, i) => <div key={i} data-lesson-path={path + ".targets." + i} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6, fontSize: 12, color: t.textSec }}>
+      <span style={{ fontWeight: 600, color: t.text }}>{tr("Target {0}", i + 1)}</span>
+      {["x", "y", "w", "h"].map(k => <label key={k} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>{tr(k === "x" ? "From left %" : k === "y" ? "From top %" : k === "w" ? "Width %" : "Height %")}<input type="number" min={0} max={100} step={0.5} aria-label={tr("Target {0}", i + 1) + ", " + tr(k === "x" ? "From left %" : k === "y" ? "From top %" : k === "w" ? "Width %" : "Height %")} value={Math.round(Number(b[k]) * 1000) / 10} onChange={e => setOne(i, k, e.target.value)} style={{ width: 70, minHeight: 44, padding: "6px 8px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text }} /></label>)}
+      <button data-tap-target-remove={i} onClick={() => onChange(targets.filter((x, j) => j !== i))} style={{ minHeight: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Remove")}</button>
+      {probs(path + ".targets." + i)}
+    </div>)}
+    {src && <button data-tap-target-add="" onClick={() => onChange(targets.concat([{ x: 0.4, y: 0.4, w: 0.2, h: 0.2 }]))} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, padding: 0, marginTop: 6 }}>{tr("Add a target in the middle")}</button>}
+    {probs(path + ".targets")}
+  </div>);
+}
+// The preview: draft.preview, the screens and each check after the screen it follows, one at a time in a phone-size frame,
+// as an English learner reads them. Nothing is scored here.
+function PlayerPreviewWindow({ t, preview, onClose }) {
+  const steps = useMemo(() => {
+    const p = preview || {};
+    const screens = Array.isArray(p.screens) ? p.screens : [];
+    const checks = Array.isArray(p.checks) ? p.checks : [];
+    const out = [];
+    screens.forEach(sc => { out.push({ kind: "screen", x: sc }); checks.filter(ck => ck.after === sc.key).forEach(ck => out.push({ kind: "check", x: ck })); });
+    checks.filter(ck => !screens.some(sc => sc.key === ck.after)).forEach(ck => out.push({ kind: "check", x: ck }));
+    return out;
+  }, [preview]);
+  const [i, setI] = useState(0);
+  const st = steps[i];
+  return (<Mdl name="player-preview" t={t} tall onClose={onClose}><div data-player-preview={steps.length} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Preview")}</div><button data-player-preview-close="" onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ display: "flex", justifyContent: "center" }}>
+      <div data-player-phone="" style={{ width: 360, maxWidth: "100%", height: 640, maxHeight: "calc(100vh / var(--zoom, 1) - 200px)", border: "10px solid " + NAVY, borderRadius: 28, overflow: "auto", background: "#FFFFFF", color: "#14213D", padding: 14, fontFamily: FONT_BODY }}>
+        {!st ? <div style={{ fontSize: 13, color: "#5B6475" }}>{tr("Nothing to preview yet. Add a screen and save the draft.")}</div>
+          : st.kind === "screen" ? <div data-player-preview-screen={st.x.key}>
+            {st.x.media && st.x.media.kind === "image" && st.x.media.src && <img src={st.x.media.src} alt="" style={{ display: "block", width: "100%", borderRadius: 10, marginBottom: 10 }} />}
+            {st.x.media && st.x.media.kind === "video" && st.x.media.src && <video src={st.x.media.src} poster={st.x.media.poster || undefined} controls playsInline style={{ display: "block", width: "100%", borderRadius: 10, marginBottom: 10 }} />}
+            {st.x.audio && st.x.audio.url && <audio src={st.x.audio.url} controls style={{ width: "100%", marginBottom: 8 }} />}
+            <div style={{ fontSize: 15, lineHeight: 1.5 }}>{st.x.caption || st.x.say}</div>
+          </div>
+          : <div data-player-preview-check={st.x.key}>
+            <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>{st.x.prompt}</div>
+            {st.x.kind === "choice" && (st.x.options || []).map(o => <div key={o.value} style={{ padding: "10px 12px", border: "1px solid #D5D9E0", borderRadius: 10, marginBottom: 8, fontSize: 14 }}>{o.text}</div>)}
+            {st.x.kind === "picture" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{(st.x.options || []).map(o => <img key={o.value} src={o.src || ""} alt={o.alt || ""} style={{ width: "100%", borderRadius: 10, border: "1px solid #D5D9E0" }} />)}</div>}
+            {st.x.kind === "tap" && st.x.image && st.x.image.src && <img src={st.x.image.src} alt="" style={{ display: "block", width: "100%", borderRadius: 10 }} />}
+          </div>}
+      </div>
+    </div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, gap: 10 }}>
+      <Btn t={t} v="ghost" data-player-preview-back="" disabled={i <= 0} onClick={() => setI(i - 1)}>{tr("Back")}</Btn>
+      <span style={{ fontSize: 12, color: t.textMut }}>{steps.length ? tr("{0} of {1}", i + 1, steps.length) : ""}</span>
+      <Btn t={t} v="ghost" data-player-preview-next="" disabled={i >= steps.length - 1} onClick={() => setI(i + 1)}>{tr("Next")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+function PlayerDraftEditor({ af, t, token = "", tp, initial, showToast, guard, onDone }) {
+  const [draft, setDraft] = useState(initial.draft);
+  const [c, setC0] = useState(() => playerContentOf(initial.draft.content));
+  const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
+  const [notes, setNotes] = useState(Array.isArray(initial.notes) ? initial.notes : []);
+  const [preview, setPreview] = useState(initial.draft.preview || null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState(null);
+  const [uploading, setUploading] = useState("");
+  const [upRefusal, setUpRefusal] = useState({});
+  // The links of the pictures and videos this editor knows, by their stored path: from each upload, and from the
+  // preview, whose parts are the content's in order.
+  const [srcs, setSrcs] = useState({});
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    if (guard) guard.current = () => dirtyRef.current;
+    const warn = (e) => { if (dirtyRef.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => { window.removeEventListener("beforeunload", warn); if (guard) guard.current = null; };
+  }, [guard]);
+  const learnFrom = (content, pv) => {
+    const m = {};
+    const p = pv || {};
+    (content.screens || []).forEach((sc, i) => { const ps = (p.screens || [])[i]; if (!ps || !ps.media) return; if (sc.media && sc.media.kind === "image" && sc.media.path && ps.media.src) m[sc.media.path] = ps.media.src; if (sc.media && sc.media.kind === "video") { if (sc.media.path && ps.media.src) m[sc.media.path] = ps.media.src; if (sc.media.poster && ps.media.poster) m[sc.media.poster] = ps.media.poster; } });
+    (content.checks || []).forEach((ck, i) => { const pc = (p.checks || [])[i]; if (!pc) return; if (ck.kind === "tap" && ck.image && ck.image.path && pc.image && pc.image.src) m[ck.image.path] = pc.image.src; if (ck.kind === "picture") (ck.options || []).forEach((o, j) => { const po = (pc.options || [])[j]; if (o.image && o.image.path && po && po.src) m[o.image.path] = po.src; }); });
+    setSrcs(x => ({ ...x, ...m }));
+  };
+  useEffect(() => { learnFrom(playerContentOf(initial.draft.content), initial.draft.preview); }, [initial]);
+  const picSrc = (p) => (p && p.svg ? svgSrcOf(p.svg) : p && p.path ? (srcs[p.path] || "") : "");
+  const edit = (fn) => { setC0(x => fn(x)); setDirty(true); };
+  const setScreen = (i, sc) => edit(x => ({ ...x, screens: x.screens.map((y, j) => (j === i ? sc : y)) }));
+  const setCheck = (i, ck) => edit(x => ({ ...x, checks: x.checks.map((y, j) => (j === i ? ck : y)) }));
+  const move = (list, i, by) => { const a = list.slice(); const j = i + by; if (j < 0 || j >= a.length) return a; const tmp = a[i]; a[i] = a[j]; a[j] = tmp; return a; };
+  const byPath = useMemo(() => { const m = {}; problems.forEach(pr => { const k = lessonPathOf(pr.path); (m[k] = m[k] || []).push(pr); }); return m; }, [problems]);
+  const notesBy = useMemo(() => notesByPath(notes), [notes]);
+  const probs = (path) => (byPath[path] || []).map((pr, i) => <div key={i} role="alert" data-lesson-field-problem={path} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{lessonProblemText(pr)}</div>).concat((notesBy[path] || []).map((n, i) => <div key={"n" + i} data-lesson-field-note={path} style={{ fontSize: 11, color: t.goldText, marginTop: 4 }}>{lessonProblemText(n)}</div>));
+  const after = (d) => {
+    if (d && d.draft) { setDraft(d.draft); setC0(playerContentOf(d.draft.content)); setPreview(d.draft.preview || null); learnFrom(playerContentOf(d.draft.content), d.draft.preview); }
+    if (d && Array.isArray(d.problems)) setProblems(d.problems);
+    if (d && Array.isArray(d.notes)) setNotes(d.notes);
+    setDirty(false);
+  };
+  const saveNow = async () => { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id), { method: "PATCH", body: { content: playerBodyOf(c) } }); after(d); return d; };
+  const fail = (e) => { if (e && e.body && Array.isArray(e.body.problems)) setProblems(e.body.problems); setRefusal(e.message || tr("Request failed")); };
+  const run = async (what, fn) => { setBusy(what); setRefusal(null); try { await fn(); } catch (e) { fail(e); } setBusy(""); };
+  const save = () => run("save", async () => { await saveNow(); showToast(tr("Draft saved")); });
+  const openPreview = () => run("preview", async () => { if (dirty) await saveNow(); setShowPreview(true); });
+  const translate = () => run("translate", async () => { if (dirty) await saveNow(); const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/translate", { method: "POST", body: { overwrite: false } }); after(d); showToast(tr("The empty Spanish and French are filled. Have them checked.")); });
+  const publish = () => run("publish", async () => { if (dirty) await saveNow(); const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/publish", { method: "POST" }); showToast(d && d.version && d.version.version != null ? tr("Published as version {0}", d.version.version) : tr("Published|lesson")); onDone(); });
+  const discard = () => { if (!window.confirm(tr("Discard this draft? It cannot be published once discarded."))) return; run("discard", async () => { await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/discard", { method: "POST" }); setDirty(false); dirtyRef.current = false; showToast(tr("Draft discarded")); onDone(); }); };
+  const back = () => { if (dirty && !window.confirm(tr("Leave without saving your changes?"))) return; onDone(); };
+  // An upload: a picture (JPEG, PNG, WebP or HEIC, 5 MB) or a video (MP4 or WebM, 25 MB), refused here first when it is
+  // neither, else the API's own words (training.badVideo, training.videoTooLarge). want says which it must be.
+  const upload = async (slot, file, want, onDoneUp) => {
+    if (!file) return;
+    const why = want === "video" ? playerVideoWhy(file) : lessonImageWhy(file);
+    if (why) { setUpRefusal(m => ({ ...m, [slot]: why })); return; }
+    setUploading(slot); setUpRefusal(m => ({ ...m, [slot]: "" }));
+    const fd0 = new FormData();
+    fd0.append("file", file);
+    try {
+      const d = await apiMultipart("/api/training/lesson-images", token, fd0);
+      const got = want === "video" ? d && d.video : d && d.image;
+      if (!got || !got.path) throw new Error(want === "video" ? tr("Choose an MP4 or WebM video.") : tr("Choose a JPEG, PNG, WebP or HEIC picture."));
+      setSrcs(x => ({ ...x, [got.path]: got.src || "" }));
+      onDoneUp(got.path);
+    } catch (e) { setUpRefusal(m => ({ ...m, [slot]: e.message || tr("Request failed") })); }
+    setUploading("");
+  };
+  const fileIn = (slot, want, onDoneUp, label) => <div style={{ marginBottom: 6 }}>
+    <input type="file" data-player-upload={slot} aria-label={label} disabled={!!uploading} accept={want === "video" ? "video/mp4,video/webm,.mp4,.webm" : ".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif"} onChange={e => { const f0 = e.target.files && e.target.files[0]; e.target.value = ""; upload(slot, f0, want, onDoneUp); }} style={{ fontSize: 13, color: t.text, minHeight: 44, maxWidth: "100%" }} />
+    <div style={{ fontSize: 11, color: t.textMut }}>{uploading === slot ? tr("Uploading...") : want === "video" ? tr("An MP4 or WebM video up to 25 MB.") : tr("A JPEG, PNG, WebP or HEIC picture up to 5 MB.")}</div>
+    {upRefusal[slot] && <div role="alert" data-player-upload-refusal={slot} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{upRefusal[slot]}</div>}
+  </div>;
+  const card = { border: "1px solid " + t.border, borderRadius: R.md, padding: 12, marginBottom: 12, background: t.card };
+  const head = (s, extra) => <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "16px 0 8px" }}><div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1 }}>{s}</div>{extra}</div>;
+  const small = { minHeight: 44, padding: "0 10px", background: "none", border: "none", color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
+  const screenKeys = c.screens.map(sc => sc.key).filter(Boolean);
+  const goTo = (path) => { const root = document.querySelector("[data-player-editor]"); if (!root) return; let p = lessonPathOf(path); while (p) { const el = root.querySelector('[data-lesson-path="' + p + '"]'); if (el) { el.scrollIntoView({ block: "center" }); return; } p = p.indexOf(".") > 0 ? p.slice(0, p.lastIndexOf(".")) : ""; } };
+  const screenCard = (sc, i) => {
+    const m = sc.media || { kind: "none" };
+    const base = "screens." + i;
+    const setMedia = (nm) => setScreen(i, { ...sc, media: nm });
+    return (<div key={i} data-player-screen={i} data-lesson-path={base} style={card}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ flex: "0 0 160px" }} data-lesson-path={base + ".key"}><Lbl>{tr("Key|screen")}</Lbl><Inp t={t} aria-label={tr("Key|screen")} data-player-screen-key={i} value={sc.key} onChange={e => setScreen(i, { ...sc, key: e.target.value })} />{probs(base + ".key")}</div>
+        <div style={{ marginLeft: "auto", display: "flex" }}>
+          <button style={small} aria-label={tr("Move up")} disabled={i === 0} onClick={() => edit(x => ({ ...x, screens: move(x.screens, i, -1) }))}>&uarr;</button>
+          <button style={small} aria-label={tr("Move down")} disabled={i === c.screens.length - 1} onClick={() => edit(x => ({ ...x, screens: move(x.screens, i, 1) }))}>&darr;</button>
+          <button style={{ ...small, color: RD }} data-player-screen-remove={i} onClick={() => edit(x => ({ ...x, screens: x.screens.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+        </div>
+      </div>
+      <LessonText t={t} path={base + ".say"} value={sc.say} onChange={v => setScreen(i, { ...sc, say: v })} probs={probs} multiline label={tr("What the voice says")} />
+      <LessonText t={t} path={base + ".caption"} value={sc.caption} onChange={v => setScreen(i, { ...sc, caption: v })} probs={probs} label={tr("Caption (optional)")} />
+      <div data-lesson-path={base + ".media"} style={{ marginTop: 4 }}>
+        <Lbl>{tr("Media|screen")}</Lbl>
+        <div style={{ maxWidth: 220, marginBottom: 8 }}><Sel t={t} aria-label={tr("Media|screen")} data-player-media-kind={i} value={m.kind} onChange={e => setMedia(e.target.value === "image" ? { kind: "image", path: null, svg: null } : e.target.value === "video" ? { kind: "video", path: null, poster: null, locales: {} } : { kind: "none" })} options={PLAYER_MEDIA_KINDS.map(o => ({ v: o.v, l: tr(o.l) }))} /></div>
+        {m.kind === "image" && <div data-lesson-path={base + ".media.path"}>
+          {fileIn("screen-" + i, "image", (path) => setMedia({ kind: "image", path, svg: null }), tr("Upload a picture"))}
+          {picSrc(m) ? <img src={picSrc(m)} alt="" data-player-screen-picture={i} style={{ display: "block", maxWidth: "100%", maxHeight: 220, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} /> : m.path ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Picture uploaded")}</div> : null}
+          {probs(base + ".media")}{probs(base + ".media.path")}{probs(base + ".media.svg")}
+        </div>}
+        {m.kind === "video" && <div data-lesson-path={base + ".media.path"}>
+          {fileIn("screen-video-" + i, "video", (path) => setMedia({ ...m, path }), tr("Upload the video"))}
+          {m.path && <div data-player-screen-video={i} style={{ fontSize: 12, color: t.textSec, marginBottom: 6 }}>{tr("Video uploaded")}</div>}
+          {probs(base + ".media.path")}
+          <div data-lesson-path={base + ".media.poster"}><div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, margin: "6px 0 4px" }}>{tr("Poster picture (optional)")}</div>{fileIn("screen-poster-" + i, "image", (path) => setMedia({ ...m, poster: path }), tr("Poster picture (optional)"))}{m.poster && <div style={{ fontSize: 12, color: t.textSec }}>{tr("Picture uploaded")}</div>}{probs(base + ".media.poster")}</div>
+          {["es", "fr"].map(l => <div key={l} data-lesson-path={base + ".media.locales." + l}><div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, margin: "6px 0 4px" }}>{tr("Its own video in {0} (optional)", tr(l === "es" ? "Spanish" : "French"))}</div>{fileIn("screen-video-" + l + "-" + i, "video", (path) => setMedia({ ...m, locales: { ...(m.locales || {}), [l]: path } }), tr("Its own video in {0} (optional)", tr(l === "es" ? "Spanish" : "French")))}{m.locales && m.locales[l] && <div style={{ fontSize: 12, color: t.textSec }}>{tr("Video uploaded")}</div>}{probs(base + ".media.locales." + l)}</div>)}
+        </div>}
+        {probs(base + ".media.kind")}
+      </div>
+      {probs(base)}
+    </div>);
+  };
+  const checkCard = (ck, i) => {
+    const base = "checks." + i;
+    const setKind = (k) => setCheck(i, { ...ck, kind: k, options: k === "tap" ? [] : playerOptionsOf(k), correct: "", image: playerPic(null), targets: [] });
+    return (<div key={i} data-player-check={i} data-lesson-path={base} style={card}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ flex: "0 0 140px" }} data-lesson-path={base + ".key"}><Lbl>{tr("Key|check")}</Lbl><Inp t={t} aria-label={tr("Key|check")} data-player-check-key={i} value={ck.key} onChange={e => setCheck(i, { ...ck, key: e.target.value })} />{probs(base + ".key")}</div>
+        <div style={{ flex: "1 1 160px" }} data-lesson-path={base + ".after"}><Lbl>{tr("After the screen")}</Lbl><Sel t={t} aria-label={tr("After the screen")} data-player-check-after={i} value={ck.after} onChange={e => setCheck(i, { ...ck, after: e.target.value })} options={[{ v: "", l: tr("Choose a screen") }].concat(screenKeys.map(k => ({ v: k, l: k })))} />{probs(base + ".after")}</div>
+        <div style={{ flex: "1 1 160px" }} data-lesson-path={base + ".kind"}><Lbl>{tr("Kind|check")}</Lbl><Sel t={t} aria-label={tr("Kind|check")} data-player-check-kind={i} value={ck.kind} onChange={e => setKind(e.target.value)} options={PLAYER_CHECK_KINDS.map(o => ({ v: o.v, l: tr(o.l) }))} />{probs(base + ".kind")}</div>
+        <div style={{ marginLeft: "auto", display: "flex" }}>
+          <button style={small} aria-label={tr("Move up")} disabled={i === 0} onClick={() => edit(x => ({ ...x, checks: move(x.checks, i, -1) }))}>&uarr;</button>
+          <button style={small} aria-label={tr("Move down")} disabled={i === c.checks.length - 1} onClick={() => edit(x => ({ ...x, checks: move(x.checks, i, 1) }))}>&darr;</button>
+          <button style={{ ...small, color: RD }} data-player-check-remove={i} onClick={() => edit(x => ({ ...x, checks: x.checks.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+        </div>
+      </div>
+      <LessonText t={t} path={base + ".prompt"} value={ck.prompt} onChange={v => setCheck(i, { ...ck, prompt: v })} probs={probs} label={tr("The question")} />
+      <div data-lesson-path={base + ".replay"} style={{ marginBottom: 10 }}>
+        <Lbl>{tr("Screens it replays after a wrong answer")}</Lbl>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{screenKeys.map(k => <label key={k} style={{ ...chkWrap, gap: 6, padding: "0 8px", fontSize: 12, color: t.text }}><input type="checkbox" data-player-replay={i + ":" + k} checked={ck.replay.indexOf(k) >= 0} onChange={e => setCheck(i, { ...ck, replay: e.target.checked ? ck.replay.concat([k]) : ck.replay.filter(x => x !== k) })} />{k}</label>)}</div>
+        {probs(base + ".replay")}{ck.replay.map((k, j) => <Fragment key={j}>{probs(base + ".replay." + j)}</Fragment>)}
+      </div>
+      {(ck.kind === "choice" || ck.kind === "picture") && <div data-lesson-path={base + ".options"}>
+        <Lbl>{ck.kind === "picture" ? tr("Picture choices") : tr("Answers")}</Lbl>
+        {ck.options.map((o, j) => <div key={j} data-player-option={i + ":" + j} data-lesson-path={base + ".options." + j} style={{ borderLeft: "3px solid " + (ck.correct && ck.correct === o.value ? GR : t.border), paddingLeft: 10, marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+            <div style={{ width: 120 }}><Inp t={t} aria-label={tr("Value")} data-player-option-value={i + ":" + j} value={o.value} onChange={e => { const v = e.target.value; setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, value: v } : y)), correct: ck.correct === o.value ? v : ck.correct }); }} /></div>
+            <label style={{ ...chkWrap, gap: 6, fontSize: 12, color: t.text }}><input type="radio" name={"correct-" + i} data-player-correct={i + ":" + j} checked={!!ck.correct && ck.correct === o.value} onChange={() => setCheck(i, { ...ck, correct: o.value })} />{tr("The right answer")}</label>
+            <button style={{ ...small, color: RD }} disabled={ck.options.length <= 2} onClick={() => setCheck(i, { ...ck, options: ck.options.filter((y, k) => k !== j), correct: ck.correct === o.value ? "" : ck.correct })}>{tr("Remove")}</button>
+          </div>
+          {ck.kind === "choice" ? <LessonText t={t} path={base + ".options." + j + ".text"} value={o.text} onChange={v => setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, text: v } : y)) })} probs={probs} />
+            : <>
+              <div data-lesson-path={base + ".options." + j + ".image"}>{fileIn("option-" + i + "-" + j, "image", (path) => setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, image: { path, svg: null } } : y)) }), tr("Upload a picture"))}{picSrc(o.image) && <img src={picSrc(o.image)} alt={o.alt.en || ""} style={{ display: "block", maxWidth: 200, maxHeight: 140, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />}{probs(base + ".options." + j + ".image")}{probs(base + ".options." + j + ".image.path")}</div>
+              <LessonText t={t} path={base + ".options." + j + ".alt"} value={o.alt} onChange={v => setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, alt: v } : y)) })} probs={probs} label={tr("Alt text")} />
+            </>}
+        </div>)}
+        {ck.options.length < 4 && <button style={{ ...small, paddingLeft: 0, color: t.goldText }} data-player-option-add={i} onClick={() => setCheck(i, { ...ck, options: ck.options.concat([ck.kind === "picture" ? { value: lessonKey("o", ck.options.map(x => ({ key: x.value }))), image: playerPic(null), alt: L3E() } : { value: lessonKey("o", ck.options.map(x => ({ key: x.value }))), text: L3E() }]) })}>{ck.kind === "picture" ? tr("Add a picture choice") : tr("Add an answer")}</button>}
+        {probs(base + ".options")}{probs(base + ".correct")}
+      </div>}
+      {ck.kind === "tap" && <div data-lesson-path={base + ".image"}>
+        <Lbl>{tr("The picture to tap")}</Lbl>
+        {fileIn("tap-" + i, "image", (path) => setCheck(i, { ...ck, image: { path, svg: null } }), tr("The picture to tap"))}
+        {probs(base + ".image")}{probs(base + ".image.path")}
+        <TapTargets t={t} src={picSrc(ck.image)} targets={ck.targets} onChange={v => setCheck(i, { ...ck, targets: v })} probs={probs} path={base} />
+      </div>}
+      {probs(base)}
+    </div>);
+  };
+  return (<div data-player-editor={draft.id}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <button onClick={back} style={{ ...small, paddingLeft: 0, color: t.goldText }}>{tr("Back to the versions")}</button>
+      <Bdg l={tr("Player lesson")} c={BL} />
+      <span style={{ marginLeft: "auto", fontSize: 12, color: dirty ? OR : t.textMut }}>{dirty ? tr("Changes not saved") : tr("Saved|draft")}</span>
+    </div>
+    {problems.length > 0 && <div data-lesson-problems={problems.length} style={{ border: "1px solid " + t.redBorder, background: t.redSubtle, borderRadius: R.md, padding: 12, marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 6 }}>{trn("{0} problem to fix before it is published|count", problems.length)}</div>
+      {problems.map((pr, i) => <button key={i} data-lesson-problem={lessonPathOf(pr.path)} onClick={() => goTo(pr.path)} style={{ display: "block", width: "100%", textAlign: "left", minHeight: 36, padding: "4px 0", background: "none", border: "none", color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</button>)}
+      {dirty && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Save the draft to check it again.")}</div>}
+    </div>}
+    {refusal && <div role="alert" data-lesson-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    {head(tr("The lesson"))}
+    <LessonText t={t} path="title" value={c.title} onChange={v => edit(x => ({ ...x, title: v }))} probs={probs} label={tr("Title (optional; the chapter's name stands in)")} />
+    <LessonText t={t} path="acknowledgement" value={c.acknowledgement} onChange={v => edit(x => ({ ...x, acknowledgement: v }))} probs={probs} multiline label={tr("The line the learner signs")} />
+    {head(trn("{0} screen|count", c.screens.length), <button style={{ ...small, color: t.goldText }} data-player-screen-add="" disabled={c.screens.length >= 30} onClick={() => edit(x => ({ ...x, screens: x.screens.concat([playerScreenOf(lessonKey("screen", x.screens))]) }))}>{tr("Add a screen")}</button>)}
+    {probs("screens")}
+    {c.screens.map(screenCard)}
+    {head(trn("{0} check|count", c.checks.length), <button style={{ ...small, color: t.goldText }} data-player-check-add="" disabled={c.checks.length >= 12} onClick={() => edit(x => ({ ...x, checks: x.checks.concat([playerCheckOf(lessonKey("check", x.checks), x.screens.length ? x.screens[x.screens.length - 1].key : "")]) }))}>{tr("Add a check")}</button>)}
+    {probs("checks")}
+    {c.checks.map(checkCard)}
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14, position: "sticky", bottom: 0, background: t.card, padding: "10px 0" }}>
+      <Btn t={t} data-player-save="" disabled={!!busy} onClick={save}>{busy === "save" ? tr("Saving...") : tr("Save draft")}</Btn>
+      <Btn t={t} v="ghost" data-player-preview-open="" disabled={!!busy} onClick={openPreview}>{tr("Preview")}</Btn>
+      <Btn t={t} v="ghost" data-player-translate="" disabled={!!busy} onClick={translate}>{busy === "translate" ? tr("Translating...") : tr("Translate the empty Spanish and French")}</Btn>
+      <Btn t={t} v="ghost" data-player-publish="" disabled={!!busy || problems.length > 0} onClick={publish}>{tr("Publish")}</Btn>
+      <Btn t={t} v="ghost" data-player-discard="" disabled={!!busy} onClick={discard} style={{ color: RD }}>{tr("Discard")}</Btn>
+    </div>
+    {showPreview && <PlayerPreviewWindow t={t} preview={preview} onClose={() => setShowPreview(false)} />}
+  </div>);
+}
+
+// ===== THE SETUP CHAPTER, RESET TRIES AND THE SIGNER (part 413; the API's Round 20, sections 8 and 9) =====
+// "Opens before sign-in" on a topic (opensSignedOut): the chapter new staff watch from the welcome email, at most one;
+// 409 training.signedOutTaken in the API's words, with the topic that holds it named from the catalog.
+function TopicSignedOutSwitch({ af, t, tp, topics = [], isAdmin = false, onSaved }) {
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  if (!tp || !Object.prototype.hasOwnProperty.call(tp, "opensSignedOut")) return null;
+  const on = tp.opensSignedOut === true;
+  const holder = topics.find(x => x && x.opensSignedOut === true && String(x.id) !== String(tp.id));
+  const flip = async () => {
+    setBusy(true); setRefusal("");
+    try { const d = await af("/api/training/topics/" + encodeURIComponent(tp.id), { method: "PATCH", body: { opensSignedOut: !on } }); if (d && d.topic) onSaved(d.topic); }
+    catch (e) { setRefusal((e.message || tr("Request failed")) + (e && e.code === "training.signedOutTaken" && holder ? " " + tr("{0} opens before sign-in now.", holder.name) : "")); }
+    setBusy(false);
+  };
+  return (<div data-topic-signed-out={on ? "on" : "off"} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border, flexWrap: "wrap", alignItems: "center" }}>
+    <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+      <div style={{ fontSize: 13, color: t.text }}>{tr("Opens before sign-in")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, lineHeight: 1.5 }}>{tr("This is the chapter new staff watch from the welcome email, before they sign in. One topic at most.")}</div>
+      {refusal && <div role="alert" data-topic-signed-out-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal}</div>}
+    </div>
+    {isAdmin ? <button role="switch" aria-checked={on} aria-label={tr("Opens before sign-in")} data-topic-signed-out-switch="" disabled={busy} onClick={flip} style={{ minWidth: 64, minHeight: 44, borderRadius: 22, border: "1px solid " + (on ? GO : t.border), background: on ? GO : t.hover, color: on ? NAVY : t.textSec, fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>{on ? tr("On") : tr("Off")}</button>
+      : <span style={{ fontSize: 13, color: t.text }}>{on ? tr("Yes") : tr("No")}</span>}
+  </div>);
+}
+// Reset tries (POST /api/training/attempts/reset-tries): one person's tries at one topic, asked first and saying what it
+// does; and for admins Reset everyone's tries, { all: true }, behind a question that names how many people are out of
+// tries and asks for RESET typed. The owner decides when it is pressed; nothing presses it on its own.
+const resetTriesSaid = (d) => { const reset = Array.isArray(d && d.reset) ? d.reset : []; const people = new Set(reset.map(x => String(x.userId))).size; return trn("Tries reset for {0} person.|count", people) + " " + trn("{0} failed try voided and kept on record.|count", Number(d && d.voided) || 0); };
+async function resetTriesOf(af, userId, topicId, name, topicName) {
+  if (!window.confirm(tr("Reset {0}'s tries at {1}? Their failed tries are voided and kept on record, and they can take the lesson again.", name || "", topicName || ""))) return null;
+  return af("/api/training/attempts/reset-tries", { method: "POST", body: { userId: String(userId), topicId: String(topicId) } });
+}
+function ResetEveryoneWindow({ af, t, outOfTries = 0, onClose, onDone }) {
+  const [typed, setTyped] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [guard, busy] = useBusyGuard();
+  const go = guard(async () => {
+    setRefusal("");
+    try { const d = await af("/api/training/attempts/reset-tries", { method: "POST", body: { all: true } }); onDone(d); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+  });
+  return (<Mdl name="reset-everyone" t={t} onClose={() => { if (!busy) onClose(); }}><div data-reset-everyone={outOfTries} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reset everyone's tries")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 10 }}>{trn("{0} person is out of tries now.|count", outOfTries)} {tr("Every failed try that used up a published lesson's tries is voided and kept on record, and each person can take the lesson again.")}</div>
+    <Lbl>{tr("Type RESET to go on")}</Lbl>
+    <Inp t={t} aria-label={tr("Type RESET to go on")} data-reset-everyone-typed="" value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" />
+    {refusal && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-reset-everyone-go="" disabled={busy || typed !== "RESET"} onClick={go}>{busy ? tr("Saving...") : tr("Reset everyone's tries")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// The Training page's out-of-tries list (Gaps): everyone whose online lesson's tries are used up, with Reset tries on
+// each, and Reset everyone's tries for admins.
+function TrainingOutOfTries({ af, t, isAdmin = false, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [win, setWin] = useState(false);
+  const load = useCallback(async () => {
+    try {
+      const d = await af("/api/training/gaps");
+      const out = [];
+      (Array.isArray(d && d.people) ? d.people : []).forEach(p => (Array.isArray(p.items) ? p.items : []).forEach(it => { if (gapNeedsSession(it)) out.push({ person: p, item: it }); }));
+      setRows(out);
+    } catch (e) { setRows([]); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  if (!isAdmin || rows === null) return null;
+  const one = async (r) => {
+    try { const d = await resetTriesOf(af, r.person.id || r.person.userId, r.item.topicId, r.person.name, r.item.name); if (d) { showToast(resetTriesSaid(d)); load(); } }
+    catch (e) { showToast(e.message, "error"); }
+  };
+  const people = new Set(rows.map(r => String(r.person.id || r.person.userId))).size;
+  return (<Crd t={t} style={{ marginBottom: 14 }}><div data-out-of-tries={rows.length}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Out of tries")}</div>
+      <Btn t={t} v="ghost" data-reset-everyone-open="" onClick={() => setWin(true)} style={{ color: RD }}>{tr("Reset everyone's tries")}</Btn>
+    </div>
+    {rows.length === 0 ? <div style={{ fontSize: 13, color: t.textMut, marginTop: 8 }}>{tr("Nobody is out of tries.")}</div>
+      : rows.map((r, i) => <div key={i} data-out-of-tries-row={String(r.person.id || r.person.userId) + ":" + r.item.topicId} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid " + t.border }}>
+        <span style={{ flex: "1 1 220px", minWidth: 0, fontSize: 13, color: t.text }}>{r.person.name} . {r.item.name}</span>
+        <Btn t={t} v="ghost" data-reset-tries={String(r.person.id || r.person.userId) + ":" + r.item.topicId} onClick={() => one(r)}>{tr("Reset tries")}</Btn>
+      </div>)}
+    {win && <ResetEveryoneWindow af={af} t={t} outOfTries={people} onClose={() => setWin(false)} onDone={(d) => { setWin(false); showToast(resetTriesSaid(d)); load(); }} />}
+  </div></Crd>);
+}
+// The active signer of course certificates (GET /api/training/certificate-signer): name, title in the three languages,
+// whether a signature is on file and the approval note. Change it with PUT, a PNG with a transparent background as the
+// signature; the window says the one before is kept inactive and asks to confirm with the new name shown.
+function CertificateSignerPanel({ af, t, showToast }) {
+  const [signer, setSigner] = useState(undefined);
+  const [failed, setFailed] = useState("");
+  const [win, setWin] = useState(false);
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af("/api/training/certificate-signer"); setSigner(d && d.signer ? d.signer : null); }
+    catch (e) { setSigner(null); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const row = (label, value) => <div style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, flexWrap: "wrap" }}><div style={{ flex: "0 0 160px", color: t.textMut }}>{label}</div><div style={{ flex: "1 1 200px", minWidth: 0, color: t.text, overflowWrap: "anywhere" }}>{value}</div></div>;
+  return (<Crd t={t}><div data-certificate-signer={signer ? signer.id : signer === null ? "none" : ""}>
+    <SecT t={t}>{tr("Certificate signer")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The person whose name and signature go on every course certificate and on the Employee of the Month certificate.")}</div>
+    {signer === undefined ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : signer === null ? <div data-signer-none="" style={{ fontSize: 13, color: t.textSec }}>{tr("No signer yet. Certificates print the signature line alone.")}</div>
+      : <>
+        {row(tr("Name"), <span data-signer-name="">{signer.name}</span>)}
+        {LESSON_LANGS.map(l => <Fragment key={l.id}>{row(tr("Title in {0}", tr(l.word)), (signer.title && signer.title[l.id]) || <span style={{ color: t.textMut }}>{tr("Not written yet")}</span>)}</Fragment>)}
+        {row(tr("Signature"), <span data-signer-signature={signer.hasSignature ? "on-file" : "none"}>{signer.hasSignature ? tr("On file") : tr("None on file")}</span>)}
+        {row(tr("Approval note"), signer.approvedNote || "")}
+      </>}
+    <div style={{ marginTop: 12 }}><Btn t={t} data-signer-change="" onClick={() => setWin(true)}>{tr("Change the signer")}</Btn></div>
+    {win && <SignerWindow af={af} t={t} signer={signer || null} onClose={() => setWin(false)} onSaved={(s) => { setWin(false); setSigner(s); showToast(tr("Signer changed")); }} />}
+  </div></Crd>);
+}
+function SignerWindow({ af, t, signer, onClose, onSaved }) {
+  const [f, setF] = useState(() => ({ name: "", title: T3(signer && signer.title), approvedNote: "" }));
+  const [png, setPng] = useState({ data: null, said: "" });
+  const [asking, setAsking] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const pick = (file) => {
+    if (!file) return;
+    if (!/^image\/png$/i.test(file.type || "") && !/\.png$/i.test(file.name || "")) { setPng({ data: null, said: tr("Choose a PNG picture with a transparent background.") }); return; }
+    if (file.size > 1024 * 1024) { setPng({ data: null, said: tr("The signature is over 1 MB.") }); return; }
+    const r = new FileReader();
+    r.onload = () => setPng({ data: String(r.result || ""), said: "" });
+    r.onerror = () => setPng({ data: null, said: tr("Could not read image") });
+    r.readAsDataURL(file);
+  };
+  const go = guard(async () => {
+    setRefusal(null);
+    try { const d = await af("/api/training/certificate-signer", { method: "PUT", body: { name: f.name.trim(), title: f.title, signature: png.data || null, approvedNote: f.approvedNote.trim() || null } }); onSaved((d && d.signer) || null); }
+    catch (e) { setAsking(false); setRefusal({ text: e.message || tr("Request failed"), keys: trainingKeysOf(e) }); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-signer-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl name="certificate-signer" t={t} tall onClose={() => { if (!busy) onClose(); }}><div data-signer-window="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Change the signer")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The signer before is kept, made inactive. Certificates made from now on carry the new signer.")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} aria-label={tr("Name")} data-signer-field="name" value={f.name} maxLength={120} onChange={e => { setF(x => ({ ...x, name: e.target.value })); setAsking(false); }} />{under("name")}</div>
+    <CourseTexts t={t} label={tr("Title")} path="title" value={f.title} onChange={v => setF(x => ({ ...x, title: v }))} notes={{}} refused={under("title")} />
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Signature")}</Lbl>
+      <input type="file" data-signer-signature-file="" aria-label={tr("Signature")} accept="image/png,.png" onChange={e => { const f0 = e.target.files && e.target.files[0]; e.target.value = ""; pick(f0); }} style={{ fontSize: 13, color: t.text, minHeight: 44, maxWidth: "100%" }} />
+      <div style={{ fontSize: 11, color: t.textMut }}>{tr("A PNG with a transparent background, up to 1 MB.")}</div>
+      {png.data && <img src={png.data} alt={tr("Signature")} data-signer-signature-preview="" style={{ display: "block", maxWidth: 260, maxHeight: 90, marginTop: 6, background: "#FFFFFF", border: "1px solid " + t.border, borderRadius: R.sm }} />}
+      {png.said && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{png.said}</div>}{under("signature")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Approval note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Approval note")} data-signer-field="approvedNote" value={f.approvedNote} maxLength={500} onChange={e => setF(x => ({ ...x, approvedNote: e.target.value }))} />{under("approvedNote")}</div>
+    {refusal && !["name", "title", "signature", "approvedNote"].some(k => refusal.keys.indexOf(k) >= 0) && <div role="alert" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {asking ? <div data-signer-confirm="" style={{ border: "1px solid " + OR, borderRadius: R.md, padding: 12, background: t.orangeSubtle }}>
+      <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 10 }}>{tr("Make {0} the signer of every certificate from now on?", f.name.trim())}</div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}><Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={busy}>{tr("Not yet")}</Btn><Btn t={t} data-signer-confirm-go="" disabled={busy} onClick={go}>{busy ? tr("Saving...") : tr("Yes, change the signer")}</Btn></div>
+    </div> : <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-signer-save="" disabled={!f.name.trim()} onClick={() => setAsking(true)}>{tr("Change the signer")}</Btn>
+    </div>}
+  </div></Mdl>);
+}
+
 function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showToast, guard }) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState("");
@@ -33063,9 +33762,9 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
-  const start = async (from) => {
+  const start = async (from, kind) => {
     setBusy("new"); setRefusal("");
-    try { const d = await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/draft", { method: "POST", body: { from } }); if (d && d.draft) { setDraft(d); onReload(); } }
+    try { const d = await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/draft", { method: "POST", body: kind ? { from, kind } : { from } }); if (d && d.draft) { setDraft(d); onReload(); } }
     catch (e) {
       // A draft already open is opened rather than refused.
       if (e && e.code === "training.draftOpen") { const id = (e.body && e.body.draftId) || (open && open.id); if (id) { await openDraft(id); onReload(); setBusy(""); return; } }
@@ -33080,6 +33779,8 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
+  // Part 413 (the API's Round 20): a draft of kind player opens the player editor.
+  if (draft && draft.draft && draft.draft.kind === "player") return <PlayerDraftEditor af={af} t={t} token={token} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
   if (draft) return <LessonDraftEditor af={af} t={t} token={token} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
   const cols = [
     { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span data-lesson-version={v.version != null ? String(v.version) : "draft"} data-lesson-version-status={v.status || ""} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}{v.spanishUnchecked === true && spanishUncheckedChip()}{v.missingFrench === true && <span data-lesson-french-missing="" title={tr("Some of this version's French is not written yet. Staff are offered English and Spanish.")}><Bdg l={tr("French missing")} c={BL} /></span>}</span> },
@@ -33099,6 +33800,7 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
       {open ? <Btn t={t} data-lesson-open-draft="" disabled={!!busy} onClick={() => openDraft(open.id)}>{tr("Open the draft")}</Btn> : <>
         {live && <Btn t={t} data-lesson-new="published" disabled={!!busy} onClick={() => start("published")}>{tr("New draft from the live lesson")}</Btn>}
         <Btn t={t} v={live ? "ghost" : "primary"} data-lesson-new="blank" disabled={!!busy} onClick={() => start("blank")}>{tr("New blank draft")}</Btn>
+        <Btn t={t} v="ghost" data-lesson-new="player" disabled={!!busy} onClick={() => start(live && live.kind === "player" ? "published" : "blank", "player")}>{tr("New player draft")}</Btn>
       </>}
       {live && <Btn t={t} v="ghost" data-lesson-retire="" disabled={!!busy} onClick={retire}>{tr("Retire the live lesson")}</Btn>}
     </div>}
