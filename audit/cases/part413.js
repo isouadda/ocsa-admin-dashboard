@@ -15,6 +15,9 @@
 //               document, a run's coverage and the two new Health numbers, a test office account's announcement, the
 //               missing count from the totals, a person's class sentence and each balance's line, a request's notice
 //               line and holiday, an admin removing a photo, and sign-in reading maintenance from features
+//   robot       section 4, each item with its own case: Supplies asks no labels as it opens, New message says No one
+//               matches., a test office account reads the test lines, windows and tabs carry hooks, and the list
+//               searches carry data-list-search and filter before paging
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -547,6 +550,83 @@ async function shapesCases(ctx, lang) {
   });
 }
 
+
+// ---- Section 4: what the robot found, and its hooks -----------------------------------------------------------------
+async function robotCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/robot/" + x;
+
+  // 4.1 Supplies asks no labels.pdf as it opens for a supervisor.
+  await withDriver(ctx, { name: "labels", lang, persona: "supervisor" }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "supplies");
+    await d.settle(1500);
+    const asked = d.callsSince(mark).filter((c) => c.path === "/api/supplies/labels.pdf").map((c) => c.query || "(nothing)");
+    results.check(KIND, id("supplies-asks-no-labels-as-it-opens"), asked.length === 0, "labels.pdf asked " + say(asked));
+  });
+
+  // 4.2 New message for a supervisor whose search finds staff alone says No one matches.
+  await withDriver(ctx, { name: "no-one-matches", lang, persona: "supervisor" }, async (d) => {
+    await goHash(d, "chat");
+    await d.page.getByRole("button", { name: d.say("New message") }).first().click({ timeout: 6000 });
+    await until(d, "[data-new-message]", 4000);
+    await d.page.locator("[data-new-message] input").first().fill("Tomasz");
+    await d.settle(800);
+    const none = await textOf(d, "[data-new-message-none]");
+    results.check(KIND, id("new-message-says-no-one-matches"), none === d.say("No one matches."), "drew " + say(none));
+  });
+
+  // 4.3 Messages draws the test accounts' lines for a test office account.
+  await withDriver(ctx, { name: "test-lines", lang, persona: "supervisor", arm: (s) => s.setScene413({ testOffice: true }) }, async (d) => {
+    const mark = d.mark();
+    await goHash(d, "chat");
+    await d.settle(1200);
+    const inbox = reads(d, mark, /^\/api\/chat\/dm-inbox$/).length;
+    const section = await has(d, "[data-staff-to-office]");
+    const line = (await d.page.locator("body").innerText()).indexOf("Bertrand Lefevre") >= 0;
+    results.check(KIND, id("a-test-office-account-reads-the-test-lines"), inbox >= 1 && section && line, "inbox read " + inbox + " time(s), the section " + section + ", the test line " + line);
+  });
+
+  // 4.4 Hooks: windows carry data-window; the site profile's, Schedule's and Shift Pickup's tabs carry tab hooks; the
+  // new page carries hooks on its tabs and windows. A hook changes nothing a person sees.
+  await withDriver(ctx, { name: "hooks", lang }, async (d) => {
+    await goHash(d, "schedule");
+    await d.settle(600);
+    const sched = await d.page.locator("[data-schedule-tab]").evaluateAll((els) => els.map((e) => e.getAttribute("data-schedule-tab")));
+    await goHash(d, "marketplace");
+    await d.settle(600);
+    const pickup = await d.page.locator("[data-pickup-tab]").count();
+    await d.page.getByRole("button", { name: d.say("Post Open Shift") }).first().click({ timeout: 4000 }).catch(() => {});
+    const postWin = await attr(d, "[data-window]", "data-window");
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await goHash(d, "staff/u-staff-7");
+    await until(d, "[data-profile-tab]", 6000);
+    const profile = await d.page.locator("[data-profile-tab]").count();
+    await goHash(d, "recognition");
+    await until(d, "[data-recognition-tab]", 6000);
+    const recTabs = await d.page.locator("[data-recognition-tab]").count();
+    results.check(KIND, id("windows-and-tabs-carry-their-hooks"), say(sched.slice(0, 3)) === say(["week", "month", "patterns"]) && pickup === 6 && postWin === "shift-marketplace-create-form" && profile >= 3 && recTabs === 2,
+      "schedule tabs " + say(sched) + ", pickup tabs " + pickup + ", Post Open Shift's window " + say(postWin) + ", profile tabs " + profile + ", recognition tabs " + recTabs);
+  });
+
+  // 4.5 Every list search that pages its rows carries data-list-search, and Staff Management's filters before paging:
+  // a person on the second page is found from the first by typing.
+  await withDriver(ctx, { name: "list-search", lang }, async (d) => {
+    await goHash(d, "staff");
+    await until(d, "[data-list-search='staff']", 8000);
+    await d.page.locator("[data-list-search='staff']").fill("Asante");
+    await d.settle(500);
+    const found = (await d.page.locator("body").innerText()).indexOf("Kwabena Asante") >= 0;
+    await goHash(d, "sites");
+    const sites = await until(d, "[data-list-search='sites']", 6000);
+    await goHash(d, "library");
+    const library = await until(d, "[data-list-search='library']", 6000);
+    await goHash(d, "hr");
+    const hr = await until(d, "[data-list-search='hr']", 6000);
+    results.check(KIND, id("list-searches-carry-their-hook-and-filter-before-paging"), found && sites && library && hr, "a second-page person found " + found + ", sites " + sites + ", library " + library + ", hr " + hr);
+  });
+}
+
 async function run(ctx) {
   const only = (process.env.PART413_ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
   const want = (k) => !only.length || only.indexOf(k) >= 0;
@@ -557,6 +637,7 @@ async function run(ctx) {
     if (want("shoutouts")) await shoutoutCases(ctx, lang);
     if (want("named")) await namedCases(ctx, lang);
     if (want("shapes")) await shapesCases(ctx, lang);
+    if (want("robot")) await robotCases(ctx, lang);
   }
 }
 

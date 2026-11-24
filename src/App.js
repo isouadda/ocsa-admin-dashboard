@@ -747,14 +747,16 @@ const chkWrap = { display: "inline-flex", alignItems: "center", justifyContent: 
 // opened (DASH-24) it asks first, so a stray tap beside a phone's window keeps what was typed. Its own
 // Close and Cancel close it as they always have.
 // A window that asks its own question before closing (asksItself, part 372) is handed the press as it is.
-function Mdl({ children, onClose: oc, t, tall, asksItself = false }) {
+// Part 413 (the robot's Rounds 6 and 7): every window carries a hook, data-window="<name>", so a window is found without
+// its words. A hook changes nothing a person sees.
+function Mdl({ children, onClose: oc, t, tall, asksItself = false, name = "" }) {
   const typed = useRef(false);
   const outside = (e) => {
     if (!oc) return;
     if (!asksItself && typed.current && !window.confirm(tr("Close this window? What you entered here will be lost."))) return;
     oc(e);
   };
-  return <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={outside}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()} onChangeCapture={() => { typed.current = true; }}>{children}</div></div>;
+  return <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={outside}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()} onChangeCapture={() => { typed.current = true; }} data-window={name || undefined}>{children}</div></div>;
 }
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
@@ -1969,7 +1971,7 @@ export default function AdminDashboard() {
 
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} hrOpen={canOpenPage("hr")} />}
     {changedAsk && <ChangedSinceWindow t={t} ask={changedAsk} onAnswer={(yes) => { const a = changedAsk; setChangedAsk(null); if (a && typeof a.resolve === "function") a.resolve(yes); }} />}
-    {fileRetry && <Mdl t={t} onClose={() => setFileRetry(null)}><div style={{ padding: 20 }} data-file-withheld="">
+    {fileRetry && <Mdl name="file-retry" t={t} onClose={() => setFileRetry(null)}><div style={{ padding: 20 }} data-file-withheld="">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("The file did not open")}</div>
         <button onClick={() => setFileRetry(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -2403,7 +2405,7 @@ function TakeBackEndWindow({ af, t, userId, name, pending, onClose, onDone, show
     busyRef.current = false; setBusy(false);
   };
   const who = name || tr("this person");
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-employment-window="take-back">
+  return (<Mdl name="take-back-end" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-employment-window="take-back">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Take back the end")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -2568,7 +2570,7 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     : tr("Rehire {0}? They can sign in again, and their history stays.", who)
       + (pastSites ? " " + (ticked.length > 0 ? trn("{0} sites will be restored.|count", ticked.length) : tr("No sites will be restored.")) : "");
   const title = record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode]);
-  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
+  return (<Mdl name="employment" t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{title}</div>
@@ -3346,7 +3348,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
   // The Temporary PIN window. Add New Staff is pressed from the list, so the window is drawn from the
   // list as well as from a profile, and it is there when the save comes back, wherever that is.
-  const addedWindow = added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
+  const addedWindow = added && <Mdl name="staff-added" t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontSize: 13, color: t.textSec, marginBottom: added.welcome ? 6 : 14 }}>{added.name}</div>
       {added.welcome ? <div data-added-welcome={welcomeWent(added.welcome) ? "sent" : "not-sent"} role="status" style={{ fontSize: 13, color: welcomeWent(added.welcome) ? GR : OR, fontWeight: 600, lineHeight: 1.5, marginBottom: 14 }}>{welcomeWent(added.welcome) ? tr("Welcome email sent to {0}.", added.email) : tr("Welcome email not sent: {0}", welcomeWhy(added.welcome))}</div> : null}
@@ -3413,7 +3415,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
-        {ptabs.map(tb => <button key={tb.id} onClick={() => setProfileTab(tb.id)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: profileTab === tb.id ? 700 : 500, color: profileTab === tb.id ? t.goldText : t.textMut, background: "transparent", border: "none", borderBottom: profileTab === tb.id ? "2px solid " + GO : "2px solid transparent", cursor: "pointer", marginBottom: -1 }}>{tb.l}</button>)}
+        {ptabs.map(tb => <button key={tb.id} data-profile-tab={tb.id} onClick={() => setProfileTab(tb.id)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: profileTab === tb.id ? 700 : 500, color: profileTab === tb.id ? t.goldText : t.textMut, background: "transparent", border: "none", borderBottom: profileTab === tb.id ? "2px solid " + GO : "2px solid transparent", cursor: "pointer", marginBottom: -1 }}>{tb.l}</button>)}
       </div>
 
       {/* INFO TAB */}
@@ -3552,8 +3554,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div>}
 
       {/* Timeline Detail Modal (Session 18) */}
-      {tlDetailLoading && <Mdl t={t} onClose={() => setTlDetailLoading(false)}><div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading record details...")}</div></Mdl>}
-      {tlDetail && !tlDetailLoading && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "calc(80vh / var(--zoom, 1))", overflow: "auto" }}>
+      {tlDetailLoading && <Mdl name="staff-tl-detail-loading" t={t} onClose={() => setTlDetailLoading(false)}><div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading record details...")}</div></Mdl>}
+      {tlDetail && !tlDetailLoading && <Mdl name="staff-tl-detail" t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "calc(80vh / var(--zoom, 1))", overflow: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -3608,7 +3610,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* Modals that need to work inside profile view */}
       {addedWindow}
-      {resetPin && <Mdl t={t} onClose={() => { setResetPin(null); setPinSaid(""); }}><div style={{ padding: 20 }}>
+      {resetPin && <Mdl name="staff-reset-pin" t={t} onClose={() => { setResetPin(null); setPinSaid(""); }}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Reset PIN")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Enter a new 4-digit PIN for this staff member.")}</div>
         {signInOf(profile && profile.user && String(profile.user.id) === String(resetPin) ? profile.user : staff.find(x => String(x.id) === String(resetPin))) ? <div data-reset-pin-also="" style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Reset PIN also unlocks their sign-in and signs them out everywhere. They choose their own PIN at their next sign-in.")}</div> : null}
@@ -3617,7 +3619,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {pinSaid ? <div data-reset-pin-said="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{pinSaid}</div> : null}</div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setResetPin(null); setPinSaid(""); }}>{tr("Cancel")}</Btn><Btn t={t} data-reset-pin-save="" onClick={() => submitResetPin(resetPin)}>{tr("Reset PIN")}</Btn></div>
       </div></Mdl>}
-      {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
+      {assignForm && <Mdl name="staff-assign-form" t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Assign to Site")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Role at Site")}</Lbl><Sel t={t} value={assignForm.role} onChange={e => setAssignForm({ ...assignForm, role: e.target.value })} options={getOpts("site_roles", tr("Select role..."), true)} /></div>
@@ -3640,7 +3642,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="staff" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       {roster && <Btn t={t} v="ghost" onClick={() => { if (onRoute) onRoute(["roster"]); }} style={{ minHeight: 44 }} data-roster-open="">{tr("Roster check")}</Btn>}{welcomeAllShown(user, staff) && <WelcomeAllButton t={t} onOpen={() => setWelcomeAll(true)} />}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
@@ -3673,7 +3675,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
     {addedWindow}{welcomeAll && <WelcomeAllWindow af={af} t={t} staff={staff} canChange={canChange} showToast={showToast} onFinished={load} onClose={() => setWelcomeAll(false)} />}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {addForm && <Mdl name="staff-add-form" t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name *")}</Lbl><Inp t={t} value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone *")}</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder={tr("{0} (no dashes needed)", "2155550000")} /></div>
@@ -3683,7 +3685,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {hireDateField("add", addForm, setAddForm, { marginBottom: 12 })}
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={addForm.employmentType || ""} onChange={e => setAddForm({ ...addForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Staff")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
+    {editForm && <Mdl name="staff-edit-form" t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Staff Info")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name")}</Lbl><Inp t={t} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
@@ -3920,7 +3922,7 @@ function ShiftNamesPanel({ af, t, siteId, canEdit, showToast }) {
         </div>))}
       </Crd>);
     })}
-    {edit && <Mdl t={t} onClose={() => { if (!busy) setEdit(null); }}><div style={{ padding: 20 }}>
+    {edit && <Mdl name="shift-names-edit" t={t} onClose={() => { if (!busy) setEdit(null); }}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{edit.id ? tr("Rename") : tr("Add a block")}</div>
         <button onClick={() => setEdit(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -4078,7 +4080,7 @@ function BlockWindowWindow({ af, t, base, b, onClose, onSaved }) {
   };
   const said = (field) => (refusal.text && refusal.field === field ? <div role="alert" data-schedule-refusal={field} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const toggle = (d) => setForm(f => ({ ...f, days: f.days.indexOf(d) >= 0 ? f.days.filter(x => x !== d) : BLOCK_DAY_KEYS.filter(x => x === d || f.days.indexOf(x) >= 0) }));
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div data-schedule-window-edit={b.id} style={{ padding: 20 }}>
+  return (<Mdl name="block-window" t={t} onClose={() => { if (!busy) onClose(); }}><div data-schedule-window-edit={b.id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit the block")}</div>
@@ -4937,7 +4939,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         </Crd>
         <PpeIssues key={selectedSite} af={af} token={token} t={t} siteId={selectedSite} sites={sites} people={sp.staff} showToast={showToast} />
 
-        {showAddSupply && <Mdl t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
+        {showAddSupply && <Mdl name="sites-show-add-supply" t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply to Site")}</div><button onClick={() => setShowAddSupply(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           {addSupplyLoading && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("Loading...")}</div>}
           {!addSupplyLoading && availableSupplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("All supplies are already assigned to this site")}</div>}
@@ -5049,7 +5051,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       </div>}
 
       {/* TIMELINE DETAIL MODAL */}
-      {tlDetail && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20 }}>
+      {tlDetail && <Mdl name="sites-tl-detail" t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -5086,7 +5088,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       </div></Mdl>}
 
       {/* EDIT SITE MODAL */}
-      {editSite && <Mdl t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
+      {editSite && <Mdl name="sites-edit-site" t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Site Details")}</div><button onClick={() => setEditSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Site Name")}</Lbl><Inp t={t} value={editSite.name} onChange={e => setEditSite({ ...editSite, name: e.target.value })} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Address")}</Lbl><Inp t={t} value={editSite.addressLine1} onChange={e => setEditSite({ ...editSite, addressLine1: e.target.value })} /></div>
@@ -5130,7 +5132,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       </div></Mdl>}
 
       {/* ADD TASK MODAL */}
-      {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Task")}</div><button onClick={() => setAddTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+      {addTask && <Mdl name="sites-add-task" t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Task")}</div><button onClick={() => setAddTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Description *")}</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder={tr("e.g. Vacuum carpets")} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder={tr("e.g. Restrooms")} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} data-task-field="serviceCategory" value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} style={taskRed(addTask.said, "serviceCategory")} /><TaskFieldRefusal said={addTask.said} k="serviceCategory" /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} data-task-field="priority" value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} style={taskRed(addTask.said, "priority")} /><TaskFieldRefusal said={addTask.said} k="priority" /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} data-task-field="taskType" value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} style={taskRed(addTask.said, "taskType")} /><TaskFieldRefusal said={addTask.said} k="taskType" /></div></div>
@@ -5148,7 +5150,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask} disabled={taskBusy}>{tr("Create")}</Btn></div></div></Mdl>}
 
       {/* EDIT TASK MODAL */}
-      {editTask && <Mdl t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
+      {editTask && <Mdl name="sites-edit-task" t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Task")}</div><button onClick={() => setEditTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Name")}</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone")}</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
@@ -5198,7 +5200,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search site, address, contract")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="sites" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search site, address, contract")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -5223,7 +5225,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No sites found.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
-    {addSite && <Mdl t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Site")}</div><button onClick={() => setAddSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {addSite && <Mdl name="sites-add-site" t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Site")}</div><button onClick={() => setAddSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addSite.name} onChange={e => setAddSite({ ...addSite, name: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Address *")}</Lbl><Inp t={t} value={addSite.address} onChange={e => setAddSite({ ...addSite, address: e.target.value })} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("City")}</Lbl><Inp t={t} value={addSite.city} onChange={e => setAddSite({ ...addSite, city: e.target.value })} /></div><div><Lbl>{tr("State")}</Lbl><Inp t={t} value={addSite.state} onChange={e => setAddSite({ ...addSite, state: e.target.value })} /></div><div><Lbl>{tr("Zip")}</Lbl><Inp t={t} value={addSite.zip} onChange={e => setAddSite({ ...addSite, zip: e.target.value })} /></div></div>
@@ -6261,7 +6263,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
   const who = (p, at) => (p || at ? [nameOf(p), at ? irWhen(at) : ""].filter(Boolean).join(", ") : "--");
   const yesNo = (v) => (v === true ? tr("Yes") : v === false ? tr("No") : "--");
   const timeStr = (iso) => (iso ? new Date(iso).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "");
-  return (<Mdl t={t} onClose={onClose}><div data-request-window="" style={{ padding: 20 }}>
+  return (<Mdl name="request" t={t} onClose={onClose}><div data-request-window="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text, overflowWrap: "anywhere" }}>{r ? requestWhere(r) : tr("Client request")}</div>
@@ -6766,7 +6768,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
     <ShowMore t={t} next={issNext} busy={issMore} onMore={moreIssues} at="issues" />
-    {shown && <Mdl t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
+    {shown && <Mdl name="issues-close-sel" t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => closeSel()} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{shown.title}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(shown.severity)} c={sC[shown.severity]} /><Bdg l={stateOf(shown.status)} c={stC[shown.status] || t.textMut} /></div>
@@ -6842,7 +6844,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       {statusMoved && issueStatusChoices(shown).length > 0 && <div data-issue-status-moved={statusMoved} role="status" style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.5 }}>{tr("Someone changed this issue to {0} while it was open. Your choice is kept.", stateOf(statusMoved))}</div>}
       {statusRefusal && <div data-issue-status-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{statusRefusal}</div>}
       </div></Mdl>}
-    {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
+    {assignTask && <Mdl name="issues-assign-task" t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
@@ -7003,7 +7005,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgai
   const siteName = (sites.find(s => String(s.id) === String(form.siteId)) || {}).name || start.siteName || "";
   const noContact = !!(contacts && to.length === 0) || (said && said.code === "maintenance.noContact");
   const already = said && said.code === "maintenance.issueAlreadySent" && said.text;
-  return (<Mdl t={t} tall onClose={onClose}><div data-maint-new="" style={{ padding: 20 }}>
+  return (<Mdl name="maintenance-new" t={t} tall onClose={onClose}><div data-maint-new="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{fromIssue ? tr("Send to building maintenance") : tr("New maintenance request")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -7127,7 +7129,7 @@ function MaintenanceRequestWindow({ af, t, token, id, onClose, onChanged, showTo
     if (en.kind === "scheduled") return tr("Scheduled for {0}", en.scheduledFor ? fdLong(en.scheduledFor) : "--");
     return maintLogWord(en.kind, en.kindName);
   };
-  return (<Mdl t={t} tall onClose={onClose}><div data-maint-window={id} style={{ padding: 20 }}>
+  return (<Mdl name="maintenance-request" t={t} tall onClose={onClose}><div data-maint-window={id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Maintenance request")}</div>
@@ -7310,7 +7312,7 @@ function MaintenanceContactWindow({ af, t, siteId, contact = null, onClose, onSa
   });
   const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
   const field = (k, label, extra) => <div style={{ marginBottom: 12 }}><Lbl>{tr(label)}</Lbl><Inp t={t} data-maint-contact-field={k} aria-label={tr(label.replace(/ \*$/, ""))} value={form[k]} onChange={e => set(k, e.target.value)} style={bad(k) ? { borderColor: RD } : undefined} {...(extra || {})} /></div>;
-  return (<Mdl t={t} onClose={onClose}><div data-maint-contact-window={contact ? contact.id : "new"} style={{ padding: 20 }}>
+  return (<Mdl name="maintenance-contact" t={t} onClose={onClose}><div data-maint-contact-window={contact ? contact.id : "new"} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{contact ? tr("Edit maintenance contact") : tr("Add a maintenance contact")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -7594,7 +7596,7 @@ function LeavePersonWindow({ af, t, userId, year, kinds = [], policies = [], can
     { header: tr("Hours"), align: "right", render: en => <span style={{ fontWeight: 600, color: Number(en.hours) < 0 ? RD : GR, whiteSpace: "nowrap" }}>{leaveSigned(en.hours)}</span> },
     { header: tr("By"), render: en => <span style={{ fontSize: 12, color: t.textSec }}>{en.createdBy && en.createdBy.name ? en.createdBy.name : tr("The system")}</span> },
   ];
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-person={userId} style={{ padding: 20 }}>
+  return (<Mdl name="leave-person" t={t} tall onClose={onClose}><div data-leave-person={userId} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave")}</div>
@@ -7715,7 +7717,7 @@ function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved 
   const small = { minHeight: 44, padding: "6px 12px", fontSize: 12 };
   const num = (v) => v.replace(/[^0-9.]/g, "").slice(0, 8);
   const kindOptions = kinds.filter(k => k.fromTimeOff).map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) })).concat([{ v: "__new", l: tr("Another kind...") }]);
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy-editor={policy ? policy.id : "new"} style={{ padding: 20 }}>
+  return (<Mdl name="leave-policy-editor" t={t} tall onClose={onClose}><div data-leave-policy-editor={policy ? policy.id : "new"} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{policy ? tr("Edit leave policy") : tr("New leave policy")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -7796,7 +7798,7 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
   const more = async () => { try { const d = await af(base + "?cursor=" + encodeURIComponent(next)); setPeople(cur => cur.concat(Array.isArray(d && d.people) ? d.people : [])); setNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); } };
   const p = data && data.policy;
   const readOnly = !!(p && p.builtIn);
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy={id} style={{ padding: 20 }}>
+  return (<Mdl name="leave-policy" t={t} tall onClose={onClose}><div data-leave-policy={id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave policy")}</div>
         {p && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{p.isDefault && <Bdg l={tr("Company default")} c={GO} />}{p.builtIn && <Bdg l={tr("Read only")} c={t.textMut} />}</div>}</div>
@@ -7934,7 +7936,7 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
     { header: tr("Hours worked"), align: "right", render: l => leaveNum(l.hoursWorked) },
     { header: dry ? tr("What would post") : tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{dry && l.outcome === "posted" ? tr("Will post|hours file") : leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
   ];
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
+  return (<Mdl name="leave-hours" t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload an hours file")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -8123,7 +8125,7 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
         <Sel t={t} data-leave-filter="policy" aria-label={tr("Policy")} value={f.policyId} onChange={e => setF(x => ({ ...x, policyId: e.target.value }))} options={[{ v: "", l: tr("Every policy") }].concat((policies || []).map(p => ({ v: p.id, l: p.name })))} style={pickStyle} />
         <Sel t={t} data-leave-filter="role" aria-label={tr("Role")} value={f.role} onChange={e => setF(x => ({ ...x, role: e.target.value }))} options={[{ v: "", l: tr("Every role") }].concat(LEAVE_ROLES.map(r => ({ v: r, l: roleWord(r) })))} style={pickStyle} />
         <Sel t={t} data-leave-filter="status" aria-label={tr("Status")} value={f.status} onChange={e => setF(x => ({ ...x, status: e.target.value }))} options={LEAVE_STATUSES.map(([v, l]) => ({ v, l: v === "pending" ? personStateOf("pending") : tr(l) }))} style={pickStyle} />
-        <Inp t={t} data-leave-filter="q" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
+        <Inp t={t} data-leave-filter="q" data-list-search="leave" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
         <div style={{ minWidth: 0 }}><LeaveAdpLine t={t} text={leaveAdpLine([].concat(...rows.map(r => r.balances || [])))} style={{ marginBottom: 2 }} /><div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div></div>
@@ -8367,7 +8369,7 @@ function SupplyRequestWindow({ t, af, token, r, user = null, sites = [], onClose
   const allQtyOk = undecided.every(it => approveQtyOf(editOf(it).qty, it.quantity) != null);
   const amount = (n, unit) => (unit ? n + " " + unitOf(unit) : String(n));
   const lineBtn = (c) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + c, background: "transparent", color: c, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY });
-  return (<Mdl t={t} onClose={onClose}><div data-request-window={r.id} style={{ padding: 20 }}>
+  return (<Mdl name="supply-request" t={t} onClose={onClose}><div data-request-window={r.id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{typeWord}</div>
@@ -8425,20 +8427,12 @@ function SupplyRequestWindow({ t, af, token, r, user = null, sites = [], onClose
   </div></Mdl>);
 }
 
-// Whether GET /api/supplies/labels.pdf answers (STEP250_CONTRACT.md, section 10): one read with
-// nothing named, which an API that has the route refuses with 400 and one without answers 404. The
-// labels are drawn only when the route is there and the API's Step 250 answers, since the two ship
-// together; nothing is downloaded by the probe.
-function useSupplyLabelsLive(af, token) {
-  const requestsOn = useRequestsLive(af);
-  const [there, setThere] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    apiDownload("/api/supplies/labels.pdf", token, "labels.pdf").then(() => { if (alive) setThere(true); })
-      .catch(e => { if (alive) setThere(!!e && e.status !== 404 && e.status !== 401); });
-    return () => { alive = false; };
-  }, [token]);
-  return requestsOn && there;
+// The supply labels (STEP250_CONTRACT.md, section 10) ship with the API's Step 250, so they are drawn once its
+// requests answer. GET /api/supplies/labels.pdf is asked only when someone prints labels, with the ids or the site the
+// route needs (part 413, the robot's Rounds 6 and 7: the page asked it with nothing named as it opened, and the API
+// answered 400).
+function useSupplyLabelsLive(af) {
+  return useRequestsLive(af);
 }
 function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther, sites = [], user = null }) {
   // Decision 1: a supply's cost per unit is drawn and sent for a holder of manage_employment only.
@@ -8447,7 +8441,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   // Supply labels (decision 321: a label opens something when scanned). Print label in the edit
   // window saves GET /api/supplies/labels.pdf?ids=<id>, and Print labels for a site saves
   // labels.pdf?siteId=, the way the equipment register saves its labels. Both wait for the route.
-  const labelsOn = useSupplyLabelsLive(af, token);
+  const labelsOn = useSupplyLabelsLive(af);
   const [labels, setLabels] = useState({ busy: "", error: "" });
   const [labelSite, setLabelSite] = useState("");
   const printLabels = async (query, key) => {
@@ -8615,10 +8609,10 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}{r.poNumber ? <span data-request-po={r.poNumber} style={{ color: t.goldText, fontWeight: 600 }}>{" | " + r.poNumber}</span> : null}{r.orderedAt ? <span data-request-ordered="" style={{ color: GR, fontWeight: 600 }}>{" | " + tr("Ordered {0}", fd(r.orderedAt))}</span> : null}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && supplyCanDecide(r) && !supplyOrderOf(r).signed && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
     {tab === "requests" && <ShowMore t={t} next={reqNext} busy={reqMore} onMore={moreRequests} at="supply-requests" />}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit} disabled={supplyBusy}>{tr("Save")}</Btn></div></div></Mdl>}
+    {addForm && <Mdl name="supplies-admin-add-form" t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
+    {editForm && <Mdl name="supplies-admin-edit-form" t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit} disabled={supplyBusy}>{tr("Save")}</Btn></div></div></Mdl>}
     {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} token={token} r={openReq} user={user} sites={sites} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
-    {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
+    {handleReq && <Mdl name="supplies-admin-handle-req" t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }
 
@@ -8715,7 +8709,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
     { key: "office", label: tr("Office|people"), rows: (list || []).filter(p => p && p.kind === "office") },
     { key: "staff", label: tr("Staff"), rows: officeOnly ? [] : (list || []).filter(p => p && p.kind !== "office") },
   ];
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-new-message="">
+  return (<Mdl name="new-message" t={t} onClose={onClose}><div style={{ padding: 20 }} data-new-message="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New message")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -8726,7 +8720,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
     <div style={{ maxHeight: "calc(100vh / var(--zoom, 1) - 300px)", minHeight: 160, overflowY: "auto" }}>
       {failed && <LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} />}
       {!failed && list === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
-      {!failed && list !== null && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>}
+      {!failed && list !== null && groups.every(g => g.rows.length === 0) && <div data-new-message-none="" style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>}
       {!failed && groups.map(g => (g.rows.length === 0 ? null : <div key={g.key} data-new-message-group={g.key}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{g.label}</div>
         {g.rows.map(p => (<button key={p.userId} onClick={() => onPick(p)} disabled={!!starting} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: starting ? "default" : "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
@@ -8889,7 +8883,7 @@ function ProjectWindow({ af, t, people, project = null, onClose, onSaved }) {
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-project-window={editing ? "edit" : "new"}>
+  return (<Mdl name="project" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-project-window={editing ? "edit" : "new"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{editing ? tr("Edit project") : tr("New project")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -8934,7 +8928,7 @@ function MembersWindow({ af, t, people, project, meId, onClose, onSaved }) {
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy(false);
   };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-members-window="">
+  return (<Mdl name="members" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-members-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Members")}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{project.name}</div></div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9153,7 +9147,7 @@ function PostWindow({ af, t, projectId, post = null, onClose, onSaved }) {
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-post-window={post ? "edit" : "new"}>
+  return (<Mdl name="post" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-post-window={post ? "edit" : "new"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{post ? tr("Edit post") : tr("New post")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9272,7 +9266,7 @@ function TodoListWindow({ af, t, projectId, onClose, onSaved }) {
     catch (e) { setRefusal(wsRefusal(e, ["name", "description"])); }
     setBusy(false);
   };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-list-window="">
+  return (<Mdl name="todo-list" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-list-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New list")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9306,7 +9300,7 @@ function TodoWindow({ af, t, p, listId, todo = null, onClose, onSaved }) {
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-todo-window={todo ? "edit" : "new"}>
+  return (<Mdl name="todo" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-todo-window={todo ? "edit" : "new"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{todo ? tr("Edit to-do") : tr("Add a to-do")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9866,7 +9860,9 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   // 346): a supervisor's GET /api/chat/dm-inbox answers [] and opening a person's line is refused
   // chat.staffLineAdminsOnly, so for anyone else the inbox is not read, Staff to the office is not
   // drawn, and New message and the search offer only the office.
-  const readsPrivate = !!(user && (user.role === "admin" || user.isSuperAdmin === true || user.is_super_admin === true));
+  // Part 413 (the API's Round 17, the robot's Rounds 6 and 7): a test office account reads and answers the test accounts'
+  // lines, which the API answers it in GET /api/chat/dm-inbox; a real admin's view is unchanged.
+  const readsPrivate = !!(user && (user.role === "admin" || user.isSuperAdmin === true || user.is_super_admin === true || user.isTestAccount === true));
   // Step 213: everyone the office can write to, from GET /api/chat/people, or null until it answers.
   // While it does not, New message is not drawn and Search staff works as Step 205 left it.
   const [everyone, setEveryone] = useState(null);
@@ -10461,7 +10457,7 @@ function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
     drain();
   };
   const chatChoice = (v, l) => (<button key={v} onClick={() => save({ chat: v })} aria-pressed={settings.chat === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (settings.chat === v ? GO : t.border), background: settings.chat === v ? t.goldBg : "transparent", color: settings.chat === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl name="my-alerts" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("My alerts")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
@@ -10754,7 +10750,7 @@ function TicketWindow({ af, t, token = "", ticket, showToast, onClose, onSaved }
     setBusy(false);
   };
   const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 110, flexShrink: 0, color: t.textMut }}>{tr(label)}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{value}</span></div>;
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ticket-window={ticket.id}>
+  return (<Mdl name="ticket" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ticket-window={ticket.id}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{ticketKindWord(ticket.kind)}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -10787,7 +10783,7 @@ function TicketsExportWindow({ t, text, showToast, onClose }) {
     try { await navigator.clipboard.writeText(text); showToast(tr("Copied")); }
     catch (e) { if (boxRef.current) { boxRef.current.focus(); boxRef.current.select(); } showToast(tr("Select the text and copy it.")); }
   };
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-tickets-export="">
+  return (<Mdl name="tickets-export" t={t} onClose={onClose}><div style={{ padding: 20 }} data-tickets-export="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Export")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -11421,7 +11417,7 @@ function LibraryList({ af, t }) {
     {docs !== null && !failed && docs.length === 0 && <Crd t={t}><div data-library-empty="" style={{ fontSize: 13, color: t.textSec, textAlign: "center", padding: 12 }}>{tr("The library is loading. Check back soon.")}</div></Crd>}
     {docs !== null && !failed && docs.length > 0 && <>
       <form onSubmit={search} style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 240px", minWidth: 0 }}><Inp t={t} data-library-search="" aria-label={tr("Search the library")} placeholder={tr("Number, title or words in the text")} value={typed} onChange={e => { setTyped(e.target.value); if (!e.target.value.trim()) setFound(null); }} /></div>
+        <div style={{ flex: "1 1 240px", minWidth: 0 }}><Inp t={t} data-library-search="" data-list-search="library" aria-label={tr("Search the library")} placeholder={tr("Number, title or words in the text")} value={typed} onChange={e => { setTyped(e.target.value); if (!e.target.value.trim()) setFound(null); }} /></div>
         <Btn t={t} type="submit" data-library-search-send="">{tr("Search")}</Btn>
         {found && <Btn t={t} v="ghost" type="button" onClick={() => { setTyped(""); setFound(null); }}>{tr("Clear")}</Btn>}
       </form>
@@ -11590,7 +11586,7 @@ function HelpPersonWindow({ af, t, person, query, onClose }) {
   useEffect(() => { load(); }, [load]);
   const who = (data && data.person) || person;
   const turns = data && Array.isArray(data.turns) ? data.turns : [];
-  return (<Mdl t={t} onClose={onClose} tall>
+  return (<Mdl name="help-person" t={t} onClose={onClose} tall>
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -12611,7 +12607,7 @@ function AnnouncementWindow({ af, t, id, onClose }) {
     af("/api/announcements/" + encodeURIComponent(id)).then(d => setA(d && d.announcement ? d.announcement : null)).catch(e => setFailed(e && e.status === 404 ? (e.message || tr("Request failed")) : "load"));
   }, [af, id]);
   useEffect(() => { load(); }, [load]);
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-announcement-window="">
+  return (<Mdl name="announcement" t={t} onClose={onClose}><div style={{ padding: 20 }} data-announcement-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, minWidth: 0, wordBreak: "break-word" }}>{a ? builderText(a.title) : tr("Announcements")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -13690,7 +13686,7 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
   };
   const named = (c, i) => refusal.field === "to" && refusal.keys.some(k => k === c.email || k === String(i) || k.indexOf("to." + i) === 0 || k.indexOf("to[" + i + "]") === 0);
   const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
-  return (<Mdl t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-monthly-send="">
+  return (<Mdl name="monthly-send" t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-monthly-send="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send to the client")}</div>
@@ -13801,7 +13797,7 @@ function MonthlyReportsView({ af, token, t, sites, allStaff = [], showToast }) {
     {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={openReport} empty={tr("No monthly reports in this range.")} />}
-    {making && <Mdl t={t} onClose={() => { if (!makeBusy) setMaking(null); }}><div style={{ padding: 20 }}>
+    {making && <Mdl name="monthly-reports-view-making" t={t} onClose={() => { if (!makeBusy) setMaking(null); }}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New monthly report")}</div>
         <button onClick={() => setMaking(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -14942,7 +14938,7 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
   };
   const choice = (on) => ({ minWidth: 72, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
   const known = refusal.keys.filter(k => ["userId", "siteId", "item", "size", "quantity", "fitOk", "note", "employeeSignature"].indexOf(k) >= 0);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ppe-window="">
+  return (<Mdl name="issue-ppe" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ppe-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue PPE")}</div>
@@ -15101,7 +15097,7 @@ function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
   const field = (k, label, extra) => (<div><Lbl>{label}</Lbl><Inp t={t} aria-label={label} value={f[k]} onChange={e => set(k, e.target.value)} {...(extra || {})} style={box(k)} />{under(k)}</div>);
   const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 };
   const known = refusal.keys.filter(k => EQUIPMENT_FIELDS.indexOf(k) >= 0);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-window={item ? "edit" : "add"}>
+  return (<Mdl name="equipment" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-window={item ? "edit" : "add"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{item ? tr("Edit equipment") : tr("Add equipment")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -15218,7 +15214,7 @@ function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSave
     setBusy(false);
   };
   const others = (sites || []).filter(s => String(s.id) !== String(item.siteId));
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-action={action.kind}>
+  return (<Mdl name="equipment-event" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-action={action.kind}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr(action.l)}</div>
@@ -16089,7 +16085,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div><div style={{ fontSize: 10, color: t.textSec, marginTop: 3 }}>{locParts.join(" > ")}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>{isIssue && <Bdg l={tr("Issue")} c={RD} />}{task.priority && task.priority !== "standard" && <Bdg l={priOf(task.priority)} c={priC[task.priority] || GO} />}<Bdg l={stateOf(task.resolution_status)} c={stC[task.resolution_status] || OR} /></div></div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>{trWith("Assigned to: {0}", <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span>)}</span>}<span>{tr("By: {0}", task.created_by_name)}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>{tr("Due: {0}", fdDay(task.due_date))}</span>}</div>
       </Crd>); })}
-    {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
+    {sel && <Mdl name="assigned-tasks-admin-sel" t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Task Detail")}</div><button onClick={() => setSel(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.source_issue_id ? (sel.issue_title || selShown.label) : selShown.label}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{sel.source_issue_id && <Bdg l={tr("Issue")} c={RD} />}{sel.priority && sel.priority !== "standard" && <Bdg l={priOf(sel.priority)} c={priC[sel.priority] || GO} />}<Bdg l={stateOf(sel.resolution_status)} c={stC[sel.resolution_status] || OR} /></div>
@@ -16114,7 +16110,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         {(sel.resolution_status !== "resolved") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>{tr("Reassign")}</Btn>}
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
       </div></div></Mdl>}
-    {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
+    {reassignForm && <Mdl name="assigned-tasks-admin-reassign-form" t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
       {reassignForm.said && !reassignForm.saidAt && <div data-task-reassign-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{reassignForm.said}</div>}
@@ -16123,7 +16119,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign} disabled={assignBusy}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
-    {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
+    {createForm && <Mdl name="assigned-tasks-admin-create-form" t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Create Assigned Task")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
@@ -16258,7 +16254,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
 
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|vendors"), count: vendors.length, color: t.goldText }, { id: "approved", label: tr("Approved|vendors"), count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: tr("Pending|vendors"), count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: tr("Probation|vendors"), count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: tr("Inactive|vendors"), count: vendors.filter(v => v.approval_status === "inactive").length, color: inactiveColor }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search vendor, contact, phone, email, services")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="vendors" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search vendor, contact, phone, email, services")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
 
@@ -16283,7 +16279,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       return <DataTable t={t} columns={columns} rows={items} rowKey={v => v.id} onRowClick={v => loadDetail(v.id)} empty={vendors.length === 0 ? tr("No vendors yet. Use Add Vendor to start.") : tr("No vendors match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
+    {addForm && <Mdl name="vendors-add-form" t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Vendor")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(addForm, setAddForm)}
@@ -16291,7 +16287,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {detail && <Mdl t={t} onClose={() => { setDetail(null); leaveRoute(); }}>
+    {detail && <Mdl name="vendors-detail" t={t} onClose={() => { setDetail(null); leaveRoute(); }}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
           <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={statusWord[detail.vendor.approval_status] || detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
@@ -16347,7 +16343,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
+    {editForm && <Mdl name="vendors-edit-form" t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Vendor")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(editForm, setEditForm)}
@@ -16355,7 +16351,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {addEval && <Mdl t={t} onClose={() => setAddEval(null)}>
+    {addEval && <Mdl name="vendors-add-eval" t={t} onClose={() => setAddEval(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Add Evaluation")}</div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Rating *")}</Lbl>
@@ -16370,7 +16366,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {linkSupply && <Mdl t={t} onClose={() => setLinkSupply(null)}>
+    {linkSupply && <Mdl name="vendors-link-supply" t={t} onClose={() => setLinkSupply(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Supply to Vendor")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Supply *")}</Lbl><Sel t={t} value={linkSupply.supplyId} onChange={e => setLinkSupply({ ...linkSupply, supplyId: e.target.value })} options={[{ v: "", l: tr("Select a supply...") }, ...supplies.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -16493,7 +16489,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       {!servicesFailed && services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>{tr("No services yet.")}</div>}
     </div>
 
-    {detail && <Mdl t={t} onClose={() => setDetail(null)}>
+    {detail && <Mdl name="services-detail" t={t} onClose={() => setDetail(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
@@ -16547,7 +16543,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       </div>
     </Mdl>}
 
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
+    {addForm && <Mdl name="services-add-form" t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Service")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(addForm, setAddForm)}
@@ -16555,7 +16551,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       </div>
     </Mdl>}
 
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
+    {editForm && <Mdl name="services-edit-form" t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Service")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(editForm, setEditForm)}
@@ -16563,7 +16559,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       </div>
     </Mdl>}
 
-    {linkSite && <Mdl t={t} onClose={() => setLinkSite(null)}>
+    {linkSite && <Mdl name="services-link-site" t={t} onClose={() => setLinkSite(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Site to Service")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -16694,7 +16690,7 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
   };
 
   const started = pattern && pattern.startsOn && String(pattern.startsOn) <= todayISO();
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl name="pattern" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Weekly pattern")}</div>
@@ -17019,7 +17015,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
   const decided = req.status === "approved" || req.status === "denied";
   const mine = !!myId && req.userId != null && String(req.userId) === myId;
 
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-time-off-window={String(req.id)} data-time-off-status={req.status || ""}>
+  return (<Mdl name="time-off" t={t} onClose={onClose}><div style={{ padding: 20 }} data-time-off-window={String(req.id)} data-time-off-status={req.status || ""}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Time off request")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
@@ -17657,10 +17653,10 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
       <SecT t={t} action={tr("Refresh")} icon={RfI} onAction={() => loadCalendar()}>{tr("Schedule")}</SecT>
       <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Week")}</button>
-        <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
-        <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Patterns")}</button>
-        {timeOffWaiting !== null && <button onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? tr("Time off ({0})", timeOffWaiting) : tr("Time off")}</button>}
+        <button data-schedule-tab="week" onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Week")}</button>
+        <button data-schedule-tab="month" onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
+        <button data-schedule-tab="patterns" onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Patterns")}</button>
+        {timeOffWaiting !== null && <button data-schedule-tab="timeoff" onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? tr("Time off ({0})", timeOffWaiting) : tr("Time off")}</button>}
         {timeOffWaiting === null && timeOffLocked && <button disabled title={tr(TIME_OFF_LOCKED_LINE)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 500, background: "transparent", color: t.textMut, border: "1px solid " + t.border, cursor: "default", opacity: 0.55, fontFamily: FONT_BODY }}>{tr("Time off")}</button>}
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> {tr("Schedule Shift")}</Btn>
       </div>
@@ -17672,7 +17668,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: tr("This Week") }, { key: "lastWeek", label: tr("Last Week") }, { key: "nextWeek", label: tr("Next Week") }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ width: 200, fontSize: 12 }} />
-      <Inp t={t} value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder={tr("Search staff...")} style={{ width: 160, fontSize: 12 }} />
+      <Inp t={t} data-list-search="schedule" value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder={tr("Search staff...")} style={{ width: 160, fontSize: 12 }} />
       {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>{tr("Show")}</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{tr("{0} staff", nn)}</option>)}</select></div>}
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading schedule...")}</div>}
@@ -17691,7 +17687,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </>}
 
     {/* CREATE SHIFT MODAL */}
-    {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
+    {createModal && <Mdl name="schedule-create-modal" t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>{tr("Scheduling for")} {fmtShortDate(createModal.date)}</div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} aria-label={tr("Site")} data-schedule-shift-site="" value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -17746,7 +17742,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
-    {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div data-schedule-edit={editModal.id} style={{ padding: 24 }}>
+    {editModal && <Mdl name="schedule-edit-modal" t={t} onClose={() => setEditModal(null)}><div data-schedule-edit={editModal.id} style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
@@ -17788,7 +17784,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* STARTED SHIFT DETAIL MODAL. Read only. A session says who started a shift where; nothing here edits it. */}
-    {startedDetail && <Mdl t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
+    {startedDetail && <Mdl name="schedule-started-detail" t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Started Shift")}</div><button onClick={() => setStartedDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut }}>{roleOf(startedDetail.role)}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
@@ -17804,7 +17800,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* INSPECTION RESCHEDULE MODAL */}
-    {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
+    {inspModal && <Mdl name="schedule-insp-modal" t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Inspection Details")}</div><button onClick={() => setInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
@@ -17821,7 +17817,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
 
     {/* PICKUP DETAIL MODAL */}
     {timeOffOpen && <TimeOffWindow af={af} t={t} seed={timeOffOpen} myId={myId} showToast={showToast} canDecide={canDecideTimeOff} onClose={() => setTimeOffOpen(null)} onDecided={() => { loadCalendar(); loadTimeOffCount(); }} />}
-    {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
+    {pickupDetail && <Mdl name="schedule-pickup-detail" t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.")}</div>}
       {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>{tr("This shift is open in the marketplace and available for staff to claim.")}</div>}
@@ -18128,7 +18124,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {/* Tabs */}
     <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid " + t.border, paddingBottom: 2 }}>
       {tabs.map(tb => (
-        <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+        <button key={tb.id} data-pickup-tab={tb.id} onClick={() => setTab(tb.id)} style={{
           padding: "8px 14px", borderRadius: "8px 8px 0 0", border: "none",
           background: tab === tb.id ? t.goldBg : "transparent",
           color: tab === tb.id ? t.goldText : t.textMut,
@@ -18149,7 +18145,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {!loading && !pkFailed && tab !== "analytics" && (
       <div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder={tr("Search site, service, staff, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="marketplace" value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder={tr("Search site, service, staff, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={pkPerPage} onChange={e => { setPkPerPage(Number(e.target.value)); setPkPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -18464,7 +18460,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     )}
 
     {/* POST OPEN SHIFT MODAL */}
-    {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
+    {createForm && <Mdl name="shift-marketplace-create-form" t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post Open Shift")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -18495,7 +18491,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     </div></Mdl>}
 
     {/* CONVERT CALLOUT MODAL */}
-    {convertModal && <Mdl t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
+    {convertModal && <Mdl name="shift-marketplace-convert-modal" t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Convert Scheduled Shift to Open Pickup")}</div><button onClick={() => setConvertModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14 }}>
@@ -18527,7 +18523,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     </div></Mdl>}
 
     {/* SHIFT DETAIL MODAL */}
-    {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
+    {shiftDetail && <Mdl name="shift-marketplace-shift-detail" t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{shiftDetail.status === "requested" ? tr("Shift Drop Request") : tr("Shift Details")}</div>
         <button onClick={() => setShiftDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -18994,7 +18990,7 @@ function FindingWindow({ af, t, finding, topics = null, canDecide = false, onCha
   const panel = { marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border };
   const owner = f.owner && f.owner.name ? f.owner : null;
   const ownersList = insp ? insp.owners : [];
-  return (<Mdl t={t} onClose={onClose}><div data-finding-window={f.id} data-finding-window-state={f.state || ""} style={{ padding: 20 }}>
+  return (<Mdl name="finding" t={t} onClose={onClose}><div data-finding-window={f.id} data-finding-window-state={f.state || ""} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Finding")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
     {f.refused ? <div data-finding-refusal="read" role="alert" style={{ fontSize: 13, color: RD }}>{f.refused}</div> : <>
       <div data-finding-window-title="" style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{findingName(f)}</div>
@@ -19644,7 +19640,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
         </Crd>}
 
         {caFill && <FormFillWindow af={af} token={token} t={t} form={caFill.form} draft={caFill.draft} onLeave={() => { setCaFill(null); openDetail(d.id); }} people={allStaff} />}
-        {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
+        {editInspModal && <Mdl name="inspections-edit-insp-modal" t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -19671,7 +19667,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
         onOpen={(id) => { if (onRoute) onRoute(["findings", String(id)]); }} onClose={() => { if (onRoute) onRoute(["findings"]); }}
         onOpenInspection={(id) => { if (onRoute) onRoute([String(id)]); }} />}
 
-      {renameTpl && <Mdl t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
+      {renameTpl && <Mdl name="inspections-rename-tpl" t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Rename")}</div><button onClick={() => setRenameTpl(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={renameTpl.name} onChange={e => setRenameTpl({ ...renameTpl, name: e.target.value })} autoFocus /></div>
         {renameTpl.kind !== undefined && <div style={{ marginBottom: 16 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={renameTpl.kind} onChange={e => { setKindRefusal(""); setRenameTpl({ ...renameTpl, kind: e.target.value }); }} options={INSPECTION_KINDS.indexOf(renameTpl.kind) >= 0 ? inspectionKindOpts() : [{ v: renameTpl.kind, l: inspectionKindWord(renameTpl.kind) }, ...inspectionKindOpts()]} />
@@ -19767,7 +19763,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
           </div>
           <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: tr("All|inspections"), count: scheduled.length, color: t.goldText }, { id: "scheduled", label: tr("Scheduled|inspections"), count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: tr("In Progress"), count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="inspections-scheduled" value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -19798,7 +19794,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
       {tab === "completed" && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="inspections-completed" value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setCompPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -20007,7 +20003,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
       )}
 
       {/* NEW TEMPLATE MODAL */}
-      {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
+      {newTplModal && <Mdl name="inspections-new-tpl-modal" t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New Inspection Template")}</div><button onClick={() => setNewTplModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template Name *")}</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder={tr("e.g. Standard Office Cleaning")} /></div>
         {kindsLive && <div style={{ marginBottom: 14 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={newTplForm.kind} onChange={e => { setKindRefusal(""); setNewTplForm({ ...newTplForm, kind: e.target.value }); }} options={inspectionKindOpts()} />
@@ -20018,7 +20014,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
       </div></Mdl>}
 
       {/* SCHEDULE MODAL */}
-      {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
+      {editInspModal && <Mdl name="inspections-edit-insp-modal-2" t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -20029,7 +20025,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
           <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>{tr("Close")}</Btn><Btn t={t} onClick={submitEditInspection}>{tr("Save")}</Btn></div>
         </div>
       </div></Mdl>}
-      {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
+      {scheduleModal && <Mdl name="inspections-schedule-modal" t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -20819,7 +20815,7 @@ function WhoOpened({ af, t, kind, id, name = "" }) {
   if (gone || id == null || id === "") return null;
   return (<>
     <button type="button" data-who-opened={kind} data-who-opened-id={String(id)} onClick={look} disabled={busy} style={{ background: "none", border: "none", padding: "2px 4px", minHeight: 32, color: t.textMut, fontSize: 11, textDecoration: "underline", cursor: busy ? "wait" : "pointer", fontFamily: FONT_BODY, whiteSpace: "nowrap" }}>{busy ? tr("Loading...") : tr("Who opened this")}</button>
-    {shown && <Mdl t={t} onClose={() => setShown(null)}><div style={{ padding: 20 }} data-who-opened-window={kind}>
+    {shown && <Mdl name="who-opened-shown" t={t} onClose={() => setShown(null)}><div style={{ padding: 20 }} data-who-opened-window={kind}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Who opened this")}</div>
@@ -20888,7 +20884,7 @@ async function saveSince(af, path, o) {
 }
 // The window itself, drawn over any screen by the shell while a save waits on it.
 function ChangedSinceWindow({ t, ask, onAnswer }) {
-  return (<Mdl t={t} onClose={() => onAnswer(false)}><div style={{ padding: 20 }} data-changed-since="">
+  return (<Mdl name="changed-since-on-answer" t={t} onClose={() => onAnswer(false)}><div style={{ padding: 20 }} data-changed-since="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("This changed since you opened it")}</div>
       <button onClick={() => onAnswer(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -21332,7 +21328,7 @@ function HealthListWindow({ af, t, number, day, onClose, showToast }) {
     return () => { alive = false; };
   }, [af, number.key, day, again]);
   const cols = (HEALTH_LIST_COLS[number.key] || [["name", "Name"]]).map(([k, l, kind]) => ({ header: tr(l), render: r => (k === "name" && r.matchedNobody ? tr("No account matched") : healthCell(kind, r[k], t)) }));
-  return (<Mdl t={t} tall onClose={onClose}><div data-health-list={number.key} style={{ padding: 20 }}>
+  return (<Mdl name="health-list" t={t} tall onClose={onClose}><div data-health-list={number.key} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{number.label || number.key}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -21475,7 +21471,7 @@ function HealthRunWindow({ af, t, runId, onClose }) {
   const read = useCallback(() => af("/api/health/runs/" + encodeURIComponent(runId)).then(x => { setD(x && x.run ? x : null); setFailed(x && x.run ? "" : tr("This did not load.")); }).catch(e => setFailed(e.message || tr("This did not load."))), [af, runId]);
   useEffect(() => { read(); }, [read, again]);
   const run = d && d.run;
-  return (<Mdl t={t} tall onClose={onClose}><div data-health-run={runId} style={{ padding: 20 }}>
+  return (<Mdl name="health-run" t={t} tall onClose={onClose}><div data-health-run={runId} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Run-through")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -21909,7 +21905,7 @@ function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, bo
   }, [token, path, fallbackName, again]);
   useEffect(() => () => { setPdf(p => { if (p.url) URL.revokeObjectURL(p.url); return p; }); }, []);
   const langBtn = (x) => { const on = lang === x.id; return <button key={x.id} onClick={() => setLang(x.id)} aria-pressed={on} title={x.label} style={{ minHeight: 44, minWidth: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>; };
-  return (<Mdl t={t} onClose={onClose} tall><div style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }} {...(boxProps || {})}>
+  return (<Mdl name="pdf" t={t} onClose={onClose} tall><div style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }} {...(boxProps || {})}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{title}</div>
@@ -21987,7 +21983,7 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
   const named = (i) => refusal.code === "quotes.badEmail" && refusal.keys.indexOf(String(i)) >= 0;
   const who = (c) => (c.name ? c.name + " (" + c.email + ")" : c.email);
   const langBtn = (x) => { const on = lang === x.id; return <button key={x.id} onClick={() => setLang(x.id)} aria-pressed={on} title={x.label} style={{ minHeight: 44, minWidth: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>; };
-  return (<Mdl t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-quote-send="">
+  return (<Mdl name="quote-send" t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-quote-send="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send to the client")}</div>
@@ -23113,7 +23109,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
     {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={list} rowKey={h => (h.id || h.key || "") + ":" + h.date} empty={tr("No holidays this year.")} />}
-    {win && <Mdl t={t} onClose={() => { if (!saving) setWin(null); }}><div style={{ padding: 20 }} data-holiday-window={win.mode}>
+    {win && <Mdl name="holidays-win" t={t} onClose={() => { if (!saving) setWin(null); }}><div style={{ padding: 20 }} data-holiday-window={win.mode}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{win.mode === "add" ? tr("Add a holiday") : tr("Edit holiday")}</div>
         <button onClick={() => setWin(null)} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
@@ -23441,7 +23437,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div>}
 
       {/* Add Category Modal */}
-      {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
+      {addCatForm && <Mdl name="settings-add-cat-form" t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Category")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Label *")}</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder={tr("e.g. Equipment Types")} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder={tr("Optional description")} /></div>
@@ -23449,7 +23445,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Edit Category Modal */}
-      {editCatForm && <Mdl t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
+      {editCatForm && <Mdl name="settings-edit-cat-form" t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Category")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Label")}</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
@@ -23457,7 +23453,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Add Value Modal */}
-      {addValForm && <Mdl t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
+      {addValForm && <Mdl name="settings-add-val-form" t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Value to {0}", activeCat ? activeCat.label : "")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Value (stored) *")}</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder={tr("e.g. floor_tech")} style={{ fontFamily: "monospace" }} /></div>
@@ -23471,7 +23467,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Edit Value Modal */}
-      {editValForm && <Mdl t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
+      {editValForm && <Mdl name="settings-edit-val-form" t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Value")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Value (stored)")}</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
@@ -23486,7 +23482,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Add Site Lookup Modal */}
-      {addSiteVal && <Mdl t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
+      {addSiteVal && <Mdl name="settings-add-site-val" t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr(siteTypeAddLabel[addSiteVal.lookup_type] || "Add Value")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -23497,7 +23493,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Edit Site Lookup Modal */}
-      {editSiteVal && <Mdl t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
+      {editSiteVal && <Mdl name="settings-edit-site-val" t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Site Lookup")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -24471,7 +24467,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     </div>);
   };
 
-  return (<><Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<><Mdl name="incident-report" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || tr("Report")}</div>
@@ -25309,7 +25305,7 @@ function FormFillWindow({ af, token, t, form, draft, onLeave, embed = false, loc
   );
   // In a box on the page, the window is drawn at the height the builder's preview gives it.
   if (embed) return <div style={{ border: "1px solid " + t.border, borderRadius: 16, background: t.card, height: 640, maxHeight: "calc(100vh / var(--zoom, 1) - 120px)", overflow: "hidden" }}>{body}</div>;
-  return <Mdl t={t} tall onClose={askLeave}>{body}</Mdl>;
+  return <Mdl name="form-fill-ask-leave" t={t} tall onClose={askLeave}>{body}</Mdl>;
 }
 
 // ===== THE FORM BUILDER (Step 187) =====
@@ -25356,7 +25352,7 @@ function FormVersionHistoryWindow({ af, t, form, isAdmin, onClose, onRetired }) 
       onRetired();
     } catch (e) { setRefusal(builderRefusal(e)); busyRef.current = false; setBusy(false); }
   };
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl name="form-version-history" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{builderTitle(form)}</div>
@@ -26338,7 +26334,7 @@ const WINDOW_HEAD = { fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600 };
 // Turn off asks once: the posted QR code stops working for everyone who scans it.
 function TurnOffLinkWindow({ t, link, onCancel, onConfirm }) {
   useEscape(onCancel);
-  return (<Mdl t={t} onClose={onCancel}><div data-link-ask-off="" style={{ padding: 20 }}>
+  return (<Mdl name="turn-off-link-on-cancel" t={t} onClose={onCancel}><div data-link-ask-off="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text, overflowWrap: "anywhere" }}>{linkTitle(link)}</div>
@@ -26361,7 +26357,7 @@ function RenameLinkWindow({ t, acts }) {
   const [area, setArea] = useState(() => linkArea(link));
   useEscape(acts.cancelRename);
   const underField = !!acts.renameError.text && acts.renameError.keys.indexOf("areaLabel") >= 0;
-  return (<Mdl t={t} onClose={acts.cancelRename}><div data-link-rename="" style={{ padding: 20 }}>
+  return (<Mdl name="rename-link" t={t} onClose={acts.cancelRename}><div data-link-rename="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Rename")}</div>
@@ -26417,7 +26413,7 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
     if (!printCustomerLinkSheets({ sheets: [{ link, qr, titles: lines.titles, scanLines: lines.scanLines }], company })) setPrintError(tr("Allow pop-ups to print the sheet"));
   };
   const ready = !!(qr && lines && company);
-  return (<Mdl t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
+  return (<Mdl name="link-qr" t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Customer links")}</div>
       <WindowX t={t} onClose={onClose} />
@@ -26448,7 +26444,7 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
 // A site's survey schedule in a window of its own, from beside the site's survey link.
 function LinkSurveyWindow({ af, t, site, onClose }) {
   useEscape(onClose);
-  return (<Mdl t={t} onClose={onClose}><div data-survey-screen="" style={{ padding: 20 }}>
+  return (<Mdl name="link-survey" t={t} onClose={onClose}><div data-survey-screen="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Client survey schedule")}</div>
@@ -26934,7 +26930,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : status === "void" ? voidCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : status === "void" ? tr("No void reports.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
     {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} openCase={openCase} />}
-    {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
+    {picker && (<Mdl name="incident-reports-tab-picker" t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
         <button onClick={() => setPicker(null)} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
@@ -27777,7 +27773,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
               <Sel options={[{ v: "", l: tr("Onboarding: Any") }, { v: "true", l: tr("Onboarding only") }, { v: "false", l: tr("Non-onboarding") }]} value={libFilters.onboarding} onChange={e => setLibFilters({ ...libFilters, onboarding: e.target.value })} t={t} />
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>
-              <Inp t={t} placeholder={tr("Search titles or notes...")} value={libFilters.search} onChange={e => setLibFilters({ ...libFilters, search: e.target.value })} />
+              <Inp t={t} data-list-search="forms-library" placeholder={tr("Search titles or notes...")} value={libFilters.search} onChange={e => setLibFilters({ ...libFilters, search: e.target.value })} />
             </div>
           </div>
 
@@ -27824,7 +27820,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             <Inp t={t} type="date" value={subFilters.date_start} onChange={e => setSubFilters({ ...subFilters, date_start: e.target.value })} style={{ width: 150 }} />
             <Inp t={t} type="date" value={subFilters.date_end} onChange={e => setSubFilters({ ...subFilters, date_end: e.target.value })} style={{ width: 150 }} />
             <div style={{ flex: 1, minWidth: 180 }}>
-              <Inp t={t} placeholder={tr("Search name, email, form...")} value={subFilters.search} onChange={e => setSubFilters({ ...subFilters, search: e.target.value })} />
+              <Inp t={t} data-list-search="forms-submissions" placeholder={tr("Search name, email, form...")} value={subFilters.search} onChange={e => setSubFilters({ ...subFilters, search: e.target.value })} />
             </div>
           </div>
 
@@ -28392,7 +28388,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ FORM EDIT MODAL ================ */}
       {editForm && (
-        <Mdl t={t} onClose={() => setEditForm(null)}>
+        <Mdl name="forms-edit-form" t={t} onClose={() => setEditForm(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Form")}</div>
@@ -28445,7 +28441,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ SUBMISSION DETAIL MODAL ================ */}
       {detailSub && (
-        <Mdl t={t} onClose={() => setDetailSub(null)}>
+        <Mdl name="forms-detail-sub" t={t} onClose={() => setDetailSub(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Submission Detail")}</div>
@@ -28562,7 +28558,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ FULL REFRESH WARNING MODAL ================ */}
       {fullRefreshModal && (
-        <Mdl t={t} onClose={() => setFullRefreshModal(false)}>
+        <Mdl name="forms-full-refresh-modal" t={t} onClose={() => setFullRefreshModal(false)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: RD }}>{tr("Full Refresh. Read Before Running.")}</div>
@@ -28599,7 +28595,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ LINK MODAL ================ */}
       {linkModal && (
-        <Mdl t={t} onClose={() => setLinkModal(null)}>
+        <Mdl name="forms-link-modal" t={t} onClose={() => setLinkModal(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Link Submission to Record")}</div>
@@ -28704,7 +28700,7 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
   const title = mode === "act168" ? tr(ACT168_LABEL) : clearanceKindWord(kind);
   const docOpts = [{ v: "", l: tr("No document") }].concat((docs || []).map(d => ({ v: String(d.id), l: d.file_name || d.title || tr("Document") })));
   const ready = !!f.date && (mode !== "correct" || f.reason.trim().length > 0);
-  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-clearance-window={mode}>
+  return (<Mdl name="clearance" t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-clearance-window={mode}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{mode === "correct" ? tr("Correct a date") : mode === "act168" ? tr("Record the review") : tr("Add or renew")}</div>
@@ -28923,7 +28919,7 @@ function ClearancesPage({ af, token, t, sites = [], route = [], onRoute, hrOpen 
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId, hrOpen)} empty={tr("No one matches.")} />}
     {/* #clearances/<id>: one person's clearances for someone HR Records is closed to (DASH-07). */}
-    {route[0] && <Mdl t={t} onClose={() => { if (onRoute) onRoute([]); load(); }}><div style={{ padding: 20 }} data-clearances-person={route[0]}>
+    {route[0] && <Mdl name="clearances-on-route" t={t} onClose={() => { if (onRoute) onRoute([]); load(); }}><div style={{ padding: 20 }} data-clearances-person={route[0]}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, minWidth: 0 }}>{((rows || []).find(p => String(p.userId) === String(route[0])) || {}).name || tr("Clearances")}</div>
         <button onClick={() => { if (onRoute) onRoute([]); load(); }} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -28965,7 +28961,7 @@ function ClearanceMissingWindow({ t, refusal, people, onClose, hrOpen = true }) 
   const who = clearanceRefusedPeople(refusal, people);
   const missing = Array.isArray(refusal && refusal.missing) ? refusal.missing.map(String) : [];
   const names = who.map(p => p.name).filter(Boolean);
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-clearance-missing="">
+  return (<Mdl name="clearance-missing" t={t} onClose={onClose}><div style={{ padding: 20 }} data-clearance-missing="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><AlI sz={18} c={RD} /><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Clearances missing")}</div></div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -29103,7 +29099,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
       {/* Top filter row */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
         <div style={{ flex: "1 1 260px", minWidth: 200 }}>
-          <Inp t={t} placeholder={tr("Search name, email, or role...")} value={search} onChange={e => setSearch(e.target.value)} />
+          <Inp t={t} data-list-search="hr" placeholder={tr("Search name, email, or role...")} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ minWidth: 200 }}>
           <Sel options={sortOpts} value={sortBy} onChange={e => setSortBy(e.target.value)} t={t} />
@@ -29424,7 +29420,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const small = { minHeight: 44 };
   const signed = (k) => (issue[k] ? <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setIssue(p => ({ ...p, [k]: "" }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div> : null);
   const emailOnFile = person && person.email ? String(person.email) : "";
-  return (<Mdl t={t} tall asksItself onClose={tryClose}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
+  return (<Mdl name="warning-try-close" t={t} tall asksItself onClose={tryClose}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
@@ -29575,7 +29571,7 @@ function PastWarningWindow({ af, t, userId, name, item, steps, onClose, onSaved,
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-past-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-past-warning="">
+  return (<Mdl name="past-warning" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-past-warning="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add to the record")}</div>{name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -29724,7 +29720,7 @@ function FolderCertifications({ af, t, userId, getOpts, showToast }) {
       <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? (c.issuing_body ? " | " : "") + tr("Exp: {0}", fdLong(c.expiry_date)) : ""}</div></div>
       <Btn t={t} v="ghost" onClick={() => remove(c)} style={{ minHeight: 44, padding: "4px 10px", fontSize: 11, color: RD }}>{tr("Remove")}</Btn>
     </div>)}
-    {adding && <Mdl t={t} onClose={() => setAdding(null)}><div style={{ padding: 20 }}>
+    {adding && <Mdl name="folder-certifications-adding" t={t} onClose={() => setAdding(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAdding(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Name *")}</Lbl><Inp t={t} value={adding.certName} onChange={e => setAdding({ ...adding, certName: e.target.value })} placeholder={tr("e.g. Green Cleaning Fundamentals")} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={adding.certType} onChange={e => setAdding({ ...adding, certType: e.target.value })} options={getOpts("certification_types", null, true)} /></div>
@@ -30180,7 +30176,7 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <>      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /><ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="discipline" /></>}
     {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={() => load(true)} />}
-    {issueFor && <Mdl t={t} onClose={() => { if (!issueFor.busy) setIssueFor(null); }}><div data-discipline-issue-for="" style={{ padding: 20 }}>
+    {issueFor && <Mdl name="discipline-issue-for" t={t} onClose={() => { if (!issueFor.busy) setIssueFor(null); }}><div data-discipline-issue-for="" style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue a warning")}</div>
         <button onClick={() => { if (!issueFor.busy) setIssueFor(null); }} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
@@ -30255,7 +30251,7 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-case-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-open-case="">
+  return (<Mdl name="open-case" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-open-case="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Open a case")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -30715,7 +30711,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
       : !loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
     {!loading && <ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="cases" />}
 
-    {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
+    {detail && <Mdl name="cases-close-case" t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Case")}</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Received {0}", ff(detail.createdAt))}</span></div></div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -31147,7 +31143,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Document")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder={tr("Search employee, category, file, uploaded by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="hr-documents" value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder={tr("Search employee, category, file, uploaded by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setDocPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -31193,7 +31189,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         </div>
         {!gapsLive && <TrainingGapsPanel af={af} t={t} sites={sites} staff={allStaff} refreshKey={training} typeWords={trainingTypeMap} showToast={showToast} />}
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search={trainingPage ? "training" : "hr-training"} value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -31394,7 +31390,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Other")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder={tr("Search employee, file, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="hr-other" value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder={tr("Search employee, file, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? tr("No items filed under Other. Use Add Other to upload.") : tr("No items match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
@@ -31403,7 +31399,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
 
       {/* DOCUMENT MODAL */}
-      {showModal === "doc" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); setFile(null); }}>
+      {showModal === "doc" && <Mdl name="h-r-records-show-modal" t={t} onClose={() => { setShowModal(null); setForm({}); setFile(null); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Document") : tr("Add Document")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
@@ -31428,7 +31424,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </Mdl>}
 
       {/* TRAINING MODAL */}
-      {showModal === "training" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
+      {showModal === "training" && <Mdl name="h-r-records-show-modal-2" t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Training Record") : tr("Add Training Record")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
@@ -31462,7 +31458,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} topicsLive={topicsLive} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(true); if (compliance) loadCompliance(); }} />}
 
       {/* ONBOARDING STEP MODAL */}
-      {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
+      {showModal === "onbStep" && <Mdl name="h-r-records-show-modal-3" t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Custom Onboarding Step")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Step Name")}</div>
@@ -31760,7 +31756,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
   const badLine = (k) => (bad(k) ? <div role="alert" data-session-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad(k)}</div> : null);
   const unplaced = refusal && refusal.fields.length === 0 ? refusal.text : "";
   return (
-    <Mdl t={t} onClose={close}>
+    <Mdl name="log-training" t={t} onClose={close}>
       <div data-session-window="" style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Log training for several people")}</div>
         {topicsLive ? <div data-session-field="topicId"><div style={field}>{tr("Topic")}</div>
@@ -32182,7 +32178,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
   const onClose = () => { if (leave()) close(); };
   const saved = (next) => { setTp(next); setEditing(false); if (onSaved) onSaved(next); };
   const views = tp ? [{ id: "details", l: tr("Details") }, { id: "who", l: tr("Who needs it") }].concat(versions ? [{ id: "lesson", l: tr("Lesson") }] : []) : [];
-  return (<Mdl t={t} tall onClose={onClose}>
+  return (<Mdl name="training-topic" t={t} tall onClose={onClose}>
     <div data-topic-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -32655,7 +32651,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
   // Step 263: an admin voids an attempt with a reason; the attempt is read again and the list with it.
   const [voiding, setVoiding] = useState(null);
   const voided = (id, d) => { setVoiding(null); if (showToast) showToast(voidedWord(d)); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
-  return (<Mdl t={t} tall onClose={onClose}>
+  return (<Mdl name="person-training" t={t} tall onClose={onClose}>
     <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -32784,7 +32780,7 @@ function TrainingMatrix({ af, t, token, sites = [], isAdmin = false, showToast }
           </tr>)}</tbody>
         </table>
       </div></Crd>}
-    {open && <Mdl t={t} onClose={() => setOpen(null)}><div data-matrix-detail="" style={{ padding: 20 }}>
+    {open && <Mdl name="training-matrix-open" t={t} onClose={() => setOpen(null)}><div data-matrix-detail="" style={{ padding: 20 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{open.tp.name}</div>
@@ -32963,7 +32959,7 @@ function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], 
     setBusy(false);
   };
   const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="upload-certificate" t={t} onClose={() => { if (!busy) onClose(); }}>
     <div data-certificate-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload a certificate")}</div>
@@ -33652,7 +33648,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
   const tall = { minHeight: 44, minWidth: 44 };
   const tickStyle = { width: 20, height: 20, accentColor: GO, flexShrink: 0, cursor: "pointer" };
   const rowStyle = { display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "4px 12px", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text, cursor: "pointer" };
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="assign-training" t={t} tall onClose={() => { if (!busy) onClose(); }}>
     <div data-assign-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -33796,7 +33792,7 @@ function SignOffWindow({ af, t, attempt, siteName = "", onClose, onDone, onPrint
     setBusy(false);
   };
   const unplaced = refusal && refusal.fields.filter(k => k === "signature" || k === "demonstrated" || k === "note").length === 0 ? refusal.text : "";
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="sign-off" t={t} onClose={() => { if (!busy) onClose(); }}>
     <div data-signoff-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Sign off training")}</div>
       <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.6 }}>
@@ -33959,7 +33955,7 @@ function StartSessionWindow({ af, t, sites = [], onClose, onStarted }) {
   };
   const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
   const choice = (on) => ({ minWidth: 44, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="start-session" t={t} onClose={() => { if (!busy) onClose(); }}>
     <div data-session-start-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Start a session")}</div>
       <div data-session-start-field="title"><div style={lbl}>{tr("Title")}</div><Inp t={t} aria-label={tr("Title")} value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder={tr("e.g. Monthly safety talk")} />{bad("title")}</div>
@@ -34494,7 +34490,7 @@ function SignHereWindow({ af, t, requestId, personName = "", onClose, onDone }) 
   };
   const item = (req && req.item) || {};
   const who = (req && req.person && req.person.name) || personName;
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-sign-here-window={requestId}>
+  return (<Mdl name="sign-here" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-sign-here-window={requestId}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Sign here now")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{who}{req && req.title ? ", " + req.title : ""}</div>
     {req === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <div role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{failed}</div> : <div style={{ marginBottom: 12 }}>
@@ -34682,7 +34678,7 @@ function SignatureRequestWindow({ af, t, token, requestId, onClose, onChanged, s
   const line = (l, v) => (v ? <div style={{ display: "flex", gap: 10, fontSize: 13, padding: "6px 0", borderBottom: "1px solid " + t.border }}><span style={{ color: t.textMut, minWidth: 100, flexShrink: 0 }}>{l}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{v}</span></div> : null);
   const where = r.signedWhere === "phone" ? tr("on their phone") : r.signedWhere === "office" ? tr("in the office") : r.signedWhere === "paper" ? tr("on paper") : "";
   const rec = r.recorded && typeof r.recorded === "object" ? r.recorded : null;
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-signature-request-window={requestId}>
+  return (<Mdl name="signature-request" t={t} onClose={onClose}><div style={{ padding: 20 }} data-signature-request-window={requestId}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{r.title || tr("Signature request")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{who}</div>
     {req === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <div role="alert" style={{ fontSize: 12, color: RD }}>{failed}</div> : <div>
@@ -34811,7 +34807,7 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
   };
   const choice = (on) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
   const known = refusal.keys.filter(k => PROPERTY_FIELDS.indexOf(k) >= 0);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-window="">
+  return (<Mdl name="issue-property" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue property")}</div>
@@ -34862,7 +34858,7 @@ function ReturnPropertyWindow({ af, t, issue, onClose, onSaved, onStale }) {
     setBusy(false);
   };
   const under = (k) => (refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-return-window="">
+  return (<Mdl name="return-property" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-return-window="">
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Mark returned")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12, overflowWrap: "anywhere" }}>{propertyLine(issue)}</div>
     {refusal.text && refusal.keys.filter(k => k === "returnedOn" || k === "note").length === 0 && <div role="alert" data-property-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
@@ -34907,7 +34903,7 @@ function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy(false);
   };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-attempt-void-window={attempt.id}>
+  return (<Mdl name="void-attempt" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-attempt-void-window={attempt.id}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Void this attempt")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{[attempt.topicName, attempt.attemptNo != null ? tr("Try {0}", attempt.attemptNo) : ""].filter(Boolean).join(" . ")}</div>
     <div style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("The training record written from it is removed with it. Why is it being voided?")}</div>
@@ -35043,7 +35039,7 @@ function WelcomeAllWindow({ af, t, staff = [], canChange, onClose, onFinished, s
   </div> : null;
   const counts = run ? welcomeAllCounts(run) : null;
   const statusOf = (r) => (!r || r.status === "waiting" ? { text: tr("Waiting|welcome email"), c: t.textMut } : r.status === "sending" ? { text: tr("Sending..."), c: t.goldText } : r.status === "sent" ? { text: tr("Sent|welcome email"), c: GR } : { text: tr("Not sent: {0}", r.reason), c: RD });
-  return (<Mdl t={t} tall onClose={close}><div style={{ padding: 20 }} data-welcome-all-window={run ? (run.running ? "running" : "done") : "plan"}>
+  return (<Mdl name="welcome-all" t={t} tall onClose={close}><div style={{ padding: 20 }} data-welcome-all-window={run ? (run.running ? "running" : "done") : "plan"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send welcome emails")}</div><button onClick={close} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
     {!run ? <>
       <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Everyone active who has never signed in and has a working email.")}</div>

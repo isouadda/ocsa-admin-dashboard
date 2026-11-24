@@ -647,6 +647,8 @@ module.exports = (ctx) => {
     if (r21 && path === "/api/library" && method === "GET") return libraryRoute(method, path, query, body, lang, base);
     if (r21 && /^\/api\/health\//.test(path) && !query.get("_raw413")) { const r = healthRoute(method, path, query, body, lang, base); if (r) return r; }
     if (/^\/api\/announcements/.test(path)) { const r = announcementsRoute(method, path, query, body, lang, base); if (r) return r; }
+    // A test office account's private lines are the test accounts' (the API's Round 17).
+    if (path === "/api/chat/dm-inbox" && method === "GET" && sc().testOffice) return okj([{ channelId: "dm-test-1", staffUserId: "u-staff-10", staffName: "Bertrand Lefevre", staffRole: "day_porter", lastMessage: "Robot check line.", lastMessageAt: TODAY + "T20:10:00Z", lastSenderId: "u-staff-10" }]);
     if (r21 && /^\/api\/leave\//.test(path)) { const r = leaveRoute(method, path, query, body, lang, base); if (r) return r; }
     if (r21 && /^\/api\/time-off/.test(path)) { const r = timeOffRoute(method, path, query, body, lang, base); if (r) return r; }
     if (path === "/api/users/profile/photo" && method === "DELETE") return photoRemoveRoute(method, path, query, body, lang);
