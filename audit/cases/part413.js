@@ -55,7 +55,7 @@ const click = async (d, sel) => { await d.page.locator(sel).first().click({ time
 // A step that cannot be taken (on main, the button or field is not there) is noted and skipped, and the waits after it
 // are short, so every check of the driver still reports what it saw under its own name and none throws. Reads pass
 // through as they are.
-const ACTIONS = ["click", "fill", "selectOption", "check", "uncheck", "setInputFiles", "dragTo", "press", "type"];
+const ACTIONS = ["click", "fill", "selectOption", "check", "uncheck", "setInputFiles", "dragTo", "press", "type", "isDisabled", "isEnabled", "isChecked", "evaluate", "inputValue", "boundingBox"];
 const CHAINS = ["first", "last", "nth", "filter", "locator"];
 function soften(d, loc) {
   return new Proxy(loc, {
@@ -422,20 +422,28 @@ async function namedCases(ctx, lang) {
   const { results } = ctx;
   const id = (x) => KIND + "/" + lang + "/named/" + x;
 
-  // 1. Who gets told lists the three recognition notices (and the course certificate's) by name, each saying who it
-  // goes to, with nothing to add.
+  // 1. Who gets told lists the three recognition notices (and the course certificate's), each by its name in the screen's
+  // language and with its own line saying who it goes to, with nothing to add. Main drew the API's English label and the
+  // generic line for each. The words are fixed here as the CSV holds them, so a table without them cannot pass.
   await withDriver(ctx, { name: "who-gets-told", lang }, async (d) => {
     await goHash(d, "settings");
     await click(d, "[data-settings-tab='recipients']");
     await until(d, "[data-notice-type='recognition_award']", 6000);
-    const want = { recognition_award: "The Employee of the Month is posted", recognition_reactions: "The Employee of the Month is told how many people congratulated them", recognition_shoutout: "Someone gets a shout-out", training_certificate: "A course's certificate is ready" };
+    const want = {
+      recognition_award: [["The Employee of the Month is posted", "Se publica el Empleado del Mes"], ["Goes to every active staff member, and to the winner in their own words. Nobody is added here.", "Llega a todo el personal activo, y al ganador con sus propias palabras. Aqu\u00ed no se agrega a nadie."]],
+      recognition_reactions: [["The Employee of the Month is told how many people congratulated them", "Al Empleado del Mes se le dice cu\u00e1ntas personas lo felicitaron"], ["Goes to the winner on the bell, at most once a day. Nobody is added here.", "Llega al ganador en la campana, como m\u00e1ximo una vez al d\u00eda. Aqu\u00ed no se agrega a nadie."]],
+      recognition_shoutout: [["Someone gets a shout-out", "Alguien recibe un reconocimiento"], ["Goes to the person the shout-out names. Nobody is added here.", "Llega a la persona que nombra el reconocimiento. Aqu\u00ed no se agrega a nadie."]],
+      training_certificate: [["A course's certificate is ready", "El certificado de un curso est\u00e1 listo"], ["Goes to the person who finished the course, on the bell. Nobody is added here.", "Llega a la persona que termin\u00f3 el curso, en la campana. Aqu\u00ed no se agrega a nadie."]],
+    };
+    const li = lang === "es" ? 1 : 0;
     const got = {};
-    for (const k of Object.keys(want)) got[k] = { name: await textOf(d, "[data-notice-type='" + k + "']"), named: await has(d, "[data-notice-named='" + k + "']") };
-    const okAll = Object.keys(want).every((k) => got[k].name === d.say(want[k]) && got[k].named);
+    for (const k of Object.keys(want)) got[k] = { name: await textOf(d, "[data-notice-type='" + k + "']"), who: await textOf(d, "[data-notice-named='" + k + "']") };
+    const okAll = Object.keys(want).every((k) => got[k].name === want[k][0][li] && got[k].who === want[k][1][li]);
     results.check(KIND, id("who-gets-told-lists-the-recognition-notices"), okAll, "read " + say(got));
   });
 
-  // 2. The roles screen names manage_recognition and post_shoutouts by the API's words.
+  // 2. A guard: the roles screen names manage_recognition and post_shoutouts by the API's words, as main already drew any
+  // capability the API lists.
   await withDriver(ctx, { name: "roles", lang }, async (d) => {
     await d.goto("settings");
     await d.settle(400);
@@ -446,7 +454,7 @@ async function namedCases(ctx, lang) {
     const body = await d.page.locator("body").innerText();
     const a = lang === "es" ? "Empleado del Mes" : "Employee of the Month";
     const b = lang === "es" ? "Publicar reconocimientos" : "Post shout-outs";
-    results.check(KIND, id("the-roles-screen-names-the-two-capabilities"), picked && body.indexOf(a) >= 0 && body.indexOf(b) >= 0, "picked " + picked + ", " + say(a) + " " + (body.indexOf(a) >= 0) + ", " + say(b) + " " + (body.indexOf(b) >= 0));
+    results.check(KIND, id("guard-the-roles-screen-names-the-two-capabilities"), picked && body.indexOf(a) >= 0 && body.indexOf(b) >= 0, "picked " + picked + ", " + say(a) + " " + (body.indexOf(a) >= 0) + ", " + say(b) + " " + (body.indexOf(b) >= 0));
   });
 }
 
