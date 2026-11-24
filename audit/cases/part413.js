@@ -828,7 +828,7 @@ async function trainingCases(ctx, lang) {
     await d.settle(400);
     const pub = writes(d, mark3, "POST", /^\/api\/training\/lesson-drafts\/pl-1\/publish$/).pop();
     results.check(KIND, id("a-player-draft-is-written-saved-and-shows-its-problem-at-the-field"), !!made && made.body && made.body.kind === "player" && video && !!save1 && save1.status === 200 && problem === API5.targetCount[lang] && shapeOk,
-      "the draft " + (made ? say(made.body) : "never made") + ", video " + video + ", the first save " + (save1 ? save1.status : "never went") + " with the target problem " + say(problem) + ", content " + (shapeOk ? "as written" : say(c2).slice(0, 300)));
+      "the draft " + (made ? say(made.body) : "never made") + ", video " + video + ", the first save " + (save1 ? save1.status : "never went") + " with the target problem " + say(problem) + ", content " + (shapeOk ? "as written" : String(say(c2)).slice(0, 300)));
     results.check(KIND, id("a-tap-target-drawn-by-dragging-is-saved"), targets === 1 && targetOk, targets + " target(s) drawn, saved " + say(tg));
     results.check(KIND, id("the-preview-plays-the-draft-in-a-phone-frame-and-it-publishes"), left === 0 && !!translated && say(translated.body) === say({ overwrite: false }) && esSay === "Wear gloves before you clean a spill. (es)" && steps === "3" && !!c2 && first === c2.screens[0].key && check === c2.checks[0].key && !!pub && pub.status === 200,
       left + " problem(s) left, Translate " + (translated ? say(translated.body) : "never went") + " gave " + say(esSay) + "; the preview " + say([steps, first, check]) + "; publish " + (pub ? pub.status : "never went"));
