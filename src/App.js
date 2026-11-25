@@ -425,7 +425,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave", "health"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "checklist", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment", "training", "owner", "periodic", "tickets", "library", "maintenance", "leave", "health", "recognition"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -438,8 +438,8 @@ const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"
 // name yet keeps today's behavior: Cases, HR Records and the employment controls read the API's own
 // answer for those three (capNamed in the shell), never these defaults.
 const CAP_ROLE_DEFAULTS = {
-  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true, file_maintenance_requests: true, manage_leave_balances: true },
-  supervisor: { file_maintenance_requests: true, manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true },
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_employment: true, read_hr_records: true, manage_cases: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: true, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true, file_maintenance_requests: true, manage_leave_balances: true, manage_recognition: true, post_shoutouts: true },
+  supervisor: { file_maintenance_requests: true, manage_staff: true, manage_cases: true, manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true, read_incident_reports: true, post_shoutouts: true },
   staff: {},
 };
 // The owner's decision 1 (Round 1, Oct 15, 2026): nobody without manage_employment sees a dollar figure,
@@ -747,14 +747,16 @@ const chkWrap = { display: "inline-flex", alignItems: "center", justifyContent: 
 // opened (DASH-24) it asks first, so a stray tap beside a phone's window keeps what was typed. Its own
 // Close and Cancel close it as they always have.
 // A window that asks its own question before closing (asksItself, part 372) is handed the press as it is.
-function Mdl({ children, onClose: oc, t, tall, asksItself = false }) {
+// Part 413 (the robot's Rounds 6 and 7): every window carries a hook, data-window="<name>", so a window is found without
+// its words. A hook changes nothing a person sees.
+function Mdl({ children, onClose: oc, t, tall, asksItself = false, name = "" }) {
   const typed = useRef(false);
   const outside = (e) => {
     if (!oc) return;
     if (!asksItself && typed.current && !window.confirm(tr("Close this window? What you entered here will be lost."))) return;
     oc(e);
   };
-  return <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={outside}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()} onChangeCapture={() => { typed.current = true; }}>{children}</div></div>;
+  return <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={outside}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()} onChangeCapture={() => { typed.current = true; }} data-window={name || undefined}>{children}</div></div>;
 }
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
@@ -1125,7 +1127,9 @@ export default function AdminDashboard() {
     if (id === "cases") return casesOn;
     if (id === "hr") return hrRecordsOn;
     if (id === "signatures") return hrRecordsOn || signaturesLive;
-    if (id === "announcements") return hasCap("send_announcements");
+    // Part 413 (the API's Round 17, 2.5): a test office account sends to the active test accounts alone, without
+    // send_announcements.
+    if (id === "announcements") return hasCap("send_announcements") || !!(user && user.isTestAccount === true);
     // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
     // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
     if (id === "help-insights") return hasCap("view_help_insights");
@@ -1147,6 +1151,9 @@ export default function AdminDashboard() {
     if (id === "library") return libraryOn;
     if (id === "maintenance") return !!maintenance;
     if (id === "leave") return leaveOn;
+    // Employee of the Month (part 413): holders of manage_recognition (admins by role) post the award; holders of
+    // post_shoutouts (admins and supervisors by role) post shout-outs on its Shout-outs tab.
+    if (id === "recognition") return hasCap("manage_recognition") || hasCap("post_shoutouts");
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
@@ -1261,7 +1268,11 @@ export default function AdminDashboard() {
     else probes.push(af("/api/periodic-work?state=overdue").then(d => { if (alive) setPeriodicOn(!!(d && Array.isArray(d.items))); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setPeriodicOn(false); console.warn("Periodic work:", e.message); }));
     if (said("tickets") !== null) setTicketsOn(said("tickets"));
     else probes.push(af("/api/support/tickets?status=new").then(d => { if (alive) setTicketsOn(!!ticketsOf(d)); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setTicketsOn(false); console.warn("Tickets:", e.message); }));
-    if (said("maintenance") === false) setMaintenance(null);
+    // Part 413 (the API's Round 18, 3.5): features.maintenance is { maxPhotos, responseDays } or false; the object is
+    // the options themselves, so the separate options read is skipped.
+    const maintObj = features && features.maintenance && typeof features.maintenance === "object" && !Array.isArray(features.maintenance) ? features.maintenance : null;
+    if (maintObj) setMaintenance(maintOf(maintObj));
+    else if (said("maintenance") === false) setMaintenance(null);
     else if (said("maintenance") === true) probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(maintOf(d && Array.isArray(d.statuses) ? d : null)); }).catch(e => { if (alive) setMaintenance(maintOf(null)); console.warn("Maintenance options:", e.message); }));
     else probes.push(af("/api/maintenance-requests/options").then(d => { if (alive) setMaintenance(d && Array.isArray(d.statuses) ? maintOf(d) : null); }).catch(e => { if (!loadDone(e)) soft = true; if (alive) setMaintenance(null); console.warn("Maintenance requests:", e.message); }));
     if (said("leave") !== null) setLeaveOn(said("leave"));
@@ -1622,6 +1633,7 @@ export default function AdminDashboard() {
   const TkI = p => <Ic d="M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" {...p} />;
   const CkrI = p => <Ic d="M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" {...p} />;
   const HltI = p => <Ic d="M22 12h-4l-3 9L9 3l-3 9H2" {...p} />;
+  const AwdI = p => <Ic d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }, ...(canOpenPage("owner") ? [{ id: "owner", l: tr("Owner's dashboard"), i: TrdI }] : [])] },
@@ -1645,6 +1657,7 @@ export default function AdminDashboard() {
       // it opens the Training area as #hr/training does. Since Step 332 it stays for a supervisor the
       // API answers read_hr_records false, who keeps Training, Sign-offs and Gaps without HR Records.
       { id: "training", l: tr("Training"), i: ClpI },
+      ...(canOpenPage("recognition") ? [{ id: "recognition", l: tr("Employee of the Month"), i: AwdI }] : []),
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
       ...(canOpenPage("cases") ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
@@ -1675,7 +1688,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, ...(canOpenPage("library") ? [{ id: "library", l: tr("Library"), i: LibI }] : []), { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances"), health: tr("Health") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), checklist: tr("Checklist Results"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment"), training: tr("Training"), owner: tr("Owner's dashboard"), periodic: tr("Periodic work"), tickets: tr("Tickets"), library: tr("Library"), maintenance: tr("Maintenance requests"), leave: tr("Leave balances"), health: tr("Health"), recognition: tr("Employee of the Month") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1936,11 +1949,12 @@ export default function AdminDashboard() {
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "health" && (canOpenPage("health") ? <HealthPage af={af} t={t} token={token} allStaff={allStaff} route={route} onRoute={replaceRoute} showToast={showToast} /> : capsPending ? <CapsPendingNotice t={t} /> : <HealthRefused t={t} onBack={() => setPage("overview")} />)}
+        {page === "recognition" && (canOpenPage("recognition") ? <RecognitionPage af={af} uf={uf} token={token} t={t} allStaff={allStaff} sites={sites} showToast={showToast} canManage={hasCap("manage_recognition")} canPost={hasCap("post_shoutouts")} route={route} onRoute={replaceRoute} /> : capsPending ? <CapsPendingNotice t={t} /> : <AdminOnlyNotice t={t} text={tr("Employee of the Month opens for the people who post it and for those who post shout-outs. Ask an admin for access.")} onBack={() => setPage("overview")} />)}
         {page === "tickets" && (canOpenPage("tickets") ? <TicketsPage af={af} t={t} token={token} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "periodic" && (canOpenPage("periodic") ? <PeriodicWorkPanel af={af} t={t} notTrackedSites={sites.filter(siteIsReference).map(x => String(x.id))} onOpenSite={(sid) => { window.location.hash = "sites/" + encodeURIComponent(String(sid)) + "/tasks"; }} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
-        {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} testOffice={!!(user && user.isTestAccount === true)} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {/* Everyone reads every document (Step 306), so the page is the API's to answer, whoever opens it. */}
         {page === "library" && <LibraryPage af={af} t={t} token={token} route={route} />}
@@ -1957,7 +1971,7 @@ export default function AdminDashboard() {
 
     {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} hrOpen={canOpenPage("hr")} />}
     {changedAsk && <ChangedSinceWindow t={t} ask={changedAsk} onAnswer={(yes) => { const a = changedAsk; setChangedAsk(null); if (a && typeof a.resolve === "function") a.resolve(yes); }} />}
-    {fileRetry && <Mdl t={t} onClose={() => setFileRetry(null)}><div style={{ padding: 20 }} data-file-withheld="">
+    {fileRetry && <Mdl name="file-retry" t={t} onClose={() => setFileRetry(null)}><div style={{ padding: 20 }} data-file-withheld="">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("The file did not open")}</div>
         <button onClick={() => setFileRetry(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -2391,7 +2405,7 @@ function TakeBackEndWindow({ af, t, userId, name, pending, onClose, onDone, show
     busyRef.current = false; setBusy(false);
   };
   const who = name || tr("this person");
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-employment-window="take-back">
+  return (<Mdl name="take-back-end" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-employment-window="take-back">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Take back the end")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -2556,7 +2570,7 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     : tr("Rehire {0}? They can sign in again, and their history stays.", who)
       + (pastSites ? " " + (ticked.length > 0 ? trn("{0} sites will be restored.|count", ticked.length) : tr("No sites will be restored.")) : "");
   const title = record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode]);
-  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
+  return (<Mdl name="employment" t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{title}</div>
@@ -2908,10 +2922,20 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // What the timeline, its record window and the printed pages name an action, a kind of record and
   // a field with. Each is the API's own name: one with a word here is drawn as that word, and any
   // other as the name with its underscores as spaces, which is what the page has always drawn.
-  const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
+  const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent"), recognized: tr("named Employee of the Month"), recognition_removed: tr("Employee of the Month taken down"), profile_photo_removed: tr("profile photo removed") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
   const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
+  // An entry the API writes in English alone, drawn in the screen's language from its own facts (part 413): named
+  // Employee of the Month, and that award taken down, each with the month its metadata names.
+  const plainEntry = (e) => {
+    const m = e && e.metadata && typeof e.metadata.month === "string" ? e.metadata.month : "";
+    if (!e) return "";
+    if (e.actionType === "recognized") return m ? tr("Named Employee of the Month for {0}", monthWordsOf(m)) : tr("Named Employee of the Month");
+    if (e.actionType === "recognition_removed") return m ? tr("Employee of the Month for {0} taken down", monthWordsOf(m)) : tr("Employee of the Month taken down");
+    if (e.actionType === "profile_photo_removed") return tr("Profile photo removed");
+    return "";
+  };
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
   // Any other key the API writes is read as words, and through the table when it has them (Step 196).
   const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
@@ -3249,15 +3273,22 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     if (file.size > 20 * 1024 * 1024) { showToast(tr("Photo must be under 20MB"), "error"); return; }
     setPhotoUploading(true);
     try {
-      const compressed = await compressImage(file, 800, 0.85);
-      const r = await uf(compressed, "profile-photos");
-      await af("/api/users/profile/photo", { method: "POST", body: { userId: userId, photoUrl: r.url } });
+      await uploadPersonPhoto(uf, af, file, userId);
       showToast(tr("Photo updated"));
       openProfile(userId); load(); loadStaff();
     } catch (e) { showToast(e.message, "error"); }
     setPhotoUploading(false);
   };
 
+  // Part 413 (the API's Round 18, 3.8): an admin removes anyone's photo, DELETE /api/users/profile/photo { userId }, asked
+  // first; the answer's words are the toast.
+  const removePhoto = async (u) => {
+    if (!window.confirm(tr("Remove {0}'s profile photo? Their initials show in its place.", (u.firstName || "") + " " + (u.lastName || "")))) return;
+    setPhotoUploading(true);
+    try { const d = await af("/api/users/profile/photo", { method: "DELETE", body: { userId: u.id } }); showToast((d && d.message) || tr("Photo removed")); openProfile(u.id); load(); loadStaff(); }
+    catch (e) { showToast(e.message, "error"); }
+    setPhotoUploading(false);
+  };
   // The profile editor's fields as the profile was read, which the editor opens with and the save is held
   // to. A record whose personal details the API held back (part 360, finding API-74) opens with none of
   // them, so no save can send them back.
@@ -3317,7 +3348,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
   // The Temporary PIN window. Add New Staff is pressed from the list, so the window is drawn from the
   // list as well as from a profile, and it is there when the save comes back, wherever that is.
-  const addedWindow = added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
+  const addedWindow = added && <Mdl name="staff-added" t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontSize: 13, color: t.textSec, marginBottom: added.welcome ? 6 : 14 }}>{added.name}</div>
       {added.welcome ? <div data-added-welcome={welcomeWent(added.welcome) ? "sent" : "not-sent"} role="status" style={{ fontSize: 13, color: welcomeWent(added.welcome) ? GR : OR, fontWeight: 600, lineHeight: 1.5, marginBottom: 14 }}>{welcomeWent(added.welcome) ? tr("Welcome email sent to {0}.", added.email) : tr("Welcome email not sent: {0}", welcomeWhy(added.welcome))}</div> : null}
@@ -3352,6 +3383,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f, u.id); }} />
             </label>
             {photoUploading && <div style={{ position: "absolute", top: 0, left: 0, width: 84, height: 84, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#F8F7F4" }}>...</div>}
+            {!!(user && user.role === "admin") && u.profilePhotoUrl && <button data-profile-photo-remove="" onClick={() => removePhoto(u)} disabled={photoUploading} style={{ position: "absolute", top: 92, left: "50%", transform: "translateX(-50%)", minHeight: 44, padding: "0 8px", background: "none", border: "none", color: RD, fontSize: 11, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer", whiteSpace: "nowrap" }}>{tr("Remove photo")}</button>}
           </div>}
         name={u.firstName + " " + u.lastName}
         idCode={u.employeeId}
@@ -3383,7 +3415,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
-        {ptabs.map(tb => <button key={tb.id} onClick={() => setProfileTab(tb.id)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: profileTab === tb.id ? 700 : 500, color: profileTab === tb.id ? t.goldText : t.textMut, background: "transparent", border: "none", borderBottom: profileTab === tb.id ? "2px solid " + GO : "2px solid transparent", cursor: "pointer", marginBottom: -1 }}>{tb.l}</button>)}
+        {ptabs.map(tb => <button key={tb.id} data-profile-tab={tb.id} onClick={() => setProfileTab(tb.id)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: profileTab === tb.id ? 700 : 500, color: profileTab === tb.id ? t.goldText : t.textMut, background: "transparent", border: "none", borderBottom: profileTab === tb.id ? "2px solid " + GO : "2px solid transparent", cursor: "pointer", marginBottom: -1 }}>{tb.l}</button>)}
       </div>
 
       {/* INFO TAB */}
@@ -3508,7 +3540,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
                 <TimelineRow t={t} entryId={entry.id} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{entry.description || actionOf(entry.actionType)}</div>
+                      <div data-timeline-action={entry.actionType || ""} style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{plainEntry(entry) || entry.description || actionOf(entry.actionType)}</div>
                       <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })}{entry.actorName && entry.actorName !== (u.firstName + " " + u.lastName) ? " " + tr("by {0}", entry.actorName) : ""}</div>
                     </div>
                     <div style={{ fontSize: 9, color: dotColor, background: dotColor + "15", padding: "2px 6px", borderRadius: 4, flexShrink: 0, textTransform: "capitalize" }}>{entityOf(entry.entityType)}</div>
@@ -3522,8 +3554,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div>}
 
       {/* Timeline Detail Modal (Session 18) */}
-      {tlDetailLoading && <Mdl t={t} onClose={() => setTlDetailLoading(false)}><div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading record details...")}</div></Mdl>}
-      {tlDetail && !tlDetailLoading && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "calc(80vh / var(--zoom, 1))", overflow: "auto" }}>
+      {tlDetailLoading && <Mdl name="staff-tl-detail-loading" t={t} onClose={() => setTlDetailLoading(false)}><div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading record details...")}</div></Mdl>}
+      {tlDetail && !tlDetailLoading && <Mdl name="staff-tl-detail" t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "calc(80vh / var(--zoom, 1))", overflow: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -3578,7 +3610,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* Modals that need to work inside profile view */}
       {addedWindow}
-      {resetPin && <Mdl t={t} onClose={() => { setResetPin(null); setPinSaid(""); }}><div style={{ padding: 20 }}>
+      {resetPin && <Mdl name="staff-reset-pin" t={t} onClose={() => { setResetPin(null); setPinSaid(""); }}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Reset PIN")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Enter a new 4-digit PIN for this staff member.")}</div>
         {signInOf(profile && profile.user && String(profile.user.id) === String(resetPin) ? profile.user : staff.find(x => String(x.id) === String(resetPin))) ? <div data-reset-pin-also="" style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Reset PIN also unlocks their sign-in and signs them out everywhere. They choose their own PIN at their next sign-in.")}</div> : null}
@@ -3587,7 +3619,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {pinSaid ? <div data-reset-pin-said="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{pinSaid}</div> : null}</div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setResetPin(null); setPinSaid(""); }}>{tr("Cancel")}</Btn><Btn t={t} data-reset-pin-save="" onClick={() => submitResetPin(resetPin)}>{tr("Reset PIN")}</Btn></div>
       </div></Mdl>}
-      {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
+      {assignForm && <Mdl name="staff-assign-form" t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Assign to Site")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Role at Site")}</Lbl><Sel t={t} value={assignForm.role} onChange={e => setAssignForm({ ...assignForm, role: e.target.value })} options={getOpts("site_roles", tr("Select role..."), true)} /></div>
@@ -3610,7 +3642,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="staff" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       {roster && <Btn t={t} v="ghost" onClick={() => { if (onRoute) onRoute(["roster"]); }} style={{ minHeight: 44 }} data-roster-open="">{tr("Roster check")}</Btn>}{welcomeAllShown(user, staff) && <WelcomeAllButton t={t} onOpen={() => setWelcomeAll(true)} />}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
@@ -3643,7 +3675,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
     {addedWindow}{welcomeAll && <WelcomeAllWindow af={af} t={t} staff={staff} canChange={canChange} showToast={showToast} onFinished={load} onClose={() => setWelcomeAll(false)} />}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {addForm && <Mdl name="staff-add-form" t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name *")}</Lbl><Inp t={t} value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone *")}</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder={tr("{0} (no dashes needed)", "2155550000")} /></div>
@@ -3653,7 +3685,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {hireDateField("add", addForm, setAddForm, { marginBottom: 12 })}
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={addForm.employmentType || ""} onChange={e => setAddForm({ ...addForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Staff")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
+    {editForm && <Mdl name="staff-edit-form" t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Staff Info")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name")}</Lbl><Inp t={t} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
@@ -3890,7 +3922,7 @@ function ShiftNamesPanel({ af, t, siteId, canEdit, showToast }) {
         </div>))}
       </Crd>);
     })}
-    {edit && <Mdl t={t} onClose={() => { if (!busy) setEdit(null); }}><div style={{ padding: 20 }}>
+    {edit && <Mdl name="shift-names-edit" t={t} onClose={() => { if (!busy) setEdit(null); }}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{edit.id ? tr("Rename") : tr("Add a block")}</div>
         <button onClick={() => setEdit(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -4048,7 +4080,7 @@ function BlockWindowWindow({ af, t, base, b, onClose, onSaved }) {
   };
   const said = (field) => (refusal.text && refusal.field === field ? <div role="alert" data-schedule-refusal={field} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const toggle = (d) => setForm(f => ({ ...f, days: f.days.indexOf(d) >= 0 ? f.days.filter(x => x !== d) : BLOCK_DAY_KEYS.filter(x => x === d || f.days.indexOf(x) >= 0) }));
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div data-schedule-window-edit={b.id} style={{ padding: 20 }}>
+  return (<Mdl name="block-window" t={t} onClose={() => { if (!busy) onClose(); }}><div data-schedule-window-edit={b.id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit the block")}</div>
@@ -4907,7 +4939,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         </Crd>
         <PpeIssues key={selectedSite} af={af} token={token} t={t} siteId={selectedSite} sites={sites} people={sp.staff} showToast={showToast} />
 
-        {showAddSupply && <Mdl t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
+        {showAddSupply && <Mdl name="sites-show-add-supply" t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply to Site")}</div><button onClick={() => setShowAddSupply(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           {addSupplyLoading && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("Loading...")}</div>}
           {!addSupplyLoading && availableSupplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("All supplies are already assigned to this site")}</div>}
@@ -5019,7 +5051,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       </div>}
 
       {/* TIMELINE DETAIL MODAL */}
-      {tlDetail && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20 }}>
+      {tlDetail && <Mdl name="sites-tl-detail" t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -5056,7 +5088,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       </div></Mdl>}
 
       {/* EDIT SITE MODAL */}
-      {editSite && <Mdl t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
+      {editSite && <Mdl name="sites-edit-site" t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Site Details")}</div><button onClick={() => setEditSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Site Name")}</Lbl><Inp t={t} value={editSite.name} onChange={e => setEditSite({ ...editSite, name: e.target.value })} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Address")}</Lbl><Inp t={t} value={editSite.addressLine1} onChange={e => setEditSite({ ...editSite, addressLine1: e.target.value })} /></div>
@@ -5100,7 +5132,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       </div></Mdl>}
 
       {/* ADD TASK MODAL */}
-      {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Task")}</div><button onClick={() => setAddTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+      {addTask && <Mdl name="sites-add-task" t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Task")}</div><button onClick={() => setAddTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Description *")}</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder={tr("e.g. Vacuum carpets")} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder={tr("e.g. Restrooms")} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} data-task-field="serviceCategory" value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} style={taskRed(addTask.said, "serviceCategory")} /><TaskFieldRefusal said={addTask.said} k="serviceCategory" /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} data-task-field="priority" value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} style={taskRed(addTask.said, "priority")} /><TaskFieldRefusal said={addTask.said} k="priority" /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} data-task-field="taskType" value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} style={taskRed(addTask.said, "taskType")} /><TaskFieldRefusal said={addTask.said} k="taskType" /></div></div>
@@ -5118,7 +5150,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask} disabled={taskBusy}>{tr("Create")}</Btn></div></div></Mdl>}
 
       {/* EDIT TASK MODAL */}
-      {editTask && <Mdl t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
+      {editTask && <Mdl name="sites-edit-task" t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Task")}</div><button onClick={() => setEditTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Name")}</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone")}</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
@@ -5168,7 +5200,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search site, address, contract")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="sites" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search site, address, contract")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -5193,7 +5225,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No sites found.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
-    {addSite && <Mdl t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Site")}</div><button onClick={() => setAddSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {addSite && <Mdl name="sites-add-site" t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Site")}</div><button onClick={() => setAddSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addSite.name} onChange={e => setAddSite({ ...addSite, name: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Address *")}</Lbl><Inp t={t} value={addSite.address} onChange={e => setAddSite({ ...addSite, address: e.target.value })} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("City")}</Lbl><Inp t={t} value={addSite.city} onChange={e => setAddSite({ ...addSite, city: e.target.value })} /></div><div><Lbl>{tr("State")}</Lbl><Inp t={t} value={addSite.state} onChange={e => setAddSite({ ...addSite, state: e.target.value })} /></div><div><Lbl>{tr("Zip")}</Lbl><Inp t={t} value={addSite.zip} onChange={e => setAddSite({ ...addSite, zip: e.target.value })} /></div></div>
@@ -6231,7 +6263,7 @@ function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }
   const who = (p, at) => (p || at ? [nameOf(p), at ? irWhen(at) : ""].filter(Boolean).join(", ") : "--");
   const yesNo = (v) => (v === true ? tr("Yes") : v === false ? tr("No") : "--");
   const timeStr = (iso) => (iso ? new Date(iso).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "");
-  return (<Mdl t={t} onClose={onClose}><div data-request-window="" style={{ padding: 20 }}>
+  return (<Mdl name="request" t={t} onClose={onClose}><div data-request-window="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text, overflowWrap: "anywhere" }}>{r ? requestWhere(r) : tr("Client request")}</div>
@@ -6736,7 +6768,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
     <ShowMore t={t} next={issNext} busy={issMore} onMore={moreIssues} at="issues" />
-    {shown && <Mdl t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
+    {shown && <Mdl name="issues-close-sel" t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => closeSel()} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{shown.title}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(shown.severity)} c={sC[shown.severity]} /><Bdg l={stateOf(shown.status)} c={stC[shown.status] || t.textMut} /></div>
@@ -6812,7 +6844,7 @@ function IssuesPage({ af, token = "", showToast, t, allStaff, sites = [], canVie
       {statusMoved && issueStatusChoices(shown).length > 0 && <div data-issue-status-moved={statusMoved} role="status" style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.5 }}>{tr("Someone changed this issue to {0} while it was open. Your choice is kept.", stateOf(statusMoved))}</div>}
       {statusRefusal && <div data-issue-status-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{statusRefusal}</div>}
       </div></Mdl>}
-    {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
+    {assignTask && <Mdl name="issues-assign-task" t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
@@ -6973,7 +7005,7 @@ function MaintenanceNewWindow({ af, t, token, sites = [], start = {}, photosAgai
   const siteName = (sites.find(s => String(s.id) === String(form.siteId)) || {}).name || start.siteName || "";
   const noContact = !!(contacts && to.length === 0) || (said && said.code === "maintenance.noContact");
   const already = said && said.code === "maintenance.issueAlreadySent" && said.text;
-  return (<Mdl t={t} tall onClose={onClose}><div data-maint-new="" style={{ padding: 20 }}>
+  return (<Mdl name="maintenance-new" t={t} tall onClose={onClose}><div data-maint-new="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{fromIssue ? tr("Send to building maintenance") : tr("New maintenance request")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -7097,7 +7129,7 @@ function MaintenanceRequestWindow({ af, t, token, id, onClose, onChanged, showTo
     if (en.kind === "scheduled") return tr("Scheduled for {0}", en.scheduledFor ? fdLong(en.scheduledFor) : "--");
     return maintLogWord(en.kind, en.kindName);
   };
-  return (<Mdl t={t} tall onClose={onClose}><div data-maint-window={id} style={{ padding: 20 }}>
+  return (<Mdl name="maintenance-request" t={t} tall onClose={onClose}><div data-maint-window={id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Maintenance request")}</div>
@@ -7280,7 +7312,7 @@ function MaintenanceContactWindow({ af, t, siteId, contact = null, onClose, onSa
   });
   const bad = (k) => !!(said && said.keys.indexOf(k) >= 0);
   const field = (k, label, extra) => <div style={{ marginBottom: 12 }}><Lbl>{tr(label)}</Lbl><Inp t={t} data-maint-contact-field={k} aria-label={tr(label.replace(/ \*$/, ""))} value={form[k]} onChange={e => set(k, e.target.value)} style={bad(k) ? { borderColor: RD } : undefined} {...(extra || {})} /></div>;
-  return (<Mdl t={t} onClose={onClose}><div data-maint-contact-window={contact ? contact.id : "new"} style={{ padding: 20 }}>
+  return (<Mdl name="maintenance-contact" t={t} onClose={onClose}><div data-maint-contact-window={contact ? contact.id : "new"} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{contact ? tr("Edit maintenance contact") : tr("Add a maintenance contact")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -7389,8 +7421,11 @@ const leavePolicyName = (p) => (p && p.name ? p.name : "--");
 // Part 400 (the API's Round 15, part 395): every leave person head carries employmentClass, the class leave reads
 // (full_time, part_time, supplemental), null when none is on file. An API before Round 15 sends no such field, and
 // nothing is drawn for it.
-const LEAVE_CLASS_WORDS = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
+// Part 413 (the API's Round 18, 3.1): every head also carries leaveClass, the class the person's leave follows, union
+// and none included; it is drawn in place of employmentClass when the answer carries it.
+const LEAVE_CLASS_WORDS = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental", union: "Union site|leave class", none: "No class on file" };
 const leaveClassWord = (p) => {
+  if (p && Object.prototype.hasOwnProperty.call(p, "leaveClass") && p.leaveClass) return LEAVE_CLASS_WORDS[p.leaveClass] ? tr(LEAVE_CLASS_WORDS[p.leaveClass]) : String(p.leaveClass);
   if (!p || !Object.prototype.hasOwnProperty.call(p, "employmentClass")) return "";
   const c = p.employmentClass;
   return c ? (LEAVE_CLASS_WORDS[c] ? tr(LEAVE_CLASS_WORDS[c]) : String(c)) : tr("No class on file");
@@ -7417,6 +7452,16 @@ async function leaveMissingPeople(af) {
   (hires || []).forEach(x => { const r = at(x); if (r) { r.noHireDate = true; r.kindsAffected = Array.isArray(x.kindsAffected) ? x.kindsAffected : []; if (!r.policy) r.policy = x.policy || null; } });
   return Array.from(by.values()).sort((a, b) => String(a.person.name || "").localeCompare(String(b.person.name || "")));
 }
+// Part 413 (the API's Round 18, 3.6): each missing list answers total beside people, so the tab's count is one read of
+// each, { classes, hireDates }, null for a list that answered no total (an API before Round 18), which is then read
+// whole as before.
+async function leaveMissingTotals(af) {
+  const one = (path) => af(path + "?limit=1&cursor=").then(d => (d && typeof d.total === "number" ? d.total : null)).catch(() => null);
+  const [classes, hireDates] = await Promise.all([one("/api/leave/missing-classes"), one("/api/leave/missing-hire-dates")]);
+  return { classes, hireDates };
+}
+// Each balance's rule, line { text, note, classes } | null (the API's Round 18, 3.1), in the API's words.
+const LeaveRuleLine = ({ t, b }) => (b && b.line && b.line.text ? <div data-leave-line={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{b.line.text}{b.line.note ? " " + b.line.note : ""}</div> : null);
 // The words the API says each refusal and warning in come with the answer, in the reader's language.
 const leaveRefusal = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: String((e && e.code) || "") });
 // Pages a list until nextCursor is empty, for the screens that need everyone at once.
@@ -7435,7 +7480,7 @@ async function leaveEveryPage(af, path, key) {
 // A balance's parts, in a table of its own.
 function LeaveBalancesTable({ t, balances }) {
   const cols = [
-    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}{leaveCapLines(b).map((x, i) => <div key={"cap" + i} data-leave-cap={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{x}</div>)}{leaveOwnNotes(b).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
+    { header: tr("Kind"), render: b => <div><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{leaveKindWord(b.kind, b.kindName)}</div>{b.usableFrom && b.usableFrom > leaveToday() && <div style={{ fontSize: 11, color: OR }}>{tr("Usable from {0}", fdLong(b.usableFrom))}</div>}<LeaveRuleLine t={t} b={b} />{leaveCapLines(b).map((x, i) => <div key={"cap" + i} data-leave-cap={b.kind} style={{ fontSize: 11, color: t.textSec, marginTop: 2, lineHeight: 1.4 }}>{x}</div>)}{leaveOwnNotes(b).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2, lineHeight: 1.4 }}>{n.message}</div>)}</div> },
     { header: tr("Start of year"), align: "right", render: b => leaveHours(b.startHours) },
     { header: tr("Granted"), align: "right", render: b => leaveHours(b.grantedHours) },
     { header: tr("Used"), align: "right", render: b => leaveHours(b.usedHours) },
@@ -7551,11 +7596,12 @@ function LeavePersonWindow({ af, t, userId, year, kinds = [], policies = [], can
     { header: tr("Hours"), align: "right", render: en => <span style={{ fontWeight: 600, color: Number(en.hours) < 0 ? RD : GR, whiteSpace: "nowrap" }}>{leaveSigned(en.hours)}</span> },
     { header: tr("By"), render: en => <span style={{ fontSize: 12, color: t.textSec }}>{en.createdBy && en.createdBy.name ? en.createdBy.name : tr("The system")}</span> },
   ];
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-person={userId} style={{ padding: 20 }}>
+  return (<Mdl name="leave-person" t={t} tall onClose={onClose}><div data-leave-person={userId} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave")}</div>
-        {p && <div data-leave-person-head="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), leaveClassWord(p), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+        {p && <div data-leave-person-head="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), p.leaveClassText ? "" : leaveClassWord(p), p.site ? p.site.name : "", tr("Year {0}", String(data.year))].filter(Boolean).join(" | ")}</div>}
+        {p && p.leaveClassText && <div data-leave-class-text={p.leaveClass || ""} style={{ fontSize: 12, color: t.text, marginTop: 4 }}>{p.leaveClassText}</div>}
       </div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
@@ -7671,7 +7717,7 @@ function LeavePolicyEditor({ af, t, policy = null, kinds = [], onClose, onSaved 
   const small = { minHeight: 44, padding: "6px 12px", fontSize: 12 };
   const num = (v) => v.replace(/[^0-9.]/g, "").slice(0, 8);
   const kindOptions = kinds.filter(k => k.fromTimeOff).map(k => ({ v: k.key, l: leaveKindWord(k.key, k.name) })).concat([{ v: "__new", l: tr("Another kind...") }]);
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy-editor={policy ? policy.id : "new"} style={{ padding: 20 }}>
+  return (<Mdl name="leave-policy-editor" t={t} tall onClose={onClose}><div data-leave-policy-editor={policy ? policy.id : "new"} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{policy ? tr("Edit leave policy") : tr("New leave policy")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -7752,7 +7798,7 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
   const more = async () => { try { const d = await af(base + "?cursor=" + encodeURIComponent(next)); setPeople(cur => cur.concat(Array.isArray(d && d.people) ? d.people : [])); setNext(d && d.nextCursor ? d.nextCursor : null); } catch (e) { showToast((e && e.message) || tr("Request failed"), "error"); } };
   const p = data && data.policy;
   const readOnly = !!(p && p.builtIn);
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-policy={id} style={{ padding: 20 }}>
+  return (<Mdl name="leave-policy" t={t} tall onClose={onClose}><div data-leave-policy={id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{p ? p.name : tr("Leave policy")}</div>
         {p && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{p.isDefault && <Bdg l={tr("Company default")} c={GO} />}{p.builtIn && <Bdg l={tr("Read only")} c={t.textMut} />}</div>}</div>
@@ -7890,7 +7936,7 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
     { header: tr("Hours worked"), align: "right", render: l => leaveNum(l.hoursWorked) },
     { header: dry ? tr("What would post") : tr("What posted"), render: l => <span data-leave-file-outcome={l.outcome} style={{ fontSize: 12, color: l.outcome === "posted" ? GR : t.textSec }}>{dry && l.outcome === "posted" ? tr("Will post|hours file") : leaveOutcomeWord(l.outcome)}{(l.entries || []).map(x => " " + leaveKindWord(x.kind) + " " + leaveSigned(x.hours)).join(",")}</span> },
   ];
-  return (<Mdl t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
+  return (<Mdl name="leave-hours" t={t} tall onClose={onClose}><div data-leave-hours-window="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload an hours file")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -8057,8 +8103,11 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   useEffect(() => { if (tab === "hours") loadFiles(""); }, [tab, loadFiles]);
   // Read when the page opens, for the count beside its tab, and again each time the tab is opened.
   const loadMissing = useCallback(async () => { const list = await leaveMissingPeople(af); setMissing(list || []); setMissingFailed(list === null); }, [af]);
-  useEffect(() => { loadMissing(); }, [loadMissing]);
+  // The count beside the tab: one read of each list's total; a list with no total is read whole as before.
+  const [missingTotals, setMissingTotals] = useState(null);
+  useEffect(() => { let alive = true; leaveMissingTotals(af).then(x => { if (!alive) return; if (x.classes === null || x.hireDates === null) { setMissingTotals(null); loadMissing(); } else setMissingTotals(x); }); return () => { alive = false; }; }, [af, loadMissing]);
   useEffect(() => { if (tab === "missing") loadMissing(); }, [tab, loadMissing]);
+  const missingCount = missingTotals ? missingTotals.classes + missingTotals.hireDates : (missing ? missing.length : 0);
   const pickStyle = { minHeight: 44, padding: "6px 10px", fontSize: 12 };
   const balanceCols = [
     { header: tr("Person"), render: r => <div data-leave-row={r.person.userId}><div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{r.person.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{[roleWord(r.person.role), leaveClassWord(r.person), r.person.site ? r.person.site.name : ""].filter(Boolean).join(" | ")}</div></div> },
@@ -8067,7 +8116,8 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
   ];
   return (<div data-leave-page="">
     <SecT t={t}>{tr("Leave balances")}</SecT>
-    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l), count: id === "missing" && missing && missing.length > 0 ? missing.length : null }))} />
+    <FilterTabs t={t} value={tab} onChange={id => go(id)} tabs={tabs.map(([id, l]) => ({ id, label: tr(l), count: id === "missing" && missingCount > 0 ? missingCount : null }))} />
+    {tab === "missing" && missingTotals && <div data-leave-missing-totals={missingTotals.classes + "," + missingTotals.hireDates} style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("{0} with no class on file, {1} with no hire date.", missingTotals.classes, missingTotals.hireDates)}</div>}
     {tab === "balances" && <div data-leave-tab="balances">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 10 }}>
         <Sel t={t} data-leave-filter="year" aria-label={tr("Year")} value={String(year)} onChange={e => setYear(Number(e.target.value))} options={[leaveYear() + 1, leaveYear(), leaveYear() - 1, leaveYear() - 2].map(y => ({ v: String(y), l: String(y) }))} style={pickStyle} />
@@ -8075,7 +8125,7 @@ function LeavePage({ af, t, token, sites = [], showToast, route = [], onRoute, c
         <Sel t={t} data-leave-filter="policy" aria-label={tr("Policy")} value={f.policyId} onChange={e => setF(x => ({ ...x, policyId: e.target.value }))} options={[{ v: "", l: tr("Every policy") }].concat((policies || []).map(p => ({ v: p.id, l: p.name })))} style={pickStyle} />
         <Sel t={t} data-leave-filter="role" aria-label={tr("Role")} value={f.role} onChange={e => setF(x => ({ ...x, role: e.target.value }))} options={[{ v: "", l: tr("Every role") }].concat(LEAVE_ROLES.map(r => ({ v: r, l: roleWord(r) })))} style={pickStyle} />
         <Sel t={t} data-leave-filter="status" aria-label={tr("Status")} value={f.status} onChange={e => setF(x => ({ ...x, status: e.target.value }))} options={LEAVE_STATUSES.map(([v, l]) => ({ v, l: v === "pending" ? personStateOf("pending") : tr(l) }))} style={pickStyle} />
-        <Inp t={t} data-leave-filter="q" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
+        <Inp t={t} data-leave-filter="q" data-list-search="leave" aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setF(x => ({ ...x, q: typed.trim() })); }} onBlur={() => setF(x => (x.q === typed.trim() ? x : { ...x, q: typed.trim() }))} style={pickStyle} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
         <div style={{ minWidth: 0 }}><LeaveAdpLine t={t} text={leaveAdpLine([].concat(...rows.map(r => r.balances || [])))} style={{ marginBottom: 2 }} /><div data-leave-files-line="" style={{ fontSize: 12, color: t.textSec }}>{files ? (files.taken ? tr("Hours files posted: {0}, the last through {1}.", files.taken, files.lastPeriodEnd ? fdLong(files.lastPeriodEnd) : "--") : tr("No hours file has been posted yet.")) : ""}</div></div>
@@ -8319,7 +8369,7 @@ function SupplyRequestWindow({ t, af, token, r, user = null, sites = [], onClose
   const allQtyOk = undecided.every(it => approveQtyOf(editOf(it).qty, it.quantity) != null);
   const amount = (n, unit) => (unit ? n + " " + unitOf(unit) : String(n));
   const lineBtn = (c) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + c, background: "transparent", color: c, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY });
-  return (<Mdl t={t} onClose={onClose}><div data-request-window={r.id} style={{ padding: 20 }}>
+  return (<Mdl name="supply-request" t={t} onClose={onClose}><div data-request-window={r.id} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{typeWord}</div>
@@ -8377,20 +8427,12 @@ function SupplyRequestWindow({ t, af, token, r, user = null, sites = [], onClose
   </div></Mdl>);
 }
 
-// Whether GET /api/supplies/labels.pdf answers (STEP250_CONTRACT.md, section 10): one read with
-// nothing named, which an API that has the route refuses with 400 and one without answers 404. The
-// labels are drawn only when the route is there and the API's Step 250 answers, since the two ship
-// together; nothing is downloaded by the probe.
-function useSupplyLabelsLive(af, token) {
-  const requestsOn = useRequestsLive(af);
-  const [there, setThere] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    apiDownload("/api/supplies/labels.pdf", token, "labels.pdf").then(() => { if (alive) setThere(true); })
-      .catch(e => { if (alive) setThere(!!e && e.status !== 404 && e.status !== 401); });
-    return () => { alive = false; };
-  }, [token]);
-  return requestsOn && there;
+// The supply labels (STEP250_CONTRACT.md, section 10) ship with the API's Step 250, so they are drawn once its
+// requests answer. GET /api/supplies/labels.pdf is asked only when someone prints labels, with the ids or the site the
+// route needs (part 413, the robot's Rounds 6 and 7: the page asked it with nothing named as it opened, and the API
+// answered 400).
+function useSupplyLabelsLive(af) {
+  return useRequestsLive(af);
 }
 function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther, sites = [], user = null }) {
   // Decision 1: a supply's cost per unit is drawn and sent for a holder of manage_employment only.
@@ -8399,7 +8441,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   // Supply labels (decision 321: a label opens something when scanned). Print label in the edit
   // window saves GET /api/supplies/labels.pdf?ids=<id>, and Print labels for a site saves
   // labels.pdf?siteId=, the way the equipment register saves its labels. Both wait for the route.
-  const labelsOn = useSupplyLabelsLive(af, token);
+  const labelsOn = useSupplyLabelsLive(af);
   const [labels, setLabels] = useState({ busy: "", error: "" });
   const [labelSite, setLabelSite] = useState("");
   const printLabels = async (query, key) => {
@@ -8567,10 +8609,10 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     {tab === "requests" && requests.map(r => { const lines = requestLinesOf(r); return (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{lines ? <span data-request-first="">{lines[0].name}</span> : (r.item_name || r.supply_name || tr("General"))} {r.site_name ? tr("at {0}", r.site_name) : ""}{lines ? <span data-request-lines={lines.length} style={{ fontWeight: 600 }}>{" | " + trn("{0} items|supply request", lines.length)}</span> : null}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><span data-request-state={r.status}><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></span></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}{r.poNumber ? <span data-request-po={r.poNumber} style={{ color: t.goldText, fontWeight: 600 }}>{" | " + r.poNumber}</span> : null}{r.orderedAt ? <span data-request-ordered="" style={{ color: GR, fontWeight: 600 }}>{" | " + tr("Ordered {0}", fd(r.orderedAt))}</span> : null}</div>{lines ? <button onClick={() => setOpenReqId(r.id)} data-request-open={r.id} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid " + t.goldBorder, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open|verb")}</button> : r.status === "pending" && supplyCanDecide(r) && !supplyOrderOf(r).signed && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>); })}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
     {tab === "requests" && <ShowMore t={t} next={reqNext} busy={reqMore} onMore={moreRequests} at="supply-requests" />}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit} disabled={supplyBusy}>{tr("Save")}</Btn></div></div></Mdl>}
+    {addForm && <Mdl name="supplies-admin-add-form" t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
+    {editForm && <Mdl name="supplies-admin-edit-form" t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div>{labelsOn && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" data-supply-print-label="" onClick={() => printLabels("ids=" + encodeURIComponent(String(editForm.id)), "one")} disabled={!!labels.busy} style={{ minHeight: 44, fontSize: 12 }}>{labels.busy === "one" ? tr("Downloading...") : tr("Print label")}</Btn>{labels.error && labels.busy === "" && <div data-supply-label-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{labels.error}</div>}</div>}</div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>{seesPay && <div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit} disabled={supplyBusy}>{tr("Save")}</Btn></div></div></Mdl>}
     {openReq && requestLinesOf(openReq) && <SupplyRequestWindow key={openReq.id} t={t} af={af} token={token} r={openReq} user={user} sites={sites} onClose={() => setOpenReqId(null)} onDecided={requestDecided} stateWord={reqStateWord} stateColor={reqColor} typeWord={reqTypeWord[openReq.request_type] || tr("New Supply Request")} urgencyWord={urgencyWord} unitOf={unitOf} />}
-    {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
+    {handleReq && <Mdl name="supplies-admin-handle-req" t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }
 
@@ -8667,7 +8709,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
     { key: "office", label: tr("Office|people"), rows: (list || []).filter(p => p && p.kind === "office") },
     { key: "staff", label: tr("Staff"), rows: officeOnly ? [] : (list || []).filter(p => p && p.kind !== "office") },
   ];
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-new-message="">
+  return (<Mdl name="new-message" t={t} onClose={onClose}><div style={{ padding: 20 }} data-new-message="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New message")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -8678,7 +8720,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose, officeOnly 
     <div style={{ maxHeight: "calc(100vh / var(--zoom, 1) - 300px)", minHeight: 160, overflowY: "auto" }}>
       {failed && <LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} />}
       {!failed && list === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
-      {!failed && list !== null && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>}
+      {!failed && list !== null && groups.every(g => g.rows.length === 0) && <div data-new-message-none="" style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>}
       {!failed && groups.map(g => (g.rows.length === 0 ? null : <div key={g.key} data-new-message-group={g.key}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{g.label}</div>
         {g.rows.map(p => (<button key={p.userId} onClick={() => onPick(p)} disabled={!!starting} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: starting ? "default" : "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
@@ -8841,7 +8883,7 @@ function ProjectWindow({ af, t, people, project = null, onClose, onSaved }) {
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-project-window={editing ? "edit" : "new"}>
+  return (<Mdl name="project" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-project-window={editing ? "edit" : "new"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{editing ? tr("Edit project") : tr("New project")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -8886,7 +8928,7 @@ function MembersWindow({ af, t, people, project, meId, onClose, onSaved }) {
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy(false);
   };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-members-window="">
+  return (<Mdl name="members" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-members-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Members")}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{project.name}</div></div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9105,7 +9147,7 @@ function PostWindow({ af, t, projectId, post = null, onClose, onSaved }) {
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-post-window={post ? "edit" : "new"}>
+  return (<Mdl name="post" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-post-window={post ? "edit" : "new"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{post ? tr("Edit post") : tr("New post")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9224,7 +9266,7 @@ function TodoListWindow({ af, t, projectId, onClose, onSaved }) {
     catch (e) { setRefusal(wsRefusal(e, ["name", "description"])); }
     setBusy(false);
   };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-list-window="">
+  return (<Mdl name="todo-list" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-list-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New list")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9258,7 +9300,7 @@ function TodoWindow({ af, t, p, listId, todo = null, onClose, onSaved }) {
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-todo-window={todo ? "edit" : "new"}>
+  return (<Mdl name="todo" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-todo-window={todo ? "edit" : "new"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{todo ? tr("Edit to-do") : tr("Add a to-do")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -9818,7 +9860,9 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   // 346): a supervisor's GET /api/chat/dm-inbox answers [] and opening a person's line is refused
   // chat.staffLineAdminsOnly, so for anyone else the inbox is not read, Staff to the office is not
   // drawn, and New message and the search offer only the office.
-  const readsPrivate = !!(user && (user.role === "admin" || user.isSuperAdmin === true || user.is_super_admin === true));
+  // Part 413 (the API's Round 17, the robot's Rounds 6 and 7): a test office account reads and answers the test accounts'
+  // lines, which the API answers it in GET /api/chat/dm-inbox; a real admin's view is unchanged.
+  const readsPrivate = !!(user && (user.role === "admin" || user.isSuperAdmin === true || user.is_super_admin === true || user.isTestAccount === true));
   // Step 213: everyone the office can write to, from GET /api/chat/people, or null until it answers.
   // While it does not, New message is not drawn and Search staff works as Step 205 left it.
   const [everyone, setEveryone] = useState(null);
@@ -10098,7 +10142,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
 // puts it in each person's language. The page draws nothing until the API lists announcements: a 404
 // hides the form, and any other failure says so.
 const announcementCodes = { "announcements.titleRequired": "title", "announcements.titleTooLong": "title", "announcements.bodyRequired": "body", "announcements.bodyTooLong": "body", "announcements.audienceEmpty": "audience", "announcements.siteNotFound": "audience" };
-function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpts, lkMap, route = [] }) {
+function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpts, lkMap, route = [], testOffice = false }) {
   const [list, setList] = useState([]);
   const [listState, setListState] = useState("loading");
   const [title, setTitle] = useState("");
@@ -10129,15 +10173,20 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
     af("/api/announcements/" + encodeURIComponent(id)).then(d => { if (alive) setOpenOne(d && d.announcement ? d.announcement : null); }).catch(() => { if (alive) setOpenOne(null); });
     return () => { alive = false; };
   }, [route[0], list, af]);
-  const audienceReady = aud === "all" || (aud === "site" && siteId) || (aud === "role" && role) || (aud === "users" && userIds.length > 0);
-  const previewQuery = () => "?type=" + aud + (aud === "site" ? "&siteId=" + encodeURIComponent(siteId) : aud === "role" ? "&role=" + encodeURIComponent(role) : aud === "users" ? "&userIds=" + userIds.map(encodeURIComponent).join(",") : "");
+  // Part 413 (the API's Round 17, 2.5): a test office account's audience is the active test accounts, every one, and no
+  // other: the API sends to a list of active test accounts alone and refuses anything else from a test sender.
+  const testIds = testOffice ? allStaff.filter(p => p && p.isTestAccount === true && (!p.status || p.status === "active") && p.role !== "client_contact").map(p => String(p.id)) : [];
+  const audNow = testOffice ? "users" : aud;
+  const idsNow = testOffice ? testIds : userIds;
+  const audienceReady = testOffice ? testIds.length > 0 : (aud === "all" || (aud === "site" && siteId) || (aud === "role" && role) || (aud === "users" && userIds.length > 0));
+  const previewQuery = () => "?type=" + audNow + (audNow === "site" ? "&siteId=" + encodeURIComponent(siteId) : audNow === "role" ? "&role=" + encodeURIComponent(role) : audNow === "users" ? "&userIds=" + idsNow.map(encodeURIComponent).join(",") : "");
   useEffect(() => {
     if (listState !== "ready" || !audienceReady) { setPreview(null); return; }
     let alive = true;
     const h = setTimeout(() => { af("/api/announcements/preview" + previewQuery()).then(d => { if (alive) setPreview(d && typeof d === "object" ? d : null); }).catch(() => { if (alive) setPreview(null); }); }, 300);
     return () => { alive = false; clearTimeout(h); };
-  }, [listState, aud, siteId, role, userIds.join(",")]);
-  const audienceBody = () => (aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
+  }, [listState, audNow, siteId, role, idsNow.join(",")]);
+  const audienceBody = () => (testOffice ? { type: "users", userIds: testIds } : aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
   // Each announcement carries a clientId made once, at its first press, and kept until it is sent or its
   // words or people change (part 368, the API's part 365, finding API-108): a press again after the
   // browser gave up is answered with the first announcement and sends nothing twice, so Send stays on,
@@ -10200,10 +10249,11 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Message")}</Lbl><TArea t={t} rows={4} value={body} maxLength={500} onChange={e => setBody(e.target.value)} aria-label={tr("Message")} />
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Written once; each person gets it in their language.")}</div>{errLine("body")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Send to")}</Lbl>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>{choice("all", tr("Everyone"))}{choice("site", tr("One site's people"))}{choice("role", tr("A role"))}{choice("users", tr("Chosen people"))}</div>
-          {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ minHeight: 44 }} />}
-          {aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
-          {aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
+          {testOffice && <div data-announcement-test-audience={testIds.length} style={{ fontSize: 13, color: t.text, lineHeight: 1.5, padding: 10, borderRadius: 8, border: "1px solid " + t.border, marginBottom: 8 }}>{testIds.length ? trn("The test accounts: {0}|count", testIds.length) : tr("There is no active test account to send to.")}<div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("A test office account sends to the active test accounts alone.")}</div></div>}
+          {!testOffice && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>{choice("all", tr("Everyone"))}{choice("site", tr("One site's people"))}{choice("role", tr("A role"))}{choice("users", tr("Chosen people"))}</div>}
+          {!testOffice && aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ minHeight: 44 }} />}
+          {!testOffice && aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
+          {!testOffice && aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
             <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
             <div style={{ maxHeight: 220, overflowY: "auto" }}>
               {people.map(p => { const on = userIds.indexOf(p.id) >= 0; return (<label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 6px", cursor: "pointer", fontSize: 13, color: t.text }}>
@@ -10407,7 +10457,7 @@ function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
     drain();
   };
   const chatChoice = (v, l) => (<button key={v} onClick={() => save({ chat: v })} aria-pressed={settings.chat === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (settings.chat === v ? GO : t.border), background: settings.chat === v ? t.goldBg : "transparent", color: settings.chat === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl name="my-alerts" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("My alerts")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
@@ -10700,7 +10750,7 @@ function TicketWindow({ af, t, token = "", ticket, showToast, onClose, onSaved }
     setBusy(false);
   };
   const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 110, flexShrink: 0, color: t.textMut }}>{tr(label)}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{value}</span></div>;
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ticket-window={ticket.id}>
+  return (<Mdl name="ticket" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ticket-window={ticket.id}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{ticketKindWord(ticket.kind)}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -10733,7 +10783,7 @@ function TicketsExportWindow({ t, text, showToast, onClose }) {
     try { await navigator.clipboard.writeText(text); showToast(tr("Copied")); }
     catch (e) { if (boxRef.current) { boxRef.current.focus(); boxRef.current.select(); } showToast(tr("Select the text and copy it.")); }
   };
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-tickets-export="">
+  return (<Mdl name="tickets-export" t={t} onClose={onClose}><div style={{ padding: 20 }} data-tickets-export="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Export")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -11354,6 +11404,7 @@ function LibraryList({ af, t }) {
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: t.textMut, marginTop: 3 }}>
       {x.version != null && String(x.version) !== "" && <span>{tr("Version {0}", x.version)}</span>}
       {Array.isArray(x.locales) && x.locales.indexOf("es") >= 0 && <span data-library-spanish="" style={{ color: t.textSec }}>{tr("Also in Spanish")}</span>}
+      {x.isTest === true && <span data-library-test=""><Bdg l={tr("TEST")} c={OR} /></span>}
     </div>
     {match && <div data-library-match={match.ref} style={{ fontSize: 12, color: t.textSec, marginTop: 4, overflowWrap: "anywhere" }}>{tr("Found in {0}", [match.ref ? tr("Section {0}", match.ref) : "", match.title].filter(Boolean).join(", "))}</div>}
   </button>);
@@ -11366,7 +11417,7 @@ function LibraryList({ af, t }) {
     {docs !== null && !failed && docs.length === 0 && <Crd t={t}><div data-library-empty="" style={{ fontSize: 13, color: t.textSec, textAlign: "center", padding: 12 }}>{tr("The library is loading. Check back soon.")}</div></Crd>}
     {docs !== null && !failed && docs.length > 0 && <>
       <form onSubmit={search} style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 240px", minWidth: 0 }}><Inp t={t} data-library-search="" aria-label={tr("Search the library")} placeholder={tr("Number, title or words in the text")} value={typed} onChange={e => { setTyped(e.target.value); if (!e.target.value.trim()) setFound(null); }} /></div>
+        <div style={{ flex: "1 1 240px", minWidth: 0 }}><Inp t={t} data-library-search="" data-list-search="library" aria-label={tr("Search the library")} placeholder={tr("Number, title or words in the text")} value={typed} onChange={e => { setTyped(e.target.value); if (!e.target.value.trim()) setFound(null); }} /></div>
         <Btn t={t} type="submit" data-library-search-send="">{tr("Search")}</Btn>
         {found && <Btn t={t} v="ghost" type="button" onClick={() => { setTyped(""); setFound(null); }}>{tr("Clear")}</Btn>}
       </form>
@@ -11535,7 +11586,7 @@ function HelpPersonWindow({ af, t, person, query, onClose }) {
   useEffect(() => { load(); }, [load]);
   const who = (data && data.person) || person;
   const turns = data && Array.isArray(data.turns) ? data.turns : [];
-  return (<Mdl t={t} onClose={onClose} tall>
+  return (<Mdl name="help-person" t={t} onClose={onClose} tall>
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -11674,6 +11725,522 @@ function HelpInsightsPage({ af, t, sites = [], getOpts }) {
     {person && <HelpPersonWindow af={af} t={t} person={person} query={query} onClose={() => setPerson(null)} />}
   </div>);
 }
+// ===== EMPLOYEE OF THE MONTH (part 413; the API's Round 19, part 411, and Round 21, part 416) =====
+// The office picks the winner directly: no nominations and no votes. A holder of manage_recognition (admins by
+// role) posts the month's award (POST /api/recognition/awards { userId, month, reason, siteId? }), edits it during
+// its own month (PATCH, 409 recognition.monthClosed after), takes it down with a reason (POST .../remove; the award
+// is kept and its month frees up) and prints its certificate (GET .../certificate.pdf?locale=). Every refusal is
+// drawn in the API's words. The reason is answered in English, Spanish and French (reasonWords), the Spanish and
+// French null until the API's translation lands.
+const AWARD_REASON_MAX = 280;
+const AWARD_LANGS = [{ id: "en", word: "English" }, { id: "es", word: "Spanish" }, { id: "fr", word: "French" }];
+// The company's month today, "YYYY-MM", and the month before one.
+const thisMonthOf = () => todayISO().slice(0, 7);
+const monthBefore = (m) => { const p = String(m || "").split("-").map(Number); if (!p[0] || !p[1]) return ""; const y = p[1] === 1 ? p[0] - 1 : p[0]; const mo = p[1] === 1 ? 12 : p[1] - 1; return y + "-" + String(mo).padStart(2, "0"); };
+// "YYYY-MM" as the screen's language writes a month: March 2026, marzo de 2026.
+const monthWordsOf = (m) => {
+  const parts = String(m || "").split("-").map(Number);
+  if (!parts[0] || !parts[1]) return String(m || "");
+  try { return new Intl.DateTimeFormat(localeTag(), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(parts[0], parts[1] - 1, 1))); } catch (e) { return String(m); }
+};
+// An award's month as its answer names it, else as the screen writes it.
+const awardMonthOf = (a) => (a && a.monthName ? a.monthName : monthWordsOf(a && a.month));
+const awardNameOf = (p) => (p ? [p.firstName, p.lastName].filter(Boolean).join(" ") : "");
+// The reactions staff can give, in the staff app's order. The faces are the staff app's own pictures; the words are
+// the dashboard's.
+const AWARD_REACTIONS = [
+  { key: "clap", face: "\ud83d\udc4f", word: "Applause" },
+  { key: "star", face: "\u2b50", word: "Star" },
+  { key: "heart", face: "\u2764\ufe0f", word: "Heart" },
+  { key: "fire", face: "\ud83d\udd25", word: "Fire" },
+  { key: "muscle", face: "\ud83d\udcaa", word: "Strength" },
+];
+// A person on the award: their photo, or their initials in a gold circle as the staff app draws them.
+function AwardFace({ person, sz = 64, readKey, onStale }) {
+  const p = person || {};
+  const ini = String(p.initials || ((p.firstName || "").charAt(0) + (p.lastName || "").charAt(0)) || "?").toUpperCase();
+  const circle = <div data-award-initials={ini} aria-hidden="true" style={{ width: sz, height: sz, borderRadius: "50%", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_HEAD, fontWeight: 700, fontSize: Math.round(sz * 0.36), letterSpacing: ".5px", flexShrink: 0 }}>{ini}</div>;
+  if (!p.photoUrl) return circle;
+  return <FreshImg data-award-photo="" src={p.photoUrl} readKey={readKey} onStale={onStale} fallback={circle} alt="" style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", border: "2px solid " + GO, flexShrink: 0 }} />;
+}
+// The reason in each language as the API answers it (reasonWords), Translating where a language has not arrived.
+function AwardReasonWords({ t, award, words }) {
+  const w = words || (award && award.reasonWords) || { en: award ? award.reason : "" };
+  return (<div data-award-reason-words="" style={{ display: "grid", gap: 6 }}>
+    {AWARD_LANGS.map(l => <div key={l.id} data-award-reason={l.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13, lineHeight: 1.5 }}>
+      <span style={{ flex: "0 0 64px", fontSize: 11, fontWeight: 600, color: t.textMut }}>{tr(l.word)}</span>
+      {w[l.id] ? <span style={{ color: t.text, overflowWrap: "anywhere", minWidth: 0 }}>{w[l.id]}</span>
+        : <span data-award-translating="" style={{ color: t.textMut, fontStyle: "italic" }}>{tr("Translating")}</span>}
+    </div>)}
+  </div>);
+}
+// How many people reacted, by reaction, and in all. Who reacted is never answered.
+function AwardReactions({ t, reactions }) {
+  const r = reactions || {};
+  const counts = r.counts || {};
+  const total = Number(r.total) || 0;
+  return (<div data-award-reactions={total} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: t.textSec }}>
+    {AWARD_REACTIONS.map(x => <span key={x.key} data-award-reaction={x.key} title={tr(x.word)} aria-label={tr(x.word) + " " + (Number(counts[x.key]) || 0)} style={{ display: "inline-flex", gap: 4, alignItems: "center", padding: "2px 8px", borderRadius: R.pill, background: t.hover }}><span aria-hidden="true">{x.face}</span>{Number(counts[x.key]) || 0}</span>)}
+    <span data-award-reactions-total="" style={{ fontWeight: 600 }}>{trn("{0} reaction|count", total)}</span>
+  </div>);
+}
+// What staff will see: the photo or initials, the name, the month, the reason and the site.
+function AwardPreview({ t, person, month, reason, site }) {
+  return (<div data-award-preview="" style={{ border: "1px solid " + GO, borderRadius: R.md, padding: 16, background: t.goldBg, textAlign: "center" }}>
+    <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>{tr("Employee of the Month")}</div>
+    <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><AwardFace person={person} sz={72} /></div>
+    <div data-award-preview-name="" style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text }}>{awardNameOf(person) || tr("Choose a person")}</div>
+    <div data-award-preview-month="" style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{monthWordsOf(month)}{site ? " . " + site : ""}</div>
+    <div data-award-preview-reason="" style={{ fontSize: 13, color: t.text, marginTop: 10, lineHeight: 1.5, overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>{reason || <span style={{ color: t.textMut }}>{tr("The reason shows here.")}</span>}</div>
+  </div>);
+}
+// A refusal under the field its keys name, or under the whole window.
+const awardRefusalOf = (e) => ({ text: (e && e.message) || tr("Request failed"), keys: refusalKeys(e), code: (e && e.code) || "" });
+// A photo for the person: an iPhone's HEIC goes to the API as it is (the API makes it a JPEG); anything else is made
+// smaller here first, as Staff Management's photo is.
+const isHeicFile = (f) => !!f && (/^image\/hei[cf]$/i.test(f.type || "") || /\.(heic|heif)$/i.test(f.name || ""));
+async function uploadPersonPhoto(uf, af, file, userId) {
+  const sendable = isHeicFile(file) ? file : await compressImage(file, 800, 0.85);
+  const up = await uf(sendable, "profile-photos");
+  const photoUrl = (up && (up.url || up.path)) || "";
+  await af("/api/users/profile/photo", { method: "POST", body: { userId, photoUrl } });
+  return (up && up.url) || photoUrl;
+}
+
+// Post this month's winner, or an earlier month for the wall.
+function AwardPostWindow({ af, uf, t, people = [], startMonth = "", onClose, onPosted }) {
+  const thisMonth = thisMonthOf();
+  const [f, setF] = useState({ userId: "", month: startMonth || thisMonth, reason: "", siteId: "" });
+  const [photo, setPhoto] = useState({ busy: false, url: "", said: "" });
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const active = people.filter(p => p && p.role !== "client_contact" && (!p.status || p.status === "active"));
+  const person = active.find(p => String(p.id) === String(f.userId)) || null;
+  const personSites = person && Array.isArray(person.sites) ? person.sites.map(s => ({ id: String(s.siteId != null ? s.siteId : s.id), name: s.siteName || s.name || "" })).filter(s => s.id) : [];
+  const site = personSites.find(s => s.id === f.siteId) || null;
+  const earlier = f.month && f.month < thisMonth;
+  const hasPhoto = !!(photo.url || (person && person.profilePhotoUrl));
+  const face = person ? { firstName: person.firstName, lastName: person.lastName, photoUrl: photo.url || person.profilePhotoUrl || null } : null;
+  const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setRefusal(null); };
+  const pickPerson = (id) => { setF(x => ({ ...x, userId: id, siteId: "" })); setPhoto({ busy: false, url: "", said: "" }); setRefusal(null); };
+  const addPhoto = async (file) => {
+    if (!file || !person) return;
+    if (file.size > 20 * 1024 * 1024) { setPhoto(x => ({ ...x, said: tr("Photo must be under 20MB") })); return; }
+    setPhoto({ busy: true, url: "", said: "" });
+    try { const url = await uploadPersonPhoto(uf, af, file, person.id); setPhoto({ busy: false, url, said: "" }); }
+    catch (e) { setPhoto({ busy: false, url: "", said: e.message || tr("Request failed") }); }
+  };
+  const post = guard(async () => {
+    setRefusal(null);
+    try {
+      const body = { userId: String(f.userId), month: f.month, reason: f.reason.trim() };
+      if (f.siteId) body.siteId = f.siteId;
+      const d = await af("/api/recognition/awards", { method: "POST", body });
+      onPosted(d || {});
+    } catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-award-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["userId", "month", "reason", "siteId"].some(k => refusal.keys.indexOf(k) >= 0);
+  const ready = !!person && !!f.month && f.reason.trim().length > 0 && f.reason.length <= AWARD_REASON_MAX && !photo.busy;
+  return (<Mdl t={t} name="award-post" onClose={() => { if (!busy) onClose(); }} tall><div style={{ padding: 20 }} data-award-window="post">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post this month's winner")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl><PersonPick t={t} aria-label={tr("Person")} data-award-person="" value={f.userId} onChange={e => pickPerson(e.target.value)} options={[{ v: "", l: tr("Choose a person") }].concat(active.map(p => ({ v: String(p.id), l: ((p.firstName || "") + " " + (p.lastName || "")).trim() || p.name || "" })))} />{under("userId")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Month")}</Lbl><Inp t={t} type="month" aria-label={tr("Month")} data-award-month-pick="" value={f.month} max={thisMonth} onChange={e => set("month", e.target.value)} />
+      {earlier && <div data-award-earlier="" style={{ fontSize: 12, color: OR, marginTop: 4, lineHeight: 1.5 }}>{tr("An earlier month goes on the team wall and tells nobody.")}</div>}
+      {under("month")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Reason")}</Lbl><TArea t={t} rows={3} aria-label={tr("Reason")} data-award-reason-input="" value={f.reason} maxLength={AWARD_REASON_MAX} onChange={e => set("reason", e.target.value)} />
+      <div data-award-reason-count={f.reason.length} style={{ fontSize: 11, color: f.reason.length >= AWARD_REASON_MAX ? OR : t.textMut, marginTop: 4, textAlign: "right" }}>{tr("{0} of {1} characters", f.reason.length, AWARD_REASON_MAX)}</div>{under("reason")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-award-site="" value={f.siteId} disabled={!person} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("No site|award") }].concat(personSites.map(s => ({ v: s.id, l: s.name })))} />
+      {person && personSites.length === 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("This person has no active site.")}</div>}{under("siteId")}</div>
+    {person && <div data-award-photo-panel="" style={{ marginBottom: 14, padding: 12, border: "1px solid " + t.border, borderRadius: R.md }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <AwardFace person={face} sz={48} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{hasPhoto ? tr("Profile photo") : tr("No photo yet")}</div>
+          {!hasPhoto && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, lineHeight: 1.5 }}>{tr("It becomes their profile photo. Have their okay first.")}</div>}
+        </div>
+      </div>
+      {!hasPhoto && <div style={{ marginTop: 10 }}>
+        <label style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, cursor: photo.busy ? "default" : "pointer" }}>
+          {photo.busy ? tr("Uploading...") : tr("Add a photo")}
+          <input type="file" data-award-photo-file="" aria-label={tr("Add a photo")} accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif" disabled={photo.busy} onChange={e => { const fl = e.target.files && e.target.files[0]; e.target.value = ""; addPhoto(fl); }} style={{ display: "none" }} />
+        </label>
+      </div>}
+      {photo.url && <div data-award-photo-added="" style={{ fontSize: 12, color: GR, marginTop: 6 }}>{tr("Photo added to their profile.")}</div>}
+      {photo.said && <div role="alert" data-award-photo-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{photo.said}</div>}
+    </div>}
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("What staff will see")}</Lbl><AwardPreview t={t} person={face} month={f.month} reason={f.reason.trim()} site={site ? site.name : ""} /></div>
+    {loose && <div role="alert" data-award-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-award-post="" disabled={!ready || busy} onClick={post}>{busy ? tr("Posting...") : tr("Post")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// Change the reason, the site, or the office's own Spanish or French, during the award's own month.
+function AwardEditWindow({ af, t, award, people = [], onClose, onSaved }) {
+  const w = award.reasonWords || {};
+  const person = people.find(p => String(p.id) === String(award.person && award.person.id)) || null;
+  const personSites = person && Array.isArray(person.sites) ? person.sites.map(s => ({ id: String(s.siteId != null ? s.siteId : s.id), name: s.siteName || s.name || "" })).filter(s => s.id) : [];
+  const siteNow = award.site ? String(award.site.id) : "";
+  const choices = personSites.some(s => s.id === siteNow) || !siteNow ? personSites : personSites.concat([{ id: siteNow, name: award.site.name || "" }]);
+  const [f, setF] = useState({ reason: w.en || award.reason || "", siteId: siteNow, es: w.es || "", fr: w.fr || "" });
+  // A language given back to the translation is sent as null.
+  const [back, setBack] = useState({ es: false, fr: false });
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setRefusal(null); };
+  const save = guard(async () => {
+    setRefusal(null);
+    const body = {};
+    if (f.reason.trim() !== String(w.en || award.reason || "")) body.reason = f.reason.trim();
+    if (f.siteId !== siteNow) body.siteId = f.siteId || null;
+    if (back.es) body.reasonEs = null; else if (f.es.trim() !== String(w.es || "")) body.reasonEs = f.es.trim();
+    if (back.fr) body.reasonFr = null; else if (f.fr.trim() !== String(w.fr || "")) body.reasonFr = f.fr.trim();
+    if (!Object.keys(body).length) { onClose(); return; }
+    try { const d = await af("/api/recognition/awards/" + encodeURIComponent(award.id), { method: "PATCH", body }); onSaved(d && d.award); }
+    catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-award-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["reason", "siteId", "reasonEs", "reasonFr"].some(k => refusal.keys.indexOf(k) >= 0);
+  const langBox = (id, key, label) => <div style={{ marginBottom: 12 }}><Lbl>{label}</Lbl>
+    {back[id] ? <div data-award-given-back={id} style={{ fontSize: 12, color: t.textSec, padding: "10px 0" }}>{tr("Given back to the translation. It arrives after you save.")}</div>
+      : <TArea t={t} rows={2} aria-label={label} data-award-reason-lang={id} value={f[id]} onChange={e => set(id, e.target.value)} placeholder={tr("Translating")} />}
+    <button data-award-give-back={id} onClick={() => setBack(x => ({ ...x, [id]: !x[id] }))} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{back[id] ? tr("Keep the office's own wording") : tr("Give it back to the translation")}</button>
+    {under(key)}</div>;
+  return (<Mdl t={t} name="award-edit" onClose={() => { if (!busy) onClose(); }} tall><div style={{ padding: 20 }} data-award-window="edit">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit the Employee of the Month")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("{0}, {1}. Changes can be made during the award's own month. Nobody is told again.", awardNameOf(award.person), awardMonthOf(award))}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Reason")}</Lbl><TArea t={t} rows={3} aria-label={tr("Reason")} data-award-reason-input="" value={f.reason} maxLength={AWARD_REASON_MAX} onChange={e => set("reason", e.target.value)} />
+      <div data-award-reason-count={f.reason.length} style={{ fontSize: 11, color: t.textMut, marginTop: 4, textAlign: "right" }}>{tr("{0} of {1} characters", f.reason.length, AWARD_REASON_MAX)}</div>{under("reason")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-award-site="" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("No site|award") }].concat(choices.map(s => ({ v: s.id, l: s.name })))} />{under("siteId")}</div>
+    {langBox("es", "reasonEs", tr("Spanish"))}
+    {langBox("fr", "reasonFr", tr("French"))}
+    {loose && <div role="alert" data-award-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-award-save="" disabled={busy || !f.reason.trim()} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// Take the award down, with a reason. The award is kept, and its month takes a new award.
+function AwardRemoveWindow({ af, t, award, onClose, onRemoved }) {
+  const [reason, setReason] = useState("");
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const go = guard(async () => {
+    setRefusal(null);
+    try { const d = await af("/api/recognition/awards/" + encodeURIComponent(award.id) + "/remove", { method: "POST", body: { reason: reason.trim() } }); onRemoved((d && d.award) || null); }
+    catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  return (<Mdl t={t} name="award-remove" onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-award-window="remove">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Take down the Employee of the Month")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("{0}, {1}. The award is kept on record and leaves what staff see. The month is free for another award.", awardNameOf(award.person), awardMonthOf(award))}</div>
+    <Lbl>{tr("Why it is taken down")}</Lbl>
+    <TArea t={t} rows={3} aria-label={tr("Why it is taken down")} data-award-remove-reason="" value={reason} maxLength={AWARD_REASON_MAX} onChange={e => { setReason(e.target.value); setRefusal(null); }} />
+    {refusal && <div role="alert" data-award-refusal={refusal.keys.join(",")} style={{ fontSize: 12, color: RD, marginTop: 6, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-award-remove-go="" disabled={busy || !reason.trim()} onClick={go}>{busy ? tr("Saving...") : tr("Take it down")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The certificate, opened to print in the language chosen. With no language chosen the call carries locale= empty,
+// since every other call carries the screen's language, and the API draws it in the winner's own language.
+function AwardCertificate({ t, token, award, showToast }) {
+  const [lang, setLang] = useState("");
+  const [busy, setBusy] = useState(false);
+  const open = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const f = await apiDownload("/api/recognition/awards/" + encodeURIComponent(award.id) + "/certificate.pdf?locale=" + encodeURIComponent(lang), token, "employee-of-the-month-" + award.month + ".pdf");
+      showFileBlob(f.blob, f.filename);
+    } catch (e) { if (showToast) showToast(e.message, "error"); }
+    setBusy(false);
+  };
+  return (<div data-award-certificate="" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ minWidth: 190 }}><Sel t={t} aria-label={tr("Certificate language")} data-award-certificate-lang="" value={lang} onChange={e => setLang(e.target.value)} options={[{ v: "", l: tr("The winner's own language") }].concat(AWARD_LANGS.map(l => ({ v: l.id, l: tr(l.word) })))} /></div>
+    <Btn t={t} v="ghost" data-award-certificate-open="" disabled={busy} onClick={open}>{busy ? tr("Opening...") : tr("Certificate")}</Btn>
+  </div>);
+}
+
+// One award as the office reads it: the face, the name, the month, the site, the reason in each language, the
+// reactions, and what the office can do with it.
+function AwardCard({ t, token, award, canEdit = false, onEdit, onRemove, showToast, onStale, big = false }) {
+  const removed = award && award.removed;
+  return (<Crd t={t} style={{ padding: big ? 20 : 14, opacity: removed ? 0.75 : 1 }}><div data-award={award.id} data-award-month={award.month} data-award-removed={removed ? "true" : undefined}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <AwardFace person={award.person} sz={big ? 84 : 56} readKey={"award:" + award.id} onStale={onStale} />
+      <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div data-award-name="" style={{ fontFamily: FONT_HEAD, fontSize: big ? 19 : 15, fontWeight: 600, color: t.text }}>{awardNameOf(award.person)}</div>
+          {award.isTest === true && <Bdg l={tr("TEST")} c={OR} />}
+          {removed && <span data-award-taken-down=""><Bdg l={tr("Taken down")} c={RD} /></span>}
+        </div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[awardMonthOf(award), award.site ? siteShown(award.site) : ""].filter(Boolean).join(" . ")}</div>
+        <div style={{ marginTop: 10 }}><AwardReasonWords t={t} award={award} /></div>
+        {removed && <div data-award-removed-reason="" style={{ fontSize: 12, color: RD, marginTop: 8, lineHeight: 1.5 }}>{tr("Taken down: {0}", removed.reason || "")}</div>}
+        <div style={{ marginTop: 10 }}><AwardReactions t={t} reactions={award.reactions} /></div>
+        {award.postedBy && award.postedBy.name && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Posted by {0}", award.postedBy.name)}</div>}
+      </div>
+    </div>
+    {!removed && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}>
+      <AwardCertificate t={t} token={token} award={award} showToast={showToast} />
+      {canEdit && <Btn t={t} v="ghost" data-award-edit="" onClick={() => onEdit(award)}>{tr("Edit")}</Btn>}
+      {onRemove && <Btn t={t} v="ghost" data-award-remove="" onClick={() => onRemove(award)} style={{ color: RD }}>{tr("Take down")}</Btn>}
+    </div>}
+    {!removed && !canEdit && onEdit && <div data-award-edit-closed="" style={{ fontSize: 11, color: t.textMut, marginTop: 8 }}>{tr("Editing closes when the award's month ends.")}</div>}
+  </div></Crd>);
+}
+
+// The team wall (part 413, 2.1): every past winner, newest month first, read a page at a time through nextCursor until
+// it is null; this month's standing winner is shown above it. The API's wall answers the standing awards alone; an
+// award this office took down in this session is kept on it, marked taken down, where its month falls.
+const WALL_PAGE = 12;
+function AwardWall({ af, t, token, showToast, taken = [], refreshKey = 0 }) {
+  const [rows, setRows] = useState(null);
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af(pagedPath("/api/recognition/awards", { limit: WALL_PAGE }, "")); setRows(Array.isArray(d && d.awards) ? d.awards : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { setRows([]); setNext(""); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load, refreshKey]);
+  const more = async () => {
+    if (!next || busy) return;
+    setBusy(true);
+    try { const d = await af(pagedPath("/api/recognition/awards", { limit: WALL_PAGE }, next)); setRows(have => pagedAppend(have, Array.isArray(d && d.awards) ? d.awards : [], a => a.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setBusy(false);
+  };
+  // What the wall draws: the API's rows but this month's standing award, which the page shows above it, and the ones
+  // taken down here, newest month first.
+  const thisMonth = thisMonthOf();
+  const shown = useMemo(() => {
+    const list = (rows || []).filter(a => !taken.some(x => x.id === a.id) && !(a.month === thisMonth && !a.removed)).concat(taken);
+    return list.slice().sort((a, b) => (a.month === b.month ? String(b.id).localeCompare(String(a.id)) : String(b.month).localeCompare(String(a.month))));
+  }, [rows, taken, thisMonth]);
+  return (<div data-award-wall={shown.length} data-award-wall-end={rows !== null && !next ? "true" : "false"} style={{ marginTop: 24 }}>
+    <SecT t={t}>{tr("Team wall")}</SecT>
+    {rows === null ? <div style={{ padding: 20, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : shown.length === 0 ? <div data-award-wall-empty="" style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No past winners yet.")}</div>
+      : <div style={{ display: "grid", gap: 10 }}>{shown.map(a => <AwardCard key={a.id} t={t} token={token} award={a} showToast={showToast} onStale={load} />)}</div>}
+    <ShowMore t={t} next={next} busy={busy} onMore={more} at="award-wall" />
+  </div>);
+}
+
+// ===== SHOUT-OUTS (part 413, 2.2; the API's Round 19 and Round 21's people route) =====
+// A holder of post_shoutouts (admins and supervisors by role) names one active staff member at a site, in 200
+// characters. The person picker reads GET /api/recognition/shoutouts/people, which answers only the people the caller
+// may name, each with the sites the two share, so the site is one of those. The list is the last 30 days; a shout-out
+// is taken down by its poster or by manage_recognition, and a second take-down's 409 is drawn in the API's words.
+const SHOUTOUT_LINE_MAX = 200;
+function ShoutoutPeoplePicker({ af, t, value, onPick }) {
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState(null);
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const asked = useRef(0);
+  const read = useCallback(async (needle, cursor) => {
+    const n = ++asked.current;
+    setBusy(true); setFailed("");
+    try {
+      const d = await af(pagedPath("/api/recognition/shoutouts/people", { q: needle.trim(), limit: 20 }, cursor || ""));
+      if (n !== asked.current) return;
+      const list = Array.isArray(d && d.people) ? d.people : [];
+      setRows(have => (cursor ? pagedAppend(have, list, p => p.id) : list)); setNext(d && d.nextCursor ? String(d.nextCursor) : "");
+    } catch (e) { if (n === asked.current) { setRows([]); setNext(""); setFailed(e.message || tr("Request failed")); } }
+    if (n === asked.current) setBusy(false);
+  }, [af]);
+  useEffect(() => { const h = setTimeout(() => read(q, ""), q ? 250 : 0); return () => clearTimeout(h); }, [q, read]);
+  return (<div data-shoutout-people="">
+    <Inp t={t} aria-label={tr("Search by name")} data-shoutout-people-search="" placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} maxLength={80} />
+    <div role="listbox" aria-label={tr("Person")} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, maxHeight: 240, overflowY: "auto" }}>
+      {rows === null ? <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+        : failed ? <div role="alert" style={{ padding: 12, fontSize: 12, color: RD }}>{failed}</div>
+        : rows.length === 0 ? <div data-shoutout-people-none="" style={{ padding: 12, fontSize: 12, color: t.textMut }}>{q.trim() ? tr("No one matches.") : tr("No one is on this list.")}</div>
+        : rows.map(p => <button key={p.id} type="button" role="option" aria-selected={String(value) === String(p.id)} data-shoutout-person={p.id} onClick={() => onPick(p)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 12px", border: "none", borderBottom: "1px solid " + t.border, background: String(value) === String(p.id) ? t.goldBg : "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", textAlign: "left" }}>
+          <AwardFace person={p} sz={28} />
+          <span style={{ flex: 1, minWidth: 0 }}>{awardNameOf(p)}</span>
+          <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{(p.sites || []).map(s => s.name).join(", ")}</span>
+        </button>)}
+    </div>
+    <ShowMore t={t} next={next} busy={busy} onMore={() => read(q, next)} at="shoutout-people" />
+  </div>);
+}
+function ShoutoutPostWindow({ af, t, onClose, onPosted }) {
+  const [who, setWho] = useState(null);
+  const [siteId, setSiteId] = useState("");
+  const [line, setLine] = useState("");
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const sites = who && Array.isArray(who.sites) ? who.sites : [];
+  const pick = (p) => { setWho(p); setRefusal(null); setSiteId(p && Array.isArray(p.sites) && p.sites.length === 1 ? String(p.sites[0].id) : ""); };
+  const post = guard(async () => {
+    setRefusal(null);
+    try { const d = await af("/api/recognition/shoutouts", { method: "POST", body: { userId: String(who.id), line: line.trim(), siteId } }); onPosted((d && d.shoutout) || null); }
+    catch (e) { setRefusal(awardRefusalOf(e)); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-shoutout-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["userId", "line", "siteId"].some(k => refusal.keys.indexOf(k) >= 0);
+  return (<Mdl t={t} name="shoutout-post" onClose={() => { if (!busy) onClose(); }} tall><div style={{ padding: 20 }} data-shoutout-window="post">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Give a shout-out")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
+      {who ? <div data-shoutout-picked={who.id} style={{ display: "flex", alignItems: "center", gap: 10 }}><AwardFace person={who} sz={36} /><span style={{ flex: 1, fontSize: 14, color: t.text, fontWeight: 600 }}>{awardNameOf(who)}</span><button onClick={() => pick(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Change")}</button></div>
+        : <ShoutoutPeoplePicker af={af} t={t} value="" onPick={pick} />}
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Only the people you work with are listed, each with the sites you share.")}</div>{under("userId")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-shoutout-site="" value={siteId} disabled={!who} onChange={e => { setSiteId(e.target.value); setRefusal(null); }} options={[{ v: "", l: tr("Choose a site") }].concat(sites.map(s => ({ v: String(s.id), l: s.name })))} />{under("siteId")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Shout-out")}</Lbl><TArea t={t} rows={3} aria-label={tr("Shout-out")} data-shoutout-line="" value={line} maxLength={SHOUTOUT_LINE_MAX} onChange={e => { setLine(e.target.value); setRefusal(null); }} />
+      <div data-shoutout-line-count={line.length} style={{ fontSize: 11, color: line.length >= SHOUTOUT_LINE_MAX ? OR : t.textMut, marginTop: 4, textAlign: "right" }}>{tr("{0} of {1} characters", line.length, SHOUTOUT_LINE_MAX)}</div>{under("line")}</div>
+    {loose && <div role="alert" data-shoutout-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10, lineHeight: 1.5 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-shoutout-post="" disabled={busy || !who || !siteId || !line.trim()} onClick={post}>{busy ? tr("Posting...") : tr("Post")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+function ShoutoutRemoveWindow({ af, t, shoutout, onClose, onRemoved }) {
+  const [reason, setReason] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [guard, busy] = useBusyGuard();
+  const go = guard(async () => {
+    setRefusal("");
+    try { const d = await af("/api/recognition/shoutouts/" + encodeURIComponent(shoutout.id) + "/remove", { method: "POST", body: reason.trim() ? { reason: reason.trim() } : {} }); onRemoved((d && d.shoutout) || shoutout); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+  });
+  return (<Mdl t={t} name="shoutout-remove" onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-shoutout-window="remove">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Take down this shout-out")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("For {0} at {1}. It is kept on record and leaves what staff see.", awardNameOf(shoutout.person), shoutout.site ? siteShown(shoutout.site) : "")}</div>
+    <Lbl>{tr("Why it is taken down (optional)")}</Lbl>
+    <TArea t={t} rows={2} aria-label={tr("Why it is taken down (optional)")} data-shoutout-remove-reason="" value={reason} maxLength={AWARD_REASON_MAX} onChange={e => setReason(e.target.value)} />
+    {refusal && <div role="alert" data-shoutout-remove-refusal="" style={{ fontSize: 13, color: RD, marginTop: 8, lineHeight: 1.5 }}>{refusal}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-shoutout-remove-go="" disabled={busy} onClick={go}>{busy ? tr("Saving...") : tr("Take it down")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// One shout-out: the person, the site, the line (each language as the API answers lineWords for the office), who
+// posted it and when, the reactions, and Take down for whoever may.
+function ShoutoutRow({ t, s, onRemove }) {
+  const w = s.lineWords || null;
+  return (<Crd t={t} style={{ padding: 14 }}>
+    <div data-shoutout={s.id} data-shoutout-removed={s.removed ? "true" : undefined} style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <AwardFace person={s.person} sz={40} />
+      <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{awardNameOf(s.person)}</span>
+          {s.isTest === true && <Bdg l={tr("TEST")} c={OR} />}
+          {s.removed && <Bdg l={tr("Taken down")} c={RD} />}
+        </div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[s.site ? siteShown(s.site) : "", s.postedAt ? fd(s.postedAt) : "", s.postedBy ? tr("Posted by {0}", awardNameOf(s.postedBy)) : ""].filter(Boolean).join(" . ")}</div>
+        <div style={{ marginTop: 8 }}>{w ? <AwardReasonWords t={t} words={w} /> : <div style={{ fontSize: 13, color: t.text, overflowWrap: "anywhere" }}>{s.line}</div>}</div>
+        <div style={{ marginTop: 8 }}><AwardReactions t={t} reactions={s.reactions} /></div>
+      </div>
+      {s.canRemove && !s.removed && onRemove && <Btn t={t} v="ghost" data-shoutout-remove="" onClick={() => onRemove(s)} style={{ color: RD }}>{tr("Take down")}</Btn>}
+    </div>
+  </Crd>);
+}
+function ShoutoutsPanel({ af, t, canPost = false, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const [win, setWin] = useState(null);
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af(pagedPath("/api/recognition/shoutouts", { limit: 20 }, "")); setRows(Array.isArray(d && d.shoutouts) ? d.shoutouts : []); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { setRows([]); setNext(""); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const more = async () => {
+    if (!next || busy) return;
+    setBusy(true);
+    try { const d = await af(pagedPath("/api/recognition/shoutouts", { limit: 20 }, next)); setRows(have => pagedAppend(have, Array.isArray(d && d.shoutouts) ? d.shoutouts : [], s => s.id)); setNext(d && d.nextCursor ? String(d.nextCursor) : ""); }
+    catch (e) { showToast(e.message, "error"); }
+    setBusy(false);
+  };
+  const posted = (s) => { setWin(null); showToast(tr("Shout-out posted")); if (s) setRows(have => [s].concat((have || []).filter(x => x.id !== s.id))); else load(); };
+  const removed = (s) => { setWin(null); showToast(tr("Shout-out taken down")); setRows(have => (have || []).filter(x => x.id !== s.id)); };
+  return (<div data-shoutouts={rows ? rows.length : ""}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ fontSize: 13, color: t.textSec }}>{tr("Shout-outs from the last 30 days.")}</div>
+      {canPost && <Btn t={t} data-shoutout-post-open="" onClick={() => setWin({ kind: "post" })}>{tr("Give a shout-out")}</Btn>}
+    </div>
+    {rows === null ? <div style={{ padding: 20, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : rows.length === 0 ? <div data-shoutouts-empty="" style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No shout-outs in the last 30 days.")}</div>
+      : <div style={{ display: "grid", gap: 10 }}>{rows.map(s => <ShoutoutRow key={s.id} t={t} s={s} onRemove={x => setWin({ kind: "remove", shoutout: x })} />)}</div>}
+    <ShowMore t={t} next={next} busy={busy} onMore={more} at="shoutouts" />
+    {win && win.kind === "post" && <ShoutoutPostWindow af={af} t={t} onClose={() => setWin(null)} onPosted={posted} />}
+    {win && win.kind === "remove" && <ShoutoutRemoveWindow af={af} t={t} shoutout={win.shoutout} onClose={() => setWin(null)} onRemoved={removed} />}
+  </div>);
+}
+
+// The page (part 413). Two tabs: Employee of the Month, for a holder of manage_recognition, with this month's award or a
+// clear empty state with Post this month's winner, how many people were told once something is posted, and the team
+// wall; and Shout-outs, for a holder of post_shoutouts or manage_recognition. #recognition/shoutouts opens Shout-outs.
+function RecognitionPage({ af, uf, token, t, allStaff = [], showToast, canManage = false, canPost = false, route = [], onRoute }) {
+  const thisMonth = thisMonthOf();
+  const tabs = [].concat(canManage ? [{ id: "award", l: tr("Employee of the Month") }] : [], canManage || canPost ? [{ id: "shoutouts", l: tr("Shout-outs") }] : []);
+  const wantTab = route[0] === "shoutouts" ? "shoutouts" : "award";
+  const tab = tabs.some(x => x.id === wantTab) ? wantTab : (tabs[0] ? tabs[0].id : "");
+  const setTab = (id) => { if (onRoute) onRoute(id === "shoutouts" ? ["shoutouts"] : []); };
+  const [cur, setCur] = useState(undefined);
+  const [failed, setFailed] = useState("");
+  const [win, setWin] = useState(null);
+  const [told, setTold] = useState(null);
+  // Awards taken down here, kept on the wall marked so; and a count that reads the wall again after a post.
+  const [taken, setTaken] = useState([]);
+  const [wallKey, setWallKey] = useState(0);
+  // The award GET /current answers when it is this month's; the first days of a month answer last month's, which
+  // leaves this month empty for the office.
+  const loadCurrent = useCallback(async () => {
+    setFailed("");
+    try { const d = await af("/api/recognition/current"); const a = d && d.award; setCur(a && a.month === thisMonth ? a : null); }
+    catch (e) { setCur(null); setFailed(e.message || tr("Request failed")); }
+  }, [af, thisMonth]);
+  useEffect(() => { if (canManage) loadCurrent(); }, [canManage, loadCurrent]);
+  const posted = (d) => {
+    const a = d && d.award;
+    setWin(null);
+    const n = Number(d && d.told) || 0;
+    setTold({ n, month: a ? a.month : "" });
+    if (a && a.month === thisMonth) setCur(a);
+    else setWallKey(k => k + 1);
+    showToast(n > 0 ? trn("Sent to {0} people|count", n) : tr("Posted on the team wall. Nobody was told."));
+  };
+  const saved = (a) => { setWin(null); if (a) setCur(a); showToast(tr("Saved")); };
+  const removed = (a) => { setWin(null); setCur(null); setTold(null); if (a) setTaken(have => [a].concat(have.filter(x => x.id !== a.id))); setWallKey(k => k + 1); showToast(tr("Taken down. The month is free for another award.")); };
+  return (<div data-recognition-page="">
+    {tabs.length > 1 && <div role="tablist" data-recognition-tabs="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+      {tabs.map(x => <button key={x.id} role="tab" aria-selected={tab === x.id} data-recognition-tab={x.id} onClick={() => setTab(x.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (tab === x.id ? GO : t.border), background: tab === x.id ? t.goldBg : "transparent", color: tab === x.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.l}</button>)}
+    </div>}
+    {tab === "award" && <div data-recognition-view="award">
+      <SecT t={t}>{tr("This month: {0}", monthWordsOf(thisMonth))}</SecT>
+      {told && <div data-award-told={told.n} role="status" style={{ fontSize: 13, color: told.n > 0 ? GR : t.textSec, marginBottom: 12 }}>{told.n > 0 ? trn("Sent to {0} people|count", told.n) : tr("Posted on the team wall for {0}. Nobody was told.", monthWordsOf(told.month))}</div>}
+      {cur === undefined ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+        : failed ? <LoadFailed t={t} text={failed} onRetry={loadCurrent} />
+        : cur ? <AwardCard t={t} token={token} award={cur} big canEdit={cur.month === thisMonth} onEdit={a => setWin({ kind: "edit", award: a })} onRemove={a => setWin({ kind: "remove", award: a })} showToast={showToast} onStale={loadCurrent} />
+        : <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div data-award-empty="" style={{ fontSize: 14, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("Nobody is Employee of the Month for {0} yet.", monthWordsOf(thisMonth))}</div><Btn t={t} data-award-post-open="" onClick={() => setWin({ kind: "post" })}>{tr("Post this month's winner")}</Btn></Crd>}
+      {cur && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-award-post-earlier="" onClick={() => setWin({ kind: "post", month: monthBefore(thisMonth) })}>{tr("Post an earlier month")}</Btn></div>}
+      <AwardWall af={af} t={t} token={token} showToast={showToast} taken={taken} refreshKey={wallKey} />
+    </div>}
+    {tab === "shoutouts" && <div data-recognition-view="shoutouts"><ShoutoutsPanel af={af} t={t} canPost={canPost || canManage} showToast={showToast} /></div>}
+    {win && win.kind === "post" && <AwardPostWindow af={af} uf={uf} t={t} people={allStaff} startMonth={win.month || ""} onClose={() => setWin(null)} onPosted={posted} />}
+    {win && win.kind === "edit" && <AwardEditWindow af={af} t={t} award={win.award} people={allStaff} onClose={() => setWin(null)} onSaved={saved} />}
+    {win && win.kind === "remove" && <AwardRemoveWindow af={af} t={t} award={win.award} onClose={() => setWin(null)} onRemoved={removed} />}
+  </div>);
+}
+
 // ===== WHO GETS TOLD: the people and addresses told about each kind of report =====
 const RECIPIENTS_INTRO = "Choose who hears about each kind of report. People get an email and a notice in the app. Outside addresses get email only. When nobody is set, every admin gets a notice in the app.";
 const HR_CASE_NOTE = "Used by Speak Up. People only, never outside addresses. Nothing uses this until the Speak Up update.";
@@ -11704,6 +12271,13 @@ const NOTICE_TYPE_LABELS = {
   signature_overdue: "A signature has waited three working days",
   signature_signed: "Someone signed a warning on their phone",
   health_alert: "Health alerts and the morning health email",
+  // Part 413 (the API's Rounds 19 and 20): the Employee of the Month to every active staff account, the winner's count
+  // of the people who congratulated them, a shout-out to the person it names, and a course's certificate to the person
+  // who earned it. Each goes to the people its route names; nobody is set for them here.
+  recognition_award: "The Employee of the Month is posted",
+  recognition_reactions: "The Employee of the Month is told how many people congratulated them",
+  recognition_shoutout: "Someone gets a shout-out",
+  training_certificate: "A course's certificate is ready",
 };
 // Who a kind of notice the API names its own recipients for (named) goes to, said in place of the
 // controls that add people, which the API refuses for it (recipients.namedType).
@@ -11714,6 +12288,10 @@ const NAMED_NOTICE_WHO = {
   signature_overdue: "Goes to the person who sent it to sign. When they are no longer an admin or a supervisor, every admin is told. Nobody is added here.",
   signature_signed: "Goes to the person who sent the warning to sign. When they are no longer an admin or a supervisor, every admin is told. Nobody is added here.",
   health_alert: "Set on the Health page, under Who is told and when.",
+  recognition_award: "Goes to every active staff member, and to the winner in their own words. Nobody is added here.",
+  recognition_reactions: "Goes to the winner on the bell, at most once a day. Nobody is added here.",
+  recognition_shoutout: "Goes to the person the shout-out names. Nobody is added here.",
+  training_certificate: "Goes to the person who finished the course, on the bell. Nobody is added here.",
 };
 const FORM_TITLE_LABELS = {
   "OCSA-FRM-005": "Daily Service Log",
@@ -12029,7 +12607,7 @@ function AnnouncementWindow({ af, t, id, onClose }) {
     af("/api/announcements/" + encodeURIComponent(id)).then(d => setA(d && d.announcement ? d.announcement : null)).catch(e => setFailed(e && e.status === 404 ? (e.message || tr("Request failed")) : "load"));
   }, [af, id]);
   useEffect(() => { load(); }, [load]);
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-announcement-window="">
+  return (<Mdl name="announcement" t={t} onClose={onClose}><div style={{ padding: 20 }} data-announcement-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, minWidth: 0, wordBreak: "break-word" }}>{a ? builderText(a.title) : tr("Announcements")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -13108,7 +13686,7 @@ function MonthlySendWindow({ af, t, report, onClose, onSent }) {
   };
   const named = (c, i) => refusal.field === "to" && refusal.keys.some(k => k === c.email || k === String(i) || k.indexOf("to." + i) === 0 || k.indexOf("to[" + i + "]") === 0);
   const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
-  return (<Mdl t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-monthly-send="">
+  return (<Mdl name="monthly-send" t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-monthly-send="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send to the client")}</div>
@@ -13219,7 +13797,7 @@ function MonthlyReportsView({ af, token, t, sites, allStaff = [], showToast }) {
     {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={openReport} empty={tr("No monthly reports in this range.")} />}
-    {making && <Mdl t={t} onClose={() => { if (!makeBusy) setMaking(null); }}><div style={{ padding: 20 }}>
+    {making && <Mdl name="monthly-reports-view-making" t={t} onClose={() => { if (!makeBusy) setMaking(null); }}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New monthly report")}</div>
         <button onClick={() => setMaking(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -14360,7 +14938,7 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
   };
   const choice = (on) => ({ minWidth: 72, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
   const known = refusal.keys.filter(k => ["userId", "siteId", "item", "size", "quantity", "fitOk", "note", "employeeSignature"].indexOf(k) >= 0);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ppe-window="">
+  return (<Mdl name="issue-ppe" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ppe-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue PPE")}</div>
@@ -14519,7 +15097,7 @@ function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
   const field = (k, label, extra) => (<div><Lbl>{label}</Lbl><Inp t={t} aria-label={label} value={f[k]} onChange={e => set(k, e.target.value)} {...(extra || {})} style={box(k)} />{under(k)}</div>);
   const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 };
   const known = refusal.keys.filter(k => EQUIPMENT_FIELDS.indexOf(k) >= 0);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-window={item ? "edit" : "add"}>
+  return (<Mdl name="equipment" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-window={item ? "edit" : "add"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{item ? tr("Edit equipment") : tr("Add equipment")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -14636,7 +15214,7 @@ function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSave
     setBusy(false);
   };
   const others = (sites || []).filter(s => String(s.id) !== String(item.siteId));
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-action={action.kind}>
+  return (<Mdl name="equipment-event" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-action={action.kind}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr(action.l)}</div>
@@ -15507,7 +16085,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div><div style={{ fontSize: 10, color: t.textSec, marginTop: 3 }}>{locParts.join(" > ")}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>{isIssue && <Bdg l={tr("Issue")} c={RD} />}{task.priority && task.priority !== "standard" && <Bdg l={priOf(task.priority)} c={priC[task.priority] || GO} />}<Bdg l={stateOf(task.resolution_status)} c={stC[task.resolution_status] || OR} /></div></div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>{trWith("Assigned to: {0}", <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span>)}</span>}<span>{tr("By: {0}", task.created_by_name)}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>{tr("Due: {0}", fdDay(task.due_date))}</span>}</div>
       </Crd>); })}
-    {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
+    {sel && <Mdl name="assigned-tasks-admin-sel" t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Task Detail")}</div><button onClick={() => setSel(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.source_issue_id ? (sel.issue_title || selShown.label) : selShown.label}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{sel.source_issue_id && <Bdg l={tr("Issue")} c={RD} />}{sel.priority && sel.priority !== "standard" && <Bdg l={priOf(sel.priority)} c={priC[sel.priority] || GO} />}<Bdg l={stateOf(sel.resolution_status)} c={stC[sel.resolution_status] || OR} /></div>
@@ -15532,7 +16110,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
         {(sel.resolution_status !== "resolved") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>{tr("Reassign")}</Btn>}
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
       </div></div></Mdl>}
-    {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
+    {reassignForm && <Mdl name="assigned-tasks-admin-reassign-form" t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
       {reassignForm.said && !reassignForm.saidAt && <div data-task-reassign-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{reassignForm.said}</div>}
@@ -15541,7 +16119,7 @@ function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, site
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign} disabled={assignBusy}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
-    {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
+    {createForm && <Mdl name="assigned-tasks-admin-create-form" t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Create Assigned Task")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
@@ -15676,7 +16254,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
 
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|vendors"), count: vendors.length, color: t.goldText }, { id: "approved", label: tr("Approved|vendors"), count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: tr("Pending|vendors"), count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: tr("Probation|vendors"), count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: tr("Inactive|vendors"), count: vendors.filter(v => v.approval_status === "inactive").length, color: inactiveColor }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search vendor, contact, phone, email, services")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="vendors" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search vendor, contact, phone, email, services")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
 
@@ -15701,7 +16279,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       return <DataTable t={t} columns={columns} rows={items} rowKey={v => v.id} onRowClick={v => loadDetail(v.id)} empty={vendors.length === 0 ? tr("No vendors yet. Use Add Vendor to start.") : tr("No vendors match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
+    {addForm && <Mdl name="vendors-add-form" t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Vendor")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(addForm, setAddForm)}
@@ -15709,7 +16287,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {detail && <Mdl t={t} onClose={() => { setDetail(null); leaveRoute(); }}>
+    {detail && <Mdl name="vendors-detail" t={t} onClose={() => { setDetail(null); leaveRoute(); }}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
           <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={statusWord[detail.vendor.approval_status] || detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
@@ -15765,7 +16343,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
+    {editForm && <Mdl name="vendors-edit-form" t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Vendor")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(editForm, setEditForm)}
@@ -15773,7 +16351,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {addEval && <Mdl t={t} onClose={() => setAddEval(null)}>
+    {addEval && <Mdl name="vendors-add-eval" t={t} onClose={() => setAddEval(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Add Evaluation")}</div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Rating *")}</Lbl>
@@ -15788,7 +16366,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t, route = [], o
       </div>
     </Mdl>}
 
-    {linkSupply && <Mdl t={t} onClose={() => setLinkSupply(null)}>
+    {linkSupply && <Mdl name="vendors-link-supply" t={t} onClose={() => setLinkSupply(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Supply to Vendor")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Supply *")}</Lbl><Sel t={t} value={linkSupply.supplyId} onChange={e => setLinkSupply({ ...linkSupply, supplyId: e.target.value })} options={[{ v: "", l: tr("Select a supply...") }, ...supplies.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -15911,7 +16489,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       {!servicesFailed && services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>{tr("No services yet.")}</div>}
     </div>
 
-    {detail && <Mdl t={t} onClose={() => setDetail(null)}>
+    {detail && <Mdl name="services-detail" t={t} onClose={() => setDetail(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
@@ -15965,7 +16543,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       </div>
     </Mdl>}
 
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
+    {addForm && <Mdl name="services-add-form" t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Service")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(addForm, setAddForm)}
@@ -15973,7 +16551,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       </div>
     </Mdl>}
 
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
+    {editForm && <Mdl name="services-edit-form" t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Service")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(editForm, setEditForm)}
@@ -15981,7 +16559,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
       </div>
     </Mdl>}
 
-    {linkSite && <Mdl t={t} onClose={() => setLinkSite(null)}>
+    {linkSite && <Mdl name="services-link-site" t={t} onClose={() => setLinkSite(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Site to Service")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -16112,7 +16690,7 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
   };
 
   const started = pattern && pattern.startsOn && String(pattern.startsOn) <= todayISO();
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl name="pattern" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Weekly pattern")}</div>
@@ -16251,7 +16829,10 @@ const timeOffType = (r) => (r && LEAVE_TYPE_WORDS[r.leaveType] ? tr(LEAVE_TYPE_W
   : (r && (r.leaveTypeLabel || r.leaveType)) || "");
 // A request filed inside its type's notice (vacation 2 weeks, a personal day 48 hours) reads insideNotice true: the
 // office decides it case by case. The unit says whether the type is taken in whole days or in hours.
-const TimeOffInsideNotice = ({ r }) => (r && r.insideNotice === true ? <span data-time-off-inside-notice="" title={tr("Filed inside its notice. Decide it case by case.")}><Bdg l={tr("Inside notice")} c={OR} /></span> : null);
+// Part 413 (the API's Round 18, 3.3): every request carries insideNoticeText, the API's own line in the request's language,
+// drawn in place of the dashboard's words once it is there.
+const insideNoticeLine = (r) => (r && typeof r.insideNoticeText === "string" && r.insideNoticeText ? r.insideNoticeText : tr("Filed inside its notice. Decide it case by case."));
+const TimeOffInsideNotice = ({ r }) => (r && r.insideNotice === true ? <span data-time-off-inside-notice="" title={insideNoticeLine(r)}><Bdg l={tr("Inside notice")} c={OR} /></span> : null);
 const timeOffAmount = (r) => (r && r.unit === "days" && (r.hours == null || r.hours === "") ? tr("Whole days") : timeOffHours(r ? r.hours : null));
 const timeOffStatus = (s) => tr(TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || ""));
 const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), tr("{0} to {1}", patternTime(sh.startTime), patternTime(sh.endTime)), sh.siteName].filter(Boolean).join(", ");
@@ -16434,7 +17015,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
   const decided = req.status === "approved" || req.status === "denied";
   const mine = !!myId && req.userId != null && String(req.userId) === myId;
 
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-time-off-window={String(req.id)} data-time-off-status={req.status || ""}>
+  return (<Mdl name="time-off" t={t} onClose={onClose}><div style={{ padding: 20 }} data-time-off-window={String(req.id)} data-time-off-status={req.status || ""}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Time off request")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
@@ -16449,7 +17030,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
       {row("Status", timeOffStatus(req.status))}
       {row("Asked", timeOffMoment(req.createdAt))}
       {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
-      {req.insideNotice === true && <div data-time-off-inside-notice-line="" style={{ fontSize: 12, color: OR, marginTop: 6, lineHeight: 1.5 }}>{tr("Filed inside its notice. Decide it case by case.")}</div>}
+      {req.insideNotice === true && <div data-time-off-inside-notice-line="" data-time-off-inside-notice-api={req.insideNoticeText ? "true" : "false"} style={{ fontSize: 12, color: OR, marginTop: 6, lineHeight: 1.5 }}>{insideNoticeLine(req)}</div>}
     </div>
     {leave && <div data-time-off-leave={leave.tracked ? "tracked" : "untracked"} style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Balance")}</Lbl>
@@ -16462,6 +17043,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided, canDe
         {leave.policy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Policy: {0}", leave.policy.name)}{leave.usableFrom && leave.usableFrom > leaveToday() ? " | " + tr("Usable from {0}", fdLong(leave.usableFrom)) : ""}</div>}
         <LeaveAdpLine t={t} text={leaveAdpLine([leave])} style={{ fontSize: 11, marginTop: 4, marginBottom: 0 }} />
       </>}
+      {Array.isArray(leave.days) && leave.days.some(x => x && x.holiday) && <div data-time-off-holidays="" style={{ marginTop: 6 }}>{leave.days.filter(x => x && x.holiday).map(x => <div key={x.date} data-time-off-holiday={x.date} style={{ fontSize: 12, color: t.text }}>{tr("{0} is {1}.", fdLong(x.date), x.holiday.name || "")}</div>)}</div>}
     </div>}
     {!affected && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
       <Lbl>{tr("Shifts on these days")}</Lbl>
@@ -17071,10 +17653,10 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
       <SecT t={t} action={tr("Refresh")} icon={RfI} onAction={() => loadCalendar()}>{tr("Schedule")}</SecT>
       <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Week")}</button>
-        <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
-        <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Patterns")}</button>
-        {timeOffWaiting !== null && <button onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? tr("Time off ({0})", timeOffWaiting) : tr("Time off")}</button>}
+        <button data-schedule-tab="week" onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Week")}</button>
+        <button data-schedule-tab="month" onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
+        <button data-schedule-tab="patterns" onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Patterns")}</button>
+        {timeOffWaiting !== null && <button data-schedule-tab="timeoff" onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? tr("Time off ({0})", timeOffWaiting) : tr("Time off")}</button>}
         {timeOffWaiting === null && timeOffLocked && <button disabled title={tr(TIME_OFF_LOCKED_LINE)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 500, background: "transparent", color: t.textMut, border: "1px solid " + t.border, cursor: "default", opacity: 0.55, fontFamily: FONT_BODY }}>{tr("Time off")}</button>}
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> {tr("Schedule Shift")}</Btn>
       </div>
@@ -17086,7 +17668,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: tr("This Week") }, { key: "lastWeek", label: tr("Last Week") }, { key: "nextWeek", label: tr("Next Week") }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ width: 200, fontSize: 12 }} />
-      <Inp t={t} value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder={tr("Search staff...")} style={{ width: 160, fontSize: 12 }} />
+      <Inp t={t} data-list-search="schedule" value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder={tr("Search staff...")} style={{ width: 160, fontSize: 12 }} />
       {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>{tr("Show")}</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{tr("{0} staff", nn)}</option>)}</select></div>}
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading schedule...")}</div>}
@@ -17105,7 +17687,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </>}
 
     {/* CREATE SHIFT MODAL */}
-    {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
+    {createModal && <Mdl name="schedule-create-modal" t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>{tr("Scheduling for")} {fmtShortDate(createModal.date)}</div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} aria-label={tr("Site")} data-schedule-shift-site="" value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -17160,7 +17742,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
-    {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div data-schedule-edit={editModal.id} style={{ padding: 24 }}>
+    {editModal && <Mdl name="schedule-edit-modal" t={t} onClose={() => setEditModal(null)}><div data-schedule-edit={editModal.id} style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><PersonPick t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
@@ -17202,7 +17784,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* STARTED SHIFT DETAIL MODAL. Read only. A session says who started a shift where; nothing here edits it. */}
-    {startedDetail && <Mdl t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
+    {startedDetail && <Mdl name="schedule-started-detail" t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Started Shift")}</div><button onClick={() => setStartedDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut }}>{roleOf(startedDetail.role)}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
@@ -17218,7 +17800,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     </div></Mdl>}
 
     {/* INSPECTION RESCHEDULE MODAL */}
-    {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
+    {inspModal && <Mdl name="schedule-insp-modal" t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Inspection Details")}</div><button onClick={() => setInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
@@ -17235,7 +17817,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
 
     {/* PICKUP DETAIL MODAL */}
     {timeOffOpen && <TimeOffWindow af={af} t={t} seed={timeOffOpen} myId={myId} showToast={showToast} canDecide={canDecideTimeOff} onClose={() => setTimeOffOpen(null)} onDecided={() => { loadCalendar(); loadTimeOffCount(); }} />}
-    {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
+    {pickupDetail && <Mdl name="schedule-pickup-detail" t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.")}</div>}
       {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>{tr("This shift is open in the marketplace and available for staff to claim.")}</div>}
@@ -17542,7 +18124,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {/* Tabs */}
     <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid " + t.border, paddingBottom: 2 }}>
       {tabs.map(tb => (
-        <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+        <button key={tb.id} data-pickup-tab={tb.id} onClick={() => setTab(tb.id)} style={{
           padding: "8px 14px", borderRadius: "8px 8px 0 0", border: "none",
           background: tab === tb.id ? t.goldBg : "transparent",
           color: tab === tb.id ? t.goldText : t.textMut,
@@ -17563,7 +18145,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {!loading && !pkFailed && tab !== "analytics" && (
       <div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder={tr("Search site, service, staff, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="marketplace" value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder={tr("Search site, service, staff, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={pkPerPage} onChange={e => { setPkPerPage(Number(e.target.value)); setPkPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -17878,7 +18460,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     )}
 
     {/* POST OPEN SHIFT MODAL */}
-    {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
+    {createForm && <Mdl name="shift-marketplace-create-form" t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post Open Shift")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -17909,7 +18491,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     </div></Mdl>}
 
     {/* CONVERT CALLOUT MODAL */}
-    {convertModal && <Mdl t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
+    {convertModal && <Mdl name="shift-marketplace-convert-modal" t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Convert Scheduled Shift to Open Pickup")}</div><button onClick={() => setConvertModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14 }}>
@@ -17941,7 +18523,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     </div></Mdl>}
 
     {/* SHIFT DETAIL MODAL */}
-    {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
+    {shiftDetail && <Mdl name="shift-marketplace-shift-detail" t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{shiftDetail.status === "requested" ? tr("Shift Drop Request") : tr("Shift Details")}</div>
         <button onClick={() => setShiftDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -18408,7 +18990,7 @@ function FindingWindow({ af, t, finding, topics = null, canDecide = false, onCha
   const panel = { marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border };
   const owner = f.owner && f.owner.name ? f.owner : null;
   const ownersList = insp ? insp.owners : [];
-  return (<Mdl t={t} onClose={onClose}><div data-finding-window={f.id} data-finding-window-state={f.state || ""} style={{ padding: 20 }}>
+  return (<Mdl name="finding" t={t} onClose={onClose}><div data-finding-window={f.id} data-finding-window-state={f.state || ""} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Finding")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
     {f.refused ? <div data-finding-refusal="read" role="alert" style={{ fontSize: 13, color: RD }}>{f.refused}</div> : <>
       <div data-finding-window-title="" style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{findingName(f)}</div>
@@ -18513,24 +19095,41 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
   // A refusal of the kind (400 inspections.badKind) is drawn under Kind in whichever template window is
   // open, since only one is open at a time. Any other refusal is the toast it always was.
   const [kindRefusal, setKindRefusal] = useState("");
-  const refuseTemplate = (e) => { if (e && e.code === "inspections.badKind") setKindRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); };
+  // Part 413 (the API's Round 17, part 407): a template is tied to one site or none (site_id) and may be marked test
+  // (is_test), and the editor sends siteId and isTest once the list answers them; a 400 inspections.badDetails names the
+  // field it refused, drawn under it.
+  const [tplRefusal, setTplRefusal] = useState(null);
+  const refuseTemplate = (e) => { if (e && e.code === "inspections.badKind") setKindRefusal(e.message || tr("Request failed")); else if (e && e.code === "inspections.badDetails" && refusalKeys(e).some(k => k === "siteId" || k === "isTest")) setTplRefusal({ text: e.message || tr("Request failed"), keys: refusalKeys(e) }); else showToast(e.message, "error"); };
   // Rename (Step 185): PUT /api/inspections/templates/:id takes { name, description } and writes
   // both, so the description goes back as it is, or the table would lose it. A template that carries
   // its kind sends the kind too, as it is or as changed here, for the same reason.
   const [renameTpl, setRenameTpl] = useState(null);
-  const openRename = (tp) => { setKindRefusal(""); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "", kind: typeof tp.kind === "string" ? tp.kind : undefined }); };
+  const openRename = (tp) => { setKindRefusal(""); setTplRefusal(null); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "", kind: typeof tp.kind === "string" ? tp.kind : undefined, siteId: tp.site_id != null ? String(tp.site_id) : "", isTest: tp.is_test === true }); };
   const saveRename = async () => {
     const name = String(renameTpl.name || "").trim();
     if (!name) { showToast(tr("Name required"), "error"); return; }
     setKindRefusal("");
     try {
       const body = { name, description: renameTpl.description || "" }; if (renameTpl.kind !== undefined) body.kind = renameTpl.kind;
+      if (tplSitesLive) { body.siteId = renameTpl.siteId || null; body.isTest = !!renameTpl.isTest; }
+      setTplRefusal(null);
       await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body });
       showToast(tr("Saved")); setRenameTpl(null); loadTemplates();
       if (selectedTemplate && selectedTemplate.id === renameTpl.id) openTemplate(renameTpl.id);
     } catch (e) { refuseTemplate(e); }
   };
-  const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor" });
+  const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor", siteId: "", isTest: false });
+  // The list answers site_id and is_test on every row since the API's Round 17.
+  const tplSitesLive = (templates || []).some(tp => tp && (Object.prototype.hasOwnProperty.call(tp, "site_id") || Object.prototype.hasOwnProperty.call(tp, "is_test")));
+  const tplSiteOf = (tp) => (tp && tp.site_id != null ? (sites || []).find(x => String(x.id) === String(tp.site_id)) || { id: tp.site_id, name: tp.site_name || "" } : null);
+  const tplIsTest = (tp) => !!tp && (tp.is_test === true || (tplSiteOf(tp) && (tplSiteOf(tp).is_test === true || tplSiteOf(tp).isTest === true)));
+  const tplSiteFields = (form, set) => (tplSitesLive ? <>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} data-template-site="" value={form.siteId || ""} onChange={e => { setTplRefusal(null); set({ ...form, siteId: e.target.value }); }} options={[{ v: "", l: tr("Every site") }].concat((sites || []).map(x => ({ v: String(x.id), l: siteShown(x) })))} />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A template tied to a site is offered there alone.")}</div>
+      {tplRefusal && tplRefusal.keys.indexOf("siteId") >= 0 && <div role="alert" data-template-refusal="siteId" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{tplRefusal.text}</div>}</div>
+    <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, marginBottom: 14, fontSize: 13, color: t.text }}><input type="checkbox" data-template-test="" checked={!!form.isTest} onChange={e => { setTplRefusal(null); set({ ...form, isTest: e.target.checked }); }} />{tr("Test template, for the test accounts only")}</label>
+    {tplRefusal && tplRefusal.keys.indexOf("isTest") >= 0 && <div role="alert" data-template-refusal="isTest" style={{ fontSize: 12, color: RD, marginTop: -8, marginBottom: 12 }}>{tplRefusal.text}</div>}
+  </> : null);
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", serviceCategory: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
   // Step 314: Include the safety walk, on by default, goes as withSafety.
@@ -18647,8 +19246,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
     setKindRefusal("");
     try {
       const body = { name: newTplForm.name, description: newTplForm.description }; if (kindsLive) body.kind = newTplForm.kind;
+      if (tplSitesLive) { body.siteId = newTplForm.siteId || null; body.isTest = !!newTplForm.isTest; }
+      setTplRefusal(null);
       await af("/api/inspections/templates", { method: "POST", body });
-      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "", kind: "supervisor" }); loadTemplates();
+      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "", kind: "supervisor", siteId: "", isTest: false }); loadTemplates();
     } catch (e) { refuseTemplate(e); }
   };
 
@@ -19039,7 +19640,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
         </Crd>}
 
         {caFill && <FormFillWindow af={af} token={token} t={t} form={caFill.form} draft={caFill.draft} onLeave={() => { setCaFill(null); openDetail(d.id); }} people={allStaff} />}
-        {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
+        {editInspModal && <Mdl name="inspections-edit-insp-modal" t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -19066,11 +19667,12 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
         onOpen={(id) => { if (onRoute) onRoute(["findings", String(id)]); }} onClose={() => { if (onRoute) onRoute(["findings"]); }}
         onOpenInspection={(id) => { if (onRoute) onRoute([String(id)]); }} />}
 
-      {renameTpl && <Mdl t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
+      {renameTpl && <Mdl name="inspections-rename-tpl" t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Rename")}</div><button onClick={() => setRenameTpl(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={renameTpl.name} onChange={e => setRenameTpl({ ...renameTpl, name: e.target.value })} autoFocus /></div>
         {renameTpl.kind !== undefined && <div style={{ marginBottom: 16 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={renameTpl.kind} onChange={e => { setKindRefusal(""); setRenameTpl({ ...renameTpl, kind: e.target.value }); }} options={INSPECTION_KINDS.indexOf(renameTpl.kind) >= 0 ? inspectionKindOpts() : [{ v: renameTpl.kind, l: inspectionKindWord(renameTpl.kind) }, ...inspectionKindOpts()]} />
           {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
+        {tplSiteFields(renameTpl, setRenameTpl)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setRenameTpl(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveRename}>{tr("Save")}</Btn></div>
       </div></Mdl>}
       {/* TEMPLATES TAB */}
@@ -19089,6 +19691,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
                     </div>}
                   </div>
                   {tp.kind && <div style={{ marginBottom: 6 }}><Bdg l={inspectionKindWord(tp.kind)} c={tp.kind === "audit" ? BL : GO} /></div>}
+                  {tplSitesLive && <div data-template-row-site={tp.site_id != null ? String(tp.site_id) : ""} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 11, color: t.textSec, marginBottom: 6 }}><span>{tplSiteOf(tp) ? tplSiteOf(tp).name : tr("Every site")}</span>{tplIsTest(tp) && <span data-template-test-mark=""><Bdg l={tr("TEST")} c={OR} /></span>}</div>}
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
                 </Crd>
@@ -19160,7 +19763,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
           </div>
           <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: tr("All|inspections"), count: scheduled.length, color: t.goldText }, { id: "scheduled", label: tr("Scheduled|inspections"), count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: tr("In Progress"), count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="inspections-scheduled" value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -19191,7 +19794,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
       {tab === "completed" && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="inspections-completed" value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setCompPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -19400,17 +20003,18 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
       )}
 
       {/* NEW TEMPLATE MODAL */}
-      {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
+      {newTplModal && <Mdl name="inspections-new-tpl-modal" t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New Inspection Template")}</div><button onClick={() => setNewTplModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template Name *")}</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder={tr("e.g. Standard Office Cleaning")} /></div>
         {kindsLive && <div style={{ marginBottom: 14 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={newTplForm.kind} onChange={e => { setKindRefusal(""); setNewTplForm({ ...newTplForm, kind: e.target.value }); }} options={inspectionKindOpts()} />
           {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder={tr("Optional: describe what this template covers")} /></div>
+        {tplSiteFields(newTplForm, setNewTplForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={createTemplate}>{tr("Create Template")}</Btn></div>
       </div></Mdl>}
 
       {/* SCHEDULE MODAL */}
-      {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
+      {editInspModal && <Mdl name="inspections-edit-insp-modal-2" t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -19421,7 +20025,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, c
           <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>{tr("Close")}</Btn><Btn t={t} onClick={submitEditInspection}>{tr("Save")}</Btn></div>
         </div>
       </div></Mdl>}
-      {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
+      {scheduleModal && <Mdl name="inspections-schedule-modal" t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} /></div>
@@ -20211,7 +20815,7 @@ function WhoOpened({ af, t, kind, id, name = "" }) {
   if (gone || id == null || id === "") return null;
   return (<>
     <button type="button" data-who-opened={kind} data-who-opened-id={String(id)} onClick={look} disabled={busy} style={{ background: "none", border: "none", padding: "2px 4px", minHeight: 32, color: t.textMut, fontSize: 11, textDecoration: "underline", cursor: busy ? "wait" : "pointer", fontFamily: FONT_BODY, whiteSpace: "nowrap" }}>{busy ? tr("Loading...") : tr("Who opened this")}</button>
-    {shown && <Mdl t={t} onClose={() => setShown(null)}><div style={{ padding: 20 }} data-who-opened-window={kind}>
+    {shown && <Mdl name="who-opened-shown" t={t} onClose={() => setShown(null)}><div style={{ padding: 20 }} data-who-opened-window={kind}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Who opened this")}</div>
@@ -20280,7 +20884,7 @@ async function saveSince(af, path, o) {
 }
 // The window itself, drawn over any screen by the shell while a save waits on it.
 function ChangedSinceWindow({ t, ask, onAnswer }) {
-  return (<Mdl t={t} onClose={() => onAnswer(false)}><div style={{ padding: 20 }} data-changed-since="">
+  return (<Mdl name="changed-since-on-answer" t={t} onClose={() => onAnswer(false)}><div style={{ padding: 20 }} data-changed-since="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("This changed since you opened it")}</div>
       <button onClick={() => onAnswer(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -20557,6 +21161,7 @@ const healthCell = (kind, v, t) => {
   if (kind === "trigger") return healthTriggerWord(v);
   if (kind === "outcome") return <Bdg l={healthOutcomeWord(v)} c={healthOutcomeInk(v, t)} />;
   if (kind === "role") return roleWord(v);
+  if (kind === "lang") return langLabel(String(v));
   if (kind === "yesno") return v === true ? tr("Yes") : tr("No");
   if (kind === "warning") return warningStepWord(v);
   if (kind === "finalMail") return v && v.status ? tr(HEALTH_FINAL_MAIL[v.status] || v.status) : "--";
@@ -20586,6 +21191,10 @@ const HEALTH_LIST_COLS = {
   runs_failed: [["journey", "Journey"], ["outcome", "Outcome", "outcome"], ["durationMs", "Length", "ms"]],
   monitors_down: [["name", "Monitor"], ["state", "State"], ["down", "Down", "yesno"]],
   robot_trust_days_left: [["account", "Test account"], ["device", "Device"], ["endsAt", "Ends", "when"], ["daysLeft", "Days left"]],
+  // Part 413: the staff app's own notes of task lists that failed (the API's Round 17), per site; and the lesson screens
+  // still waiting for their voice (Round 20).
+  task_list_offline: [["site", "Site"], ["offline", "No signal"], ["timeout", "Timed out"], ["server", "Server error"], ["refused", "Refused|task list"], ["people", "People"]],
+  narration_waiting: [["topic", "Lesson"], ["screen", "Screen"], ["locale", "Language", "lang"], ["chars", "Characters"]],
 };
 // ===== COPY FOR CLAUDE (part 393, the owner's word of Nov 11) =====
 // When something on the health checks turns red, the owner pastes a brief into the chat that carries what the chat
@@ -20719,7 +21328,7 @@ function HealthListWindow({ af, t, number, day, onClose, showToast }) {
     return () => { alive = false; };
   }, [af, number.key, day, again]);
   const cols = (HEALTH_LIST_COLS[number.key] || [["name", "Name"]]).map(([k, l, kind]) => ({ header: tr(l), render: r => (k === "name" && r.matchedNobody ? tr("No account matched") : healthCell(kind, r[k], t)) }));
-  return (<Mdl t={t} tall onClose={onClose}><div data-health-list={number.key} style={{ padding: 20 }}>
+  return (<Mdl name="health-list" t={t} tall onClose={onClose}><div data-health-list={number.key} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{number.label || number.key}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -20838,6 +21447,23 @@ function HealthNumbers({ af, t, data, failed, onRetry, showToast }) {
 // Run now's refusals in plain words, by their codes, for an answer that carries none.
 const HEALTH_RUN_NOW_WORDS = { "health.runNowBusy": "A run-through was just asked for. Wait two minutes before asking again.", "health.runNowOff": "Run now is not set up on this server yet.", "health.runNowFailed": "GitHub did not start the run-through. Try again in a few minutes." };
 // A skipped step carries the robot's reason (part 384, reason; the robot's Round 3 finding 3), drawn under it.
+// Part 413 (the API's Round 17, 3.1): what the robot covered of both apps, as it reported it. A run's own read answers
+// coverage whole, { apps: { staff, dashboard: { full, stop, read, notYet } }, notYet: [{ id, screen, round }] }; the paged
+// list answers { apps, notYetCount }; null for a run that reported none.
+const HEALTH_COVERAGE_APPS = [["staff", "Staff app"], ["dashboard", "Dashboard"]];
+const healthCoverageCounts = (c) => (c && typeof c === "object" ? tr("{0} end to end, {1} to the last step, {2} read, {3} not yet", Number(c.full) || 0, Number(c.stop) || 0, Number(c.read) || 0, Number(c.notYet) || 0) : "--");
+const healthCoverageLine = (cov) => (cov && cov.apps ? HEALTH_COVERAGE_APPS.filter(([k]) => cov.apps[k]).map(([k, l]) => tr(l) + ": " + healthCoverageCounts(cov.apps[k])).join("; ") : "");
+function HealthCoverage({ t, coverage }) {
+  if (!coverage || !coverage.apps) return <div data-health-coverage="none" style={{ fontSize: 12, color: t.textMut, marginBottom: 12 }}>{tr("This run reported no coverage.")}</div>;
+  const notYet = Array.isArray(coverage.notYet) ? coverage.notYet : [];
+  return (<div data-health-coverage={notYet.length} style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("What the run covered")}</div>
+    {HEALTH_COVERAGE_APPS.filter(([k]) => coverage.apps[k]).map(([k, l]) => <div key={k} data-health-coverage-app={k} style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}><b style={{ color: t.text }}>{tr(l)}:</b> {healthCoverageCounts(coverage.apps[k])}</div>)}
+    {notYet.length > 0 && <details style={{ marginTop: 8 }}><summary style={{ cursor: "pointer", fontSize: 12, color: t.goldText, fontWeight: 600, minHeight: 44, display: "flex", alignItems: "center" }}>{trn("{0} not covered yet|count", notYet.length)}</summary>
+      {notYet.map((x, i) => <div key={i} data-health-not-yet={x.id} style={{ fontSize: 12, color: t.textSec, padding: "4px 0", borderTop: "1px solid " + t.border, overflowWrap: "anywhere" }}>{x.screen ? x.screen + ": " : ""}{x.id}{x.round != null ? " (" + tr("round {0}", x.round) + ")" : ""}</div>)}
+    </details>}
+  </div>);
+}
 function HealthRunWindow({ af, t, runId, onClose }) {
   const [d, setD] = useState(null);
   const [failed, setFailed] = useState("");
@@ -20845,7 +21471,7 @@ function HealthRunWindow({ af, t, runId, onClose }) {
   const read = useCallback(() => af("/api/health/runs/" + encodeURIComponent(runId)).then(x => { setD(x && x.run ? x : null); setFailed(x && x.run ? "" : tr("This did not load.")); }).catch(e => setFailed(e.message || tr("This did not load."))), [af, runId]);
   useEffect(() => { read(); }, [read, again]);
   const run = d && d.run;
-  return (<Mdl t={t} tall onClose={onClose}><div data-health-run={runId} style={{ padding: 20 }}>
+  return (<Mdl name="health-run" t={t} tall onClose={onClose}><div data-health-run={runId} style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Run-through")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -20858,6 +21484,7 @@ function HealthRunWindow({ af, t, runId, onClose }) {
         {healthNum(run.appOpenMs) !== null ? <div>{tr("App open time")}: {healthValueText(run.appOpenMs, "ms")}</div> : null}
         {run.runUrl ? <div><a href={run.runUrl} target="_blank" rel="noopener noreferrer" style={{ color: t.goldText, fontWeight: 600 }}>{tr("Open the run on GitHub")}</a></div> : null}
       </div>
+      {Object.prototype.hasOwnProperty.call(run, "coverage") && <HealthCoverage t={t} coverage={run.coverage} />}
       {(d.journeys || []).map((j, ji) => (<Crd key={ji} t={t} style={{ marginBottom: 10, padding: 12 }}><div data-health-journey={j.name} data-health-journey-outcome={j.outcome}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{j.name}</div>
@@ -20967,7 +21594,7 @@ function HealthRuns({ af, t, onAsked }) {
     { header: tr("Outcome"), render: r => <Bdg l={healthOutcomeWord(r.outcome)} c={healthOutcomeInk(r.outcome, t)} /> },
     { header: tr("Journeys"), render: r => { const j = r.journeys || {}; return tr("{0} passed, {1} failed, {2} skipped", j.passed || 0, j.failed || 0, j.skipped || 0); } },
     { header: tr("Each app's commit"), tdStyle: { fontSize: 12, color: t.textSec }, render: r => healthCommits(r.commits) },
-  ];
+  ].concat((rows || []).some(r => r && Object.prototype.hasOwnProperty.call(r, "coverage")) ? [{ header: tr("Covered"), tdStyle: { fontSize: 12, color: t.textSec, minWidth: 180 }, render: r => (r.coverage && r.coverage.apps ? <span data-health-run-coverage={r.coverage.notYetCount != null ? String(r.coverage.notYetCount) : ""}>{healthCoverageLine(r.coverage)}{r.coverage.notYetCount != null ? <div style={{ color: t.textMut }}>{trn("{0} not covered yet|count", Number(r.coverage.notYetCount) || 0)}</div> : null}</span> : "--") }] : []);
   return (<div data-health-runs="">
     <Crd t={t} style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -21278,7 +21905,7 @@ function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, bo
   }, [token, path, fallbackName, again]);
   useEffect(() => () => { setPdf(p => { if (p.url) URL.revokeObjectURL(p.url); return p; }); }, []);
   const langBtn = (x) => { const on = lang === x.id; return <button key={x.id} onClick={() => setLang(x.id)} aria-pressed={on} title={x.label} style={{ minHeight: 44, minWidth: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>; };
-  return (<Mdl t={t} onClose={onClose} tall><div style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }} {...(boxProps || {})}>
+  return (<Mdl name="pdf" t={t} onClose={onClose} tall><div style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }} {...(boxProps || {})}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{title}</div>
@@ -21356,7 +21983,7 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
   const named = (i) => refusal.code === "quotes.badEmail" && refusal.keys.indexOf(String(i)) >= 0;
   const who = (c) => (c.name ? c.name + " (" + c.email + ")" : c.email);
   const langBtn = (x) => { const on = lang === x.id; return <button key={x.id} onClick={() => setLang(x.id)} aria-pressed={on} title={x.label} style={{ minHeight: 44, minWidth: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>; };
-  return (<Mdl t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-quote-send="">
+  return (<Mdl name="quote-send" t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-quote-send="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send to the client")}</div>
@@ -21998,6 +22625,9 @@ const CAPABILITY_LABELS = {
   record_injuries: "Keep the injury log",
   // Step 208: the Quotes page, routes/quotes (STEP207_CONTRACT.md, section 5).
   build_quotes: "Build quotes",
+  // Part 413: the API's Round 19 (part 411), by the API's own words for each.
+  manage_recognition: "Employee of the Month",
+  post_shoutouts: "Post shout-outs",
   // Step 332, against the API's Step 327: employment changes, HR Records and Cases, each its own.
   manage_employment: "Add people, approve registrations, change employment and roles",
   read_hr_records: "Read HR records",
@@ -22479,7 +23109,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
     {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={list} rowKey={h => (h.id || h.key || "") + ":" + h.date} empty={tr("No holidays this year.")} />}
-    {win && <Mdl t={t} onClose={() => { if (!saving) setWin(null); }}><div style={{ padding: 20 }} data-holiday-window={win.mode}>
+    {win && <Mdl name="holidays-win" t={t} onClose={() => { if (!saving) setWin(null); }}><div style={{ padding: 20 }} data-holiday-window={win.mode}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{win.mode === "add" ? tr("Add a holiday") : tr("Edit holiday")}</div>
         <button onClick={() => setWin(null)} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
@@ -22531,6 +23161,10 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     af("/api/settings/support-contact").then(d => { if (alive) setSupportContact(d && typeof d === "object" && !Array.isArray(d) ? d : null); }).catch(e => { if (alive) setSupportContact(null); console.warn("Support contact:", e.message); });
     return () => { alive = false; };
   }, [af]);
+  // Part 413 (the API's Round 20, 6.4): the certificate signer, once GET /api/training/certificate-signer answers, which
+  // it does for admins.
+  const [signerLive, setSignerLive] = useState(false);
+  useEffect(() => { let alive = true; af("/api/training/certificate-signer").then(d => { if (alive) setSignerLive(!!d && Object.prototype.hasOwnProperty.call(d, "signer")); }).catch(() => { if (alive) setSignerLive(false); }); return () => { alive = false; }; }, [af]);
   const [selCat, setSelCat] = useState(null);
   // Each tab is a capability's: Company, Who gets told and Holidays are manage settings, the two lookups
   // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
@@ -22545,6 +23179,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "holidays", label: tr("Holidays"), open: canManageSettings && !!holidays },
     { id: "devices", label: tr("Trusted devices"), open: devicesOn },
     { id: "support", label: tr("App support contact"), open: !!supportContact },
+    { id: "training", label: tr("Training"), open: signerLive },
   ];
   const tabs = TABS.filter(x => x.open);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
@@ -22707,6 +23342,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
 
       {tab === "support" && supportContact && <SupportContactPanel af={af} t={t} showToast={showToast} initial={supportContact} />}
+      {tab === "training" && signerLive && <CertificateSignerPanel af={af} t={t} showToast={showToast} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -22807,7 +23443,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div>}
 
       {/* Add Category Modal */}
-      {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
+      {addCatForm && <Mdl name="settings-add-cat-form" t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Category")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Label *")}</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder={tr("e.g. Equipment Types")} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder={tr("Optional description")} /></div>
@@ -22815,7 +23451,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Edit Category Modal */}
-      {editCatForm && <Mdl t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
+      {editCatForm && <Mdl name="settings-edit-cat-form" t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Category")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Label")}</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
@@ -22823,7 +23459,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Add Value Modal */}
-      {addValForm && <Mdl t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
+      {addValForm && <Mdl name="settings-add-val-form" t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Value to {0}", activeCat ? activeCat.label : "")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Value (stored) *")}</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder={tr("e.g. floor_tech")} style={{ fontFamily: "monospace" }} /></div>
@@ -22837,7 +23473,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Edit Value Modal */}
-      {editValForm && <Mdl t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
+      {editValForm && <Mdl name="settings-edit-val-form" t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Value")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Value (stored)")}</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
@@ -22852,7 +23488,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Add Site Lookup Modal */}
-      {addSiteVal && <Mdl t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
+      {addSiteVal && <Mdl name="settings-add-site-val" t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr(siteTypeAddLabel[addSiteVal.lookup_type] || "Add Value")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -22863,7 +23499,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div></Mdl>}
 
       {/* Edit Site Lookup Modal */}
-      {editSiteVal && <Mdl t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
+      {editSiteVal && <Mdl name="settings-edit-site-val" t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Site Lookup")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -22898,13 +23534,15 @@ const HR_CATEGORY_OPTS = [
   { v: "operational", l: "Operational" },
   { v: "safety", l: "Safety / Incident" },
   { v: "disciplinary", l: "Disciplinary" },
+  // Part 413 (the API's Round 20, 6.6): the API files each course certificate here itself; nobody picks it.
+  { v: "training_certificate", l: "Course certificates" },
   { v: "other", l: "Other" },
 ];
 // Step 232: Disciplinary is a folder category once the API's Step 228 holds it, which files the old
 // warning forms there; the shell sets this when the discipline routes answer. Until then the pickers
 // do not offer it, though a document already filed there still reads its word.
 let disciplinaryCategoryLive = false;
-const hrCategoryPickable = (c, current) => c.v !== "disciplinary" || disciplinaryCategoryLive || current === "disciplinary";
+const hrCategoryPickable = (c, current) => (c.v !== "disciplinary" || disciplinaryCategoryLive || current === "disciplinary") && (c.v !== "training_certificate" || current === "training_certificate");
 
 const HR_CATEGORY_LABEL = (v) => (HR_CATEGORY_OPTS.find(c => c.v === v) || { l: v }).l;
 
@@ -22914,6 +23552,7 @@ const hrCategoryColor = (k) => ({
   hr_onboarding: BL,
   hr_ongoing: "#1ABC9C",
   training: GR,
+  training_certificate: GO,
   tax: OR,
   benefits: PU,
   legal: RD,
@@ -23837,7 +24476,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     </div>);
   };
 
-  return (<><Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<><Mdl name="incident-report" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || tr("Report")}</div>
@@ -24675,7 +25314,7 @@ function FormFillWindow({ af, token, t, form, draft, onLeave, embed = false, loc
   );
   // In a box on the page, the window is drawn at the height the builder's preview gives it.
   if (embed) return <div style={{ border: "1px solid " + t.border, borderRadius: 16, background: t.card, height: 640, maxHeight: "calc(100vh / var(--zoom, 1) - 120px)", overflow: "hidden" }}>{body}</div>;
-  return <Mdl t={t} tall onClose={askLeave}>{body}</Mdl>;
+  return <Mdl name="form-fill-ask-leave" t={t} tall onClose={askLeave}>{body}</Mdl>;
 }
 
 // ===== THE FORM BUILDER (Step 187) =====
@@ -24722,7 +25361,7 @@ function FormVersionHistoryWindow({ af, t, form, isAdmin, onClose, onRetired }) 
       onRetired();
     } catch (e) { setRefusal(builderRefusal(e)); busyRef.current = false; setBusy(false); }
   };
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+  return (<Mdl name="form-version-history" t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{builderTitle(form)}</div>
@@ -25704,7 +26343,7 @@ const WINDOW_HEAD = { fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600 };
 // Turn off asks once: the posted QR code stops working for everyone who scans it.
 function TurnOffLinkWindow({ t, link, onCancel, onConfirm }) {
   useEscape(onCancel);
-  return (<Mdl t={t} onClose={onCancel}><div data-link-ask-off="" style={{ padding: 20 }}>
+  return (<Mdl name="turn-off-link-on-cancel" t={t} onClose={onCancel}><div data-link-ask-off="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text, overflowWrap: "anywhere" }}>{linkTitle(link)}</div>
@@ -25727,7 +26366,7 @@ function RenameLinkWindow({ t, acts }) {
   const [area, setArea] = useState(() => linkArea(link));
   useEscape(acts.cancelRename);
   const underField = !!acts.renameError.text && acts.renameError.keys.indexOf("areaLabel") >= 0;
-  return (<Mdl t={t} onClose={acts.cancelRename}><div data-link-rename="" style={{ padding: 20 }}>
+  return (<Mdl name="rename-link" t={t} onClose={acts.cancelRename}><div data-link-rename="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Rename")}</div>
@@ -25783,7 +26422,7 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
     if (!printCustomerLinkSheets({ sheets: [{ link, qr, titles: lines.titles, scanLines: lines.scanLines }], company })) setPrintError(tr("Allow pop-ups to print the sheet"));
   };
   const ready = !!(qr && lines && company);
-  return (<Mdl t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
+  return (<Mdl name="link-qr" t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Customer links")}</div>
       <WindowX t={t} onClose={onClose} />
@@ -25814,7 +26453,7 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
 // A site's survey schedule in a window of its own, from beside the site's survey link.
 function LinkSurveyWindow({ af, t, site, onClose }) {
   useEscape(onClose);
-  return (<Mdl t={t} onClose={onClose}><div data-survey-screen="" style={{ padding: 20 }}>
+  return (<Mdl name="link-survey" t={t} onClose={onClose}><div data-survey-screen="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Client survey schedule")}</div>
@@ -26300,7 +26939,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : status === "void" ? voidCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : status === "void" ? tr("No void reports.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
     {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} openCase={openCase} />}
-    {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
+    {picker && (<Mdl name="incident-reports-tab-picker" t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
         <button onClick={() => setPicker(null)} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
@@ -27143,7 +27782,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
               <Sel options={[{ v: "", l: tr("Onboarding: Any") }, { v: "true", l: tr("Onboarding only") }, { v: "false", l: tr("Non-onboarding") }]} value={libFilters.onboarding} onChange={e => setLibFilters({ ...libFilters, onboarding: e.target.value })} t={t} />
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>
-              <Inp t={t} placeholder={tr("Search titles or notes...")} value={libFilters.search} onChange={e => setLibFilters({ ...libFilters, search: e.target.value })} />
+              <Inp t={t} data-list-search="forms-library" placeholder={tr("Search titles or notes...")} value={libFilters.search} onChange={e => setLibFilters({ ...libFilters, search: e.target.value })} />
             </div>
           </div>
 
@@ -27190,7 +27829,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             <Inp t={t} type="date" value={subFilters.date_start} onChange={e => setSubFilters({ ...subFilters, date_start: e.target.value })} style={{ width: 150 }} />
             <Inp t={t} type="date" value={subFilters.date_end} onChange={e => setSubFilters({ ...subFilters, date_end: e.target.value })} style={{ width: 150 }} />
             <div style={{ flex: 1, minWidth: 180 }}>
-              <Inp t={t} placeholder={tr("Search name, email, form...")} value={subFilters.search} onChange={e => setSubFilters({ ...subFilters, search: e.target.value })} />
+              <Inp t={t} data-list-search="forms-submissions" placeholder={tr("Search name, email, form...")} value={subFilters.search} onChange={e => setSubFilters({ ...subFilters, search: e.target.value })} />
             </div>
           </div>
 
@@ -27758,7 +28397,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ FORM EDIT MODAL ================ */}
       {editForm && (
-        <Mdl t={t} onClose={() => setEditForm(null)}>
+        <Mdl name="forms-edit-form" t={t} onClose={() => setEditForm(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Form")}</div>
@@ -27811,7 +28450,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ SUBMISSION DETAIL MODAL ================ */}
       {detailSub && (
-        <Mdl t={t} onClose={() => setDetailSub(null)}>
+        <Mdl name="forms-detail-sub" t={t} onClose={() => setDetailSub(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Submission Detail")}</div>
@@ -27928,7 +28567,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ FULL REFRESH WARNING MODAL ================ */}
       {fullRefreshModal && (
-        <Mdl t={t} onClose={() => setFullRefreshModal(false)}>
+        <Mdl name="forms-full-refresh-modal" t={t} onClose={() => setFullRefreshModal(false)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: RD }}>{tr("Full Refresh. Read Before Running.")}</div>
@@ -27965,7 +28604,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
       {/* ================ LINK MODAL ================ */}
       {linkModal && (
-        <Mdl t={t} onClose={() => setLinkModal(null)}>
+        <Mdl name="forms-link-modal" t={t} onClose={() => setLinkModal(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Link Submission to Record")}</div>
@@ -28070,7 +28709,7 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
   const title = mode === "act168" ? tr(ACT168_LABEL) : clearanceKindWord(kind);
   const docOpts = [{ v: "", l: tr("No document") }].concat((docs || []).map(d => ({ v: String(d.id), l: d.file_name || d.title || tr("Document") })));
   const ready = !!f.date && (mode !== "correct" || f.reason.trim().length > 0);
-  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-clearance-window={mode}>
+  return (<Mdl name="clearance" t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-clearance-window={mode}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{mode === "correct" ? tr("Correct a date") : mode === "act168" ? tr("Record the review") : tr("Add or renew")}</div>
@@ -28289,7 +28928,7 @@ function ClearancesPage({ af, token, t, sites = [], route = [], onRoute, hrOpen 
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId, hrOpen)} empty={tr("No one matches.")} />}
     {/* #clearances/<id>: one person's clearances for someone HR Records is closed to (DASH-07). */}
-    {route[0] && <Mdl t={t} onClose={() => { if (onRoute) onRoute([]); load(); }}><div style={{ padding: 20 }} data-clearances-person={route[0]}>
+    {route[0] && <Mdl name="clearances-on-route" t={t} onClose={() => { if (onRoute) onRoute([]); load(); }}><div style={{ padding: 20 }} data-clearances-person={route[0]}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, minWidth: 0 }}>{((rows || []).find(p => String(p.userId) === String(route[0])) || {}).name || tr("Clearances")}</div>
         <button onClick={() => { if (onRoute) onRoute([]); load(); }} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -28331,7 +28970,7 @@ function ClearanceMissingWindow({ t, refusal, people, onClose, hrOpen = true }) 
   const who = clearanceRefusedPeople(refusal, people);
   const missing = Array.isArray(refusal && refusal.missing) ? refusal.missing.map(String) : [];
   const names = who.map(p => p.name).filter(Boolean);
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-clearance-missing="">
+  return (<Mdl name="clearance-missing" t={t} onClose={onClose}><div style={{ padding: 20 }} data-clearance-missing="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><AlI sz={18} c={RD} /><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Clearances missing")}</div></div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
@@ -28469,7 +29108,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
       {/* Top filter row */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
         <div style={{ flex: "1 1 260px", minWidth: 200 }}>
-          <Inp t={t} placeholder={tr("Search name, email, or role...")} value={search} onChange={e => setSearch(e.target.value)} />
+          <Inp t={t} data-list-search="hr" placeholder={tr("Search name, email, or role...")} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ minWidth: 200 }}>
           <Sel options={sortOpts} value={sortBy} onChange={e => setSortBy(e.target.value)} t={t} />
@@ -28790,7 +29429,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   const small = { minHeight: 44 };
   const signed = (k) => (issue[k] ? <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setIssue(p => ({ ...p, [k]: "" }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div> : null);
   const emailOnFile = person && person.email ? String(person.email) : "";
-  return (<Mdl t={t} tall asksItself onClose={tryClose}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
+  return (<Mdl name="warning-try-close" t={t} tall asksItself onClose={tryClose}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
@@ -28941,7 +29580,7 @@ function PastWarningWindow({ af, t, userId, name, item, steps, onClose, onSaved,
     setBusy(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-past-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-past-warning="">
+  return (<Mdl name="past-warning" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-past-warning="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add to the record")}</div>{name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -29090,7 +29729,7 @@ function FolderCertifications({ af, t, userId, getOpts, showToast }) {
       <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? (c.issuing_body ? " | " : "") + tr("Exp: {0}", fdLong(c.expiry_date)) : ""}</div></div>
       <Btn t={t} v="ghost" onClick={() => remove(c)} style={{ minHeight: 44, padding: "4px 10px", fontSize: 11, color: RD }}>{tr("Remove")}</Btn>
     </div>)}
-    {adding && <Mdl t={t} onClose={() => setAdding(null)}><div style={{ padding: 20 }}>
+    {adding && <Mdl name="folder-certifications-adding" t={t} onClose={() => setAdding(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAdding(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Name *")}</Lbl><Inp t={t} value={adding.certName} onChange={e => setAdding({ ...adding, certName: e.target.value })} placeholder={tr("e.g. Green Cleaning Fundamentals")} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={adding.certType} onChange={e => setAdding({ ...adding, certType: e.target.value })} options={getOpts("certification_types", null, true)} /></div>
@@ -29132,6 +29771,9 @@ function FolderFindingFollowUps({ t, list }) {
     </div></Crd>}
   </>);
 }
+// What a certificate's mail did, in plain words.
+const CERTIFICATE_MAIL_WORDS = { sent: "The certificate was emailed.", failed: "The email did not go. Try again later.", no_email: "This person has no working email on file, so nothing was sent." };
+const certificateMailWord = (st) => tr(CERTIFICATE_MAIL_WORDS[st] || "The certificate was emailed.");
 function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, sites = [], focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
@@ -29226,6 +29868,20 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     return <Bdg l={tr("Valid")} c={GR} />;
   };
 
+  // Part 413 (the API's Round 20, 6.6): each course certificate is an employee document of category training_certificate.
+  // With its certificate's id on the item (certificateId, which the API does not send yet), it opens through GET
+  // /api/training/certificates/:id/pdf and is sent again with POST /api/training/certificates/:id/resend, asked first;
+  // without it, it opens as every document does.
+  const certIdOf = (it) => (it && (it.certificateId || (it.certificate && it.certificate.id)) ? String(it.certificateId || it.certificate.id) : "");
+  const openCourseCertificate = async (id) => {
+    try { const f = await apiDownload("/api/training/certificates/" + encodeURIComponent(id) + "/pdf", token, "certificate.pdf"); showFileBlob(f.blob, f.filename); }
+    catch (e) { if (!fileWithheld(e, () => openCourseCertificate(id))) showToast(e.message, "error"); }
+  };
+  const resendCertificate = async (id, title) => {
+    if (!window.confirm(tr("Email {0} to the person again, with the PDF?", title || tr("this certificate")))) return;
+    try { const d = await af("/api/training/certificates/" + encodeURIComponent(id) + "/resend", { method: "POST", body: {} }); showToast(certificateMailWord(d && d.mailStatus)); }
+    catch (e) { showToast(e.message, "error"); }
+  };
   // Step 291: the signed acknowledgment page the API files for a person when they sign a document
   // (STEP289_CONTRACT.md section 1.2), a document of the folder that carries signedPage: { docCode,
   // docVersion, locale, signedAt }. The contract names no key, so signed_page is read too. Its type
@@ -29399,7 +30055,10 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
                     {/* Action buttons */}
                     {it.source === "document" && (
-                      <button onClick={() => viewDoc(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open file")}</button>
+                      <button data-folder-open={it.source_id} onClick={() => (it.category === "training_certificate" && certIdOf(it) ? openCourseCertificate(certIdOf(it)) : viewDoc(it.source_id))} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open file")}</button>
+                    )}
+                    {it.source === "document" && it.category === "training_certificate" && certIdOf(it) && (
+                      <button data-certificate-resend={certIdOf(it)} onClick={() => resendCertificate(certIdOf(it), it.title)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Resend")}</button>
                     )}
                     {it.source === "document" && <WhoOpened af={af} t={t} kind="employee_document" id={it.source_id} name={it.title || ""} />}
                     {it.source === "document" && (
@@ -29546,7 +30205,7 @@ function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = fal
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <>      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} /><ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="discipline" /></>}
     {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={() => load(true)} />}
-    {issueFor && <Mdl t={t} onClose={() => { if (!issueFor.busy) setIssueFor(null); }}><div data-discipline-issue-for="" style={{ padding: 20 }}>
+    {issueFor && <Mdl name="discipline-issue-for" t={t} onClose={() => { if (!issueFor.busy) setIssueFor(null); }}><div data-discipline-issue-for="" style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue a warning")}</div>
         <button onClick={() => { if (!issueFor.busy) setIssueFor(null); }} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
@@ -29621,7 +30280,7 @@ function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-case-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
   const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-open-case="">
+  return (<Mdl name="open-case" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-open-case="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Open a case")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
@@ -30081,7 +30740,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved, rout
       : !loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
     {!loading && <ShowMore t={t} next={next} busy={moreBusy} onMore={more} at="cases" />}
 
-    {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
+    {detail && <Mdl name="cases-close-case" t={t} onClose={closeCase}><div style={{ padding: 20 }} data-case-window={String(detail.id)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Case")}</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Received {0}", ff(detail.createdAt))}</span></div></div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -30172,6 +30831,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const timeLive = useTrainingLive(af, "time");
   // Step 273: the Matrix tab, once GET /api/training/matrix answers, which it does for management.
   const matrixLive = useTrainingLive(af, "matrix");
+  // Part 413: the Courses tab, once GET /api/training/courses/manage answers, which it does for admins.
+  const coursesLive = useTrainingLive(af, "courses");
   // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
   // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
   const [trFocus, setTrFocus] = useState(null);
@@ -30426,7 +31087,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : [], matrixLive ? [{ id: "matrix", l: tr("Matrix|training") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], draftsLive ? [{ id: "drafts", l: tr("Drafts|lessons") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : [], timeLive ? [{ id: "time", l: tr("Time|training") }] : [], matrixLive ? [{ id: "matrix", l: tr("Matrix|training") }] : [], coursesLive ? [{ id: "courses", l: tr("Courses") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -30513,7 +31174,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Document")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder={tr("Search employee, category, file, uploaded by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="hr-documents" value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder={tr("Search employee, category, file, uploaded by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setDocPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -30541,8 +31202,10 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} token={token} sites={sites} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "drafts" && <TrainingDrafts af={af} t={t} showToast={showToast} />}
+      {tab === "training" && trCur === "courses" && <TrainingCourses af={af} t={t} showToast={showToast} />}
       {signaturesPage && <SecT t={t}>{tr("Waiting for signatures")}</SecT>}
       {tab === "signatures" && signaturesLive && <SignatureRequests af={af} t={t} token={token} sites={sites} showToast={showToast} isAdmin={isAdmin} selfId={selfId} focusId={signaturesRoute && route[1] ? String(route[1]) : ""} onFocusDone={() => { if (onRoute && signaturesRoute && route[1]) onRoute(["signatures"]); }} />}
+      {tab === "training" && trCur === "gaps" && isAdmin && <TrainingOutOfTries af={af} t={t} isAdmin={isAdmin} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
@@ -30559,7 +31222,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         </div>
         {!gapsLive && <TrainingGapsPanel af={af} t={t} sites={sites} staff={allStaff} refreshKey={training} typeWords={trainingTypeMap} showToast={showToast} />}
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search={trainingPage ? "training" : "hr-training"} value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -30760,7 +31423,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Other")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder={tr("Search employee, file, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="hr-other" value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder={tr("Search employee, file, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? tr("No items filed under Other. Use Add Other to upload.") : tr("No items match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
@@ -30769,7 +31432,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </div>}
 
       {/* DOCUMENT MODAL */}
-      {showModal === "doc" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); setFile(null); }}>
+      {showModal === "doc" && <Mdl name="h-r-records-show-modal" t={t} onClose={() => { setShowModal(null); setForm({}); setFile(null); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Document") : tr("Add Document")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
@@ -30794,7 +31457,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </Mdl>}
 
       {/* TRAINING MODAL */}
-      {showModal === "training" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
+      {showModal === "training" && <Mdl name="h-r-records-show-modal-2" t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Training Record") : tr("Add Training Record")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
@@ -30828,7 +31491,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} topicsLive={topicsLive} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(true); if (compliance) loadCompliance(); }} />}
 
       {/* ONBOARDING STEP MODAL */}
-      {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
+      {showModal === "onbStep" && <Mdl name="h-r-records-show-modal-3" t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Custom Onboarding Step")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Step Name")}</div>
@@ -31126,7 +31789,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
   const badLine = (k) => (bad(k) ? <div role="alert" data-session-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad(k)}</div> : null);
   const unplaced = refusal && refusal.fields.length === 0 ? refusal.text : "";
   return (
-    <Mdl t={t} onClose={close}>
+    <Mdl name="log-training" t={t} onClose={close}>
       <div data-session-window="" style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Log training for several people")}</div>
         {topicsLive ? <div data-session-field="topicId"><div style={field}>{tr("Topic")}</div>
@@ -31315,6 +31978,8 @@ const TRAINING_PROBES = {
   // The matrix is the heaviest read the training routes answer, so it is asked the same way, with a
   // format it refuses (management only; a supervisor reads their own sites).
   matrix: ["/api/training/matrix?format=probe", () => false, (e) => !!e && e.status === 400 && e.code === "training.badDetails"],
+  // Part 413, against the API's Round 20 (part 415): the courses the office keeps, which answer admins alone.
+  courses: ["/api/training/courses/manage", (d) => !!(d && Array.isArray(d.courses))],
 };
 const trainingProbes = {};
 // A probe passes on the answer its test accepts, or, for a probe that names one, on the refusal it
@@ -31548,7 +32213,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
   const onClose = () => { if (leave()) close(); };
   const saved = (next) => { setTp(next); setEditing(false); if (onSaved) onSaved(next); };
   const views = tp ? [{ id: "details", l: tr("Details") }, { id: "who", l: tr("Who needs it") }].concat(versions ? [{ id: "lesson", l: tr("Lesson") }] : []) : [];
-  return (<Mdl t={t} tall onClose={onClose}>
+  return (<Mdl name="training-topic" t={t} tall onClose={onClose}>
     <div data-topic-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -31565,7 +32230,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
         {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} categories={categories} topics={topics} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
-        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} categories={categories} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
+        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} categories={categories} topics={topics} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
         {tp && view === "who" && <TopicWhoNeedsIt af={af} t={t} tp={tp} isAdmin={isAdmin} people={people} onSaved={saved} />}
         {tp && view === "lesson" && versions && <TopicLesson af={af} t={t} token={token} tp={tp} isAdmin={isAdmin} versions={versions} onReload={loadVersions} showToast={showToast} guard={guard} />}
       </div>
@@ -31573,7 +32238,7 @@ function TrainingTopicWindow({ af, t, token = "", topic, isAdmin = false, people
   </Mdl>);
 }
 
-function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, showToast }) {
+function TopicDetails({ af, t, tp, isAdmin, categories = null, topics = [], onEdit, onSaved, showToast }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState("");
   const setActive = async (active) => {
@@ -31602,6 +32267,7 @@ function TopicDetails({ af, t, tp, isAdmin, categories = null, onEdit, onSaved, 
     {categories && row(tr("Order|topic"), tp.sortOrder != null ? String(tp.sortOrder) : "")}
     {categories && row(tr("Signed off by checklist"), tp.signoffTopicId ? <span data-topic-signoff={tp.signoffTopicId}>{tp.signoffTopicName || String(tp.signoffTopicId)}</span> : tr("None|checklist"))}
     {row(tr("Who it is for"), topicWhoLine(tp) || tr("Nobody yet"))}
+    <TopicSignedOutSwitch af={af} t={t} tp={tp} topics={topics} isAdmin={isAdmin} onSaved={onSaved} />
     {refusal && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
     {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
       <Btn t={t} data-topic-edit="" onClick={onEdit}>{tr("Edit")}</Btn>
@@ -31966,7 +32632,7 @@ function useTrainingItems(af, userId, on = true) {
 // prints one.
 // Since Step 263 an item whose record carries a certificate opens it: certificateOf gives the record's
 // id, onCertificate opens it.
-function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null, certificateByOf: byOf = null }) {
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null, whoOpenedOf = null, certificateByOf: byOf = null, onResetTries = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
@@ -31978,6 +32644,7 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
       {certificateOf && whoOpenedOf && certificateOf(it) && whoOpenedOf(certificateOf(it))}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
       {signoffByOf(it) && <div data-item-covered={signoffByOf(it).topicId || ""} style={{ marginTop: 4 }}>{coveredBy(it)}</div>}
+      {onResetTries && gapNeedsSession(it) && <Btn t={t} v="ghost" data-reset-tries={it.topicId} onClick={() => onResetTries(it)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12, marginTop: 6 }}>{tr("Reset tries")}</Btn>}
       {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
         <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
         {a.voidedAt && <Bdg l={tr("Void|status")} c={RD} />}
@@ -32021,7 +32688,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
   // Step 263: an admin voids an attempt with a reason; the attempt is read again and the list with it.
   const [voiding, setVoiding] = useState(null);
   const voided = (id, d) => { setVoiding(null); if (showToast) showToast(voidedWord(d)); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
-  return (<Mdl t={t} tall onClose={onClose}>
+  return (<Mdl name="person-training" t={t} tall onClose={onClose}>
     <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -32032,7 +32699,7 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isA
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
         {step262 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}><Btn t={t} v="ghost" data-certificate-upload="" onClick={() => setUploading(true)}>{tr("Upload a certificate")}</Btn></div>}
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} certificateByOf={certificateByOfItem} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} onResetTries={isAdmin ? async (it) => { try { const x = await resetTriesOf(af, userId, it.topicId, (p && p.name) || name, it.name); if (x) { showToast(resetTriesSaid(x)); reload(); } } catch (e) { showToast(e.message, "error"); } } : null} certificateOf={certificateOf} onCertificate={openCertificate} certificateByOf={certificateByOfItem} whoOpenedOf={(recordId) => <WhoOpened af={af} t={t} kind="certificate" id={recordId} />} />}
       </div>
     </div>
     {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={(d) => voided(voiding.id, d)} />}
@@ -32150,7 +32817,7 @@ function TrainingMatrix({ af, t, token, sites = [], isAdmin = false, showToast }
           </tr>)}</tbody>
         </table>
       </div></Crd>}
-    {open && <Mdl t={t} onClose={() => setOpen(null)}><div data-matrix-detail="" style={{ padding: 20 }}>
+    {open && <Mdl name="training-matrix-open" t={t} onClose={() => setOpen(null)}><div data-matrix-detail="" style={{ padding: 20 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{open.tp.name}</div>
@@ -32329,7 +32996,7 @@ function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], 
     setBusy(false);
   };
   const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="upload-certificate" t={t} onClose={() => { if (!busy) onClose(); }}>
     <div data-certificate-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload a certificate")}</div>
@@ -32419,6 +33086,669 @@ const lessonImageWhy = (f) => (!f ? "" : LESSON_IMAGE_TYPES.indexOf(f.type) < 0 
 const LESSON_TYPES = [{ v: "quiz", l: "Quiz" }, { v: "observation", l: "Observation checklist" }];
 const lessonTypeWord = (k) => { const x = LESSON_TYPES.find(o => o.v === (k || "quiz")); return x ? tr(x.l) : String(k || ""); };
 
+// ===== THE TRAINING ADMIN (part 413; the API's Round 20, part 415) =====
+// Admins only, as the API decides (the lesson routes' gate). Course and chapter names are shown in Title Case as they
+// are stored: the dashboard never changes their case. A name that does not read in Title Case is answered as a note
+// (training.note.notTitleCase) and drawn beside the field it names as a gentle note, never as a block.
+const T3 = (x) => ({ en: (x && typeof x.en === "string") ? x.en : "", es: (x && typeof x.es === "string") ? x.es : "", fr: (x && typeof x.fr === "string") ? x.fr : "" });
+const COURSE_AUDIENCES = [{ v: "staff", l: "Staff|audience" }, { v: "office", l: "Office|audience" }];
+const courseAudienceWord = (a) => { const x = COURSE_AUDIENCES.find(o => o.v === a); return x ? tr(x.l) : String(a || ""); };
+const COURSE_CHAPTERS_MAX = 40;
+// The notes the API answers by path, { path: [note] }, each in the screen's language.
+const notesByPath = (notes) => { const m = {}; (Array.isArray(notes) ? notes : []).forEach(n => { if (n && n.path) (m[lessonPathOf(n.path)] = m[lessonPathOf(n.path)] || []).push(n); }); return m; };
+// named: the language the note is about, said first where the note is not under that language's own field.
+const GentleNotes = ({ t, notes, path, named = false }) => { const l = named ? LESSON_LANGS.find(x => path.slice(-3) === "." + x.id) : null; return ((notes[path] || []).length ? <div data-course-note={path} style={{ fontSize: 11, color: t.goldText, marginTop: 4, lineHeight: 1.4 }}>{notes[path].map((n, i) => <div key={i}>{l ? tr("{0}: {1}", tr(l.word), lessonProblemText(n)) : lessonProblemText(n)}</div>)}</div> : null); };
+// Three texts side by side in the course window, each with its note.
+function CourseTexts({ t, label, path, value, onChange, notes, multiline = false, refused }) {
+  return (<div data-course-path={path} style={{ marginBottom: 12 }}>
+    <Lbl>{label}</Lbl>
+    {LESSON_LANGS.map(l => <div key={l.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
+      <span style={{ flex: "0 0 64px", fontSize: 11, color: l.id === "en" ? t.text : t.textMut, fontWeight: l.id === "en" ? 600 : 400, paddingTop: 13 }}>{tr(l.word)}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {multiline ? <TArea t={t} rows={2} aria-label={label + ", " + tr(l.word)} data-course-field={path + "." + l.id} value={value[l.id]} onChange={e => onChange({ ...value, [l.id]: e.target.value })} />
+          : <Inp t={t} aria-label={label + ", " + tr(l.word)} data-course-field={path + "." + l.id} value={value[l.id]} onChange={e => onChange({ ...value, [l.id]: e.target.value })} />}
+        <GentleNotes t={t} notes={notes} path={path + "." + l.id} />
+      </div>
+    </div>)}
+    {refused}
+  </div>);
+}
+// New course, or edit one: the key (new only), names and summary in the three languages, audience, certificate,
+// promoted, sort order and, on an edit, active. 409 training.duplicateCourseKey and 400 training.badDetails keys are
+// drawn at their fields; the answer's notes beside the names they name, and the window stays open to show them.
+function CourseWindow({ af, t, course = null, onClose, onSaved }) {
+  const isNew = !course;
+  const [cur, setCur] = useState(course);
+  const [f, setF] = useState(() => ({ key: course ? course.key : "", names: T3(course && course.names), summary: T3(course && course.summary), audience: course ? course.audience : "staff", certificate: !!(course && course.certificate), promoted: !!(course && course.promoted), sortOrder: course && course.sortOrder != null ? String(course.sortOrder) : "100", active: course ? course.active !== false : true }));
+  const [refusal, setRefusal] = useState(null);
+  const [savedOnce, setSavedOnce] = useState(false);
+  const [guard, busy] = useBusyGuard();
+  const notes = notesByPath(cur && cur.notes);
+  const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setRefusal(null); };
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const save = guard(async () => {
+    setRefusal(null);
+    const order = Number(String(f.sortOrder).trim());
+    try {
+      let d;
+      if (isNew && !cur) d = await af("/api/training/courses", { method: "POST", body: { key: f.key.trim(), names: f.names, summary: f.summary, audience: f.audience, certificate: f.certificate, promoted: f.promoted, sortOrder: order } });
+      else {
+        const body = {};
+        if (!same(f.names, T3(cur.names))) body.names = f.names;
+        if (!same(f.summary, T3(cur.summary))) body.summary = f.summary;
+        if (f.audience !== cur.audience) body.audience = f.audience;
+        if (f.certificate !== !!cur.certificate) body.certificate = f.certificate;
+        if (f.promoted !== !!cur.promoted) body.promoted = f.promoted;
+        if (order !== Number(cur.sortOrder)) body.sortOrder = order;
+        if (f.active !== (cur.active !== false)) body.active = f.active;
+        if (!Object.keys(body).length) { onClose(); return; }
+        d = await af("/api/training/courses/" + encodeURIComponent(cur.id), { method: "PATCH", body });
+      }
+      const c = d && d.course;
+      if (c) { setCur(c); setSavedOnce(true); onSaved(c); if (!(Array.isArray(c.notes) && c.notes.length)) onClose(); }
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), keys: trainingKeysOf(e), code: (e && e.code) || "" }); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-course-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const loose = refusal && !["key", "names", "summary", "audience", "certificate", "promoted", "sortOrder", "active"].some(k => refusal.keys.indexOf(k) >= 0);
+  return (<Mdl name="course" t={t} tall onClose={() => { if (!busy) onClose(); }}><div data-course-window={cur ? cur.id : "new"} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isNew && !cur ? tr("New course") : tr("Edit course")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    {isNew && !cur ? <div style={{ marginBottom: 12 }}><Lbl>{tr("Key|course")}</Lbl><Inp t={t} aria-label={tr("Key|course")} data-course-field="key" value={f.key} onChange={e => set("key", e.target.value)} placeholder="staff_app" />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Lowercase letters, digits and _, starting with a letter. It cannot change later.")}</div>{under("key")}</div>
+      : <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Key: {0}", cur.key)}</div>}
+    <CourseTexts t={t} label={tr("Name")} path="names" value={f.names} onChange={v => set("names", v)} notes={notes} refused={under("names")} />
+    <CourseTexts t={t} label={tr("Summary")} path="summary" value={f.summary} onChange={v => set("summary", v)} notes={notes} multiline refused={under("summary")} />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Who it is for")}</Lbl><Sel t={t} aria-label={tr("Who it is for")} data-course-field="audience" value={f.audience} onChange={e => set("audience", e.target.value)} options={COURSE_AUDIENCES.map(o => ({ v: o.v, l: tr(o.l) }))} />{under("audience")}</div>
+      <div><Lbl>{tr("Order|course")}</Lbl><Inp t={t} type="number" min={0} max={10000} aria-label={tr("Order|course")} data-course-field="sortOrder" value={f.sortOrder} onChange={e => set("sortOrder", e.target.value)} />{under("sortOrder")}</div>
+    </div>
+    <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, fontSize: 13, color: t.text }}><input type="checkbox" data-course-field="certificate" checked={f.certificate} onChange={e => set("certificate", e.target.checked)} />{tr("Gives a certificate when every chapter is done")}</label>
+    <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, fontSize: 13, color: t.text }}><input type="checkbox" data-course-field="promoted" checked={f.promoted} onChange={e => set("promoted", e.target.checked)} />{tr("Promoted to current staff")}</label>
+    {!(isNew && !cur) && <label style={{ ...chkWrap, justifyContent: "flex-start", gap: 8, fontSize: 13, color: t.text }}><input type="checkbox" data-course-field="active" checked={f.active} onChange={e => set("active", e.target.checked)} />{tr("Active|course")}</label>}
+    {loose && <div role="alert" data-course-refusal="" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal.text}</div>}
+    {savedOnce && <div data-course-saved="" role="status" style={{ fontSize: 12, color: GR, marginTop: 10 }}>{tr("Saved. The notes beside a name are suggestions; nothing is refused for them.")}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{savedOnce ? tr("Close") : tr("Cancel")}</Btn>
+      <Btn t={t} data-course-save="" disabled={busy || !f.names.en.trim() || (isNew && !cur && !f.key.trim())} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// A course's chapters: pick topics and put them in order, by dragging or by Up and Down for a keyboard, 40 at most,
+// replaced as a set (PUT /api/training/courses/:id/topics { topicIds }).
+function CourseChaptersWindow({ af, t, course, topics = [], onClose, onSaved }) {
+  const [cur, setCur] = useState(course);
+  const [ids, setIds] = useState(() => (course.topics || []).map(x => String(x.topicId)));
+  const [pick, setPick] = useState("");
+  const [drag, setDrag] = useState(-1);
+  const [refusal, setRefusal] = useState(null);
+  const [savedOnce, setSavedOnce] = useState(false);
+  const [guard, busy] = useBusyGuard();
+  const notes = notesByPath(cur && cur.notes);
+  const nameOf = (id) => { const own = (cur.topics || []).find(x => String(x.topicId) === id); if (own && own.name) return own.name; const tp = topics.find(x => String(x.id) === id); return tp ? tp.name : id; };
+  const move = (i, j) => { if (j < 0 || j >= ids.length || i === j) return; const a = ids.slice(); const [x] = a.splice(i, 1); a.splice(j, 0, x); setIds(a); setRefusal(null); };
+  const add = () => { if (!pick || ids.indexOf(pick) >= 0 || ids.length >= COURSE_CHAPTERS_MAX) return; setIds(ids.concat([pick])); setPick(""); setRefusal(null); };
+  const save = guard(async () => {
+    setRefusal(null);
+    try {
+      const d = await af("/api/training/courses/" + encodeURIComponent(cur.id) + "/topics", { method: "PUT", body: { topicIds: ids } });
+      const c = d && d.course;
+      if (c) { setCur(c); setIds((c.topics || []).map(x => String(x.topicId))); setSavedOnce(true); onSaved(c); if (!(Array.isArray(c.notes) && c.notes.some(n => /^topics/.test(String(n.path))))) onClose(); }
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), keys: trainingKeysOf(e) }); }
+  });
+  const offered = topics.filter(x => x && x.active !== false && ids.indexOf(String(x.id)) < 0);
+  const small = { minWidth: 44, minHeight: 44, background: "none", border: "1px solid " + t.border, borderRadius: R.sm, color: t.text, cursor: "pointer", fontSize: 14 };
+  return (<Mdl name="course-chapters" t={t} tall onClose={() => { if (!busy) onClose(); }}><div data-course-chapters={cur.id} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Chapters of {0}", cur.name)}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Drag a chapter to move it, or use Up and Down. A course holds {0} chapters at most.", COURSE_CHAPTERS_MAX)}</div>
+    <div role="list" data-course-chapter-list={ids.length}>
+      {ids.map((id, i) => <div key={id} role="listitem" data-course-chapter={id} draggable onDragStart={() => setDrag(i)} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (drag >= 0) move(drag, i); setDrag(-1); }}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 6, border: "1px solid " + (drag === i ? GO : t.border), borderRadius: R.sm, background: t.card, cursor: "grab" }}>
+        <span style={{ flex: "0 0 28px", fontSize: 12, color: t.textMut, textAlign: "right" }}>{i + 1}.</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: t.text, overflowWrap: "anywhere" }}>{nameOf(id)}</div>
+          {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"topics." + i + ".names." + l} named />)}
+          {refusal && refusal.keys.indexOf("topicIds[" + i + "]") >= 0 && <div role="alert" style={{ fontSize: 12, color: RD }}>{refusal.text}</div>}
+        </div>
+        <button aria-label={tr("Move {0} up", nameOf(id))} data-course-chapter-up={id} disabled={i === 0} onClick={() => move(i, i - 1)} style={small}>&uarr;</button>
+        <button aria-label={tr("Move {0} down", nameOf(id))} data-course-chapter-down={id} disabled={i === ids.length - 1} onClick={() => move(i, i + 1)} style={small}>&darr;</button>
+        <button aria-label={tr("Take {0} out of the course", nameOf(id))} data-course-chapter-remove={id} onClick={() => { setIds(ids.filter(x => x !== id)); setRefusal(null); }} style={{ ...small, color: RD }}>&times;</button>
+      </div>)}
+      {ids.length === 0 && <div style={{ fontSize: 13, color: t.textMut, padding: "8px 0" }}>{tr("No chapters yet.")}</div>}
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+      <div style={{ flex: "1 1 240px", minWidth: 0 }}><Sel t={t} aria-label={tr("Add a chapter")} data-course-chapter-pick="" value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Add a chapter") }].concat(offered.map(x => ({ v: String(x.id), l: x.name })))} /></div>
+      <Btn t={t} v="ghost" data-course-chapter-add="" disabled={!pick || ids.length >= COURSE_CHAPTERS_MAX} onClick={add}>{tr("Add")}</Btn>
+    </div>
+    {refusal && !refusal.keys.some(k => /^topicIds\[/.test(k)) && <div role="alert" data-course-refusal="topicIds" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal.text}</div>}
+    {savedOnce && <div role="status" style={{ fontSize: 12, color: GR, marginTop: 10 }}>{tr("Saved. The notes beside a name are suggestions; nothing is refused for them.")}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{savedOnce ? tr("Close") : tr("Cancel")}</Btn>
+      <Btn t={t} data-course-chapters-save="" disabled={busy} onClick={save}>{busy ? tr("Saving...") : tr("Save the order")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// The Courses tab: every course, active or not, with its audience, whether it gives a certificate, promoted, active
+// and its chapters in order; New course, Edit and Chapters.
+function TrainingCourses({ af, t, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [topics, setTopics] = useState([]);
+  const [win, setWin] = useState(null);
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af("/api/training/courses/manage"); setRows(Array.isArray(d && d.courses) ? d.courses : []); }
+    catch (e) { setRows([]); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { af("/api/training/topics").then(d => setTopics(Array.isArray(d && d.topics) ? d.topics : [])).catch(() => setTopics([])); }, [af]);
+  const saved = (c) => { setRows(have => { const list = have || []; return list.some(x => x.id === c.id) ? list.map(x => (x.id === c.id ? c : x)) : list.concat([c]); }); showToast(tr("Course saved")); };
+  return (<div data-training-courses={rows ? rows.length : ""}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, flex: "1 1 280px" }}>{tr("A course groups and orders trainings, and can give a certificate. It is never a requirement: who must take a training stays on each topic.")}</div>
+      <Btn t={t} data-course-new="" onClick={() => setWin({ kind: "course", course: null })}>{tr("New course")}</Btn>
+    </div>
+    {rows === null ? <div style={{ padding: 20, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : rows.length === 0 ? <div data-courses-empty="" style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No courses yet.")}</div>
+      : <div style={{ display: "grid", gap: 10 }}>{rows.map(c => { const notes = notesByPath(c.notes); return (<Crd key={c.id} t={t} style={{ padding: 14, opacity: c.active === false ? 0.7 : 1 }}><div data-course={c.id}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span data-course-name="" style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{c.name}</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{c.key}</span>
+          <Bdg l={courseAudienceWord(c.audience)} c={BL} />
+          {c.certificate && <Bdg l={tr("Certificate")} c={GO} />}
+          {c.promoted && <Bdg l={tr("Promoted")} c={GR} />}
+          {c.active === false && <Bdg l={tr("Retired")} c={RD} />}
+        </div>
+        {["en", "es", "fr"].map(l => <GentleNotes key={l} t={t} notes={notes} path={"names." + l} named />)}
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{(c.topics || []).length ? <ol style={{ margin: "4px 0 0 18px", padding: 0 }}>{c.topics.map((x, i) => <li key={x.topicId} data-course-row-chapter={x.topicId} style={{ color: x.active === false ? t.textMut : t.textSec }}>{x.name || x.key}</li>)}</ol> : tr("No chapters yet.")}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <Btn t={t} v="ghost" data-course-edit={c.id} onClick={() => setWin({ kind: "course", course: c })}>{tr("Edit")}</Btn>
+          <Btn t={t} v="ghost" data-course-chapters-open={c.id} onClick={() => setWin({ kind: "chapters", course: c })}>{tr("Chapters")}</Btn>
+        </div>
+      </div></Crd>); })}</div>}
+    {win && win.kind === "course" && <CourseWindow af={af} t={t} course={win.course} onClose={() => setWin(null)} onSaved={saved} />}
+    {win && win.kind === "chapters" && <CourseChaptersWindow af={af} t={t} course={win.course} topics={topics} onClose={() => setWin(null)} onSaved={saved} />}
+  </div>);
+}
+
+// ===== THE PLAYER LESSON EDITOR (part 413; the API's Round 20, section 2) =====
+// A player lesson is short screens a voice reads aloud, each followed by checks answered one at a time. The editor holds
+// the title, the acknowledgement line, the screens (key, what the voice says, an optional caption, and media: a picture,
+// a video with an optional poster and a video per language, or none) and the checks (key, the screen it follows, its kind,
+// the prompt, the screens it replays, and its options or picture choices with alt text and the right answer, or for a tap
+// check its picture with the target boxes drawn on it by dragging). Every text is English, Spanish and French side by side.
+// Save sends PATCH /api/training/lesson-drafts/:id { content }, and each of the answer's problems and notes is drawn at the
+// field its path names. Pictures and videos go up through POST /api/training/lesson-images. Preview plays draft.preview,
+// the screens and checks as a learner reads them, in a phone-size frame.
+const PLAYER_VIDEO_MAX = 25 * 1024 * 1024;
+const PLAYER_VIDEO_TYPES = ["video/mp4", "video/webm"];
+const playerVideoWhy = (f) => (!f ? "" : PLAYER_VIDEO_TYPES.indexOf(f.type) < 0 && !/\.(mp4|webm)$/i.test(f.name || "") ? tr("Choose an MP4 or WebM video.") : f.size > PLAYER_VIDEO_MAX ? tr("The video is over 25 MB.") : "");
+const PLAYER_CHECK_KINDS = [{ v: "choice", l: "Choose an answer" }, { v: "picture", l: "Choose a picture" }, { v: "tap", l: "Tap the picture" }];
+const PLAYER_MEDIA_KINDS = [{ v: "none", l: "None|media" }, { v: "image", l: "Picture" }, { v: "video", l: "Video" }];
+const playerPic = (p) => ({ path: (p && p.path) || null, svg: (p && p.svg) || null });
+const playerScreenOf = (key) => ({ key, say: L3E(), caption: L3E(), media: { kind: "none" } });
+const playerOptionsOf = (kind) => (kind === "picture" ? [{ value: "a", image: playerPic(null), alt: L3E() }, { value: "b", image: playerPic(null), alt: L3E() }] : [{ value: "a", text: L3E() }, { value: "b", text: L3E() }]);
+const playerCheckOf = (key, after) => ({ key, after: after || "", kind: "choice", prompt: L3E(), replay: after ? [after] : [], options: playerOptionsOf("choice"), correct: "", image: playerPic(null), targets: [] });
+function playerContentOf(c) {
+  const x = c && typeof c === "object" ? c : {};
+  return {
+    title: T3(x.title), acknowledgement: T3(x.acknowledgement),
+    screens: (Array.isArray(x.screens) ? x.screens : []).map(sc => ({ key: String(sc.key || ""), say: T3(sc.say), caption: T3(sc.caption), media: sc.media && typeof sc.media === "object" ? { kind: sc.media.kind || "none", path: sc.media.path || null, svg: sc.media.svg || null, poster: sc.media.poster || null, locales: Object.assign({}, sc.media.locales || {}) } : { kind: "none" } })),
+    checks: (Array.isArray(x.checks) ? x.checks : []).map(ck => ({
+      key: String(ck.key || ""), after: String(ck.after || ""), kind: ck.kind || "choice", prompt: T3(ck.prompt), replay: Array.isArray(ck.replay) ? ck.replay.map(String) : [],
+      options: Array.isArray(ck.options) ? ck.options.map(o => (ck.kind === "picture" ? { value: String(o.value || ""), image: playerPic(o.image), alt: T3(o.alt) } : { value: String(o.value || ""), text: T3(o.text) })) : playerOptionsOf(ck.kind || "choice"),
+      correct: ck.correct != null ? String(ck.correct) : "", image: playerPic(ck.image), targets: Array.isArray(ck.targets) ? ck.targets.map(b => ({ x: Number(b.x) || 0, y: Number(b.y) || 0, w: Number(b.w) || 0, h: Number(b.h) || 0 })) : [],
+    })),
+  };
+}
+const picBody = (p) => (p && p.svg ? { svg: p.svg } : p && p.path ? { path: p.path } : {});
+const r4 = (n) => Math.round(Number(n) * 10000) / 10000;
+const mediaBody = (m) => {
+  if (m.kind === "image") return Object.assign({ kind: "image" }, picBody(m));
+  if (m.kind === "video") { const out = { kind: "video", path: m.path || "" }; if (m.poster) out.poster = m.poster; const loc = {}; ["es", "fr"].forEach(l => { if (m.locales && m.locales[l]) loc[l] = m.locales[l]; }); if (Object.keys(loc).length) out.locales = loc; return out; }
+  return { kind: "none" };
+};
+const anyText3 = (x) => !!(x && (x.en || x.es || x.fr));
+function playerBodyOf(c) {
+  const out = { acknowledgement: c.acknowledgement };
+  if (anyText3(c.title)) out.title = c.title;
+  out.screens = c.screens.map(sc => { const s0 = { key: sc.key.trim(), say: sc.say, media: mediaBody(sc.media) }; if (anyText3(sc.caption)) s0.caption = sc.caption; return s0; });
+  out.checks = c.checks.map(ck => {
+    const k = { key: ck.key.trim(), after: ck.after, kind: ck.kind, prompt: ck.prompt, replay: ck.replay };
+    if (ck.kind === "choice") { k.options = ck.options.map(o => ({ value: o.value, text: o.text || L3E() })); k.correct = ck.correct; }
+    if (ck.kind === "picture") { k.options = ck.options.map(o => ({ value: o.value, image: picBody(o.image), alt: o.alt || L3E() })); k.correct = ck.correct; }
+    if (ck.kind === "tap") { k.image = picBody(ck.image); k.targets = ck.targets.map(b => ({ x: r4(b.x), y: r4(b.y), w: r4(b.w), h: r4(b.h) })); }
+    return k;
+  });
+  return out;
+}
+// The target boxes of a tap check, drawn on its picture by dragging, each also set by its numbers for a keyboard.
+function TapTargets({ t, src, targets, onChange, probs, path }) {
+  const boxRef = useRef(null);
+  const [drawing, setDrawing] = useState(null);
+  const at = (e) => { const r = boxRef.current.getBoundingClientRect(); const cx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); const cy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)); return { x: cx, y: cy }; };
+  const down = (e) => { if (!boxRef.current) return; e.preventDefault(); const p = at(e); setDrawing({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }); };
+  const moveTo = (e) => { if (!drawing) return; const p = at(e); setDrawing(d => ({ ...d, x1: p.x, y1: p.y })); };
+  const up = () => {
+    if (!drawing) return;
+    const b = { x: Math.min(drawing.x0, drawing.x1), y: Math.min(drawing.y0, drawing.y1), w: Math.abs(drawing.x1 - drawing.x0), h: Math.abs(drawing.y1 - drawing.y0) };
+    setDrawing(null);
+    if (b.w >= 0.02 && b.h >= 0.02) onChange(targets.concat([b]));
+  };
+  const live = drawing ? { x: Math.min(drawing.x0, drawing.x1), y: Math.min(drawing.y0, drawing.y1), w: Math.abs(drawing.x1 - drawing.x0), h: Math.abs(drawing.y1 - drawing.y0) } : null;
+  const pct = (n) => (Number(n) * 100).toFixed(2) + "%";
+  const setOne = (i, k, v) => { const n = Number(v) / 100; if (!Number.isFinite(n)) return; onChange(targets.map((b, j) => (j === i ? { ...b, [k]: Math.min(1, Math.max(0, n)) } : b))); };
+  return (<div data-tap-targets={targets.length} data-lesson-path={path + ".targets"}>
+    {src ? <div ref={boxRef} data-tap-picture="" onPointerDown={down} onPointerMove={moveTo} onPointerUp={up} onPointerLeave={up} style={{ position: "relative", display: "block", width: "100%", maxWidth: 420, cursor: "crosshair", touchAction: "none", userSelect: "none", border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden", background: "#FFFFFF" }}>
+      <img src={src} alt={tr("The picture to tap")} draggable={false} style={{ display: "block", width: "100%", height: "auto" }} />
+      {targets.map((b, i) => <div key={i} data-tap-target={i} style={{ position: "absolute", left: pct(b.x), top: pct(b.y), width: pct(b.w), height: pct(b.h), border: "2px solid " + GO, background: "rgba(231,176,23,0.18)", pointerEvents: "none" }}><span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: NAVY, background: GO, borderRadius: 4, padding: "0 4px" }}>{i + 1}</span></div>)}
+      {live && <div data-tap-drawing="" style={{ position: "absolute", left: pct(live.x), top: pct(live.y), width: pct(live.w), height: pct(live.h), border: "2px dashed " + GO, pointerEvents: "none" }} />}
+    </div> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Upload the picture first, then drag on it to draw each place that counts as right.")}</div>}
+    {src && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Drag on the picture to draw a target. Each box counts as a right tap.")}</div>}
+    {targets.map((b, i) => <div key={i} data-lesson-path={path + ".targets." + i} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6, fontSize: 12, color: t.textSec }}>
+      <span style={{ fontWeight: 600, color: t.text }}>{tr("Target {0}", i + 1)}</span>
+      {["x", "y", "w", "h"].map(k => <label key={k} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>{tr(k === "x" ? "From left %" : k === "y" ? "From top %" : k === "w" ? "Width %" : "Height %")}<input type="number" min={0} max={100} step={0.5} aria-label={tr("Target {0}", i + 1) + ", " + tr(k === "x" ? "From left %" : k === "y" ? "From top %" : k === "w" ? "Width %" : "Height %")} value={Math.round(Number(b[k]) * 1000) / 10} onChange={e => setOne(i, k, e.target.value)} style={{ width: 70, minHeight: 44, padding: "6px 8px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text }} /></label>)}
+      <button data-tap-target-remove={i} onClick={() => onChange(targets.filter((x, j) => j !== i))} style={{ minHeight: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Remove")}</button>
+      {probs(path + ".targets." + i)}
+    </div>)}
+    {src && <button data-tap-target-add="" onClick={() => onChange(targets.concat([{ x: 0.4, y: 0.4, w: 0.2, h: 0.2 }]))} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, padding: 0, marginTop: 6 }}>{tr("Add a target in the middle")}</button>}
+    {probs(path + ".targets")}
+  </div>);
+}
+// The preview: draft.preview, the screens and each check after the screen it follows, one at a time in a phone-size frame,
+// as an English learner reads them. Nothing is scored here.
+function PlayerPreviewWindow({ t, preview, onClose }) {
+  const steps = useMemo(() => {
+    const p = preview || {};
+    const screens = Array.isArray(p.screens) ? p.screens : [];
+    const checks = Array.isArray(p.checks) ? p.checks : [];
+    const out = [];
+    screens.forEach(sc => { out.push({ kind: "screen", x: sc }); checks.filter(ck => ck.after === sc.key).forEach(ck => out.push({ kind: "check", x: ck })); });
+    checks.filter(ck => !screens.some(sc => sc.key === ck.after)).forEach(ck => out.push({ kind: "check", x: ck }));
+    return out;
+  }, [preview]);
+  const [i, setI] = useState(0);
+  const st = steps[i];
+  return (<Mdl name="player-preview" t={t} tall onClose={onClose}><div data-player-preview={steps.length} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Preview")}</div><button data-player-preview-close="" onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ display: "flex", justifyContent: "center" }}>
+      <div data-player-phone="" style={{ width: 360, maxWidth: "100%", height: 640, maxHeight: "calc(100vh / var(--zoom, 1) - 200px)", border: "10px solid " + NAVY, borderRadius: 28, overflow: "auto", background: "#FFFFFF", color: "#14213D", padding: 14, fontFamily: FONT_BODY }}>
+        {!st ? <div style={{ fontSize: 13, color: "#5B6475" }}>{tr("Nothing to preview yet. Add a screen and save the draft.")}</div>
+          : st.kind === "screen" ? <div data-player-preview-screen={st.x.key}>
+            {st.x.media && st.x.media.kind === "image" && st.x.media.src && <img src={st.x.media.src} alt="" style={{ display: "block", width: "100%", borderRadius: 10, marginBottom: 10 }} />}
+            {st.x.media && st.x.media.kind === "video" && st.x.media.src && <video src={st.x.media.src} poster={st.x.media.poster || undefined} controls playsInline style={{ display: "block", width: "100%", borderRadius: 10, marginBottom: 10 }} />}
+            {st.x.audio && st.x.audio.url && <audio src={st.x.audio.url} controls style={{ width: "100%", marginBottom: 8 }} />}
+            <div style={{ fontSize: 15, lineHeight: 1.5 }}>{st.x.caption || st.x.say}</div>
+          </div>
+          : <div data-player-preview-check={st.x.key}>
+            <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>{st.x.prompt}</div>
+            {st.x.kind === "choice" && (st.x.options || []).map(o => <div key={o.value} style={{ padding: "10px 12px", border: "1px solid #D5D9E0", borderRadius: 10, marginBottom: 8, fontSize: 14 }}>{o.text}</div>)}
+            {st.x.kind === "picture" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{(st.x.options || []).map(o => <img key={o.value} src={o.src || ""} alt={o.alt || ""} style={{ width: "100%", borderRadius: 10, border: "1px solid #D5D9E0" }} />)}</div>}
+            {st.x.kind === "tap" && st.x.image && st.x.image.src && <img src={st.x.image.src} alt="" style={{ display: "block", width: "100%", borderRadius: 10 }} />}
+          </div>}
+      </div>
+    </div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, gap: 10 }}>
+      <Btn t={t} v="ghost" data-player-preview-back="" disabled={i <= 0} onClick={() => setI(i - 1)}>{tr("Back")}</Btn>
+      <span style={{ fontSize: 12, color: t.textMut }}>{steps.length ? tr("{0} of {1}", i + 1, steps.length) : ""}</span>
+      <Btn t={t} v="ghost" data-player-preview-next="" disabled={i >= steps.length - 1} onClick={() => setI(i + 1)}>{tr("Next")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+function PlayerDraftEditor({ af, t, token = "", tp, initial, showToast, guard, onDone }) {
+  const [draft, setDraft] = useState(initial.draft);
+  const [c, setC0] = useState(() => playerContentOf(initial.draft.content));
+  const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
+  const [notes, setNotes] = useState(Array.isArray(initial.notes) ? initial.notes : []);
+  const [preview, setPreview] = useState(initial.draft.preview || null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState(null);
+  const [uploading, setUploading] = useState("");
+  const [upRefusal, setUpRefusal] = useState({});
+  // The links of the pictures and videos this editor knows, by their stored path: from each upload, and from the
+  // preview, whose parts are the content's in order.
+  const [srcs, setSrcs] = useState({});
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    if (guard) guard.current = () => dirtyRef.current;
+    const warn = (e) => { if (dirtyRef.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => { window.removeEventListener("beforeunload", warn); if (guard) guard.current = null; };
+  }, [guard]);
+  const learnFrom = (content, pv) => {
+    const m = {};
+    const p = pv || {};
+    (content.screens || []).forEach((sc, i) => { const ps = (p.screens || [])[i]; if (!ps || !ps.media) return; if (sc.media && sc.media.kind === "image" && sc.media.path && ps.media.src) m[sc.media.path] = ps.media.src; if (sc.media && sc.media.kind === "video") { if (sc.media.path && ps.media.src) m[sc.media.path] = ps.media.src; if (sc.media.poster && ps.media.poster) m[sc.media.poster] = ps.media.poster; } });
+    (content.checks || []).forEach((ck, i) => { const pc = (p.checks || [])[i]; if (!pc) return; if (ck.kind === "tap" && ck.image && ck.image.path && pc.image && pc.image.src) m[ck.image.path] = pc.image.src; if (ck.kind === "picture") (ck.options || []).forEach((o, j) => { const po = (pc.options || [])[j]; if (o.image && o.image.path && po && po.src) m[o.image.path] = po.src; }); });
+    setSrcs(x => ({ ...x, ...m }));
+  };
+  useEffect(() => { learnFrom(playerContentOf(initial.draft.content), initial.draft.preview); }, [initial]);
+  const picSrc = (p) => (p && p.svg ? svgSrcOf(p.svg) : p && p.path ? (srcs[p.path] || "") : "");
+  const edit = (fn) => { setC0(x => fn(x)); setDirty(true); };
+  const setScreen = (i, sc) => edit(x => ({ ...x, screens: x.screens.map((y, j) => (j === i ? sc : y)) }));
+  const setCheck = (i, ck) => edit(x => ({ ...x, checks: x.checks.map((y, j) => (j === i ? ck : y)) }));
+  const move = (list, i, by) => { const a = list.slice(); const j = i + by; if (j < 0 || j >= a.length) return a; const tmp = a[i]; a[i] = a[j]; a[j] = tmp; return a; };
+  const byPath = useMemo(() => { const m = {}; problems.forEach(pr => { const k = lessonPathOf(pr.path); (m[k] = m[k] || []).push(pr); }); return m; }, [problems]);
+  const notesBy = useMemo(() => notesByPath(notes), [notes]);
+  const probs = (path) => (byPath[path] || []).map((pr, i) => <div key={i} role="alert" data-lesson-field-problem={path} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{lessonProblemText(pr)}</div>).concat((notesBy[path] || []).map((n, i) => <div key={"n" + i} data-lesson-field-note={path} style={{ fontSize: 11, color: t.goldText, marginTop: 4 }}>{lessonProblemText(n)}</div>));
+  const after = (d) => {
+    if (d && d.draft) { setDraft(d.draft); setC0(playerContentOf(d.draft.content)); setPreview(d.draft.preview || null); learnFrom(playerContentOf(d.draft.content), d.draft.preview); }
+    if (d && Array.isArray(d.problems)) setProblems(d.problems);
+    if (d && Array.isArray(d.notes)) setNotes(d.notes);
+    setDirty(false);
+  };
+  const saveNow = async () => { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id), { method: "PATCH", body: { content: playerBodyOf(c) } }); after(d); return d; };
+  const fail = (e) => { if (e && e.body && Array.isArray(e.body.problems)) setProblems(e.body.problems); setRefusal(e.message || tr("Request failed")); };
+  const run = async (what, fn) => { setBusy(what); setRefusal(null); try { await fn(); } catch (e) { fail(e); } setBusy(""); };
+  const save = () => run("save", async () => { await saveNow(); showToast(tr("Draft saved")); });
+  const openPreview = () => run("preview", async () => { if (dirty) await saveNow(); setShowPreview(true); });
+  const translate = () => run("translate", async () => { if (dirty) await saveNow(); const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/translate", { method: "POST", body: { overwrite: false } }); after(d); showToast(tr("The empty Spanish and French are filled. Have them checked.")); });
+  const publish = () => run("publish", async () => { if (dirty) await saveNow(); const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/publish", { method: "POST" }); showToast(d && d.version && d.version.version != null ? tr("Published as version {0}", d.version.version) : tr("Published|lesson")); onDone(); });
+  const discard = () => { if (!window.confirm(tr("Discard this draft? It cannot be published once discarded."))) return; run("discard", async () => { await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/discard", { method: "POST" }); setDirty(false); dirtyRef.current = false; showToast(tr("Draft discarded")); onDone(); }); };
+  const back = () => { if (dirty && !window.confirm(tr("Leave without saving your changes?"))) return; onDone(); };
+  // An upload: a picture (JPEG, PNG, WebP or HEIC, 5 MB) or a video (MP4 or WebM, 25 MB), refused here first when it is
+  // neither, else the API's own words (training.badVideo, training.videoTooLarge). want says which it must be.
+  const upload = async (slot, file, want, onDoneUp) => {
+    if (!file) return;
+    const why = want === "video" ? playerVideoWhy(file) : lessonImageWhy(file);
+    if (why) { setUpRefusal(m => ({ ...m, [slot]: why })); return; }
+    setUploading(slot); setUpRefusal(m => ({ ...m, [slot]: "" }));
+    const fd0 = new FormData();
+    fd0.append("file", file);
+    try {
+      const d = await apiMultipart("/api/training/lesson-images", token, fd0);
+      const got = want === "video" ? d && d.video : d && d.image;
+      if (!got || !got.path) throw new Error(want === "video" ? tr("Choose an MP4 or WebM video.") : tr("Choose a JPEG, PNG, WebP or HEIC picture."));
+      setSrcs(x => ({ ...x, [got.path]: got.src || "" }));
+      onDoneUp(got.path);
+    } catch (e) { setUpRefusal(m => ({ ...m, [slot]: e.message || tr("Request failed") })); }
+    setUploading("");
+  };
+  const fileIn = (slot, want, onDoneUp, label) => <div style={{ marginBottom: 6 }}>
+    <input type="file" data-player-upload={slot} aria-label={label} disabled={!!uploading} accept={want === "video" ? "video/mp4,video/webm,.mp4,.webm" : ".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif"} onChange={e => { const f0 = e.target.files && e.target.files[0]; e.target.value = ""; upload(slot, f0, want, onDoneUp); }} style={{ fontSize: 13, color: t.text, minHeight: 44, maxWidth: "100%" }} />
+    <div style={{ fontSize: 11, color: t.textMut }}>{uploading === slot ? tr("Uploading...") : want === "video" ? tr("An MP4 or WebM video up to 25 MB.") : tr("A JPEG, PNG, WebP or HEIC picture up to 5 MB.")}</div>
+    {upRefusal[slot] && <div role="alert" data-player-upload-refusal={slot} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{upRefusal[slot]}</div>}
+  </div>;
+  const card = { border: "1px solid " + t.border, borderRadius: R.md, padding: 12, marginBottom: 12, background: t.card };
+  const head = (s, extra) => <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "16px 0 8px" }}><div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1 }}>{s}</div>{extra}</div>;
+  const small = { minHeight: 44, padding: "0 10px", background: "none", border: "none", color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
+  const screenKeys = c.screens.map(sc => sc.key).filter(Boolean);
+  const goTo = (path) => { const root = document.querySelector("[data-player-editor]"); if (!root) return; let p = lessonPathOf(path); while (p) { const el = root.querySelector('[data-lesson-path="' + p + '"]'); if (el) { el.scrollIntoView({ block: "center" }); return; } p = p.indexOf(".") > 0 ? p.slice(0, p.lastIndexOf(".")) : ""; } };
+  const screenCard = (sc, i) => {
+    const m = sc.media || { kind: "none" };
+    const base = "screens." + i;
+    const setMedia = (nm) => setScreen(i, { ...sc, media: nm });
+    return (<div key={i} data-player-screen={i} data-lesson-path={base} style={card}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ flex: "0 0 160px" }} data-lesson-path={base + ".key"}><Lbl>{tr("Key|screen")}</Lbl><Inp t={t} aria-label={tr("Key|screen")} data-player-screen-key={i} value={sc.key} onChange={e => setScreen(i, { ...sc, key: e.target.value })} />{probs(base + ".key")}</div>
+        <div style={{ marginLeft: "auto", display: "flex" }}>
+          <button style={small} aria-label={tr("Move up")} disabled={i === 0} onClick={() => edit(x => ({ ...x, screens: move(x.screens, i, -1) }))}>&uarr;</button>
+          <button style={small} aria-label={tr("Move down")} disabled={i === c.screens.length - 1} onClick={() => edit(x => ({ ...x, screens: move(x.screens, i, 1) }))}>&darr;</button>
+          <button style={{ ...small, color: RD }} data-player-screen-remove={i} onClick={() => edit(x => ({ ...x, screens: x.screens.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+        </div>
+      </div>
+      <LessonText t={t} path={base + ".say"} value={sc.say} onChange={v => setScreen(i, { ...sc, say: v })} probs={probs} multiline label={tr("What the voice says")} />
+      <LessonText t={t} path={base + ".caption"} value={sc.caption} onChange={v => setScreen(i, { ...sc, caption: v })} probs={probs} label={tr("Caption (optional)")} />
+      <div data-lesson-path={base + ".media"} style={{ marginTop: 4 }}>
+        <Lbl>{tr("Media|screen")}</Lbl>
+        <div style={{ maxWidth: 220, marginBottom: 8 }}><Sel t={t} aria-label={tr("Media|screen")} data-player-media-kind={i} value={m.kind} onChange={e => setMedia(e.target.value === "image" ? { kind: "image", path: null, svg: null } : e.target.value === "video" ? { kind: "video", path: null, poster: null, locales: {} } : { kind: "none" })} options={PLAYER_MEDIA_KINDS.map(o => ({ v: o.v, l: tr(o.l) }))} /></div>
+        {m.kind === "image" && <div data-lesson-path={base + ".media.path"}>
+          {fileIn("screen-" + i, "image", (path) => setMedia({ kind: "image", path, svg: null }), tr("Upload a picture"))}
+          {picSrc(m) ? <img src={picSrc(m)} alt="" data-player-screen-picture={i} style={{ display: "block", maxWidth: "100%", maxHeight: 220, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} /> : m.path ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Picture uploaded")}</div> : null}
+          {probs(base + ".media")}{probs(base + ".media.path")}{probs(base + ".media.svg")}
+        </div>}
+        {m.kind === "video" && <div data-lesson-path={base + ".media.path"}>
+          {fileIn("screen-video-" + i, "video", (path) => setMedia({ ...m, path }), tr("Upload the video"))}
+          {m.path && <div data-player-screen-video={i} style={{ fontSize: 12, color: t.textSec, marginBottom: 6 }}>{tr("Video uploaded")}</div>}
+          {probs(base + ".media.path")}
+          <div data-lesson-path={base + ".media.poster"}><div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, margin: "6px 0 4px" }}>{tr("Poster picture (optional)")}</div>{fileIn("screen-poster-" + i, "image", (path) => setMedia({ ...m, poster: path }), tr("Poster picture (optional)"))}{m.poster && <div style={{ fontSize: 12, color: t.textSec }}>{tr("Picture uploaded")}</div>}{probs(base + ".media.poster")}</div>
+          {["es", "fr"].map(l => <div key={l} data-lesson-path={base + ".media.locales." + l}><div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, margin: "6px 0 4px" }}>{tr("Its own video in {0} (optional)", tr(l === "es" ? "Spanish" : "French"))}</div>{fileIn("screen-video-" + l + "-" + i, "video", (path) => setMedia({ ...m, locales: { ...(m.locales || {}), [l]: path } }), tr("Its own video in {0} (optional)", tr(l === "es" ? "Spanish" : "French")))}{m.locales && m.locales[l] && <div style={{ fontSize: 12, color: t.textSec }}>{tr("Video uploaded")}</div>}{probs(base + ".media.locales." + l)}</div>)}
+        </div>}
+        {probs(base + ".media.kind")}
+      </div>
+      {probs(base)}
+    </div>);
+  };
+  const checkCard = (ck, i) => {
+    const base = "checks." + i;
+    const setKind = (k) => setCheck(i, { ...ck, kind: k, options: k === "tap" ? [] : playerOptionsOf(k), correct: "", image: playerPic(null), targets: [] });
+    return (<div key={i} data-player-check={i} data-lesson-path={base} style={card}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ flex: "0 0 140px" }} data-lesson-path={base + ".key"}><Lbl>{tr("Key|check")}</Lbl><Inp t={t} aria-label={tr("Key|check")} data-player-check-key={i} value={ck.key} onChange={e => setCheck(i, { ...ck, key: e.target.value })} />{probs(base + ".key")}</div>
+        <div style={{ flex: "1 1 160px" }} data-lesson-path={base + ".after"}><Lbl>{tr("After the screen")}</Lbl><Sel t={t} aria-label={tr("After the screen")} data-player-check-after={i} value={ck.after} onChange={e => setCheck(i, { ...ck, after: e.target.value })} options={[{ v: "", l: tr("Choose a screen") }].concat(screenKeys.map(k => ({ v: k, l: k })))} />{probs(base + ".after")}</div>
+        <div style={{ flex: "1 1 160px" }} data-lesson-path={base + ".kind"}><Lbl>{tr("Kind|check")}</Lbl><Sel t={t} aria-label={tr("Kind|check")} data-player-check-kind={i} value={ck.kind} onChange={e => setKind(e.target.value)} options={PLAYER_CHECK_KINDS.map(o => ({ v: o.v, l: tr(o.l) }))} />{probs(base + ".kind")}</div>
+        <div style={{ marginLeft: "auto", display: "flex" }}>
+          <button style={small} aria-label={tr("Move up")} disabled={i === 0} onClick={() => edit(x => ({ ...x, checks: move(x.checks, i, -1) }))}>&uarr;</button>
+          <button style={small} aria-label={tr("Move down")} disabled={i === c.checks.length - 1} onClick={() => edit(x => ({ ...x, checks: move(x.checks, i, 1) }))}>&darr;</button>
+          <button style={{ ...small, color: RD }} data-player-check-remove={i} onClick={() => edit(x => ({ ...x, checks: x.checks.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+        </div>
+      </div>
+      <LessonText t={t} path={base + ".prompt"} value={ck.prompt} onChange={v => setCheck(i, { ...ck, prompt: v })} probs={probs} label={tr("The question")} />
+      <div data-lesson-path={base + ".replay"} style={{ marginBottom: 10 }}>
+        <Lbl>{tr("Screens it replays after a wrong answer")}</Lbl>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{screenKeys.map(k => <label key={k} style={{ ...chkWrap, gap: 6, padding: "0 8px", fontSize: 12, color: t.text }}><input type="checkbox" data-player-replay={i + ":" + k} checked={ck.replay.indexOf(k) >= 0} onChange={e => setCheck(i, { ...ck, replay: e.target.checked ? ck.replay.concat([k]) : ck.replay.filter(x => x !== k) })} />{k}</label>)}</div>
+        {probs(base + ".replay")}{ck.replay.map((k, j) => <Fragment key={j}>{probs(base + ".replay." + j)}</Fragment>)}
+      </div>
+      {(ck.kind === "choice" || ck.kind === "picture") && <div data-lesson-path={base + ".options"}>
+        <Lbl>{ck.kind === "picture" ? tr("Picture choices") : tr("Answers")}</Lbl>
+        {ck.options.map((o, j) => <div key={j} data-player-option={i + ":" + j} data-lesson-path={base + ".options." + j} style={{ borderLeft: "3px solid " + (ck.correct && ck.correct === o.value ? GR : t.border), paddingLeft: 10, marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+            <div style={{ width: 120 }}><Inp t={t} aria-label={tr("Value")} data-player-option-value={i + ":" + j} value={o.value} onChange={e => { const v = e.target.value; setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, value: v } : y)), correct: ck.correct === o.value ? v : ck.correct }); }} /></div>
+            <label style={{ ...chkWrap, gap: 6, fontSize: 12, color: t.text }}><input type="radio" name={"correct-" + i} data-player-correct={i + ":" + j} checked={!!ck.correct && ck.correct === o.value} onChange={() => setCheck(i, { ...ck, correct: o.value })} />{tr("The right answer")}</label>
+            <button style={{ ...small, color: RD }} disabled={ck.options.length <= 2} onClick={() => setCheck(i, { ...ck, options: ck.options.filter((y, k) => k !== j), correct: ck.correct === o.value ? "" : ck.correct })}>{tr("Remove")}</button>
+          </div>
+          {ck.kind === "choice" ? <LessonText t={t} path={base + ".options." + j + ".text"} value={o.text} onChange={v => setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, text: v } : y)) })} probs={probs} />
+            : <>
+              <div data-lesson-path={base + ".options." + j + ".image"}>{fileIn("option-" + i + "-" + j, "image", (path) => setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, image: { path, svg: null } } : y)) }), tr("Upload a picture"))}{picSrc(o.image) && <img src={picSrc(o.image)} alt={o.alt.en || ""} style={{ display: "block", maxWidth: 200, maxHeight: 140, borderRadius: R.sm, border: "1px solid " + t.border, background: "#FFFFFF" }} />}{probs(base + ".options." + j + ".image")}{probs(base + ".options." + j + ".image.path")}</div>
+              <LessonText t={t} path={base + ".options." + j + ".alt"} value={o.alt} onChange={v => setCheck(i, { ...ck, options: ck.options.map((y, k) => (k === j ? { ...y, alt: v } : y)) })} probs={probs} label={tr("Alt text")} />
+            </>}
+        </div>)}
+        {ck.options.length < 4 && <button style={{ ...small, paddingLeft: 0, color: t.goldText }} data-player-option-add={i} onClick={() => setCheck(i, { ...ck, options: ck.options.concat([ck.kind === "picture" ? { value: lessonKey("o", ck.options.map(x => ({ key: x.value }))), image: playerPic(null), alt: L3E() } : { value: lessonKey("o", ck.options.map(x => ({ key: x.value }))), text: L3E() }]) })}>{ck.kind === "picture" ? tr("Add a picture choice") : tr("Add an answer")}</button>}
+        {probs(base + ".options")}{probs(base + ".correct")}
+      </div>}
+      {ck.kind === "tap" && <div data-lesson-path={base + ".image"}>
+        <Lbl>{tr("The picture to tap")}</Lbl>
+        {fileIn("tap-" + i, "image", (path) => setCheck(i, { ...ck, image: { path, svg: null } }), tr("The picture to tap"))}
+        {probs(base + ".image")}{probs(base + ".image.path")}
+        <TapTargets t={t} src={picSrc(ck.image)} targets={ck.targets} onChange={v => setCheck(i, { ...ck, targets: v })} probs={probs} path={base} />
+      </div>}
+      {probs(base)}
+    </div>);
+  };
+  return (<div data-player-editor={draft.id}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <button onClick={back} style={{ ...small, paddingLeft: 0, color: t.goldText }}>{tr("Back to the versions")}</button>
+      <Bdg l={tr("Player lesson")} c={BL} />
+      <span style={{ marginLeft: "auto", fontSize: 12, color: dirty ? OR : t.textMut }}>{dirty ? tr("Changes not saved") : tr("Saved|draft")}</span>
+    </div>
+    {problems.length > 0 && <div data-lesson-problems={problems.length} style={{ border: "1px solid " + t.redBorder, background: t.redSubtle, borderRadius: R.md, padding: 12, marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 6 }}>{trn("{0} problem to fix before it is published|count", problems.length)}</div>
+      {problems.map((pr, i) => <button key={i} data-lesson-problem={lessonPathOf(pr.path)} onClick={() => goTo(pr.path)} style={{ display: "block", width: "100%", textAlign: "left", minHeight: 36, padding: "4px 0", background: "none", border: "none", color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</button>)}
+      {dirty && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Save the draft to check it again.")}</div>}
+    </div>}
+    {refusal && <div role="alert" data-lesson-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    {head(tr("The lesson"))}
+    <LessonText t={t} path="title" value={c.title} onChange={v => edit(x => ({ ...x, title: v }))} probs={probs} label={tr("Title (optional; the chapter's name stands in)")} />
+    <LessonText t={t} path="acknowledgement" value={c.acknowledgement} onChange={v => edit(x => ({ ...x, acknowledgement: v }))} probs={probs} multiline label={tr("The line the learner signs")} />
+    {head(trn("{0} screen|count", c.screens.length), <button style={{ ...small, color: t.goldText }} data-player-screen-add="" disabled={c.screens.length >= 30} onClick={() => edit(x => ({ ...x, screens: x.screens.concat([playerScreenOf(lessonKey("screen", x.screens))]) }))}>{tr("Add a screen")}</button>)}
+    {probs("screens")}
+    {c.screens.map(screenCard)}
+    {head(trn("{0} check|count", c.checks.length), <button style={{ ...small, color: t.goldText }} data-player-check-add="" disabled={c.checks.length >= 12} onClick={() => edit(x => ({ ...x, checks: x.checks.concat([playerCheckOf(lessonKey("check", x.checks), x.screens.length ? x.screens[x.screens.length - 1].key : "")]) }))}>{tr("Add a check")}</button>)}
+    {probs("checks")}
+    {c.checks.map(checkCard)}
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14, position: "sticky", bottom: 0, background: t.card, padding: "10px 0" }}>
+      <Btn t={t} data-player-save="" disabled={!!busy} onClick={save}>{busy === "save" ? tr("Saving...") : tr("Save draft")}</Btn>
+      <Btn t={t} v="ghost" data-player-preview-open="" disabled={!!busy} onClick={openPreview}>{tr("Preview")}</Btn>
+      <Btn t={t} v="ghost" data-player-translate="" disabled={!!busy} onClick={translate}>{busy === "translate" ? tr("Translating...") : tr("Translate the empty Spanish and French")}</Btn>
+      <Btn t={t} v="ghost" data-player-publish="" disabled={!!busy || problems.length > 0} onClick={publish}>{tr("Publish")}</Btn>
+      <Btn t={t} v="ghost" data-player-discard="" disabled={!!busy} onClick={discard} style={{ color: RD }}>{tr("Discard")}</Btn>
+    </div>
+    {showPreview && <PlayerPreviewWindow t={t} preview={preview} onClose={() => setShowPreview(false)} />}
+  </div>);
+}
+
+// ===== THE SETUP CHAPTER, RESET TRIES AND THE SIGNER (part 413; the API's Round 20, sections 8 and 9) =====
+// "Opens before sign-in" on a topic (opensSignedOut): the chapter new staff watch from the welcome email, at most one;
+// 409 training.signedOutTaken in the API's words, with the topic that holds it named from the catalog.
+function TopicSignedOutSwitch({ af, t, tp, topics = [], isAdmin = false, onSaved }) {
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  if (!tp || !Object.prototype.hasOwnProperty.call(tp, "opensSignedOut")) return null;
+  const on = tp.opensSignedOut === true;
+  const holder = topics.find(x => x && x.opensSignedOut === true && String(x.id) !== String(tp.id));
+  const flip = async () => {
+    setBusy(true); setRefusal("");
+    try { const d = await af("/api/training/topics/" + encodeURIComponent(tp.id), { method: "PATCH", body: { opensSignedOut: !on } }); if (d && d.topic) onSaved(d.topic); }
+    catch (e) { setRefusal((e.message || tr("Request failed")) + (e && e.code === "training.signedOutTaken" && holder ? " " + tr("{0} opens before sign-in now.", holder.name) : "")); }
+    setBusy(false);
+  };
+  return (<div data-topic-signed-out={on ? "on" : "off"} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border, flexWrap: "wrap", alignItems: "center" }}>
+    <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+      <div style={{ fontSize: 13, color: t.text }}>{tr("Opens before sign-in")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, lineHeight: 1.5 }}>{tr("This is the chapter new staff watch from the welcome email, before they sign in. One topic at most.")}</div>
+      {refusal && <div role="alert" data-topic-signed-out-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal}</div>}
+    </div>
+    {isAdmin ? <button role="switch" aria-checked={on} aria-label={tr("Opens before sign-in")} data-topic-signed-out-switch="" disabled={busy} onClick={flip} style={{ minWidth: 64, minHeight: 44, borderRadius: 22, border: "1px solid " + (on ? GO : t.border), background: on ? GO : t.hover, color: on ? NAVY : t.textSec, fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>{on ? tr("On") : tr("Off")}</button>
+      : <span style={{ fontSize: 13, color: t.text }}>{on ? tr("Yes") : tr("No")}</span>}
+  </div>);
+}
+// Reset tries (POST /api/training/attempts/reset-tries): one person's tries at one topic, asked first and saying what it
+// does; and for admins Reset everyone's tries, { all: true }, behind a question that names how many people are out of
+// tries and asks for RESET typed. The owner decides when it is pressed; nothing presses it on its own.
+const resetTriesSaid = (d) => { const reset = Array.isArray(d && d.reset) ? d.reset : []; const people = new Set(reset.map(x => String(x.userId))).size; return trn("Tries reset for {0} person.|count", people) + " " + trn("{0} failed try voided and kept on record.|count", Number(d && d.voided) || 0); };
+async function resetTriesOf(af, userId, topicId, name, topicName) {
+  if (!window.confirm(tr("Reset {0}'s tries at {1}? Their failed tries are voided and kept on record, and they can take the lesson again.", name || "", topicName || ""))) return null;
+  return af("/api/training/attempts/reset-tries", { method: "POST", body: { userId: String(userId), topicId: String(topicId) } });
+}
+function ResetEveryoneWindow({ af, t, outOfTries = 0, onClose, onDone }) {
+  const [typed, setTyped] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [guard, busy] = useBusyGuard();
+  const go = guard(async () => {
+    setRefusal("");
+    try { const d = await af("/api/training/attempts/reset-tries", { method: "POST", body: { all: true } }); onDone(d); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+  });
+  return (<Mdl name="reset-everyone" t={t} onClose={() => { if (!busy) onClose(); }}><div data-reset-everyone={outOfTries} style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reset everyone's tries")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 10 }}>{trn("{0} person is out of tries now.|count", outOfTries)} {tr("Every failed try that used up a published lesson's tries is voided and kept on record, and each person can take the lesson again.")}</div>
+    <Lbl>{tr("Type RESET to go on")}</Lbl>
+    <Inp t={t} aria-label={tr("Type RESET to go on")} data-reset-everyone-typed="" value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" />
+    {refusal && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-reset-everyone-go="" disabled={busy || typed !== "RESET"} onClick={go}>{busy ? tr("Saving...") : tr("Reset everyone's tries")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// The Training page's out-of-tries list (Gaps): everyone whose online lesson's tries are used up, with Reset tries on
+// each, and Reset everyone's tries for admins.
+function TrainingOutOfTries({ af, t, isAdmin = false, showToast }) {
+  const [rows, setRows] = useState(null);
+  const [win, setWin] = useState(false);
+  const load = useCallback(async () => {
+    try {
+      const d = await af("/api/training/gaps");
+      const out = [];
+      (Array.isArray(d && d.people) ? d.people : []).forEach(p => (Array.isArray(p.items) ? p.items : []).forEach(it => { if (gapNeedsSession(it)) out.push({ person: p, item: it }); }));
+      setRows(out);
+    } catch (e) { setRows([]); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  if (!isAdmin || rows === null) return null;
+  const one = async (r) => {
+    try { const d = await resetTriesOf(af, r.person.id || r.person.userId, r.item.topicId, r.person.name, r.item.name); if (d) { showToast(resetTriesSaid(d)); load(); } }
+    catch (e) { showToast(e.message, "error"); }
+  };
+  const people = new Set(rows.map(r => String(r.person.id || r.person.userId))).size;
+  return (<Crd t={t} style={{ marginBottom: 14 }}><div data-out-of-tries={rows.length}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Out of tries")}</div>
+      <Btn t={t} v="ghost" data-reset-everyone-open="" onClick={() => setWin(true)} style={{ color: RD }}>{tr("Reset everyone's tries")}</Btn>
+    </div>
+    {rows.length === 0 ? <div style={{ fontSize: 13, color: t.textMut, marginTop: 8 }}>{tr("Nobody is out of tries.")}</div>
+      : rows.map((r, i) => <div key={i} data-out-of-tries-row={String(r.person.id || r.person.userId) + ":" + r.item.topicId} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid " + t.border }}>
+        <span style={{ flex: "1 1 220px", minWidth: 0, fontSize: 13, color: t.text }}>{r.person.name} . {r.item.name}</span>
+        <Btn t={t} v="ghost" data-reset-tries={String(r.person.id || r.person.userId) + ":" + r.item.topicId} onClick={() => one(r)}>{tr("Reset tries")}</Btn>
+      </div>)}
+    {win && <ResetEveryoneWindow af={af} t={t} outOfTries={people} onClose={() => setWin(false)} onDone={(d) => { setWin(false); showToast(resetTriesSaid(d)); load(); }} />}
+  </div></Crd>);
+}
+// The active signer of course certificates (GET /api/training/certificate-signer): name, title in the three languages,
+// whether a signature is on file and the approval note. Change it with PUT, a PNG with a transparent background as the
+// signature; the window says the one before is kept inactive and asks to confirm with the new name shown.
+function CertificateSignerPanel({ af, t, showToast }) {
+  const [signer, setSigner] = useState(undefined);
+  const [failed, setFailed] = useState("");
+  const [win, setWin] = useState(false);
+  const load = useCallback(async () => {
+    setFailed("");
+    try { const d = await af("/api/training/certificate-signer"); setSigner(d && d.signer ? d.signer : null); }
+    catch (e) { setSigner(null); setFailed(e.message || tr("Request failed")); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const row = (label, value) => <div style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, flexWrap: "wrap" }}><div style={{ flex: "0 0 160px", color: t.textMut }}>{label}</div><div style={{ flex: "1 1 200px", minWidth: 0, color: t.text, overflowWrap: "anywhere" }}>{value}</div></div>;
+  return (<Crd t={t}><div data-certificate-signer={signer ? signer.id : signer === null ? "none" : ""}>
+    <SecT t={t}>{tr("Certificate signer")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The person whose name and signature go on every course certificate and on the Employee of the Month certificate.")}</div>
+    {signer === undefined ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <LoadFailed t={t} text={failed} onRetry={load} />
+      : signer === null ? <div data-signer-none="" style={{ fontSize: 13, color: t.textSec }}>{tr("No signer yet. Certificates print the signature line alone.")}</div>
+      : <>
+        {row(tr("Name"), <span data-signer-name="">{signer.name}</span>)}
+        {LESSON_LANGS.map(l => <Fragment key={l.id}>{row(tr("Title in {0}", tr(l.word)), (signer.title && signer.title[l.id]) || <span style={{ color: t.textMut }}>{tr("Not written yet")}</span>)}</Fragment>)}
+        {row(tr("Signature"), <span data-signer-signature={signer.hasSignature ? "on-file" : "none"}>{signer.hasSignature ? tr("On file") : tr("None on file")}</span>)}
+        {row(tr("Approval note"), signer.approvedNote || "")}
+      </>}
+    <div style={{ marginTop: 12 }}><Btn t={t} data-signer-change="" onClick={() => setWin(true)}>{tr("Change the signer")}</Btn></div>
+    {win && <SignerWindow af={af} t={t} signer={signer || null} onClose={() => setWin(false)} onSaved={(s) => { setWin(false); setSigner(s); showToast(tr("Signer changed")); }} />}
+  </div></Crd>);
+}
+function SignerWindow({ af, t, signer, onClose, onSaved }) {
+  const [f, setF] = useState(() => ({ name: "", title: T3(signer && signer.title), approvedNote: "" }));
+  const [png, setPng] = useState({ data: null, said: "" });
+  const [asking, setAsking] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const [guard, busy] = useBusyGuard();
+  const pick = (file) => {
+    if (!file) return;
+    if (!/^image\/png$/i.test(file.type || "") && !/\.png$/i.test(file.name || "")) { setPng({ data: null, said: tr("Choose a PNG picture with a transparent background.") }); return; }
+    if (file.size > 1024 * 1024) { setPng({ data: null, said: tr("The signature is over 1 MB.") }); return; }
+    const r = new FileReader();
+    r.onload = () => setPng({ data: String(r.result || ""), said: "" });
+    r.onerror = () => setPng({ data: null, said: tr("Could not read image") });
+    r.readAsDataURL(file);
+  };
+  const go = guard(async () => {
+    setRefusal(null);
+    try { const d = await af("/api/training/certificate-signer", { method: "PUT", body: { name: f.name.trim(), title: f.title, signature: png.data || null, approvedNote: f.approvedNote.trim() || null } }); onSaved((d && d.signer) || null); }
+    catch (e) { setAsking(false); setRefusal({ text: e.message || tr("Request failed"), keys: trainingKeysOf(e) }); }
+  });
+  const under = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-signer-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl name="certificate-signer" t={t} tall onClose={() => { if (!busy) onClose(); }}><div data-signer-window="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Change the signer")}</div><button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The signer before is kept, made inactive. Certificates made from now on carry the new signer.")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} aria-label={tr("Name")} data-signer-field="name" value={f.name} maxLength={120} onChange={e => { setF(x => ({ ...x, name: e.target.value })); setAsking(false); }} />{under("name")}</div>
+    <CourseTexts t={t} label={tr("Title")} path="title" value={f.title} onChange={v => setF(x => ({ ...x, title: v }))} notes={{}} refused={under("title")} />
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Signature")}</Lbl>
+      <input type="file" data-signer-signature-file="" aria-label={tr("Signature")} accept="image/png,.png" onChange={e => { const f0 = e.target.files && e.target.files[0]; e.target.value = ""; pick(f0); }} style={{ fontSize: 13, color: t.text, minHeight: 44, maxWidth: "100%" }} />
+      <div style={{ fontSize: 11, color: t.textMut }}>{tr("A PNG with a transparent background, up to 1 MB.")}</div>
+      {png.data && <img src={png.data} alt={tr("Signature")} data-signer-signature-preview="" style={{ display: "block", maxWidth: 260, maxHeight: 90, marginTop: 6, background: "#FFFFFF", border: "1px solid " + t.border, borderRadius: R.sm }} />}
+      {png.said && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{png.said}</div>}{under("signature")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Approval note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Approval note")} data-signer-field="approvedNote" value={f.approvedNote} maxLength={500} onChange={e => setF(x => ({ ...x, approvedNote: e.target.value }))} />{under("approvedNote")}</div>
+    {refusal && !["name", "title", "signature", "approvedNote"].some(k => refusal.keys.indexOf(k) >= 0) && <div role="alert" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {asking ? <div data-signer-confirm="" style={{ border: "1px solid " + OR, borderRadius: R.md, padding: 12, background: t.orangeSubtle }}>
+      <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 10 }}>{tr("Make {0} the signer of every certificate from now on?", f.name.trim())}</div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}><Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={busy}>{tr("Not yet")}</Btn><Btn t={t} data-signer-confirm-go="" disabled={busy} onClick={go}>{busy ? tr("Saving...") : tr("Yes, change the signer")}</Btn></div>
+    </div> : <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-signer-save="" disabled={!f.name.trim()} onClick={() => setAsking(true)}>{tr("Change the signer")}</Btn>
+    </div>}
+  </div></Mdl>);
+}
+
 function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showToast, guard }) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState("");
@@ -32433,9 +33763,9 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
-  const start = async (from) => {
+  const start = async (from, kind) => {
     setBusy("new"); setRefusal("");
-    try { const d = await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/draft", { method: "POST", body: { from } }); if (d && d.draft) { setDraft(d); onReload(); } }
+    try { const d = await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/draft", { method: "POST", body: kind ? { from, kind } : { from } }); if (d && d.draft) { setDraft(d); onReload(); } }
     catch (e) {
       // A draft already open is opened rather than refused.
       if (e && e.code === "training.draftOpen") { const id = (e.body && e.body.draftId) || (open && open.id); if (id) { await openDraft(id); onReload(); setBusy(""); return; } }
@@ -32450,6 +33780,8 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy("");
   };
+  // Part 413 (the API's Round 20): a draft of kind player opens the player editor.
+  if (draft && draft.draft && draft.draft.kind === "player") return <PlayerDraftEditor af={af} t={t} token={token} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
   if (draft) return <LessonDraftEditor af={af} t={t} token={token} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
   const cols = [
     { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span data-lesson-version={v.version != null ? String(v.version) : "draft"} data-lesson-version-status={v.status || ""} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}{v.spanishUnchecked === true && spanishUncheckedChip()}{v.missingFrench === true && <span data-lesson-french-missing="" title={tr("Some of this version's French is not written yet. Staff are offered English and Spanish.")}><Bdg l={tr("French missing")} c={BL} /></span>}</span> },
@@ -32469,6 +33801,7 @@ function TopicLesson({ af, t, token = "", tp, isAdmin, versions, onReload, showT
       {open ? <Btn t={t} data-lesson-open-draft="" disabled={!!busy} onClick={() => openDraft(open.id)}>{tr("Open the draft")}</Btn> : <>
         {live && <Btn t={t} data-lesson-new="published" disabled={!!busy} onClick={() => start("published")}>{tr("New draft from the live lesson")}</Btn>}
         <Btn t={t} v={live ? "ghost" : "primary"} data-lesson-new="blank" disabled={!!busy} onClick={() => start("blank")}>{tr("New blank draft")}</Btn>
+        <Btn t={t} v="ghost" data-lesson-new="player" disabled={!!busy} onClick={() => start(live && live.kind === "player" ? "published" : "blank", "player")}>{tr("New player draft")}</Btn>
       </>}
       {live && <Btn t={t} v="ghost" data-lesson-retire="" disabled={!!busy} onClick={retire}>{tr("Retire the live lesson")}</Btn>}
     </div>}
@@ -33018,7 +34351,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
   const tall = { minHeight: 44, minWidth: 44 };
   const tickStyle = { width: 20, height: 20, accentColor: GO, flexShrink: 0, cursor: "pointer" };
   const rowStyle = { display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "4px 12px", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text, cursor: "pointer" };
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="assign-training" t={t} tall onClose={() => { if (!busy) onClose(); }}>
     <div data-assign-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -33162,7 +34495,7 @@ function SignOffWindow({ af, t, attempt, siteName = "", onClose, onDone, onPrint
     setBusy(false);
   };
   const unplaced = refusal && refusal.fields.filter(k => k === "signature" || k === "demonstrated" || k === "note").length === 0 ? refusal.text : "";
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="sign-off" t={t} onClose={() => { if (!busy) onClose(); }}>
     <div data-signoff-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Sign off training")}</div>
       <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.6 }}>
@@ -33325,7 +34658,7 @@ function StartSessionWindow({ af, t, sites = [], onClose, onStarted }) {
   };
   const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
   const choice = (on) => ({ minWidth: 44, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+  return (<Mdl name="start-session" t={t} onClose={() => { if (!busy) onClose(); }}>
     <div data-session-start-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Start a session")}</div>
       <div data-session-start-field="title"><div style={lbl}>{tr("Title")}</div><Inp t={t} aria-label={tr("Title")} value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder={tr("e.g. Monthly safety talk")} />{bad("title")}</div>
@@ -33860,7 +35193,7 @@ function SignHereWindow({ af, t, requestId, personName = "", onClose, onDone }) 
   };
   const item = (req && req.item) || {};
   const who = (req && req.person && req.person.name) || personName;
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-sign-here-window={requestId}>
+  return (<Mdl name="sign-here" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-sign-here-window={requestId}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Sign here now")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{who}{req && req.title ? ", " + req.title : ""}</div>
     {req === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <div role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{failed}</div> : <div style={{ marginBottom: 12 }}>
@@ -34048,7 +35381,7 @@ function SignatureRequestWindow({ af, t, token, requestId, onClose, onChanged, s
   const line = (l, v) => (v ? <div style={{ display: "flex", gap: 10, fontSize: 13, padding: "6px 0", borderBottom: "1px solid " + t.border }}><span style={{ color: t.textMut, minWidth: 100, flexShrink: 0 }}>{l}</span><span style={{ color: t.text, minWidth: 0, overflowWrap: "anywhere" }}>{v}</span></div> : null);
   const where = r.signedWhere === "phone" ? tr("on their phone") : r.signedWhere === "office" ? tr("in the office") : r.signedWhere === "paper" ? tr("on paper") : "";
   const rec = r.recorded && typeof r.recorded === "object" ? r.recorded : null;
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-signature-request-window={requestId}>
+  return (<Mdl name="signature-request" t={t} onClose={onClose}><div style={{ padding: 20 }} data-signature-request-window={requestId}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{r.title || tr("Signature request")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{who}</div>
     {req === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <div role="alert" style={{ fontSize: 12, color: RD }}>{failed}</div> : <div>
@@ -34177,7 +35510,7 @@ function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, on
   };
   const choice = (on) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
   const known = refusal.keys.filter(k => PROPERTY_FIELDS.indexOf(k) >= 0);
-  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-window="">
+  return (<Mdl name="issue-property" t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-window="">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue property")}</div>
@@ -34228,7 +35561,7 @@ function ReturnPropertyWindow({ af, t, issue, onClose, onSaved, onStale }) {
     setBusy(false);
   };
   const under = (k) => (refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-return-window="">
+  return (<Mdl name="return-property" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-return-window="">
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Mark returned")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12, overflowWrap: "anywhere" }}>{propertyLine(issue)}</div>
     {refusal.text && refusal.keys.filter(k => k === "returnedOn" || k === "note").length === 0 && <div role="alert" data-property-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
@@ -34273,7 +35606,7 @@ function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
     catch (e) { setRefusal(e.message || tr("Request failed")); }
     setBusy(false);
   };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-attempt-void-window={attempt.id}>
+  return (<Mdl name="void-attempt" t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-attempt-void-window={attempt.id}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Void this attempt")}</div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{[attempt.topicName, attempt.attemptNo != null ? tr("Try {0}", attempt.attemptNo) : ""].filter(Boolean).join(" . ")}</div>
     <div style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("The training record written from it is removed with it. Why is it being voided?")}</div>
@@ -34409,7 +35742,7 @@ function WelcomeAllWindow({ af, t, staff = [], canChange, onClose, onFinished, s
   </div> : null;
   const counts = run ? welcomeAllCounts(run) : null;
   const statusOf = (r) => (!r || r.status === "waiting" ? { text: tr("Waiting|welcome email"), c: t.textMut } : r.status === "sending" ? { text: tr("Sending..."), c: t.goldText } : r.status === "sent" ? { text: tr("Sent|welcome email"), c: GR } : { text: tr("Not sent: {0}", r.reason), c: RD });
-  return (<Mdl t={t} tall onClose={close}><div style={{ padding: 20 }} data-welcome-all-window={run ? (run.running ? "running" : "done") : "plan"}>
+  return (<Mdl name="welcome-all" t={t} tall onClose={close}><div style={{ padding: 20 }} data-welcome-all-window={run ? (run.running ? "running" : "done") : "plan"}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send welcome emails")}</div><button onClick={close} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
     {!run ? <>
       <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Everyone active who has never signed in and has a working email.")}</div>

@@ -239,6 +239,10 @@ const SUITES = [
   // read, and whose messages are whose on Messages, against the stub as the API is built at ocsa-api d84a449 with the
   // part405 layer (audit/part405-stub.js). Its own passes, like part400's.
   { name: "part405", mod: "./cases/part405", widths: [] },
+  // Part 413 (Round 14): Employee of the Month, shout-outs, the training admin and what the API's Rounds 17, 18 and 21 and
+  // the robot's Rounds 6 and 7 left waiting, against the stub as the API is built at ocsa-api 06b6d1b (#171) with the
+  // part413 layer (audit/part413-stub.js). Its own passes, like part405's.
+  { name: "part413", mod: "./cases/part413", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

@@ -79,11 +79,11 @@ Who can do this: admins
 5. Turn **Email** and **In app** on or off for each person. At least one stays on.
 6. To take someone off, click **Remove** and confirm.
 7. Each form's own list also chooses what its email carries: **Link to the app**, which every form starts on, or **Attach the filled report as a PDF**. With the PDF chosen, every email about that form carries everything the report says, to every person and address on its lists. **Every form** has no choice of its own.
-8. Some kinds go only to the people they are about, such as **Someone signed a warning on their phone** (**Alguien firmó una advertencia en su teléfono**), which goes to the person who sent the warning to sign. Their card says who gets them, and nobody is added there. The health alerts are set on the Health page.
+8. Some kinds go only to the people they are about, such as **Someone signed a warning on their phone** (**Alguien firmó una advertencia en su teléfono**), which goes to the person who sent the warning to sign. So do **The Employee of the Month is posted** (**Se publica el Empleado del Mes**), which goes to every active staff member, **The Employee of the Month is told how many people congratulated them** (**Al Empleado del Mes se le dice cuántas personas lo felicitaron**), **Someone gets a shout-out** (**Alguien recibe un reconocimiento**), which goes to the person named, and **A course's certificate is ready** (**El certificado de un curso está listo**), which goes to the person who finished the course. Their card says who gets them, and nobody is added there. The health alerts are set on the Health page.
 If it does not work: when nobody is set for a kind, every admin gets a notice in the app.
 Words people use for this: notifications, who gets the email, alerts, stop getting notices, send to an outside email, email the report as a pdf, attach the report, pdf delivery.
 Picture: settings-who-gets-told
-Last checked: 2026-11-10
+Last checked: 2026-11-24
 
 ## Add a staff member (admin dashboard)
 Who can do this: admins. A supervisor opens **Staff Management** (**Gestión de personal**) and does not see **Add Staff** (**Agregar persona**).
@@ -384,14 +384,15 @@ Last checked: 2026-11-12
 Who can do this: admins and supervisors
 1. Click **Inspections** (**Inspecciones**).
 2. On the **Templates** (**Plantillas**) tab, click **New Template** (**Nueva plantilla**) and name it.
-3. Under **Kind** (**Tipo**), choose **Supervisor inspection** (**Inspección de supervisor**) for a supervisor's own inspection, or **Audit inspection** (**Inspección de auditoría**) for an audit. A new template starts on Supervisor inspection. Click **Create Template** (**Crear la plantilla**).
-4. Click the template, then add each item under **Add Line Item** (**Agregar un elemento**) with its zone, its **Service Category** (**Categoría de servicio**) and its maximum score.
-5. Each template's card shows its kind. The monthly client report counts and averages supervisor inspections and audit inspections apart, by the kind of their template. A template made before kinds existed is a supervisor inspection until you change it.
-6. To change a template's name or kind later, click **Rename** (**Cambiar nombre**) on its card, change it, and click **Save** (**Guardar**). A new kind also changes how the template's past inspections count in any monthly client report made after the change; a report already made keeps its figures. A template no longer used is deactivated with **Deactivate** (**Desactivar**); nothing is deleted.
+3. Under **Kind** (**Tipo**), choose **Supervisor inspection** (**Inspección de supervisor**) for a supervisor's own inspection, or **Audit inspection** (**Inspección de auditoría**) for an audit. A new template starts on Supervisor inspection.
+4. Under **Site** (**Sitio**), leave **Every site** (**Todos los sitios**), or pick a site: **A template tied to a site is offered there alone.** (**Una plantilla vinculada a un sitio se ofrece solo allí.**) Tick **Test template, for the test accounts only** (**Plantilla de prueba, solo para las cuentas de prueba**) only for a template the robot's test accounts use. Click **Create Template** (**Crear la plantilla**).
+5. Click the template, then add each item under **Add Line Item** (**Agregar un elemento**) with its zone, its **Service Category** (**Categoría de servicio**) and its maximum score.
+6. Each template's card shows its kind, and its site when it is tied to one. The monthly client report counts and averages supervisor inspections and audit inspections apart, by the kind of their template. A template made before kinds existed is a supervisor inspection until you change it.
+7. To change a template's name, kind or site later, click **Rename** (**Cambiar nombre**) on its card, change it, and click **Save** (**Guardar**). A new kind also changes how the template's past inspections count in any monthly client report made after the change; a report already made keeps its figures. A template no longer used is deactivated with **Deactivate** (**Desactivar**); nothing is deleted.
 If it does not work: when the kind is refused, the reason shows under **Kind** (**Tipo**). Choose one of the two kinds and save again.
 Words people use for this: inspection template, audit template, supervisor inspection, audit inspection, kind of inspection, type of inspection.
 Picture: inspections-new-template
-Last checked: 2026-09-30
+Last checked: 2026-11-24
 
 ## See who has started a shift today (admin dashboard)
 Who can do this: admins and supervisors
@@ -468,10 +469,11 @@ Who can do this: admins, and anyone given the manage permissions permission
 3. Stay on **By person**, and choose the person in **Select a team member...**.
 4. Set each permission to **Default**, **Allow** or **Deny**.
 5. Click **Save changes**.
-6. Only the super admin sees **Read chat records** (**Leer los registros del chat**) and **HR file access report** (**Informe de acceso a archivos de RR. HH.**), on an admin's account too. See Grant the HR file access report.
+6. **Employee of the Month** (**Empleado del Mes**) lets a person post, change and take down the Employee of the Month; admins hold it by role. **Post shout-outs** (**Publicar reconocimientos**) lets a person give shout-outs; admins and supervisors hold it by role.
+7. Only the super admin sees **Read chat records** (**Leer los registros del chat**) and **HR file access report** (**Informe de acceso a archivos de RR. HH.**), on an admin's account too. See Grant the HR file access report.
 Words people use for this: give access, let someone approve, permissions, change what someone can do.
 Picture: settings-permissions-person
-Last checked: 2026-10-18
+Last checked: 2026-11-24
 
 ## See what each role can do, or print it (admin dashboard)
 Who can do this: admins, and anyone given the manage permissions permission
@@ -505,8 +507,8 @@ Who can do this: admins, who hold time off approval by role, and anyone given it
 1. Click **Schedule** (**Horario**) in the menu on the left.
 2. On **Week** (**Semana**) and **Month** (**Mes**), time off shows on the person's day: **Time off requested** (**Tiempo libre solicitado**) in amber while it waits, and **Off** (**Libre**) in gray once approved. A shift under it is marked too. Click the time off to open its request.
 3. Or click **Time off** (**Tiempo libre**) beside **Week**, **Month** and **Patterns**. The number beside it is how many are waiting for a decision. Click a row to open the request. A notice that someone requested time off opens the request too.
-4. The request shows the person, its **Type** (**Tipo**), the dates, what it is **Taken in** (**Se toma en**), the hours and their reason. A new request is one of five types: **Vacation** (**Vacaciones**) and **Personal day** (**Día personal**), taken in **Whole days** (**Días completos**); **Paid sick leave** (**Licencia por enfermedad pagada**), in whole hours; and **Bereavement** (**Duelo**) and **Unpaid time off** (**Tiempo libre sin pago**), in hours. A request filed before reads its own type, such as **PTO (paid time off)** (**PTO (tiempo libre pagado)**).
-5. Vacation and personal days are offered to full-time staff whose site is not a union site. Vacation is asked for at least 2 weeks ahead, and a personal day at least 48 hours before the first day's shift. A request filed inside that notice carries the person's reason and the mark **Inside notice** (**Dentro del aviso**), and the window says **Filed inside its notice. Decide it case by case.** (**Se presentó dentro de su plazo de aviso. Decídala caso por caso.**) A sick request is never refused for its timing, and nobody is asked to find someone to cover.
+4. The request shows the person, its **Type** (**Tipo**), the dates, each day that is a paid holiday named beside it, what it is **Taken in** (**Se toma en**), the hours and their reason. A new request is one of five types: **Vacation** (**Vacaciones**) and **Personal day** (**Día personal**), taken in **Whole days** (**Días completos**); **Paid sick leave** (**Licencia por enfermedad pagada**), in whole hours; and **Bereavement** (**Duelo**) and **Unpaid time off** (**Tiempo libre sin pago**), in hours. A request filed before reads its own type, such as **PTO (paid time off)** (**PTO (tiempo libre pagado)**).
+5. Vacation and personal days are offered to full-time staff whose site is not a union site. Vacation is asked for at least 2 weeks ahead, and a personal day at least 48 hours before the first day's shift. A request filed inside that notice carries the person's reason and the mark **Inside notice** (**Dentro del aviso**), and the window says, in the system's words, that it was asked inside its notice and the office decides it case by case. A sick request is never refused for its timing, and nobody is asked to find someone to cover.
 6. Under **Shifts this affects** (**Turnos afectados**), choose for each shift **Leave it as it is** (**Dejarlo como está**), **Reassign to** (**Reasignar a**), **Post to Shift Pickup** (**Publicar en Turnos disponibles**) or **Cancel the shift** (**Cancelar el turno**). Reassign to opens a list of who can take it. See Cover a shift when someone is off.
 7. Type a **Note** (**Nota**). A note is optional when approving and required when denying.
 8. Under **Balance** (**Saldo**), the window shows the balance of the request's kind of leave now and after the request, in days for vacation and personal days. The line under it says this is the app's figure and ADP self-service holds the official balance. A warning in orange above **Approve** (**Aprobar**) says when the request would take the balance below zero, falls in the 90 days of waiting after the hire date, or would take the year's use past its most. The request can still be approved; the warning is there to read first.
@@ -516,7 +518,7 @@ If it does not work: nobody decides their own request. A shift left as it is sta
 Words people use for this: approve time off, approve vacation, approve a personal day, sick hours left, leave balance, paid time off, deny a day off, decide a leave request, sign off on vacation, late vacation request, inside notice, time off queue, time off on the schedule.
 Picture: time-off-request
 Picture: schedule-time-off-week
-Last checked: 2026-11-17
+Last checked: 2026-11-24
 
 ## See past time off requests (admin dashboard)
 Who can do this: anyone allowed to approve and deny time off
@@ -2062,7 +2064,7 @@ Who can do this: admins and supervisors
 1. Admins and supervisors click **Training** (**Capacitación**) in the menu. Admins can also open **HR Records** (**Expedientes de personal**) and its **Training** (**Capacitación**) tab, which holds the same views. Click **Gaps** (**Brechas**). It takes the place of **Who has no record** (**Quién no tiene registro**).
 2. Narrow it with **All sites** (**Todos los sitios**), **All roles** (**Todos los roles**), **All topics** (**Todos los temas**) and **All statuses** (**Todos los estados**). The line above the table names the day the list is as of.
 3. The table counts each topic's people as **Current** (**Vigente**), **Due soon** (**Vence pronto**), **Expired** (**Vencida**), **Missing** (**Falta**), **Refresher due** (**Repaso pendiente**), **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**). Click a topic to narrow the list to it; **Sessions** (**Sesiones**) then lists the days it was given, each with its attendance sheet.
-4. Below the table, the people with the most open items come first, each item a chip in its status's words. An online lesson with no tries left reads **Needs an in-person session** (**Necesita una sesión en persona**).
+4. Below the table, the people with the most open items come first, each item a chip in its status's words. An online lesson with no tries left reads **Needs an in-person session** (**Necesita una sesión en persona**). For an admin, **Out of tries** (**Sin intentos**) above the table lists those people with **Reset tries** (**Restablecer intentos**); see Reset a person's tries at a lesson.
 5. Click a person to open their own list: each item with when it was done, when it expires and its course link, the tries a lesson has used, and each attempt with its **Print** (**Imprimir**). An item a checklist signs off reads **Covered by** (**Cubierto por**) and the checklist's name. An item whose record holds a certificate has **Open the certificate** (**Abrir el certificado**), and **Upload a certificate** (**Subir un certificado**) adds one. An admin can **Void** (**Anular**) an attempt, with the reason; the record it wrote is removed with it. A notice that a person's training is expiring opens their list here.
 6. **Print** (**Imprimir**) at the top gives a page per site. Admins also have **Assign training** (**Asignar capacitación**) there, to name topics for people the roles do not cover.
 7. For an admin, the same items show in the person's folder in **HR Records** (**Expedientes de personal**), under **Required training ({0})** (**Capacitación requerida ({0})**).
@@ -2070,12 +2072,12 @@ If it does not work: Gaps shows once the system answers it; until then **Who has
 Words people use for this: training gaps, who needs training, who is missing training, expired training, training due soon, training by site, brechas de capacitación.
 Picture: training-gaps
 Picture: training-gaps-person
-Last checked: 2026-10-20
+Last checked: 2026-11-24
 
 ## Write and publish a training lesson (admin dashboard)
 Who can do this: admins write and publish; admins and supervisors read the versions
 1. Open the topic from **Catalog** (**Catálogo**) and click **Lesson** (**Lección**). Each version shows its status, its **Kind** (**Tipo**), when it was published and by whom, its **Change note** (**Nota del cambio**) and the **Attempts** (**Intentos**) taken on it. **Stale** (**Desactualizada**) means a passage it cites has changed since.
-2. Click **New draft from the live lesson** (**Nuevo borrador a partir de la lección vigente**) or **New blank draft** (**Nuevo borrador en blanco**). A draft already started opens with **Open the draft** (**Abrir el borrador**).
+2. Click **New draft from the live lesson** (**Nuevo borrador a partir de la lección vigente**) or **New blank draft** (**Nuevo borrador en blanco**). A draft already started opens with **Open the draft** (**Abrir el borrador**). **New player draft** (**Nuevo borrador con reproductor**) starts a lesson of screens a voice reads, each followed by checks; see Write a player lesson with screens and checks.
 3. Pick the **Kind** (**Tipo**): **Quiz** (**Cuestionario**), a lesson read and answered, or **Observation checklist** (**Lista de observación**), steps a trainer watches the person do on the job. Write the **Title** (**Título**) in English, with the Spanish and the French under it.
 4. For an observation checklist, write 1 to 30 **Steps** (**Pasos**) with **Add a step** (**Agregar un paso**), each in all three languages, then go on to step 6. It has no questions, and **Needs a trainer** (**Necesita un instructor**) stays ticked. For a quiz, under **Blocks** (**Bloques**), click **Add a block** (**Agregar un bloque**) and pick **Text** (**Texto**), **List** (**Lista**) or **Warning** (**Advertencia**), and write it in all three languages, or click **Add a picture** (**Agregar una imagen**) for an **Image** (**Imagen**) block; see Add a picture to a lesson. **Cite a passage** (**Citar un pasaje**) finds the section of the procedure it comes from; click **Cite** (**Citar**) beside it.
 5. Write 5 to 10 questions with **Add a question** (**Agregar una pregunta**), each with 2 to 5 answers through **Add an answer** (**Agregar una respuesta**), and tick the right answer.
@@ -2087,7 +2089,7 @@ If it does not work: a refusal is shown at the top or under the field it names. 
 Words people use for this: write a lesson, online training, training quiz, training questions, publish a lesson, translate a lesson, observation checklist, on the job sign-off, lección en línea.
 Picture: training-lesson-versions
 Picture: training-lesson-editor
-Last checked: 2026-10-06
+Last checked: 2026-11-24
 
 ## Sign off training after a demonstration (admin dashboard)
 Who can do this: admins and supervisors, for anyone other than themselves
@@ -2798,15 +2800,15 @@ Last checked: 2026-11-17
 ## Read a person's leave ledger and adjust a balance (admin dashboard)
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances. Adjust is for admins and anyone given Keep leave policies and balances.
 1. Click **Leave balances** (**Saldos de permisos**) and click the person. From their HR file, click **Open the ledger** (**Abrir el registro**) under **Leave balances** (**Saldos de permisos**).
-2. The window shows the person's role, employment class and site, the policy they follow and since when, what the policy gives in plain words, each balance with its parts, and the **Ledger, newest first** (**Registro, lo más reciente primero**): every grant, hours worked, time off taken or given back, expiry and adjustment, with who made it.
-3. Under each kind, a balance names the most its policy lets the person earn or use in a year, where the policy sets one. The line above the balances says this is the app's figure and ADP self-service holds the official balance.
+2. The window shows the person's role, employment class and site, a sentence in the system's words saying which rules their time off follows, the policy they follow and since when, what the policy gives in plain words, each balance with its parts, and the **Ledger, newest first** (**Registro, lo más reciente primero**): every grant, hours worked, time off taken or given back, expiry and adjustment, with who made it.
+3. Under each kind, a balance names the most its policy lets the person earn or use in a year, where the policy sets one, and the rule it follows in plain words. A person at a union site reads **Union site** (**Sitio sindicalizado**) as their class. The line above the balances says this is the app's figure and ADP self-service holds the official balance.
 4. To correct a balance, click **Adjust** (**Ajustar**). Choose the **Kind** (**Tipo**), type the **Hours, plus or minus** (**Horas, más o menos**), for example 8 or -4, and the **Reason *** (**Motivo ***). **Date** (**Fecha**) starts on today; pick an earlier day when the change belongs to it, such as hours used before the app kept leave. Click **Save** (**Guardar**) and confirm. The adjustment is dated the day picked, follows the policy the person had that day, and names you.
 5. The balance and the ledger show the change at once.
 If it does not work: a reason is always needed, and the window says so in red without one. A day after today is refused with **Choose a day no later than today.** (**Elija un día que no sea posterior a hoy.**). A balance with no hire date on file names the profile to fix it, and a person with no class on file is not offered vacation or personal days until one is set. See Find the people with no class or no hire date.
 Words people use for this: leave ledger, sick hours history, correct a balance, adjust pto, add sick hours, take away vacation days, leave adjustment, backdate an adjustment, date of an adjustment, most a year, adp.
 Picture: leave-person
 Picture: leave-adjust
-Last checked: 2026-11-17
+Last checked: 2026-11-24
 
 ## Make or change a leave policy (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances. Anyone who can see leave balances can read the policies.
@@ -2848,12 +2850,12 @@ Last checked: 2026-11-17
 
 ## Find the people with no class or no hire date (admin dashboard)
 Who can do this: admins, and anyone given Read HR records or Keep leave policies and balances
-1. Click **Leave balances** (**Saldos de permisos**), then **Missing class or hire date** (**Sin clase o fecha de contratación**). The number beside the tab says how many people are listed, and it shows as soon as the page opens.
+1. Click **Leave balances** (**Saldos de permisos**), then **Missing class or hire date** (**Sin clase o fecha de contratación**). The number beside the tab says how many people are listed, and it shows as soon as the page opens. The line above the list counts them apart: **{0} with no class on file, {1} with no hire date.** (**{0} sin clase registrada, {1} sin fecha de contratación.**)
 2. The list shows each active person once, with what is missing: **Employment class** (**Clase de empleo**), **Hire date** (**Fecha de contratación**) or both. With no class, the person is not offered vacation or personal days, and their line names those kinds. With no hire date, their line names the leave that waits on it: a grant on the hire date, a seniority tier or a waiting period.
 3. Click **Open the profile** (**Abrir el perfil**) and set what is missing there: the **Employment Type** (**Tipo de empleo**), **Full Time** (**Tiempo completo**), **Part Time** (**Tiempo parcial**) or **Supplemental** (**Suplementario**), and the **Hire Date** (**Fecha de contratación**). See Change a staff member's hire date.
 Words people use for this: missing hire date, no hire date, start date missing, seniority not counting, missing class, no employment class, full time or part time, why no vacation, why no personal days.
 Picture: leave-missing
-Last checked: 2026-11-17
+Last checked: 2026-11-24
 
 ## Enter starting balances (admin dashboard)
 Who can do this: admins, and anyone given Keep leave policies and balances
@@ -2915,17 +2917,17 @@ Last checked: 2026-11-11
 ## Read the Health page (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
 1. Click **Health** (**Salud**) in the side panel. At the top, the light reads **Green, all normal** (**Verde, todo normal**), **Yellow, something to watch** (**Amarillo, algo para vigilar**) or **Red, something needs attention** (**Rojo, algo necesita atención**), with when the numbers were last checked, the last run-through and how many incidents are open.
-2. **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**), each monitor's status, uptime and response times, read again every minute. Below them it shows the 21 daily numbers in groups, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
+2. **Numbers** (**Indicadores**) starts with **Uptime monitors** (**Monitores de disponibilidad**), each monitor's status, uptime and response times, read again every minute. Below them it shows the daily numbers in groups, among them the task lists that failed to load and the lesson screens still waiting for their voice, such as **Speed and errors** (**Velocidad y errores**) and **Work at the sites** (**Trabajo en los sitios**). Each shows today in its own color, **Yesterday** (**Ayer**), the average of the **7 days** (**7 días**) before, and 30 days as a line, with its yellow and red lines under it. A number with nothing to measure reads **Not measured yet** (**Todavía no se mide**).
 3. Click a number to see who or what is behind it, such as the people who never signed in or the routes that answered with errors. **Copy for Claude** (**Copiar para Claude**) there copies the number and what is behind it for the chat.
 4. Click **Refresh** (**Actualizar**) to work today's numbers out again now. They are also worked out every hour, and for the day before at 7:00 AM.
-5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot, and a step the robot skipped says why, as **Why it was skipped: {0}** (**Por qué se omitió: {0}**).
+5. **Run-throughs** (**Recorridos de prueba**) starts with **The robot's sign-in** (**El inicio de sesión del robot**), how many days each test account's sign-in has left, then lists the robot's runs: how each started, when, how long it took, the journeys passed and failed, and each app's version. Click a run to see every journey and step. A failed step shows its error and a screenshot, and a step the robot skipped says why, as **Why it was skipped: {0}** (**Por qué se omitió: {0}**). **Covered** (**Cubierto**) says how much of each app the run went through, and the run's own page lists **What the run covered** (**Lo que cubrió la ejecución**) with what is not covered yet.
 6. Click **Run now** (**Ejecutar ahora**) to ask the robot for one more run. When one was asked for in the last two minutes, the page says **A run-through was just asked for. Wait two minutes before asking again.** (**Se acaba de pedir un recorrido de prueba. Espere dos minutos antes de pedir otro.**)
 7. **Incidents** (**Incidentes**) lists what went red, open and closed, with what fixed each. An outage a monitor caught is an incident too, with its monitor, its reason and how long it was down. Click **Write what fixed it** (**Escribir qué lo resolvió**), type what fixed it and click **Save** (**Guardar**). The reports print it.
 If it does not work: anyone else who reaches the page reads **Only the super admin and people given the Health page can open this page.** (**Solo el superadministrador y las personas a las que se les dio la página de Salud pueden abrir esta página.**) **Run now is not set up on this server yet.** (**Ejecutar ahora aún no está configurado en este servidor.**) means the robot's button is not connected yet. Before the robot's first run, **Run-throughs** (**Recorridos de prueba**) reads **The robot has not reported a run yet.** (**El robot todavía no ha informado ningún recorrido.**)
 Words people use for this: health page, platform health, is the app working, status page, uptime, run-throughs, the robot, incidents, outages, red alert, daily numbers, salud.
 Picture: health-numbers
 Picture: health-run
-Last checked: 2026-11-12
+Last checked: 2026-11-24
 
 ## Make a health report (admin dashboard)
 Who can do this: the super admin, and anyone the super admin has given the Health page
@@ -3133,3 +3135,162 @@ If it does not work: what you picked stays in the panel until you click **Save**
 Words people use for this: route a request, within scope, chargeable, out of scope, change of service, minutes absorbed, extra work, clasificación.
 Picture: client-request-route
 Last checked: 2026-11-18
+
+## Post the Employee of the Month (admin dashboard)
+Who can do this: admins, and anyone given **Employee of the Month** (**Empleado del Mes**) under Roles and Permissions
+1. Click **Employee of the Month** (**Empleado del Mes**) in the side panel. The page opens on this month.
+2. Click **Post this month's winner** (**Publicar el ganador de este mes**). Once this month has a winner, **Post an earlier month** (**Publicar un mes anterior**) posts one for a month before.
+3. Under **Person** (**Persona**), type part of a name, a badge number or an employee ID and pick the person. Only active staff are listed.
+4. **Month** (**Mes**) starts on this month. Pick an earlier month to fill in the team wall: **An earlier month goes on the team wall and tells nobody.** (**Un mes anterior va al muro del equipo y no se avisa a nadie.**) A month ahead cannot be picked.
+5. Type the **Reason** (**Motivo**), up to 280 characters. The count under it says how many are left. Write it in English; the Spanish and the French are filled in by the translation after you post.
+6. Under **Site** (**Sitio**), pick one of the person's active sites to show with the award, or leave **No site** (**Sin sitio**).
+7. With no profile photo, the window shows the person's initials in a gold circle. To add one, click **Add a photo** (**Agregar una foto**) and choose a picture; an iPhone's HEIC picture works too. **It becomes their profile photo. Have their okay first.** (**Será su foto de perfil. Pida su permiso primero.**)
+8. **What staff will see** (**Lo que verá el personal**) shows the award as it will appear. Click **Post** (**Publicar**).
+9. For this month, the page says how many people were told, as **Sent to {0} people** (**Enviado a {0} personas**): every active staff member gets a notice on their phone. An earlier month goes on the team wall and tells nobody.
+If it does not work: when the month already has a winner, the system's reason shows in the window; take the month's award down first, see Change or take down the Employee of the Month. A photo over 20 MB is refused before it goes up.
+Words people use for this: employee of the month, post the winner, recognize an employee, award, employee recognition, monthly award, empleado del mes.
+Picture: recognition-post
+Picture: recognition-award
+Last checked: 2026-11-24
+
+## Change or take down the Employee of the Month (admin dashboard)
+Who can do this: admins, and anyone given **Employee of the Month** (**Empleado del Mes**) under Roles and Permissions
+1. Click **Employee of the Month** (**Empleado del Mes**). This month's award shows its reason in English, Spanish and French. A language still being translated reads **Translating** (**Traduciendo**).
+2. Click **Edit** (**Editar**) to change the **Reason** (**Motivo**), the **Site** (**Sitio**), or the Spanish and the French. Changes are made during the award's own month, and nobody is told again.
+3. To write a language yourself, type it under **Spanish** (**Español**) or **French** (**Francés**); **Keep the office's own wording** (**Mantener la redacción de la oficina**) shows that the translation will not change it. Click **Give it back to the translation** (**Devolverlo a la traducción**) to let the translation write it again. Click **Save** (**Guardar**).
+4. Once the month ends, the card says **Editing closes when the award's month ends.** (**La edición se cierra cuando termina el mes del reconocimiento.**)
+5. To take an award down, click **Take down** (**Retirar**), type **Why it is taken down** (**Por qué se retira**) and click **Take it down** (**Retirarlo**). The award is kept on record and leaves what staff see, and the month is free for another award.
+If it does not work: an edit after the month has ended is refused in the system's words. The person's timeline in Staff Management records each award and each take-down.
+Words people use for this: edit the award, change the reason, fix the translation, remove employee of the month, take down the award, wrong person, retirar el reconocimiento.
+Picture: recognition-edit
+Last checked: 2026-11-24
+
+## Print the Employee of the Month certificate (admin dashboard)
+Who can do this: admins, and anyone given **Employee of the Month** (**Empleado del Mes**) under Roles and Permissions
+1. Click **Employee of the Month** (**Empleado del Mes**) and find the award, this month's at the top or a past one on the **Team wall** (**Muro del equipo**).
+2. Under **Certificate language** (**Idioma del certificado**), keep **The winner's own language** (**El idioma del ganador**), or pick **English** (**Inglés**), **Spanish** (**Español**) or **French** (**Francés**).
+3. Click **Certificate** (**Certificado**). The certificate opens as a PDF of one landscape page, with the winner's name, the month, the reason in that language and the signer's line. Print it or save it.
+If it does not work: the certificate's signer is set in Settings; see Change who signs the certificates. A pop-up blocker can stop the PDF from opening; allow pop-ups for the dashboard and click again.
+Words people use for this: print the certificate, employee of the month certificate, award certificate, certificate in spanish, certificado.
+Picture: recognition-certificate
+Last checked: 2026-11-24
+
+## See past winners on the team wall (admin dashboard)
+Who can do this: admins, and anyone given **Employee of the Month** (**Empleado del Mes**) under Roles and Permissions
+1. Click **Employee of the Month** (**Empleado del Mes**) and scroll to **Team wall** (**Muro del equipo**). It lists every past winner, newest month first, each with the photo or initials, the month, the reason and the reactions.
+2. Click **Show more** (**Mostrar más**) at the bottom for older months.
+3. An award taken down while the page is open stays on the wall marked **Taken down** (**Retirado**), with its reason, so the office sees what happened. Staff never see it.
+If it does not work: **No past winners yet.** (**Todavía no hay ganadores anteriores.**) means no earlier month has an award yet; post one with **Post an earlier month** (**Publicar un mes anterior**).
+Words people use for this: team wall, past winners, previous employee of the month, award history, muro del equipo.
+Picture: recognition-wall
+Last checked: 2026-11-24
+
+## Give a shout-out (admin dashboard)
+Who can do this: admins and supervisors, and anyone given **Post shout-outs** (**Publicar reconocimientos**). A supervisor names only the people they work with.
+1. Click **Employee of the Month** (**Empleado del Mes**), then **Shout-outs** (**Reconocimientos**). A supervisor's page opens there.
+2. Click **Give a shout-out** (**Dar un reconocimiento**).
+3. Under **Person** (**Persona**), search by name and pick the person. **Only the people you work with are listed, each with the sites you share.** (**Solo aparecen las personas con las que trabaja, cada una con los sitios que comparten.**) An admin can pick any active staff member.
+4. Pick the **Site** (**Sitio**) the shout-out is for, from the sites you share.
+5. Type the **Shout-out** (**Reconocimiento**), up to 200 characters, and click **Post** (**Publicar**). The person gets a notice on their phone, and everyone at the site sees the shout-out.
+6. The list shows the shout-outs of the last 30 days, newest first, each with its line in English, Spanish and French once translated, who posted it and its reactions. Click **Show more** (**Mostrar más**) for older ones.
+If it does not work: when the person no longer shares a site with you, the system's reason shows in the window. Nobody gives themselves a shout-out.
+Words people use for this: shout-out, shoutout, thank an employee, recognize someone, kudos, good job, reconocimiento.
+Picture: recognition-shoutout-post
+Picture: recognition-shoutouts
+Last checked: 2026-11-24
+
+## Take down a shout-out (admin dashboard)
+Who can do this: the person who posted it, admins, and anyone given **Employee of the Month** (**Empleado del Mes**)
+1. Click **Employee of the Month** (**Empleado del Mes**), then **Shout-outs** (**Reconocimientos**), and find the shout-out.
+2. Click **Take down** (**Retirar**).
+3. Type **Why it is taken down (optional)** (**Por qué se retira (opcional)**) and click **Take it down** (**Retirarlo**). The shout-out is kept on record and leaves what staff see.
+If it does not work: when someone else took it down first, the window says so in the system's words, and the list shows it taken down.
+Words people use for this: remove a shout-out, delete a shout-out, take down a shout-out, wrong shout-out, retirar reconocimiento.
+Picture: recognition-shoutout-remove
+Last checked: 2026-11-24
+
+## Make a training course and put its chapters in order (admin dashboard)
+Who can do this: admins
+1. Click **Training** (**Capacitación**), then **Courses** (**Cursos**). Each course shows its name, who it is for, **Certificate** (**Certificado**) when it gives one, **Promoted** (**Destacado**), and its chapters in order.
+2. Click **New course** (**Nuevo curso**). Type the **Key** (**Clave**): lowercase letters, digits and _, starting with a letter; it cannot change later.
+3. Type the **Name** (**Nombre**) and the **Summary** (**Resumen**) in English, Spanish and French. Pick **Who it is for** (**Para quién es**), **Staff** (**Personal**) or **Office** (**Oficina**), and the **Order** (**Orden**) it lists in.
+4. Tick **Gives a certificate when every chapter is done** (**Da un certificado cuando se completan todos los capítulos**) and **Promoted to current staff** (**Destacado para el personal actual**) as needed. Click **Save** (**Guardar**).
+5. A name that is not in Title Case gets a note beside it, and the window stays open to show it. The note is a suggestion; nothing is refused for it. Fix the name and save again, or close the window.
+6. Click **Chapters** (**Capítulos**) on the course. Pick a topic in **Add a chapter** (**Agregar un capítulo**) and click **Add** (**Agregar**). Drag a chapter to move it, or use the up and down arrows beside it. A course holds 40 chapters at most.
+7. Click **Save the order** (**Guardar el orden**).
+8. Click **Edit** (**Editar**) on a course to change it later; untick **Active** (**Activo**) to retire it.
+If it does not work: a key another course uses is refused at **Key** (**Clave**) in the system's words. A course is never a requirement: who must take a training stays on each topic. See Say who needs a training topic.
+Words people use for this: training course, make a course, course chapters, order the chapters, course certificate, curso.
+Picture: training-courses
+Picture: training-course-chapters
+Last checked: 2026-11-24
+
+## Write a player lesson with screens and checks (admin dashboard)
+Who can do this: admins
+1. Open the topic from **Catalog** (**Catálogo**) and click **Lesson** (**Lección**). Click **New player draft** (**Nuevo borrador con reproductor**).
+2. Click **Add a screen** (**Agregar una pantalla**). Write **What the voice says** (**Lo que dice la voz**) in English, Spanish and French, and a **Caption (optional)** (**Subtítulo (opcional)**). Under **Media** (**Medio**), pick **Picture** (**Imagen**) and **Upload a picture** (**Subir una imagen**), or **Video** (**Video**) and **Upload the video** (**Subir el video**): an MP4 or WebM video up to 25 MB, with a **Poster picture (optional)** (**Imagen de portada (opcional)**) and a video of its own for Spanish or French.
+3. Click **Add a check** (**Agregar una verificación**). Pick the screen it comes **After the screen** (**Después de la pantalla**) and its **Kind** (**Tipo**): **Choose an answer** (**Elegir una respuesta**), **Choose a picture** (**Elegir una imagen**) or **Tap the picture** (**Tocar la imagen**). Write **The question** (**La pregunta**) and tick the **Screens it replays after a wrong answer** (**Pantallas que repite tras una respuesta incorrecta**).
+4. For an answer or a picture, write 2 to 4 choices and tick **The right answer** (**La respuesta correcta**). For a tap check, upload **The picture to tap** (**La imagen que se toca**) and drag on it to draw each right spot; the numbers under each box set it by keyboard, and **Add a target in the middle** (**Agregar un objetivo en el centro**) adds one.
+5. Write **The line the learner signs** (**La línea que firma quien aprende**).
+6. Click **Save draft** (**Guardar borrador**). Each problem is listed at the top and drawn under its field; click one to go to it. The notes under fields, such as French still empty, do not stop publishing.
+7. **Translate the empty Spanish and French** (**Traducir el español y el francés vacíos**) fills the empty texts; have someone fluent check them.
+8. Click **Preview** (**Vista previa**) to step through the screens and checks in a phone-size frame. Click **Publish** (**Publicar**) once no problem is left.
+If it does not work: a video over 25 MB, or a file that is not MP4 or WebM, is refused before it goes up. A draft with problems cannot publish. Leaving the draft with changes not saved asks first.
+Words people use for this: player lesson, video lesson, screens, tap the picture, narrated lesson, training video, lección con reproductor.
+Picture: training-player-editor
+Picture: training-player-preview
+Last checked: 2026-11-24
+
+## Choose the chapter new staff watch before they sign in (admin dashboard)
+Who can do this: admins
+1. Open the topic from **Catalog** (**Catálogo**). Its **Details** (**Detalles**) show **Opens before sign-in** (**Se abre antes de iniciar sesión**).
+2. Click the switch to turn it **On** (**Activado**). The welcome email links new staff to this chapter's published lesson before they sign in. One topic at most opens this way.
+3. To move it to another topic, turn it **Off** (**Desactivado**) on the topic that holds it first, then turn it on here.
+If it does not work: when another topic already opens before sign-in, the system's reason shows under the switch with that topic's name.
+Words people use for this: setup chapter, welcome video, watch before sign in, signed out lesson, account setup video, se abre antes de iniciar sesión.
+Picture: training-signed-out
+Last checked: 2026-11-24
+
+## Change who signs the certificates (admin dashboard)
+Who can do this: admins
+1. Click **Settings** (**Configuración**), then **Training** (**Capacitación**). **Certificate signer** (**Firmante de certificados**) shows the name, the title in each language, whether a signature is on file and the approval note. It is the person whose name and signature go on every course certificate and on the Employee of the Month certificate.
+2. Click **Change the signer** (**Cambiar el firmante**).
+3. Type the **Name** (**Nombre**) and the **Title** (**Título**) in English, Spanish and French, choose the **Signature** (**Firma**), a PNG picture with a transparent background up to 1 MB, and type the **Approval note** (**Nota de aprobación**).
+4. Click **Change the signer** (**Cambiar el firmante**). The window asks once more with the new name; click **Yes, change the signer** (**Sí, cambiar el firmante**).
+5. The signer before is kept, made inactive. Certificates made from now on carry the new signer.
+If it does not work: a missing name or English title is refused under its field. With no signer, certificates print the signature line alone.
+Words people use for this: certificate signer, who signs certificates, signature on certificates, change the signature, firmante.
+Picture: settings-certificate-signer
+Last checked: 2026-11-24
+
+## Reset a person's tries at a lesson (admin dashboard)
+Who can do this: admins
+1. Click **Training** (**Capacitación**), then **Gaps** (**Brechas**). **Out of tries** (**Sin intentos**) at the top lists each person whose online lesson's tries are used up, with the lesson.
+2. Click **Reset tries** (**Restablecer intentos**) beside the person and confirm. Their failed tries are voided and kept on record, and they can take the lesson again. The same button is on a person's own training list.
+3. To reset everyone at once, click **Reset everyone's tries** (**Restablecer los intentos de todos**). The window says how many people are out of tries now. Type RESET in **Type RESET to go on** (**Escriba RESET para continuar**), then click **Reset everyone's tries** (**Restablecer los intentos de todos**). Do this only when the office has decided to.
+If it does not work: the button stays grey until RESET is typed in capitals. A person with tries left is not listed.
+Words people use for this: reset tries, out of tries, failed the quiz too many times, retake a lesson, try again, restablecer intentos.
+Picture: training-out-of-tries
+Picture: training-reset-everyone
+Last checked: 2026-11-24
+
+## Open or resend a person's course certificate (admin dashboard)
+Who can do this: admins, and anyone given Read HR records
+1. Click **HR Records** (**Expedientes de personal**) and open the person's folder.
+2. Click **Course certificates** (**Certificados de cursos**) to see the certificates the system filed when the person finished a course.
+3. Click **Open file** (**Abrir el archivo**) to open the PDF.
+4. Click **Resend** (**Reenviar**) and confirm to email it to the person again, with the PDF. The page says whether the email went.
+If it does not work: when the person has no working email on file, nothing is sent and the page says so. When a certificate is already being sent, wait a minute and try again.
+Words people use for this: course certificate, training certificate, resend certificate, email the certificate, certificado de curso.
+Picture: hr-course-certificate
+Last checked: 2026-11-24
+
+## Remove a person's profile photo (admin dashboard)
+Who can do this: admins
+1. Click **Staff Management** (**Gestión de personal**) and click the person.
+2. Under their photo, click **Remove photo** (**Quitar la foto**) and confirm. Their initials show in its place, on the profile and on any award.
+3. Their timeline records **Profile photo removed** (**Foto de perfil eliminada**).
+If it does not work: only admins see the button, and only when the person has a photo.
+Words people use for this: remove photo, delete profile picture, take down a photo, wrong photo, quitar la foto.
+Picture: staff-photo-remove
+Last checked: 2026-11-24
