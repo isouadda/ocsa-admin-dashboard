@@ -6150,6 +6150,16 @@ export const WORDS = {
   "{0} ID {1}|the number the office gives a person": { es: "ID de {0} {1}", fr: "ID {0} {1}" },
   "No {0} ID or badge": { es: "Sin ID de {0} ni n\u00famero de empleado", fr: "Ni ID {0} ni badge" },
   "Same name": { es: "Mismo nombre", fr: "M\u00eame nom" },
+  "Choose the record to link.": { es: "Elija el registro que quiere vincular.", fr: "Choisissez l'enregistrement \u00e0 lier." },
+  "That record was removed after the list was read. Choose another.": { es: "Ese registro se elimin\u00f3 despu\u00e9s de leer la lista. Elija otro.", fr: "Cet enregistrement a \u00e9t\u00e9 supprim\u00e9 apr\u00e8s la lecture de la liste. Choisissez-en un autre." },
+  "No sites yet.": { es: "Todav\u00eda no hay sitios.", fr: "Pas encore de sites." },
+  "Record": { es: "Registro", fr: "Enregistrement" },
+  "Choose a record": { es: "Elija un registro", fr: "Choisissez un enregistrement" },
+  "Search by title or date": { es: "Buscar por t\u00edtulo o fecha", fr: "Rechercher par titre ou date" },
+  "Nothing of this kind is on file here.": { es: "No hay nada de este tipo registrado aqu\u00ed.", fr: "Rien de ce type n'est enregistr\u00e9 ici." },
+  "Nothing matches.": { es: "Nada coincide.", fr: "Rien ne correspond." },
+  "Untitled": { es: "Sin t\u00edtulo", fr: "Sans titre" },
+  "No date": { es: "Sin fecha", fr: "Sans date" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

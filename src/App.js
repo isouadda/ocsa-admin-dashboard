@@ -27011,6 +27011,79 @@ const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added
 // Where an alias came from, as the API stores it (user_aliases.source), drawn as its word.
 const ALIAS_SOURCE_WORDS = { manual_link: "Linked by hand", admin_added: "Added by an admin", auto_learned: "Learned from a match" };
 const aliasSourceWord = (v) => (ALIAS_SOURCE_WORDS[v] ? tr(ALIAS_SOURCE_WORDS[v]) : String(v || ""));
+
+// ===== LINK A SUBMISSION TO A RECORD, WITHOUT AN ID (Round 15, part 420) =====
+// Link to Record keeps the choice of the kind of record and picks the record itself from a list, so nobody types or
+// pastes an id. A person is picked from the people of users-for-linking; a site from the sites list; an HR document,
+// training record or onboarding step from that person's own list once the person is picked; an inspection, issue,
+// assigned task, shift or shift pickup from that site's own list once the site is picked. Each list is read from a
+// route the dashboard already reads for the same records, and each record is named by its title and its date, newest
+// first, in the searchable picker. A list read with a site is also kept to that site here when its rows name their
+// site, so a route that answers every site's records still offers the one site's alone. The link is sent as it always was, POST
+// /api/jotform/submissions/:id/link { entity_type, entity_id }.
+const LINK_BY_PERSON = ["hr_document", "hr_training", "hr_onboarding_step"];
+const LINK_BY_SITE = ["inspection", "issue", "task", "shift", "pickup"];
+// Shifts and pickups are read over a window of days: 90 back, where a filed form is most often about, and 30 ahead.
+const LINK_DAYS_BACK = 90;
+const LINK_DAYS_AHEAD = 30;
+const linkListOf = (d, key) => (Array.isArray(d) ? d : d && Array.isArray(d[key]) ? d[key] : []);
+const linkSiteOf = (r) => String((r && (r.site_id != null ? r.site_id : r.siteId)) || "");
+// The rows of one site, where the rows say their site; a list whose rows say none is the route's own answer for it.
+const linkKeepSite = (rows, site) => (rows.some(r => linkSiteOf(r)) ? rows.filter(r => linkSiteOf(r) === String(site)) : rows);
+const linkTimes = (r) => (r.start_time || r.startTime ? tr("{0} to {1}", patternTime(r.start_time || r.startTime), patternTime(r.end_time || r.endTime)) : "");
+// Each kind's list: the route, the rows in the answer, and each row's title and the day it is dated by.
+const LINK_LISTS = {
+  hr_document: { read: (o) => "/api/hr/documents?user_id=" + encodeURIComponent(o), title: (r) => r.title || r.document_name || r.file_name || "", day: (r) => r.created_at || r.uploaded_at || r.expiry_date || "" },
+  hr_training: { read: (o) => "/api/hr/training?user_id=" + encodeURIComponent(o), title: (r) => r.training_name || r.title || "", day: (r) => r.completed_date || r.created_at || "" },
+  hr_onboarding_step: { read: (o) => "/api/hr/onboarding/" + encodeURIComponent(o), key: "steps", title: (r) => r.step_name || r.title || "", day: (r) => r.completed_date || r.due_date || r.created_at || "" },
+  inspection: { read: (o) => "/api/inspections/scheduled?site_id=" + encodeURIComponent(o), title: (r) => r.template_name || r.name || r.title || "", day: (r) => r.scheduled_date || r.completed_at || r.created_at || "" },
+  issue: { read: (o) => pagedPath("/api/issues", { site_id: o }, ""), key: "issues", title: (r) => r.title || "", day: (r) => r.reported_at || r.created_at || "" },
+  task: { read: (o) => "/api/clock/tasks/assigned-all?site_id=" + encodeURIComponent(o), title: (r) => r.label || r.title || r.task_name || "", day: (r) => r.due_date || r.created_at || "" },
+  shift: { read: (o, from, to) => "/api/schedule/calendar?start_date=" + from + "&end_date=" + to + "&site_id=" + encodeURIComponent(o), key: "scheduled_shifts", title: (r) => [r.user_name || r.userName || "", linkTimes(r)].filter(Boolean).join(", "), day: (r) => r.scheduled_date || r.shift_date || "" },
+  pickup: { read: (o, from, to) => "/api/pickups?start_date=" + from + "&end_date=" + to + "&site_id=" + encodeURIComponent(o), title: (r) => [linkTimes(r), r.building_name || r.service_category || ""].filter(Boolean).join(", "), day: (r) => r.scheduled_date || r.shift_date || "" },
+};
+const linkDayShift = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return companyDayOf(d); };
+function LinkRecordPick({ af, t, type, owner, value, onPick, reloadKey = 0 }) {
+  const [st, setSt] = useState({ rows: null, failed: false, next: "" });
+  const [again, setAgain] = useState(0);
+  const spec = LINK_LISTS[type];
+  const bySite = LINK_BY_SITE.indexOf(type) >= 0;
+  useEffect(() => {
+    if (!spec || !owner) { setSt({ rows: null, failed: false, next: "" }); return undefined; }
+    let alive = true;
+    setSt({ rows: null, failed: false, next: "" });
+    af(spec.read(owner, linkDayShift(-LINK_DAYS_BACK), linkDayShift(LINK_DAYS_AHEAD))).then(d => {
+      if (!alive) return;
+      const all = linkListOf(d, spec.key || "").filter(r => r && r.id != null);
+      const rows = bySite ? linkKeepSite(all, owner) : all;
+      setSt({ rows, failed: false, next: d && d.nextCursor ? String(d.nextCursor) : "" });
+    }).catch(e => { if (alive) { console.warn("Link list:", e.message); setSt({ rows: null, failed: true, next: "" }); } });
+    return () => { alive = false; };
+  }, [type, owner, again, reloadKey]);
+  // An issue list pages: Show more reads the next page with its cursor and adds what it holds.
+  const more = async () => {
+    if (!st.next) return;
+    try {
+      const d = await af(pagedPath("/api/issues", { site_id: owner }, st.next));
+      const page = linkKeepSite(linkListOf(d, "issues").filter(r => r && r.id != null), owner);
+      setSt(s0 => ({ rows: pagedAppend(s0.rows, page, r => r.id), failed: false, next: d && d.nextCursor ? String(d.nextCursor) : "" }));
+    } catch (e) { console.warn("Link list:", e.message); }
+  };
+  if (!owner) return null;
+  if (st.failed) return <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} style={{ padding: "8px 0", textAlign: "left" }} />;
+  if (!st.rows) return <div data-link-record-loading="" style={{ fontSize: 12, color: t.textMut, minHeight: 44, display: "flex", alignItems: "center" }}>{tr("Loading...")}</div>;
+  const sortKey = (r) => companyDayOf(spec.day(r)) + " " + String(r.start_time || r.startTime || "");
+  const options = st.rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a))).map(r => {
+    const day = spec.day(r);
+    return { v: String(r.id), l: spec.title(r) || tr("Untitled"), sub: day ? fdLong(day) : tr("No date") };
+  });
+  return (<div>
+    <PersonPick t={t} aria-label={tr("Record")} data-link-record="" value={value} onChange={e => onPick(e.target.value)} options={[{ v: "", l: tr("Choose a record") }].concat(options)}
+      searchText={tr("Search by title or date")} noneText={tr("Nothing of this kind is on file here.")} noMatchText={tr("Nothing matches.")} />
+    {st.next ? <button type="button" data-link-record-more="" onClick={more} style={{ minHeight: 44, marginTop: 4, padding: "0 6px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Show more")}</button> : null}
+  </div>);
+}
+
 function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false, canOpenCase = false, canReadHrRecords = true }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
@@ -27057,6 +27130,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // The active people GET /api/jotform/users-for-linking answers, as the searchable picker's rows (part 420): found by
   // name, OCSA ID or badge, each row with both, and two people with one name marked Same name.
   const linkPeople = useMemo(() => personRows(usersForLinking), [usersForLinking]);
+  // The sites a record is linked to, or whose records are listed, by name (part 420).
+  const linkSites = useMemo(() => (sites || []).filter(x => x && x.id != null).map(x => ({ v: String(x.id), l: x.name || String(x.id) })).sort((a, b) => a.l.localeCompare(b.l)), [sites]);
   const [editForm, setEditForm] = useState(null);
   const [detailSub, setDetailSub] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -27638,17 +27713,30 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     catch (e) { showToast(e.message, "error"); }
   };
 
+  // The link to a record (part 420): sent once a record is picked. The record was listed a moment ago, so the API's 404
+  // can only mean it was removed meanwhile; the window says so, stays open and reads its list again.
+  const [linkReload, setLinkReload] = useState(0);
   const submitLink = async () => {
-    if (!linkModal.entity_type || !linkModal.entity_id) { showToast(tr("Select entity type and ID"), "error"); return; }
+    if (!linkModal.entity_type || !linkModal.entity_id) { showToast(tr("Choose the record to link."), "error"); return; }
     try {
       await af("/api/jotform/submissions/" + linkModal.submission_id + "/link", {
         method: "POST",
         body: { entity_type: linkModal.entity_type, entity_id: linkModal.entity_id }
       });
       showToast(tr("Linked"));
+      const subId = linkModal.submission_id;
       setLinkModal(null);
       loadSubmissions(false);
-    } catch (e) { showToast(e.message, "error"); }
+      if (detailSub && detailSub.meta && String(detailSub.meta.id) === String(subId)) openSubmissionDetail({ id: subId });
+    } catch (e) {
+      if (e.status === 404 || /target entity not found/i.test(e.message || "")) {
+        showToast(tr("That record was removed after the list was read. Choose another."), "error");
+        setLinkModal(m0 => (m0 ? { ...m0, entity_id: "" } : m0));
+        setLinkReload(n => n + 1);
+        return;
+      }
+      showToast(e.message, "error");
+    }
   };
 
   // Session 21: fetch PDF as blob (binary payload, bypasses af which expects JSON)
@@ -28512,7 +28600,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
               {!detailSub.meta.linked_entity_type && (
                 <div style={{ marginBottom: 14 }}>
-                  <Btn t={t} v="ghost" style={{ fontSize: 12, padding: "6px 12px" }} onClick={() => setLinkModal({ submission_id: detailSub.meta.id, entity_type: "hr_document", entity_id: "" })}>{tr("Link to Record")}</Btn>
+                  <Btn t={t} v="ghost" style={{ fontSize: 12, padding: "6px 12px" }} data-sub-link-record="" onClick={() => setLinkModal({ submission_id: detailSub.meta.id, entity_type: "hr_document", owner: "", entity_id: "" })}>{tr("Link to Record")}</Btn>
                 </div>
               )}
 
@@ -28616,21 +28704,35 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {/* ================ LINK MODAL ================ */}
       {linkModal && (
         <Mdl name="forms-link-modal" t={t} onClose={() => setLinkModal(null)}>
-          <div style={{ padding: 20 }}>
+          {/* Tall enough that a picker's open list fits inside the window under the record's field. */}
+          <div style={{ padding: 20, minHeight: 560, boxSizing: "border-box" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Link Submission to Record")}</div>
               <button onClick={() => setLinkModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
             </div>
             <div style={{ marginBottom: 12 }}><Lbl>{tr("Entity Type")}</Lbl>
-              <Sel options={ENTITY_TYPE_OPTS} value={linkModal.entity_type} onChange={e => setLinkModal({ ...linkModal, entity_type: e.target.value, entity_id: "" })} t={t} />
+              <Sel data-link-type="" aria-label={tr("Entity Type")} options={ENTITY_TYPE_OPTS} value={linkModal.entity_type} onChange={e => setLinkModal({ ...linkModal, entity_type: e.target.value, owner: "", entity_id: "" })} t={t} />
             </div>
-            <div style={{ marginBottom: 16 }}><Lbl>{tr("Record ID (UUID)")}</Lbl>
-              <Inp t={t} placeholder={tr("Paste the UUID of the target record")} value={linkModal.entity_id} onChange={e => setLinkModal({ ...linkModal, entity_id: e.target.value })} />
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 4, lineHeight: 1.5 }}>{tr("For HR documents, you can also link from the HR Records page by selecting a synced submission in the Add Document modal.")}</div>
-            </div>
+            {/* What is linked is picked, never typed (part 420): a person or a site itself, or a record of a person or a site. */}
+            {linkModal.entity_type === "user" && <div style={{ marginBottom: 16 }}><Lbl>{tr("Person")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Person")} data-link-person="" value={linkModal.entity_id} onChange={e => setLinkModal({ ...linkModal, entity_id: e.target.value })} options={[{ v: "", l: tr("Choose a person") }].concat(linkPeople)} />
+            </div>}
+            {linkModal.entity_type === "site" && <div style={{ marginBottom: 16 }}><Lbl>{tr("Site")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Site")} data-link-site="" value={linkModal.entity_id} onChange={e => setLinkModal({ ...linkModal, entity_id: e.target.value })} options={[{ v: "", l: tr("Choose a site") }].concat(linkSites)} searchText={tr("Search by name")} noneText={tr("No sites yet.")} noMatchText={tr("Nothing matches.")} />
+            </div>}
+            {LINK_BY_PERSON.indexOf(linkModal.entity_type) >= 0 && <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Person")} data-link-owner="" value={linkModal.owner || ""} onChange={e => setLinkModal({ ...linkModal, owner: e.target.value, entity_id: "" })} options={[{ v: "", l: tr("Choose a person") }].concat(linkPeople)} />
+            </div>}
+            {LINK_BY_SITE.indexOf(linkModal.entity_type) >= 0 && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Site")} data-link-owner="" value={linkModal.owner || ""} onChange={e => setLinkModal({ ...linkModal, owner: e.target.value, entity_id: "" })} options={[{ v: "", l: tr("Choose a site") }].concat(linkSites)} searchText={tr("Search by name")} noneText={tr("No sites yet.")} noMatchText={tr("Nothing matches.")} />
+            </div>}
+            {(LINK_BY_PERSON.indexOf(linkModal.entity_type) >= 0 || LINK_BY_SITE.indexOf(linkModal.entity_type) >= 0) && linkModal.owner && <div style={{ marginBottom: 16 }}><Lbl>{tr("Record")}</Lbl>
+              <LinkRecordPick af={af} t={t} type={linkModal.entity_type} owner={linkModal.owner} value={linkModal.entity_id} reloadKey={linkReload} onPick={v => setLinkModal(m0 => ({ ...m0, entity_id: v }))} />
+            </div>}
+            {linkModal.entity_type === "hr_document" && <div style={{ fontSize: 10, color: t.textMut, marginTop: -8, marginBottom: 16, lineHeight: 1.5 }}>{tr("For HR documents, you can also link from the HR Records page by selecting a synced submission in the Add Document modal.")}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <Btn t={t} v="ghost" onClick={() => setLinkModal(null)}>{tr("Cancel")}</Btn>
-              <Btn t={t} onClick={submitLink}>{tr("Link|button")}</Btn>
+              <Btn t={t} data-link-submit="" onClick={submitLink} disabled={!linkModal.entity_id} style={linkModal.entity_id ? undefined : { opacity: 0.5, cursor: "default" }}>{tr("Link|button")}</Btn>
             </div>
           </div>
         </Mdl>

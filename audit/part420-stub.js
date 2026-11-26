@@ -11,6 +11,15 @@
 //                                              and the inbox's row then read the person linked
 //     POST  /api/jotform/user-aliases          kept in sent(), then answered as the layers under it answer
 //
+//   Section 2, Link to Record without an id (routes/jotform.js):
+//     POST  /api/jotform/submissions/:id/link  { entity_type, entity_id } -> { success }; 404 "Target entity not found"
+//                                              for a record named in the scene removed (taken away after the list
+//                                              was read); the submission then reads linked_entity_type and
+//                                              linked_entity_id
+//     DELETE /api/jotform/submissions/:id/link the link taken off
+//     The lists the window reads (documents, training, onboarding, inspections, issues, assigned tasks, the
+//     schedule's calendar, pickups) are answered by the layers under this one, as they always were.
+//
 // Every value is invented: the people, their numbers and badges.
 "use strict";
 
@@ -20,7 +29,7 @@ module.exports = (ctx) => {
 
   let model = null;
   const m = () => {
-    if (!model) model = { scene: {}, sent: [], linkedUser: {} };
+    if (!model) model = { scene: {}, sent: [], linkedUser: {}, linkedRecord: {} };
     return model;
   };
   const sc = () => m().scene;
@@ -39,10 +48,18 @@ module.exports = (ctx) => {
 
   // A submission's row as the reads answer it once someone has linked it here.
   const withLinks = (row) => {
-    if (!row || typeof row !== "object" || !Object.prototype.hasOwnProperty.call(m().linkedUser, row.id)) return row;
-    const uid = m().linkedUser[row.id];
-    const p = uid ? personById(uid) : null;
-    return Object.assign({}, row, { user_id: p ? p.id : null, first_name: p ? p.first_name : null, last_name: p ? p.last_name : null, user_employee_id: p ? p.employee_id : null });
+    if (!row || typeof row !== "object") return row;
+    let out = row;
+    if (Object.prototype.hasOwnProperty.call(m().linkedUser, row.id)) {
+      const uid = m().linkedUser[row.id];
+      const p = uid ? personById(uid) : null;
+      out = Object.assign({}, out, { user_id: p ? p.id : null, first_name: p ? p.first_name : null, last_name: p ? p.last_name : null, user_employee_id: p ? p.employee_id : null });
+    }
+    if (Object.prototype.hasOwnProperty.call(m().linkedRecord, row.id)) {
+      const r = m().linkedRecord[row.id];
+      out = Object.assign({}, out, { linked_entity_type: r ? r.entity_type : null, linked_entity_id: r ? r.entity_id : null, linked_at: r ? "2026-03-18T01:30:00.000Z" : null });
+    }
+    return out;
   };
 
   function route(method, path, query, body, said, base) {
@@ -61,6 +78,20 @@ module.exports = (ctx) => {
       return { status: 200, json: { success: true, aliases_recorded: b.user_id ? { name: "added", email: "skipped" } : null } };
     }
     if (path === "/api/jotform/user-aliases" && method === "POST") sent("alias", b);
+
+    const recordLink = /^\/api\/jotform\/submissions\/([^/]+)\/link$/.exec(path);
+    if (recordLink && method === "POST") {
+      const id = decodeURIComponent(recordLink[1]);
+      sent("linkRecord", { id, body: b });
+      if (!b.entity_type || !b.entity_id) return { status: 400, json: { error: T(lang, "entity_type and entity_id are required", "Se requieren entity_type y entity_id") } };
+      if ((sc().removed || []).indexOf(String(b.entity_id)) >= 0) return { status: 404, json: { error: "Target entity not found" } };
+      m().linkedRecord[id] = { entity_type: b.entity_type, entity_id: String(b.entity_id) };
+      return { status: 200, json: { success: true } };
+    }
+    if (recordLink && method === "DELETE") {
+      m().linkedRecord[decodeURIComponent(recordLink[1])] = null;
+      return { status: 200, json: { success: true } };
+    }
 
     const a = base();
     if (!a || a.status !== 200 || !a.json) return a;

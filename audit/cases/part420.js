@@ -5,6 +5,9 @@
 //   pickers     section 1: a Jotform submission linked to a person found by part of a name, by OCSA ID and by badge;
 //               two people with one name told apart by their rows and the Same name mark; Add Alias and Per-person
 //               permissions found by typing
+//   records     section 2: Link to Record for each kind kept, the record picked from a list and never an id asked
+//               for, the person's or the site's own records, newest first, each by its title and date; and a
+//               record removed after the list was read said so in the toast, the window kept open
 "use strict";
 const { createStubs } = require("../stubs");
 
@@ -208,12 +211,133 @@ async function pickerCases(ctx, lang) {
   });
 }
 
+// ---- Section 2: Link to Record without an id ----------------------------------------------------------------------------
+const LINK_WIN = "[data-window='forms-link-modal']";
+async function openLink(d, subId) {
+  const opened = await openSubmission(d, subId);
+  await click(d, "[data-window='forms-detail-sub'] [data-sub-link-record]");
+  return opened && (await until(d, LINK_WIN, 4000));
+}
+// What the window asks for besides its pickers: any box to type into that is not a picker's own search, and any word
+// that asks for an id.
+async function asksForAnId(d) {
+  const boxes = await d.page.locator(LINK_WIN + " input:not([data-person-pick-search]), " + LINK_WIN + " textarea").count();
+  const text = await textOf(d, LINK_WIN);
+  return { boxes, words: /UUID|\bID\b|record id/i.test(text) };
+}
+async function recordRows(d) {
+  await click(d, LINK_WIN + " [data-link-record] [data-person-pick-field]");
+  const rows = d.page.locator(LINK_WIN + " [data-link-record] [data-person-pick-box] [data-person-pick-option]");
+  const out = [];
+  const n = await rows.count();
+  for (let i = 0; i < n; i += 1) {
+    const r = rows.nth(i);
+    const rid = await r.getAttribute("data-person-pick-option");
+    if (!rid) continue;
+    const sub = r.locator("[data-person-pick-sub]");
+    out.push({ id: rid, text: (await r.innerText()).trim(), sub: (await sub.count()) ? (await sub.innerText()).trim() : "" });
+  }
+  return out;
+}
+
+async function recordCases(ctx, lang) {
+  const { results, seed, stubs: shared } = ctx;
+  const id = (x) => KIND + "/" + lang + "/records/" + x;
+  const S0 = seed.SITES[0];
+  const fx = shared.fixtures;
+  const P5 = seed.STAFF.find((x) => x.id === "u-staff-5");
+  // Each kind kept, how its record is reached, and the records the stub holds for that person or site, newest first.
+  const KINDS = [
+    { type: "user", person: "u-staff-7", typed: () => seed.STAFF.find((x) => x.id === "u-staff-7").employee_id, want: "u-staff-7" },
+    { type: "site", site: S0.id, typed: () => S0.name, want: S0.id },
+    { type: "hr_document", owner: P5.id, typed: () => P5.badge_number, rows: () => fx.HR_DOCUMENTS ? fx.HR_DOCUMENTS.filter((x) => x.user_id === P5.id).sort((a, b) => b.created_at.localeCompare(a.created_at)).map((x) => x.id) : null },
+    { type: "hr_training", owner: P5.id, typed: () => P5.employee_id, rows: null },
+    { type: "hr_onboarding_step", owner: P5.id, typed: () => P5.last_name, rows: null },
+    { type: "inspection", owner: S0.id, typed: () => S0.name, rows: null },
+    { type: "issue", owner: S0.id, typed: () => S0.name, rows: null, key: "issues", order: ["i-1", "i-2"] },
+    { type: "task", owner: S0.id, typed: () => S0.name, rows: null },
+    { type: "shift", owner: S0.id, typed: () => S0.name, rows: null, key: "scheduled_shifts", order: ["sh-4", "sh-1"] },
+    { type: "pickup", owner: S0.id, typed: () => S0.name, rows: () => fx.PICKUPS.filter((x) => x.site_id === S0.id).map((x) => x.id) },
+  ];
+  for (const k of KINDS) {
+    await withDriver(ctx, { name: "link-" + k.type, lang }, async (d) => {
+      const opened = await openLink(d, "js-3");
+      await d.page.locator(LINK_WIN + " [data-link-type]").selectOption(k.type);
+      await d.settle(300);
+      let picked = "";
+      let rows = [];
+      let ownerRead = true;
+      if (k.type === "user" || k.type === "site") {
+        const sel = LINK_WIN + (k.type === "user" ? " [data-link-person]" : " [data-link-site]");
+        const offered = await typeInPicker(d, sel, k.typed());
+        picked = offered.length ? offered[0].id : "";
+        rows = offered.map((r) => r.id);
+        if (picked) await pickRow(d, sel, picked);
+      } else {
+        const mark0 = d.mark();
+        const offered = await typeInPicker(d, LINK_WIN + " [data-link-owner]", k.typed());
+        if (offered.some((r) => r.id === k.owner)) await pickRow(d, LINK_WIN + " [data-link-owner]", k.owner);
+        await until(d, LINK_WIN + " [data-link-record] [data-person-pick-field]", 5000);
+        const read = d.callsSince(mark0).filter((c) => c.method === "GET" && c.status === 200 && (String(c.path) + "?" + String(c.query || "")).indexOf(k.owner) >= 0).pop();
+        ownerRead = !!read;
+        // What the route answered for this site, the rows that name it.
+        const answered = read && read.json ? (Array.isArray(read.json) ? read.json : (k.key && Array.isArray(read.json[k.key]) ? read.json[k.key] : [])) : [];
+        k.answered = answered.filter((r) => r && r.id != null && (k.type.indexOf("hr_") === 0 || String(r.site_id != null ? r.site_id : r.siteId) === String(k.owner))).map((r) => String(r.id));
+        const got = await recordRows(d);
+        rows = got.map((r) => r.id);
+        const dated = got.every((r) => r.sub.length > 0 && r.text.length > r.sub.length);
+        if (!dated) rows = ["undated"].concat(rows);
+        picked = got.length ? got[0].id : "";
+        if (picked) await pickRow(d, LINK_WIN + " [data-link-record]", picked);
+      }
+      const asks = await asksForAnId(d);
+      const mark = d.mark();
+      await click(d, LINK_WIN + " [data-link-submit]");
+      await d.settle(500);
+      const post = writes(d, mark, "POST", /^\/api\/jotform\/submissions\/js-3\/link$/).pop();
+      const closed = !(await has(d, LINK_WIN));
+      const want = k.rows ? k.rows() : null;
+      const sameSet = (a, b) => !!a && !!b && a.length === b.length && a.every((x) => b.indexOf(x) >= 0);
+      const inOrder = !k.order || (rows.indexOf(k.order[0]) >= 0 && rows.indexOf(k.order[0]) < rows.indexOf(k.order[1]));
+      const listOk = k.want ? picked === k.want : rows.length > 0 && rows[0] !== "undated" && (want ? say(rows) === say(want) : sameSet(rows, k.answered)) && inOrder;
+      results.check(KIND, id("link-to-record-" + k.type.replace(/_/g, "-") + "-is-picked-from-a-list-and-never-asks-for-an-id"),
+        opened && listOk && ownerRead && asks.boxes === 0 && !asks.words && !!post && post.status === 200 && say(post.body) === say({ entity_type: k.type, entity_id: picked }) && closed && thrown(d).length === 0,
+        "window " + opened + ", offered " + say(rows) + (want ? " where the stub holds " + say(want) : k.answered ? " where the route answered " + say(k.answered) + " for the site" : "") + ", picked " + say(picked) + ", boxes to type in " + asks.boxes + ", words asking for an id " + asks.words
+          + ", the link " + (post ? post.status + " " + say(post.body) : "never went") + ", closed " + closed);
+    });
+  }
+
+  // A record removed after the list was read: the API's 404 is said as that, the window stays open and its list is read
+  // again.
+  await withDriver(ctx, { name: "removed", lang, scene: { removed: ["i-1"] } }, async (d) => {
+    await openLink(d, "js-3");
+    await d.page.locator(LINK_WIN + " [data-link-type]").selectOption("issue");
+    await d.settle(300);
+    await typeInPicker(d, LINK_WIN + " [data-link-owner]", S0.name);
+    await pickRow(d, LINK_WIN + " [data-link-owner]", S0.id);
+    await until(d, LINK_WIN + " [data-link-record] [data-person-pick-field]", 5000);
+    await recordRows(d);
+    await pickRow(d, LINK_WIN + " [data-link-record]", "i-1");
+    const mark = d.mark();
+    await click(d, LINK_WIN + " [data-link-submit]");
+    const toast = await d.waitToast(5000).then(() => d.toast()).catch(() => null);
+    await d.settle(500);
+    const post = writes(d, mark, "POST", /^\/api\/jotform\/submissions\/js-3\/link$/).pop();
+    const again = reads(d, mark, /^\/api\/issues$/).length;
+    const open = await has(d, LINK_WIN);
+    const want = d.say("That record was removed after the list was read. Choose another.");
+    results.check(KIND, id("a-record-removed-after-the-list-was-read-is-said-so-in-the-toast"), !!post && post.status === 404 && toast === want && open && again >= 1,
+      "the link " + (post ? post.status : "never went") + ", the toast " + say(toast) + " where it should read " + say(want) + ", the window open " + open + ", the list read again " + again + " times");
+  });
+}
+
 async function run(ctx) {
   const only = (process.env.PART420_ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
   const want = (k) => !only.length || only.indexOf(k) >= 0;
   for (const lang of LANGS) {
     if (process.env.AUDIT_LANG && process.env.AUDIT_LANG !== lang) continue;
     if (want("pickers")) await pickerCases(ctx, lang);
+    if (want("records")) await recordCases(ctx, lang);
   }
 }
 

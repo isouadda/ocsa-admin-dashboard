@@ -160,7 +160,7 @@ const WINDOWS = [
   { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [3591] },
   { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [3646] },
   { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [3655] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [29743] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [29845] },
   { id: "staff/add", page: "staff", title: "Add New Staff", lines: [3711] },
   // Step 181: the Temporary PIN window Add New Staff opens once the API has saved the person.
   { id: "staff/temporary-pin", page: "staff", title: "Temporary PIN", lines: [3384] },
@@ -225,13 +225,13 @@ const WINDOWS = [
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [23529] },
 
   { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [24506] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [28422] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [28475] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [28618] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [28510] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [28563] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [28706] },
   // Step 166: the picker Start a form opens, and the window a form is filled in.
   { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [26969] },
   { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [25344] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [28581] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [28669] },
   // Step 169's customer links window is gone: since Step 187 Customer links is a view of Forms
   // (#forms/links), which cases/customer-links.js drives, and its windows are claimed below. Every other
   // line here was re-anchored by the October audit (part 343) from the App.js of 24c775d, where these
@@ -246,16 +246,16 @@ const WINDOWS = [
   // page once GET /api/notifications/settings has answered.
   { id: "shell/my-alerts", page: "overview", title: "My alerts", lines: [10493] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [30754] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [30856] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [31446] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [31471] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [31505] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [31803] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [31548] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [31573] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [31607] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [31905] },
   // Round 1 (DASH-07, decision 4): a person's clearance dates, opened on the Clearances page for
   // someone HR Records is closed to, at #clearances/<id>. The shared stub has no clearances, so the
   // round1 suite drives it on the stub as the API is built (drivenBy), and the windows suite leaves it.
-  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [28942], drivenBy: "round1" },
+  { id: "clearances/person-dates", page: "clearances", title: "Act 34 PA State Police check", lines: [29044], drivenBy: "round1" },
   // Round 2 (part 353): Who opened this beside an HR file, and the shell's window for a file the API
   // withheld because its log could not be written, with Try again. The round2 suite drives both on the
   // stub as the API is built at its part 352 (drivenBy), and the windows suite leaves them.
@@ -266,11 +266,11 @@ const WINDOWS = [
   { id: "staff/take-back-end", page: "staff", title: "Take back the end", lines: [2441], drivenBy: "round3" },
   // Part 366 (DASH-26): Discipline's Issue a warning picks the person before the warning window opens.
   // The findings366 suite opens it as the contract 1 supervisor and goes on to the warning window.
-  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [30219], drivenBy: "findings366" },
+  { id: "discipline/issue-for", page: "discipline", title: "Issue a warning", lines: [30321], drivenBy: "findings366" },
   // Part 361: Send welcome emails on Staff Management, which sends the welcome email to everyone who has
   // not signed in. The welcome-all suite drives it on the stub's people of audit/welcome-all-stub.js
   // (drivenBy), and the windows suite leaves it.
-  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [35756], drivenBy: "welcome-all" },
+  { id: "staff/welcome-all", page: "staff", title: "Send welcome emails", lines: [35858], drivenBy: "welcome-all" },
   // Part 368: maintenance requests. New maintenance request, a request's window with Record a response and
   // Send a follow-up, and a site's maintenance contact. The part368 suite drives each on the stub as the API
   // is built at ca4aafa (drivenBy), and the windows suite leaves them.
@@ -295,11 +295,11 @@ const WINDOWS = [
   { id: "recognition/shoutout-post", page: "recognition", title: "Give a shout-out", lines: [12127], drivenBy: "part413" },
   { id: "recognition/shoutout-remove", page: "recognition", title: "Take down this shout-out", lines: [12152], drivenBy: "part413" },
   // Part 413, section 5: the training admin.
-  { id: "hr/course", page: "hr", title: "New course", lines: [33164], drivenBy: "part413" },
-  { id: "hr/course-chapters", page: "hr", title: "Chapters of", lines: [33210], drivenBy: "part413" },
-  { id: "hr/player-preview", page: "hr", title: "Preview", lines: [33382], drivenBy: "part413" },
-  { id: "hr/reset-everyone", page: "hr", title: "Reset everyone's tries", lines: [33645], drivenBy: "part413" },
-  { id: "settings/certificate-signer", page: "settings", title: "Change the signer", lines: [33741], drivenBy: "part413" },
+  { id: "hr/course", page: "hr", title: "New course", lines: [33266], drivenBy: "part413" },
+  { id: "hr/course-chapters", page: "hr", title: "Chapters of", lines: [33312], drivenBy: "part413" },
+  { id: "hr/player-preview", page: "hr", title: "Preview", lines: [33484], drivenBy: "part413" },
+  { id: "hr/reset-everyone", page: "hr", title: "Reset everyone's tries", lines: [33747], drivenBy: "part413" },
+  { id: "settings/certificate-signer", page: "settings", title: "Change the signer", lines: [33843], drivenBy: "part413" },
 ];
 
 // ---------------------------------------------------------------------------
