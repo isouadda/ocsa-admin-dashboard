@@ -8,6 +8,11 @@
 //   records     section 2: Link to Record for each kind kept, the record picked from a list and never an id asked
 //               for, the person's or the site's own records, newest first, each by its title and date; and a
 //               record removed after the list was read said so in the toast, the window kept open
+//   ocsaid      section 3: Add Staff with the field empty shows the OCSA ID given, a typed one still goes, a typed one
+//               somebody holds is refused at the field in the API's words; approving and rehiring say the number
+//               given and the profile shows it; in Edit Staff Info an empty field on save leaves the number as it is,
+//               under its hint, and a number another person holds is refused at the field (users.employeeIdTakenByOther);
+//               and the label reads OCSA ID (ID de OCSA) on every screen that names it
 "use strict";
 const { createStubs } = require("../stubs");
 
@@ -331,6 +336,197 @@ async function recordCases(ctx, lang) {
   });
 }
 
+// ---- Section 3: the OCSA ID ---------------------------------------------------------------------------------------------
+const ADD_WIN = "[data-window='staff-add-form']";
+const theirId = (d, num) => d.say("Their {0} is {1}.").replace("{0}", idWord(d)).replace("{1}", num);
+async function openAdd(d) {
+  await goHash(d, "staff");
+  await d.clickText(d.say("Add Staff"), { exact: true }).catch(() => false);
+  return until(d, ADD_WIN, 4000);
+}
+async function fillAdd(d, id) {
+  await d.fillByLabel(d.say("First Name *"), "Wren");
+  await d.fillByLabel(d.say("Last Name"), "Halvorsen");
+  await d.fillByLabel(d.say("Phone *"), "2155550188");
+  await d.fillByLabel(d.say("Email *"), "wren.h@example.invalid");
+  if (id) await d.page.locator(ADD_WIN + " [data-staff-ocsa-id='add']").fill(id);
+}
+const saveAdd = async (d) => { await d.page.locator(ADD_WIN + " button").filter({ hasText: d.say("Add Staff") }).last().click(); await d.settle(600); };
+
+async function ocsaIdCases(ctx, lang) {
+  const { results } = ctx;
+  const id = (x) => KIND + "/" + lang + "/ocsaid/" + x;
+
+  // 1. Add Staff with the OCSA ID left empty: the field says it is given automatically, the create sends none, and the
+  // window after the save and the new person's profile both read the number the API gave.
+  await withDriver(ctx, { name: "add-empty", lang }, async (d) => {
+    const opened = await openAdd(d);
+    const hint = await textOf(d, ADD_WIN + " [data-staff-ocsa-id-hint]");
+    const label = await d.page.locator(ADD_WIN + " [data-staff-ocsa-id='add']").getAttribute("aria-label").catch(() => null);
+    await fillAdd(d, "");
+    const mark = d.mark();
+    await saveAdd(d);
+    const post = writes(d, mark, "POST", /^\/api\/users$/).pop();
+    const given = post && post.json ? post.json.employeeId : null;
+    await until(d, "[data-added-ocsa-id]", 4000);
+    const shown = await textOf(d, "[data-added-ocsa-id]");
+    const newId = post && post.json && post.json.user ? post.json.user.id : "";
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await goHash(d, "staff/" + newId);
+    await until(d, "[data-profile-ocsa-id]", 6000);
+    const onProfile = await d.page.locator("[data-profile-ocsa-id]").first().getAttribute("data-profile-ocsa-id").catch(() => null);
+    results.check(KIND, id("add-staff-with-the-field-empty-shows-the-ocsa-id-given"),
+      opened && hint === d.say("Given automatically when left empty") && label === idWord(d) && !!post && post.status === 201 && post.body && !Object.prototype.hasOwnProperty.call(post.body, "employeeId")
+        && given === "OCSA-0151" && shown === theirId(d, given) && onProfile === given,
+      "window " + opened + ", the hint " + say(hint) + ", the label " + say(label) + ", the create " + (post ? post.status + " " + say(post.body) : "never went") + ", given " + say(given)
+        + ", the window says " + say(shown) + ", the profile reads " + say(onProfile));
+  });
+
+  // 2. A number typed by hand still goes as typed, and the window says it.
+  await withDriver(ctx, { name: "add-typed", lang }, async (d) => {
+    await openAdd(d);
+    await fillAdd(d, "OCSA-0900");
+    const mark = d.mark();
+    await saveAdd(d);
+    const post = writes(d, mark, "POST", /^\/api\/users$/).pop();
+    await until(d, "[data-added-ocsa-id]", 4000);
+    const shown = await textOf(d, "[data-added-ocsa-id]");
+    results.check(KIND, id("add-staff-with-a-typed-ocsa-id-sends-it-as-typed"), !!post && post.status === 201 && post.body && post.body.employeeId === "OCSA-0900" && shown === theirId(d, "OCSA-0900"),
+      "the create " + (post ? post.status + " " + say(post.body) : "never went") + ", the window says " + say(shown));
+  });
+
+  // 3. A typed number somebody holds: the API's 409 users.employeeIdTaken in its words at the field, the window open.
+  await withDriver(ctx, { name: "add-taken", lang }, async (d) => {
+    await openAdd(d);
+    await fillAdd(d, ctx.seed.STAFF[4].employee_id);
+    const mark = d.mark();
+    await saveAdd(d);
+    const post = writes(d, mark, "POST", /^\/api\/users$/).pop();
+    const said = await textOf(d, ADD_WIN + " [data-staff-ocsa-id-said]");
+    const words = post && post.json ? post.json.error : null;
+    results.check(KIND, id("a-typed-ocsa-id-somebody-holds-is-refused-at-the-field-in-the-api-s-words"),
+      !!post && post.status === 409 && post.json.code === "users.employeeIdTaken" && !!words && said === words && (await has(d, ADD_WIN)),
+      "the create " + (post ? post.status + " " + say(post.json) : "never went") + ", under the field " + say(said));
+  });
+
+  // 4. Approving a registration: the toast says the OCSA ID the answer gives, and the profile reads it.
+  await withDriver(ctx, { name: "approve", lang, scene: { noIdFor: ["u-staff-11"] } }, async (d) => {
+    await goHash(d, "staff");
+    await click(d, "[data-filter-tab='pending']");
+    await d.waitToastGone(6000).catch(() => {});
+    const row = d.page.locator("table tbody tr").filter({ hasText: "Salome Mkhize" });
+    await row.first().locator("button").filter({ hasText: d.say("Approve") }).first().click();
+    const toast = await d.waitToast(5000).then(() => d.toast()).catch(() => null);
+    const post = d.callsSince(0).filter((c) => c.method === "POST" && /^\/api\/users\/u-staff-11\/approve$/.test(c.path)).pop();
+    const given = post && post.json ? post.json.employeeId : null;
+    await goHash(d, "staff/u-staff-11");
+    await until(d, "[data-profile-ocsa-id]", 6000);
+    const onProfile = await d.page.locator("[data-profile-ocsa-id]").first().getAttribute("data-profile-ocsa-id").catch(() => null);
+    const want = d.say("Approved. Their {0} is {1}.").replace("{0}", idWord(d)).replace("{1}", given || "");
+    results.check(KIND, id("approving-a-registration-shows-the-ocsa-id-given"), !!post && post.status === 200 && !!given && String(toast || "").indexOf(want) === 0 && onProfile === given,
+      "the approve " + (post ? post.status + " " + say(post.json) : "never went") + ", the toast " + say(toast) + " where it should start " + say(want) + ", the profile reads " + say(onProfile));
+  });
+
+  // 5. A rehire: the toast says the OCSA ID the answer gives, and the profile reads it after, with nothing typed.
+  await withDriver(ctx, { name: "rehire", lang, scene: { noIdFor: ["u-staff-12"] }, arm: (s) => s.setStep247(true) }, async (d) => {
+    await goHash(d, "staff/u-staff-12");
+    await until(d, '[data-employment-action="rehire"]', 8000);
+    await d.page.locator('[data-employment-action="rehire"]').first().click();
+    await until(d, "[data-restore-sites] [data-restore-site]", 4000);
+    const ticked = d.page.locator("[data-restore-sites] input:checked");
+    for (let i = 0; i < 6 && (await ticked.count()); i += 1) await ticked.first().uncheck();
+    const typed = await d.page.locator("[data-employment-window] input:not([type=date]):not([type=checkbox])").count();
+    await d.page.locator('[data-employment-window] input[type="date"]').first().fill(ctx.seed.shift(2));
+    await d.waitToastGone(6000).catch(() => {});
+    const mark = d.mark();
+    await d.page.locator("[data-employment-window] button").filter({ hasText: d.say("Rehire") }).last().click();
+    const toast = await d.waitToast(5000).then(() => d.toast()).catch(() => null);
+    const post = writes(d, mark, "POST", /^\/api\/users\/u-staff-12\/employment\/rehire$/).pop();
+    const given = post && post.json ? post.json.employeeId : null;
+    await until(d, "[data-profile-ocsa-id='" + (given || "none") + "']", 5000);
+    const onProfile = await d.page.locator("[data-profile-ocsa-id]").first().getAttribute("data-profile-ocsa-id").catch(() => null);
+    results.check(KIND, id("a-rehire-shows-the-ocsa-id-given-on-the-profile"), !!post && post.status === 200 && !!given && String(toast || "").indexOf(theirId(d, given)) >= 0 && onProfile === given && typed === 0,
+      "the rehire " + (post ? post.status + " employeeId " + say(post.json.employeeId) : "never went") + ", the toast " + say(toast) + ", the profile reads " + say(onProfile) + ", boxes to type in " + typed);
+  });
+
+  // 6. Edit Staff Info: the OCSA ID can be changed and not emptied. The field says "Leave as is, or type a new number.";
+  // emptied on its own, the save sends nothing and closes; emptied beside another change, the save sends that change
+  // and no employeeId, asks nothing, and the profile still reads the number (ocsa-api main be30fb1 reads an empty one as
+  // "give me the next", which an active staff account answers by keeping its own).
+  const EDIT_WIN = "[data-window='staff-edit-form']";
+  const openEdit = async (d, p) => {
+    await goHash(d, "staff");
+    const row = d.page.locator("table tbody tr").filter({ hasText: p.name });
+    await row.first().locator("button[title='" + d.say("Edit") + "']").first().click();
+    return until(d, EDIT_WIN + " [data-staff-ocsa-id='edit']", 4000);
+  };
+  const saveEdit = async (d) => { await d.page.locator(EDIT_WIN + " button").filter({ hasText: d.say("Save Changes") }).last().click(); await d.settle(600); };
+  await withDriver(ctx, { name: "leave-as-is", lang }, async (d) => {
+    const p = ctx.seed.STAFF.find((x) => x.id === "u-staff-7");
+    const opened = await openEdit(d, p);
+    const hint = await textOf(d, EDIT_WIN + " [data-staff-ocsa-id-hint]");
+    const label = await d.page.locator(EDIT_WIN + " [data-staff-ocsa-id='edit']").getAttribute("aria-label").catch(() => null);
+    await d.page.locator(EDIT_WIN + " [data-staff-ocsa-id='edit']").fill("");
+    const mark = d.mark();
+    await saveEdit(d);
+    const alone = writes(d, mark, "PATCH", new RegExp("^/api/users/" + p.id + "$")).length;
+    const closed = !(await has(d, EDIT_WIN));
+    await openEdit(d, p);
+    await d.page.locator(EDIT_WIN + " [data-staff-ocsa-id='edit']").fill("");
+    await d.fillByLabel(d.say("Phone"), "2155550177");
+    const mark2 = d.mark();
+    await saveEdit(d);
+    const patch = writes(d, mark2, "PATCH", new RegExp("^/api/users/" + p.id + "$")).pop();
+    const asked = (await d.confirms()).filter((x) => /ID/.test(x));
+    await goHash(d, "staff/" + p.id);
+    await until(d, "[data-profile-ocsa-id]", 6000);
+    const onProfile = await d.page.locator("[data-profile-ocsa-id]").first().getAttribute("data-profile-ocsa-id").catch(() => null);
+    results.check(KIND, id("an-empty-ocsa-id-on-save-leaves-the-number-as-it-is"),
+      opened && label === idWord(d) && hint === d.say("Leave as is, or type a new number.") && alone === 0 && closed && !!patch && patch.status === 200 && patch.body
+        && patch.body.phone === "2155550177" && !Object.prototype.hasOwnProperty.call(patch.body, "employeeId") && asked.length === 0 && onProfile === p.employee_id,
+      "window " + opened + ", the label " + say(label) + ", the hint " + say(hint) + ", sent with the field emptied alone " + alone + ", closed " + closed
+        + ", the save beside a phone " + (patch ? patch.status + " " + say(patch.body) : "never went") + ", asked " + say(asked) + ", the profile reads " + say(onProfile));
+  });
+
+  // 6b. Edit Staff Info: a number another person holds is refused 409 users.employeeIdTakenByOther, drawn at the field in
+  // the API's words, and the window stays open.
+  await withDriver(ctx, { name: "taken-by-other", lang }, async (d) => {
+    const p = ctx.seed.STAFF.find((x) => x.id === "u-staff-7");
+    await openEdit(d, p);
+    await d.page.locator(EDIT_WIN + " [data-staff-ocsa-id='edit']").fill(ctx.seed.STAFF[4].employee_id);
+    const mark = d.mark();
+    await saveEdit(d);
+    const patch = writes(d, mark, "PATCH", new RegExp("^/api/users/" + p.id + "$")).pop();
+    const said = await textOf(d, EDIT_WIN + " [data-staff-ocsa-id-said]");
+    const words = patch && patch.json ? patch.json.error : null;
+    results.check(KIND, id("a-typed-ocsa-id-another-person-holds-is-refused-at-the-field-in-edit-staff-info"),
+      !!patch && patch.status === 409 && patch.json.code === "users.employeeIdTakenByOther" && !!words && said === words && (await has(d, EDIT_WIN)),
+      "the save " + (patch ? patch.status + " " + say(patch.json) : "never went") + ", under the field " + say(said));
+  });
+
+  // 7. The label in the screen's language: the profile, Add Staff, the staff list's search and a picker's search line
+  // name the OCSA ID, and none of them reads Employee ID.
+  await withDriver(ctx, { name: "label", lang }, async (d) => {
+    const word = idWord(d);
+    await goHash(d, "staff");
+    await until(d, "[data-list-search='staff']", 6000);
+    const search = await d.page.locator("[data-list-search='staff']").getAttribute("placeholder").catch(() => null);
+    await goHash(d, "staff/u-staff-7");
+    await until(d, "[data-profile-ocsa-id]", 6000);
+    const profile = await textOf(d, "[data-profile-ocsa-id]");
+    await openAdd(d);
+    const addLabel = await d.page.locator(ADD_WIN + " [data-staff-ocsa-id='add']").getAttribute("aria-label").catch(() => null);
+    await d.page.keyboard.press("Escape").catch(() => {});
+    await openSubmission(d, "js-3");
+    await click(d, LINK_USER + " [data-person-pick-field]");
+    const pickSearch = await d.page.locator(LINK_USER + " [data-person-pick-search]").getAttribute("placeholder").catch(() => null);
+    const old = /employee id|id de la persona/i;
+    results.check(KIND, id("the-label-reads-ocsa-id-in-the-screen-s-language"),
+      profile.indexOf(word) === 0 && addLabel === word && String(search || "").indexOf(word) >= 0 && String(pickSearch || "").indexOf(word) >= 0 && ![profile, search, addLabel, pickSearch].some((x) => old.test(String(x || ""))),
+      "the word " + say(word) + "; the profile " + say(profile) + ", the list's search " + say(search) + ", Add Staff " + say(addLabel) + ", a picker's search " + say(pickSearch));
+  });
+}
+
 async function run(ctx) {
   const only = (process.env.PART420_ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
   const want = (k) => !only.length || only.indexOf(k) >= 0;
@@ -338,6 +534,7 @@ async function run(ctx) {
     if (process.env.AUDIT_LANG && process.env.AUDIT_LANG !== lang) continue;
     if (want("pickers")) await pickerCases(ctx, lang);
     if (want("records")) await recordCases(ctx, lang);
+    if (want("ocsaid")) await ocsaIdCases(ctx, lang);
   }
 }
 

@@ -31,11 +31,11 @@ const CONTENT = "div[style*='padding: 16px 24px 30px'], div[style*='padding: 12p
 const WORDS = {
   en: { title: "Follow-up talk", category: "HR - Ongoing / Annual", source: "Filed form", mark: "FRM", filedBy: "Filed by Marcus Ferreira",
     void: "Void", viewPdf: "View PDF", voidIt: "Void", why: "Why is this report being voided?",
-    voidReport: "Void report", start: "Start a form", search: "Search by name, badge number or employee ID", noMatch: "No one matches.", change: "Change", review: "Review",
+    voidReport: "Void report", start: "Start a form", search: "Search by name, badge number or OCSA ID", noMatch: "No one matches.", change: "Change", review: "Review",
     employee: "Employee", topic: "What was talked about", tag: "en-US" },
   es: { title: "Charla de seguimiento", category: "RR. HH. - Continuo / Anual", source: "Formulario presentado", mark: "FRM", filedBy: "Presentado por Marcus Ferreira",
     void: "Anulado", viewPdf: "Ver el PDF", voidIt: "Anular", why: "\u00bfPor qu\u00e9 se anula este reporte?",
-    voidReport: "Anular reporte", start: "Iniciar un formulario", search: "Buscar por nombre, n\u00famero de empleado o ID de la persona", noMatch: "Nadie coincide.", change: "Cambiar", review: "Revisar",
+    voidReport: "Anular reporte", start: "Iniciar un formulario", search: "Buscar por nombre, n\u00famero de empleado o ID de OCSA", noMatch: "Nadie coincide.", change: "Cambiar", review: "Revisar",
     employee: "Empleado", topic: "De qu\u00e9 se habl\u00f3", tag: "es-US" },
 };
 // The report the stub serves about Tomasz Wisniewski, the name of its PDF, and the day it was filed in New

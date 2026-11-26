@@ -20,6 +20,21 @@
 //     The lists the window reads (documents, training, onboarding, inspections, issues, assigned tasks, the
 //     schedule's calendar, pickups) are answered by the layers under this one, as they always were.
 //
+//   Section 3, the OCSA ID (routes/users.js, helpers/ocsaId.js):
+//     POST  /api/users                         with no employeeId (or an empty one) the next OCSA ID is given; a typed
+//                                              one somebody holds is refused 409 users.employeeIdTaken in the API's
+//                                              words; the answer carries employeeId, top level and on user
+//     POST  /api/users/:id/approve             gives a person with none the next OCSA ID, answered as employeeId
+//     POST  /api/users/:id/employment/return and /rehire   the same
+//     PATCH /api/users/:id                     { employeeId } kept on the person; a number another person holds refused
+//                                              409 users.employeeIdTakenByOther. An empty or null employeeId reads as
+//                                              "give me the next": an active staff account keeps the one it holds, or is
+//                                              given the next when it holds none, and only an inactive, test or client
+//                                              account is cleared (ocsa-api main be30fb1, as the owner read it)
+//     Numbers are given from OCSA-0151 up and never given twice.
+//   Scenes: round23 (everything above), sameName (false leaves the two who share a name out), removed (the ids of records
+//   taken away after the list was read), noIdFor (the people who hold no OCSA ID yet).
+//
 // Every value is invented: the people, their numbers and badges.
 "use strict";
 
@@ -29,7 +44,7 @@ module.exports = (ctx) => {
 
   let model = null;
   const m = () => {
-    if (!model) model = { scene: {}, sent: [], linkedUser: {}, linkedRecord: {} };
+    if (!model) model = { scene: {}, sent: [], linkedUser: {}, linkedRecord: {}, next: 151 };
     return model;
   };
   const sc = () => m().scene;
@@ -45,6 +60,15 @@ module.exports = (ctx) => {
     .concat(sc().sameName === false ? [] : SAME_NAME.map((p) => clone(p)))
     .sort((a, b) => (a.last_name + " " + a.first_name).localeCompare(b.last_name + " " + b.first_name));
   const personById = (id) => linkable().find((p) => String(p.id) === String(id)) || null;
+
+  // The OCSA IDs: who holds a number, and the next number to give.
+  const idOf = (u) => String((u && (u.employee_id || u.employeeId)) || "").trim();
+  const holder = (num, except) => (state.staff || []).find((u) => u && u.id !== except && idOf(u).toLowerCase() === String(num).trim().toLowerCase()) || null;
+  const nextId = () => { let n; do { n = "OCSA-" + String(m().next).padStart(4, "0"); m().next += 1; } while (holder(n)); return n; };
+  const keep = (u, num) => { u.employee_id = num; u.employeeId = num; };
+  const TAKEN = (lang) => ({ status: 409, json: { error: T(lang, "That OCSA ID is already given to someone else.", "Ese ID de OCSA ya est\u00e1 asignado a otra persona."), code: "users.employeeIdTaken" } });
+  const TAKEN_BY_OTHER = (lang) => ({ status: 409, json: { error: T(lang, "Another person already holds that OCSA ID.", "Otra persona ya tiene ese ID de OCSA."), code: "users.employeeIdTakenByOther" } });
+  const staffOf = (id) => (state.staff || []).find((u) => u && u.id === id) || null;
 
   // A submission's row as the reads answer it once someone has linked it here.
   const withLinks = (row) => {
@@ -66,6 +90,8 @@ module.exports = (ctx) => {
     if (!sc().round23) return base();
     const lang = said;
     const b = body || {};
+    // The scene noIdFor names people who hold no OCSA ID yet, for the approve and the rehire to give one.
+    if (sc().noIdFor && !m().cleared) { m().cleared = true; sc().noIdFor.forEach((x) => { const u = staffOf(x); if (u) keep(u, null); }); }
 
     if (path === "/api/jotform/users-for-linking" && method === "GET") return { status: 200, json: linkable() };
 
@@ -78,6 +104,40 @@ module.exports = (ctx) => {
       return { status: 200, json: { success: true, aliases_recorded: b.user_id ? { name: "added", email: "skipped" } : null } };
     }
     if (path === "/api/jotform/user-aliases" && method === "POST") sent("alias", b);
+
+    if (path === "/api/users" && method === "POST") {
+      const typed = String(b.employeeId == null ? "" : b.employeeId).trim();
+      sent("create", b);
+      if (typed && holder(typed)) return TAKEN(lang);
+      const a = base();
+      if (!a || a.status !== 201 || !a.json || !a.json.user) return a;
+      const num = typed || nextId();
+      const u = staffOf(a.json.user.id);
+      if (u) keep(u, num);
+      return { status: 201, json: Object.assign({}, a.json, { employeeId: num, user: Object.assign({}, a.json.user, { employeeId: num, employee_id: num }) }) };
+    }
+    const gives = /^\/api\/users\/([^/]+)\/(approve|employment\/return|employment\/rehire)$/.exec(path);
+    if (gives && method === "POST") {
+      const u = staffOf(decodeURIComponent(gives[1]));
+      const a = base();
+      if (!a || a.status >= 300 || !u) return a;
+      sent(gives[2], { id: u.id });
+      if (!idOf(u)) keep(u, nextId());
+      return Object.assign({}, a, { json: Object.assign({}, a.json || {}, { employeeId: idOf(u) }) });
+    }
+    const one = /^\/api\/users\/([^/]+)$/.exec(path);
+    if (one && (method === "PATCH" || method === "PUT") && Object.prototype.hasOwnProperty.call(b, "employeeId")) {
+      const u = staffOf(decodeURIComponent(one[1]));
+      sent("patch", { id: u ? u.id : one[1], body: b });
+      const typed = String(b.employeeId == null ? "" : b.employeeId).trim();
+      if (u && typed && holder(typed, u.id)) return TAKEN_BY_OTHER(lang);
+      const a = base();
+      if (a && a.status < 300 && u) {
+        const staffActive = u.status === "active" && u.role !== "client_contact" && !u.isTestAccount && !u.is_test_account;
+        keep(u, typed || (staffActive ? (idOf(u) || nextId()) : null));
+      }
+      return a;
+    }
 
     const recordLink = /^\/api\/jotform\/submissions\/([^/]+)\/link$/.exec(path);
     if (recordLink && method === "POST") {

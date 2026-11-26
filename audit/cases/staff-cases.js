@@ -259,7 +259,7 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.fillByLabel(d.say("Last Name"), "Newhire");
   await d.fillByLabel(d.say("Phone *"), "2155550199");
   await d.fillByLabel(d.say("Email *"), "audit.newhire@example.invalid");
-  await d.fillByLabel(d.say("Employee ID"), "EMP-2001");
+  await d.fillByLabel(d.say("{0} ID|the number the office gives a person").replace("{0}", "OCSA"), "EMP-2001");
   await pickByLabel(d, d.say("Role"), "day_porter");
   await pickByLabel(d, d.say("Employment Type"), "part_time");
   await d.clickText(d.say("Add Staff"), { inModal: true, exact: true });
