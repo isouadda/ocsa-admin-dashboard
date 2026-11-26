@@ -6146,6 +6146,10 @@ export const WORDS = {
     fr: { one: "{0} essai \u00e9chou\u00e9 annul\u00e9 et conserv\u00e9 au dossier.", other: "{0} essais \u00e9chou\u00e9s annul\u00e9s et conserv\u00e9s au dossier." },
   },
   "Course certificates": { es: "Certificados de cursos", fr: "Certificats de cours" },
+  "{0} ID|the number the office gives a person": { es: "ID de {0}", fr: "ID {0}" },
+  "{0} ID {1}|the number the office gives a person": { es: "ID de {0} {1}", fr: "ID {0} {1}" },
+  "No {0} ID or badge": { es: "Sin ID de {0} ni n\u00famero de empleado", fr: "Ni ID {0} ni badge" },
+  "Same name": { es: "Mismo nombre", fr: "M\u00eame nom" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

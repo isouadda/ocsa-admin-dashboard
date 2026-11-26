@@ -6222,6 +6222,9 @@ function createStubs() {
   // admin and what the API's Rounds 17, 18 and 21 gave the dashboard, in audit/part413-stub.js.
   const part413 = require("./part413-stub")({ seed, state, clone, person, PNG_BYTES, PDF_BYTES });
   part413.setProbe(quietGet);
+  // Part 420 (Round 15): the people pickers, Link to Record without an id and the OCSA ID, against the shapes the API's
+  // Round 23 (part 419) answers, in audit/part420-stub.js. Every answer it changes waits for its scene round23.
+  const part420 = require("./part420-stub")({ seed, state, clone });
   function step278Route(method, path, query, body, said, base) {
     const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
     if (path === "/api/users/me/permissions" && method === "GET") {
@@ -7416,7 +7419,8 @@ function createStubs() {
     const under400 = () => part400.route(method, path, u.searchParams, body, record.language, under397);
     const under405 = () => part405.route(method, path, u.searchParams, body, record.language, under400);
     const under413 = () => part413.route(method, path, u.searchParams, body, record.language, under405);
-    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under413);
+    const under420 = () => part420.route(method, path, u.searchParams, body, record.language, under413);
+    const answer = pictures372.route(method, path, u.searchParams, body, record.language, under420);
     if (answer && asBuilt && !holdsPay() && answer.json && typeof answer.json === "object") answer.json = withoutPay(answer.json);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
@@ -7564,6 +7568,11 @@ function createStubs() {
     sent413: () => part413.sent(),
     certificates413: () => part413.certificates(),
     model413: () => part413.model(),
+    // Part 420: its scenes, what a run sent it, its model, and the two people who share a name.
+    setScene420: (o) => { part420.setScene(o || {}); },
+    sent420: () => part420.sent(),
+    model420: () => part420.model(),
+    sameName420: () => part420.sameName(),
     sent386: () => part386.sent(),
     model386: () => part386.model(),
     sent379: () => part379.sent(),
@@ -7736,6 +7745,7 @@ function createStubs() {
       part400.reset();
       part405.reset();
       part413.reset();
+      part420.reset();
       pictures372.reset();
     },
     fixtures: {

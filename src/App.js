@@ -2123,14 +2123,44 @@ function SecondStepForm({ t, second, onDone, onBack }) {
 // with { target: { value } }, so a screen sends exactly what it always sent. An option may carry hint,
 // drawn after the name, and group, drawn as a heading over its rows. A person's badge number and
 // employee ID are read from the option (badge, employeeId) or else from the shell's people, PeopleCtx,
-// by the option's id. Escape, a press outside and a pick close it.
+// by the option's id. Escape, a press outside and a pick close it. Since part 420 a row may carry sub, a line under its
+// name that typing searches too, and withKeys and mark (personRows), and the picker may be given its own search line
+// (searchText) and its own words for an empty list (noneText, noMatchText), so a site or a record is picked the same way.
 const PeopleCtx = createContext([]);
 // The signed-in person, { id, test }, for a window that needs to know whether a record is their own and whether they
 // are a test account, which the sign-in answer names (isTestAccount) (part 393).
 const SelfCtx = createContext({ id: "", test: false });
 const personKeysOf = (p) => ({ badge: String((p && (p.badgeNumber || p.badge_number || p.badge)) || ""), employeeId: String((p && (p.employeeId || p.employee_id)) || "") });
+// The number the office gives each person, which the API keeps as employee_id and the office calls the OCSA ID
+// (Round 15, part 420): its name is the company's brand tag and the word ID, from src/clientConfig.js, so no client's
+// name is written into the words. ocsaIdOf(x) is the name and one person's number together.
+const ocsaIdWord = () => tr("{0} ID|the number the office gives a person", clientConfig.company.brandTag);
+const ocsaIdOf = (id) => tr("{0} ID {1}|the number the office gives a person", clientConfig.company.brandTag, id);
+// A person's OCSA ID and badge on one line, for a picker's row that has to tell two people apart at a glance.
+const personKeysLine = (k) => [k && k.employeeId ? ocsaIdOf(k.employeeId) : "", k && k.badge ? tr("Badge {0}", k.badge) : ""].filter(Boolean).join(", ") || tr("No {0} ID or badge", clientConfig.company.brandTag);
+// The rows of a picker over people who may share a name (part 420). Each row is the person's name with their OCSA ID
+// and badge drawn under it (withKeys), and a Same name mark on everyone whose first and last name match someone
+// else's on the list once a suffix (Jr, Sr, II, III, IV) is set aside. A person's own keys are carried when the list
+// has them; otherwise the picker reads them from the shell's people by id. hintOf(p) adds a word at the row's end.
+const NAME_SUFFIX = /^(jr|sr|ii|iii|iv)$/;
+const personNameOf = (p) => ((p.first_name || p.firstName || "") + " " + (p.last_name || p.lastName || "")).trim() || String(p.name || p.full_name || p.fullName || "");
+const sameNameKey = (name) => { const w = String(name || "").toLowerCase().replace(/[.,]/g, " ").split(/\s+/).filter(x => x && !NAME_SUFFIX.test(x)); return w.length >= 2 ? w[0] + " " + w[w.length - 1] : w.join(" "); };
+function personRows(people, hintOf) {
+  const list = (people || []).filter(p => p && p.id != null);
+  const count = {};
+  list.forEach(p => { const k = sameNameKey(personNameOf(p)); if (k) count[k] = (count[k] || 0) + 1; });
+  return list.map(p => {
+    const name = personNameOf(p);
+    const k = personKeysOf(p);
+    const row = { v: String(p.id), l: name || String(p.email || p.id), withKeys: true, mark: count[sameNameKey(name)] > 1 ? tr("Same name") : "" };
+    if (k.badge || k.employeeId) { row.badge = k.badge; row.employeeId = k.employeeId; }
+    const hint = hintOf ? hintOf(p) : "";
+    if (hint) row.hint = hint;
+    return row;
+  });
+}
 const PICK_ROWS = 12;
-function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", ...rest }) {
+function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", searchText = "", noneText = "", noMatchText = "", ...rest }) {
   const { borderColor, fontSize, ...wrapStyle } = style || {};
   const known = useContext(PeopleCtx);
   const [open, setOpen] = useState(false);
@@ -2153,7 +2183,7 @@ function PersonPick({ t, options = [], value = "", onChange, disabled = false, s
   const needle = q.trim().toLowerCase();
   const keyOf = (o) => (o.badge != null || o.employeeId != null ? { badge: String(o.badge || ""), employeeId: String(o.employeeId || "") } : (keys[String(o.v)] || { badge: "", employeeId: "" }));
   const hitOf = (o) => {
-    if (!needle || String(o.l || "").toLowerCase().indexOf(needle) >= 0) return "name";
+    if (!needle || String(o.l || "").toLowerCase().indexOf(needle) >= 0 || (o.sub && String(o.sub).toLowerCase().indexOf(needle) >= 0)) return "name";
     const k = keyOf(o);
     if (k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) return "badge";
     if (k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0) return "id";
@@ -2178,24 +2208,27 @@ function PersonPick({ t, options = [], value = "", onChange, disabled = false, s
       <Ic d="M6 9l6 6 6-6" sz={14} c={t.textMut} />
     </button>
     {open && <div data-person-pick-box="" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: 0, zIndex: 60, background: t.card, border: "1px solid " + t.border, borderRadius: 10, boxShadow: t.popShadow, padding: 8 }}>
-      <Inp t={t} autoFocus aria-label={aria} data-person-pick-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={{ minHeight: 44, fontSize: 13 }} />
+      <Inp t={t} autoFocus aria-label={aria} data-person-pick-search="" placeholder={searchText || tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={{ minHeight: 44, fontSize: 13 }} />
       <div role="listbox" aria-label={aria} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
         {blank && !needle && <button type="button" role="option" aria-selected={want === ""} data-person-pick-option="" onClick={() => pick("")} style={{ ...row, color: t.textSec }}>{blank.l}</button>}
         {shown.map(({ o, hit }) => {
-          const k = hit === "badge" || hit === "id" ? keyOf(o) : null;
+          // A row withKeys always draws the OCSA ID and badge under the name (part 420); any other row says the one
+          // that matched what was typed.
+          const own = o.withKeys ? keyOf(o) : null;
+          const k = !own && (hit === "badge" || hit === "id") ? keyOf(o) : null;
           const head = o.group && o.group !== group ? o.group : null;
           if (o.group) group = o.group;
           return (<Fragment key={String(o.v)}>
             {head && <div data-person-pick-group="" style={{ padding: "8px 12px 4px", fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", background: t.cardAlt }}>{head}</div>}
             <button type="button" role="option" aria-selected={String(o.v) === want} data-person-pick-option={String(o.v)} onClick={() => pick(o.v)} style={{ ...row, fontWeight: String(o.v) === want ? 600 : 400 }}
               onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-              <span style={{ flex: 1, minWidth: 0 }}>{o.l}{k ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{hit === "badge" ? tr("Badge {0}", k.badge) : tr("Employee ID {0}", k.employeeId)}</span> : null}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>{o.l}{o.mark ? <span data-person-pick-same="" style={{ display: "inline-block", fontSize: 10, fontWeight: 600, color: t.goldText, background: t.goldBg, border: "1px solid " + t.goldBorder, borderRadius: 4, padding: "0 6px", marginLeft: 8, verticalAlign: "1px" }}>{o.mark}</span> : null}{k ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{hit === "badge" ? tr("Badge {0}", k.badge) : tr("Employee ID {0}", k.employeeId)}</span> : null}{own ? <span data-person-pick-detail="" style={{ display: "block", fontSize: 11, color: t.textMut, marginTop: 2, fontWeight: 400 }}>{personKeysLine(own)}</span> : null}{o.sub ? <span data-person-pick-sub="" style={{ display: "block", fontSize: 11, color: t.textMut, marginTop: 2, fontWeight: 400 }}>{o.sub}</span> : null}</span>
               {o.hint ? <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{o.hint}</span> : null}
             </button>
           </Fragment>);
         })}
-        {rows.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one is on this list.")}</div>}
-        {rows.length > 0 && needle && found.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one matches.")}</div>}
+        {rows.length === 0 && <div data-person-pick-none="" style={note}>{noneText || tr("No one is on this list.")}</div>}
+        {rows.length > 0 && needle && found.length === 0 && <div data-person-pick-none="" style={note}>{noMatchText || tr("No one matches.")}</div>}
         {found.length > shown.length && <div data-person-pick-more="" style={note}>{tr("{0} more. Type to narrow the list.", found.length - shown.length)}</div>}
       </div>
     </div>}
@@ -22862,7 +22895,6 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
   });
 
   const card = { background: t.card, border: "1px solid " + t.borderSolid, borderRadius: 10, padding: 18, marginBottom: 16 };
-  const selSt = { padding: "8px 12px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", minWidth: 260 };
   const segBtn = (active, color) => ({ padding: "5px 10px", borderRadius: 6, border: "1px solid " + (active ? color : t.borderSolid), background: active ? color : "transparent", color: active ? "#fff" : t.textMut, fontSize: 11, fontFamily: FONT_BODY, cursor: "pointer", fontWeight: active ? 700 : 500 });
   // What a capability's row says it is now, a whole sentence for each state it can be in.
   const currentlyLine = (eff, st) => (st === "locked" ? tr("Currently: Allowed (admins always allowed)")
@@ -22878,12 +22910,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
         {loadingStaff ? (
           <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>{tr("Loading team...")}</div>
         ) : (
-          <select value={selId} onChange={(e) => onSelect(e.target.value)} style={selSt}>
-            <option value="">{tr("Select a team member...")}</option>
-            {staff.map((u) => (
-              <option key={u.id} value={u.id}>{((((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim() || u.name || u.full_name || u.fullName || u.email || tr("User {0}", u.id)) + (u.role ? "  (" + roleOf(u.role) + ")" : ""))}</option>
-            ))}
-          </select>
+          <PersonPick t={t} aria-label={tr("Select a team member...")} data-perm-person="" value={selId} onChange={(e) => onSelect(e.target.value)} options={[{ v: "", l: tr("Select a team member...") }].concat(personRows(staff, (u) => (u.role ? roleOf(u.role) : "")))} style={{ maxWidth: 420 }} />
         )}
       </div>
 
@@ -27027,6 +27054,9 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   const [bulkUploading, setBulkUploading] = useState(false);
   const [autoLinking, setAutoLinking] = useState(false);
   const [usersForLinking, setUsersForLinking] = useState([]);
+  // The active people GET /api/jotform/users-for-linking answers, as the searchable picker's rows (part 420): found by
+  // name, OCSA ID or badge, each row with both, and two people with one name marked Same name.
+  const linkPeople = useMemo(() => personRows(usersForLinking), [usersForLinking]);
   const [editForm, setEditForm] = useState(null);
   const [detailSub, setDetailSub] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -27725,7 +27755,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         {tabs.map(tb => (
-          <button key={tb.id} onClick={() => pickTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
+          <button key={tb.id} data-forms-tab={tb.id} onClick={() => pickTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
       </div>
 
@@ -27738,7 +27768,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         {/* THE SECTION SWITCH, with the buttons of the section that is open beside it */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
           {SECTIONS.map(sec => (
-            <button key={sec.id} onClick={() => setJotSection(sec.id)} aria-pressed={jotSection === sec.id} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (jotSection === sec.id ? GO : t.border), background: jotSection === sec.id ? t.goldBg : "transparent", color: jotSection === sec.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{sec.l}</button>
+            <button key={sec.id} data-jot-section={sec.id} onClick={() => setJotSection(sec.id)} aria-pressed={jotSection === sec.id} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (jotSection === sec.id ? GO : t.border), background: jotSection === sec.id ? t.goldBg : "transparent", color: jotSection === sec.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{sec.l}</button>
           ))}
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
             {inbox && <Btn t={t} v="ghost" onClick={runAutoLink} disabled={autoLinking} style={{ fontSize: 12, padding: "8px 14px" }}>{autoLinking ? tr("Linking...") : tr("Re-run Auto-Link")}</Btn>}
@@ -27848,7 +27878,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.linked_entity_type ? <span>{entityWord(s.linked_entity_type)}</span> : <span style={{ color: t.textMut }}>--</span>}</td>
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.expiry_date ? fdLong(s.expiry_date) : "--"}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
-                    <button onClick={() => openSubmissionDetail(s)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", fontSize: 12 }}>{tr("View")}</button>
+                    <button data-sub-view={s.id} onClick={() => openSubmissionDetail(s)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", fontSize: 12 }}>{tr("View")}</button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -28267,16 +28297,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 1.6fr 1fr auto", gap: 10, alignItems: "end" }}>
               <div>
                 <Lbl>{tr("User")}</Lbl>
-                <select
-                  value={aliasAddForm.user_id}
-                  onChange={e => setAliasAddForm({ ...aliasAddForm, user_id: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid " + t.border, background: t.inputBg, color: t.text, fontSize: 12 }}
-                >
-                  <option value="">{tr("Select user...")}</option>
-                  {usersForLinking.map(u => (
-                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.email || u.role || tr("no email")})</option>
-                  ))}
-                </select>
+                <PersonPick t={t} aria-label={tr("User")} data-alias-person="" value={aliasAddForm.user_id} onChange={e => setAliasAddForm({ ...aliasAddForm, user_id: e.target.value })} options={[{ v: "", l: tr("Select user...") }].concat(linkPeople)} style={{ fontSize: 12 }} />
               </div>
               <div>
                 <Lbl>{tr("Type")}</Lbl>
@@ -28293,6 +28314,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 <Lbl>{tr("Value (lowercased automatically)")}</Lbl>
                 <Inp
                   t={t}
+                  data-alias-value=""
                   placeholder={aliasAddForm.alias_type === "email" ? tr("jdoe.personal@gmail.com") : tr("first last as they submitted")}
                   value={aliasAddForm.alias_value}
                   onChange={e => setAliasAddForm({ ...aliasAddForm, alias_value: e.target.value })}
@@ -28307,7 +28329,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   onChange={e => setAliasAddForm({ ...aliasAddForm, notes: e.target.value })}
                 />
               </div>
-              <Btn t={t} onClick={addAlias} disabled={aliasAddBusy} style={{ fontSize: 12, padding: "9px 16px" }}>
+              <Btn t={t} data-alias-add="" onClick={addAlias} disabled={aliasAddBusy} style={{ fontSize: 12, padding: "9px 16px" }}>
                 {aliasAddBusy ? tr("Adding...") : tr("Add")}
               </Btn>
             </div>
@@ -28467,23 +28489,12 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Matched Employee")}</div>
                   {detailSub.meta.user_id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ color: t.text }}>{detailSub.meta.first_name + " " + detailSub.meta.last_name}</span>
+                      <span data-sub-matched={detailSub.meta.user_id} style={{ color: t.text }}>{detailSub.meta.first_name + " " + detailSub.meta.last_name}</span>
                       <button onClick={() => linkSubmissionToUser(detailSub.meta.id, null)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 10, textDecoration: "underline", padding: 0 }}>{tr("Unlink")}</button>
                     </div>
                   ) : (
                     <div>
-                      <select
-                        value=""
-                        onChange={e => { if (e.target.value) linkSubmissionToUser(detailSub.meta.id, e.target.value); }}
-                        style={{ background: t.bg2 || t.card, color: t.text, border: "1px solid " + t.border, borderRadius: 6, padding: "4px 8px", fontSize: 12, width: "100%", maxWidth: 220 }}
-                      >
-                        <option value="">{tr("Link to user...")}</option>
-                        {usersForLinking.map(u => (
-                          <option key={u.id} value={u.id}>
-                            {u.first_name} {u.last_name}{u.email ? " (" + u.email + ")" : ""}
-                          </option>
-                        ))}
-                      </select>
+                      <PersonPick t={t} aria-label={tr("Link to user...")} data-sub-link-person="" value="" onChange={e => { if (e.target.value) linkSubmissionToUser(detailSub.meta.id, e.target.value); }} options={[{ v: "", l: tr("Link to user...") }].concat(linkPeople)} style={{ maxWidth: 280, fontSize: 12 }} />
                       <div style={{ fontSize: 9, color: OR, fontStyle: "italic", marginTop: 2 }}>{tr("Unmatched")}</div>
                     </div>
                   )}

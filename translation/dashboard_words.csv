@@ -5828,3 +5828,7 @@ Tries reset for {0} people.,Intentos restablecidos para {0} personas.,"Training,
 {0} failed try voided and kept on record.,{0} intento fallido anulado y guardado en el registro.,"Training, Gaps and a person's training, Reset tries, once done: how many failed tries were voided"
 {0} failed tries voided and kept on record.,{0} intentos fallidos anulados y guardados en el registro.,"Training, Gaps and a person's training, Reset tries, once done: how many failed tries were voided"
 Course certificates,Certificados de cursos,"HR Records, a person's folder, the category of the certificates the API files when a course is finished"
+{0} ID,ID de {0},"Everywhere a person's number is named: Staff Management, Add New Staff, Edit Staff Info, the profile, every person picker; {0} is the company's short name"
+{0} ID {1},ID de {0} {1},"Every person picker, a person's row: {0} is the company's short name, {1} the person's number"
+No {0} ID or badge,Sin ID de {0} ni número de empleado,"A person picker's row, under the name of someone with neither number; {0} is the company's short name"
+Same name,Mismo nombre,"A person picker's row: two active people share a first and last name, apart from a suffix such as Jr or Sr"
