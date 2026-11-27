@@ -2775,7 +2775,8 @@ const nameOf341 = (id) => seed.STAFF.find((x) => x.id === id).name;
 const hireOf341 = (id) => seed.STAFF.find((x) => x.id === id).hire_date;
 async function editWindow341(d, id) {
   await go(d, "staff", null, "table tbody tr");
-  await d.page.getByPlaceholder(d.say("Search name, ID, phone, role")).fill(nameOf341(id));
+  // The list's search by its hook: since part 420 its words name the OCSA ID, the brand tag and the word ID.
+  await d.page.locator("[data-list-search='staff']").fill(nameOf341(id));
   await d.page.locator("table tbody tr").filter({ hasText: nameOf341(id) }).first().getByTitle(d.say("Edit"), { exact: true }).click();
   await d.page.getByText(d.say("Edit Staff Info"), { exact: true }).waitFor();
 }

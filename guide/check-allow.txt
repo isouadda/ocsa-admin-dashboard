@@ -9,6 +9,11 @@
 # A composition: the start of a sign-off's stamp, Signed by {0} on {1} at {2}, before the name.
 **Signed by** (**Firmado por**)
 
+# A composition: {0} ID and Search by name, badge number or {0} ID with the company's brand tag filled in, from
+# src/clientConfig.js (part 420), so the words name no client.
+**OCSA ID** (**ID de OCSA**)
+**Search by name, badge number or OCSA ID** (**Buscar por nombre, n\u00famero de empleado o ID de OCSA**)
+
 # Form wording. A filed form's sections, questions, choices and sign-offs come from the API's form
 # catalog, which draws them in the screen's language, so the dashboard's CSV has no row for them.
 # Each block below names the guide entry the words first appear in.

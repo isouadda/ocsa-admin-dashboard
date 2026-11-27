@@ -18,13 +18,13 @@ const MODAL = "div[style*='z-index: 500']";
 // What the screen has to say, by hand.
 const WORDS = {
   en: { title: "Temporary PIN", show: "Show", hide: "Hide", copy: "Copy", copied: "Copied", invite: "Send activation invite",
-    invited: "Invite sent.", done: "Done", resetFor: "PIN reset for ", taken: "That employee ID is already in use." },
+    invited: "Invite sent.", done: "Done", resetFor: "PIN reset for " },
   es: { title: "PIN temporal", show: "Mostrar", hide: "Ocultar", copy: "Copiar", copied: "Copiado", invite: "Enviar invitaci\u00f3n de activaci\u00f3n",
-    invited: "Invitaci\u00f3n enviada.", done: "Listo", resetFor: "PIN restablecido para ",
-    taken: "Ese n\u00famero de identificaci\u00f3n de empleado ya est\u00e1 en uso." },
+    invited: "Invitaci\u00f3n enviada.", done: "Listo", resetFor: "PIN restablecido para " },
 };
 // The PIN the stub's POST /api/users answers with, and the refusal the PATCH route answers when the
-// employee ID belongs to somebody else, in the API's words for each language (helpers/words.js).
+// OCSA ID belongs to somebody else, in the API's words for each language (helpers/words.js). Since part 420 the line
+// under the field is the API's own words, and the field is named the OCSA ID, the brand tag and the word ID.
 const TEMP_PIN = "5307";
 const TAKEN_BY_OTHER = { code: "users.employeeIdTakenByOther", en: "Employee ID already in use by another user", es: "Otro usuario ya usa ese ID de empleado" };
 
@@ -167,18 +167,19 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.clickRow(4);
   await d.settle(400);
   await d.clickText(d.say("Edit"), { exact: true });
-  await d.fillByLabel(d.say("Employee ID"), seed.STAFF[5].employee_id);
+  await d.fillByLabel(d.say("{0} ID|the number the office gives a person").replace("{0}", "OCSA"), seed.STAFF[5].employee_id);
   stubs.setRefusal({ method: "PATCH", path: new RegExp("^/api/users/" + lead.id + "$"), status: 409, code: TAKEN_BY_OTHER.code, error: TAKEN_BY_OTHER[lang] || TAKEN_BY_OTHER.en });
   await d.clickText(d.say("Save Changes"), { exact: true });
   const refusedToast = await d.waitToast(1500);
-  const under = await d.bodyHas(w.taken);
+  const taken = TAKEN_BY_OTHER[lang] || TAKEN_BY_OTHER.en;
+  const under = (await d.page.locator("[data-staff-ocsa-id-said]").allInnerTexts().catch(() => [])).map((x) => x.trim()).indexOf(taken) >= 0;
   stubs.clearRefusals();
   results.check("page", "page/staff/employee-id-taken-on-a-profile" + tail, under && refusedToast !== (TAKEN_BY_OTHER[lang] || TAKEN_BY_OTHER.en),
-    under ? "the line under the field reads " + JSON.stringify(w.taken)
-      : "the save refused with " + TAKEN_BY_OTHER.code + " drew no " + JSON.stringify(w.taken) + (refusedToast ? ", the toast reads " + JSON.stringify(refusedToast) : ""));
+    under ? "the line under the field reads " + JSON.stringify(taken)
+      : "the save refused with " + TAKEN_BY_OTHER.code + " drew no " + JSON.stringify(taken) + " under the field" + (refusedToast ? ", the toast reads " + JSON.stringify(refusedToast) : ""));
   await d.waitToastGone(3600);
 
-  results.note("Staff, PINs and badges in " + lang + ": the Temporary PIN window, Reset PIN, an admin's account and the employee ID line");
+  results.note("Staff, PINs and badges in " + lang + ": the Temporary PIN window, Reset PIN, an admin's account and the OCSA ID line");
 }
 
 module.exports = { run };

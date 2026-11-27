@@ -308,11 +308,18 @@ async function run({ d, results, seed, stubs, lang }) {
   const staffList = (lastJson(/^\/api\/users$/) || []);
   const people = Array.isArray(staffList) ? staffList : (staffList.users || []);
   const roleWrong = [];
-  people.filter((u) => u.role).forEach((u) => {
+  // Since part 420 the picker is the searchable person picker: each person is found by typing their name, and their
+  // row reads the name first and the role's word at its end.
+  for (const u of people.filter((x) => x.role)) {
     const name = ((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim();
     const want = name + "  (" + roleWordFor(u.role) + ")";
-    if (lines.indexOf(want.replace(/\s+/g, " ")) < 0) roleWrong.push("the picker does not offer " + JSON.stringify(want));
-  });
+    await d.page.locator("[data-perm-person] [data-person-pick-field]").first().click().catch(() => {});
+    await d.page.locator("[data-perm-person] [data-person-pick-search]").first().fill(name).catch(() => {});
+    const row = d.page.locator("[data-perm-person] [data-person-pick-option='" + u.id + "']").first();
+    const text = (await row.count()) ? (await row.innerText()).replace(/\s+/g, " ").trim() : "";
+    await d.page.keyboard.press("Escape").catch(() => {});
+    if (text.indexOf(name) !== 0 || !text.endsWith(roleWordFor(u.role))) roleWrong.push("the picker does not offer " + JSON.stringify(want) + (text ? ", its row reads " + JSON.stringify(text) : ""));
+  }
   const roleLine = d.say("Role: {0}. Default follows this role until you override it.").replace("{0}", roleWordFor(person.role));
   if (lines.indexOf(roleLine) < 0) roleWrong.push("the line under the name does not read " + JSON.stringify(roleLine));
 

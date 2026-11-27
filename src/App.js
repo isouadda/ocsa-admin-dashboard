@@ -2123,14 +2123,50 @@ function SecondStepForm({ t, second, onDone, onBack }) {
 // with { target: { value } }, so a screen sends exactly what it always sent. An option may carry hint,
 // drawn after the name, and group, drawn as a heading over its rows. A person's badge number and
 // employee ID are read from the option (badge, employeeId) or else from the shell's people, PeopleCtx,
-// by the option's id. Escape, a press outside and a pick close it.
+// by the option's id. Escape, a press outside and a pick close it. Since part 420 a row may carry sub, a line under its
+// name that typing searches too, and withKeys and mark (personRows), and the picker may be given its own search line
+// (searchText) and its own words for an empty list (noneText, noMatchText), so a site or a record is picked the same way.
 const PeopleCtx = createContext([]);
 // The signed-in person, { id, test }, for a window that needs to know whether a record is their own and whether they
 // are a test account, which the sign-in answer names (isTestAccount) (part 393).
 const SelfCtx = createContext({ id: "", test: false });
 const personKeysOf = (p) => ({ badge: String((p && (p.badgeNumber || p.badge_number || p.badge)) || ""), employeeId: String((p && (p.employeeId || p.employee_id)) || "") });
+// The number the office gives each person, which the API keeps as employee_id and the office calls the OCSA ID
+// (Round 15, part 420): its name is the company's brand tag and the word ID, from src/clientConfig.js, so no client's
+// name is written into the words. ocsaIdOf(x) is the name and one person's number together.
+const ocsaIdWord = () => tr("{0} ID|the number the office gives a person", clientConfig.company.brandTag);
+const ocsaIdOf = (id) => tr("{0} ID {1}|the number the office gives a person", clientConfig.company.brandTag, id);
+// The search line of every person picker, which finds a person by name, badge number or OCSA ID.
+const findPersonWords = () => tr("Search by name, badge number or {0} ID", clientConfig.company.brandTag);
+// The OCSA ID an answer gives (part 420): the create's employeeId, or the person's own in the answer.
+const ocsaIdGiven = (d) => String((d && (d.employeeId || d.employee_id || (d.user && (d.user.employeeId || d.user.employee_id)))) || "");
+// A line said after a save, with the OCSA ID the answer gives added when it gives one.
+const withOcsaId = (said, d) => { const id = ocsaIdGiven(d); return id ? said + " " + tr("Their {0} is {1}.", ocsaIdWord(), id) : said; };
+// A person's OCSA ID and badge on one line, for a picker's row that has to tell two people apart at a glance.
+const personKeysLine = (k) => [k && k.employeeId ? ocsaIdOf(k.employeeId) : "", k && k.badge ? tr("Badge {0}", k.badge) : ""].filter(Boolean).join(", ") || tr("No {0} ID or badge", clientConfig.company.brandTag);
+// The rows of a picker over people who may share a name (part 420). Each row is the person's name with their OCSA ID
+// and badge drawn under it (withKeys), and a Same name mark on everyone whose first and last name match someone
+// else's on the list once a suffix (Jr, Sr, II, III, IV) is set aside. A person's own keys are carried when the list
+// has them; otherwise the picker reads them from the shell's people by id. hintOf(p) adds a word at the row's end.
+const NAME_SUFFIX = /^(jr|sr|ii|iii|iv)$/;
+const personNameOf = (p) => ((p.first_name || p.firstName || "") + " " + (p.last_name || p.lastName || "")).trim() || String(p.name || p.full_name || p.fullName || "");
+const sameNameKey = (name) => { const w = String(name || "").toLowerCase().replace(/[.,]/g, " ").split(/\s+/).filter(x => x && !NAME_SUFFIX.test(x)); return w.length >= 2 ? w[0] + " " + w[w.length - 1] : w.join(" "); };
+function personRows(people, hintOf) {
+  const list = (people || []).filter(p => p && p.id != null);
+  const count = {};
+  list.forEach(p => { const k = sameNameKey(personNameOf(p)); if (k) count[k] = (count[k] || 0) + 1; });
+  return list.map(p => {
+    const name = personNameOf(p);
+    const k = personKeysOf(p);
+    const row = { v: String(p.id), l: name || String(p.email || p.id), withKeys: true, mark: count[sameNameKey(name)] > 1 ? tr("Same name") : "" };
+    if (k.badge || k.employeeId) { row.badge = k.badge; row.employeeId = k.employeeId; }
+    const hint = hintOf ? hintOf(p) : "";
+    if (hint) row.hint = hint;
+    return row;
+  });
+}
 const PICK_ROWS = 12;
-function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", ...rest }) {
+function PersonPick({ t, options = [], value = "", onChange, disabled = false, style = {}, people = null, placeholder = "", searchText = "", noneText = "", noMatchText = "", ...rest }) {
   const { borderColor, fontSize, ...wrapStyle } = style || {};
   const known = useContext(PeopleCtx);
   const [open, setOpen] = useState(false);
@@ -2153,7 +2189,7 @@ function PersonPick({ t, options = [], value = "", onChange, disabled = false, s
   const needle = q.trim().toLowerCase();
   const keyOf = (o) => (o.badge != null || o.employeeId != null ? { badge: String(o.badge || ""), employeeId: String(o.employeeId || "") } : (keys[String(o.v)] || { badge: "", employeeId: "" }));
   const hitOf = (o) => {
-    if (!needle || String(o.l || "").toLowerCase().indexOf(needle) >= 0) return "name";
+    if (!needle || String(o.l || "").toLowerCase().indexOf(needle) >= 0 || (o.sub && String(o.sub).toLowerCase().indexOf(needle) >= 0)) return "name";
     const k = keyOf(o);
     if (k.badge && k.badge.toLowerCase().indexOf(needle) >= 0) return "badge";
     if (k.employeeId && k.employeeId.toLowerCase().indexOf(needle) >= 0) return "id";
@@ -2178,24 +2214,27 @@ function PersonPick({ t, options = [], value = "", onChange, disabled = false, s
       <Ic d="M6 9l6 6 6-6" sz={14} c={t.textMut} />
     </button>
     {open && <div data-person-pick-box="" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: 0, zIndex: 60, background: t.card, border: "1px solid " + t.border, borderRadius: 10, boxShadow: t.popShadow, padding: 8 }}>
-      <Inp t={t} autoFocus aria-label={aria} data-person-pick-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={{ minHeight: 44, fontSize: 13 }} />
+      <Inp t={t} autoFocus aria-label={aria} data-person-pick-search="" placeholder={searchText || findPersonWords()} value={q} onChange={e => setQ(e.target.value)} style={{ minHeight: 44, fontSize: 13 }} />
       <div role="listbox" aria-label={aria} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
         {blank && !needle && <button type="button" role="option" aria-selected={want === ""} data-person-pick-option="" onClick={() => pick("")} style={{ ...row, color: t.textSec }}>{blank.l}</button>}
         {shown.map(({ o, hit }) => {
-          const k = hit === "badge" || hit === "id" ? keyOf(o) : null;
+          // A row withKeys always draws the OCSA ID and badge under the name (part 420); any other row says the one
+          // that matched what was typed.
+          const own = o.withKeys ? keyOf(o) : null;
+          const k = !own && (hit === "badge" || hit === "id") ? keyOf(o) : null;
           const head = o.group && o.group !== group ? o.group : null;
           if (o.group) group = o.group;
           return (<Fragment key={String(o.v)}>
             {head && <div data-person-pick-group="" style={{ padding: "8px 12px 4px", fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", background: t.cardAlt }}>{head}</div>}
             <button type="button" role="option" aria-selected={String(o.v) === want} data-person-pick-option={String(o.v)} onClick={() => pick(o.v)} style={{ ...row, fontWeight: String(o.v) === want ? 600 : 400 }}
               onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-              <span style={{ flex: 1, minWidth: 0 }}>{o.l}{k ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{hit === "badge" ? tr("Badge {0}", k.badge) : tr("Employee ID {0}", k.employeeId)}</span> : null}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>{o.l}{o.mark ? <span data-person-pick-same="" style={{ display: "inline-block", fontSize: 10, fontWeight: 600, color: t.goldText, background: t.goldBg, border: "1px solid " + t.goldBorder, borderRadius: 4, padding: "0 6px", marginLeft: 8, verticalAlign: "1px" }}>{o.mark}</span> : null}{k ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{hit === "badge" ? tr("Badge {0}", k.badge) : ocsaIdOf(k.employeeId)}</span> : null}{own ? <span data-person-pick-detail="" style={{ display: "block", fontSize: 11, color: t.textMut, marginTop: 2, fontWeight: 400 }}>{personKeysLine(own)}</span> : null}{o.sub ? <span data-person-pick-sub="" style={{ display: "block", fontSize: 11, color: t.textMut, marginTop: 2, fontWeight: 400 }}>{o.sub}</span> : null}</span>
               {o.hint ? <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{o.hint}</span> : null}
             </button>
           </Fragment>);
         })}
-        {rows.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one is on this list.")}</div>}
-        {rows.length > 0 && needle && found.length === 0 && <div data-person-pick-none="" style={note}>{tr("No one matches.")}</div>}
+        {rows.length === 0 && <div data-person-pick-none="" style={note}>{noneText || tr("No one is on this list.")}</div>}
+        {rows.length > 0 && needle && found.length === 0 && <div data-person-pick-none="" style={note}>{noMatchText || tr("No one matches.")}</div>}
         {found.length > shown.length && <div data-person-pick-more="" style={note}>{tr("{0} more. Type to narrow the list.", found.length - shown.length)}</div>}
       </div>
     </div>}
@@ -2551,7 +2590,7 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
       const d = await af("/api/users/" + encodeURIComponent(userId) + "/employment/" + mode, { method: "POST", body });
       const restored = mode === "rehire" && d && Array.isArray(d.restoredSites) ? d.restoredSites.length : 0;
       const waits = d && d.pendingEnd && typeof d.pendingEnd === "object" ? d.pendingEnd : null;
-      if (showToast) showToast(withWelcome(waits ? tr("Recorded. The employment ends after {0}.", fdLong(waits.lastDay)) : d && d.changed === false ? tr("Reason recorded.") : restored > 0 ? trn("Rehired. {0} sites restored.|count", restored) : tr("Employment updated."), d));
+      if (showToast) showToast(withWelcome(waits ? tr("Recorded. The employment ends after {0}.", fdLong(waits.lastDay)) : d && d.changed === false ? tr("Reason recorded.") : (mode === "return" || mode === "rehire" ? withOcsaId : (x) => x)(restored > 0 ? trn("Rehired. {0} sites restored.|count", restored) : tr("Employment updated."), d), d));
       onSaved(d);
     } catch (e) { const site = siteOf(e); setRefusal({ text: e.message || tr("Request failed"), field: site ? "" : fieldOf(e), siteId: site }); }
     savingRef.current = false; setSaving(false);
@@ -2924,7 +2963,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // other as the name with its underscores as spaces, which is what the page has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent"), recognized: tr("named Employee of the Month"), recognition_removed: tr("Employee of the Month taken down"), profile_photo_removed: tr("profile photo removed") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
+  const fieldWord = { employee_id: ocsaIdWord(), employeeId: ocsaIdWord(), title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
   // An entry the API writes in English alone, drawn in the screen's language from its own facts (part 413): named
   // Employee of the Month, and that award taken down, each with the month its metadata names.
@@ -2948,8 +2987,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // The employment types a form offers. Each choice sends the code it always sent.
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
-  const approve = async id => { try { const d = await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(withWelcome(tr("Approved"), d)); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); setHireSaid(null); try { const d = await af("/api/users", { method: "POST", body: withHireDate(Object.assign({}, addForm)) }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), email: made.email || addForm.email || "", tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false, welcome: d && d.welcome !== undefined ? d.welcome : undefined }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else if (isBadHireDate(e)) { setHireSaid({ at: "add", text: e.message || tr("Request failed") }); } else { showToast(e.message, "error"); } } };
+  const approve = async id => { try { const d = await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(withWelcome(ocsaIdGiven(d) ? tr("Approved. Their {0} is {1}.", ocsaIdWord(), ocsaIdGiven(d)) : tr("Approved"), d)); load(); loadStaff(); if (profile && profile.user && String(profile.user.id) === String(id)) openProfile(id); } catch (e) { showToast(e.message, "error"); } };
+  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); setHireSaid(null); try { const addBody = withHireDate(Object.assign({}, addForm)); if (!String(addBody.employeeId || "").trim()) delete addBody.employeeId; else addBody.employeeId = String(addBody.employeeId).trim(); const d = await af("/api/users", { method: "POST", body: addBody }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), email: made.email || addForm.email || "", tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false, welcome: d && d.welcome !== undefined ? d.welcome : undefined, ocsaId: ocsaIdGiven(d) }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(e.message || tr("That {0} is already given to someone.", ocsaIdWord())); } else if (isBadHireDate(e)) { setHireSaid({ at: "add", text: e.message || tr("Request failed") }); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
   const openProfile = async (id, tab) => {
@@ -3247,15 +3286,19 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // list's rows and the profile's user carry updatedAt, so an edit holds the record it opened on, with no
   // read of its own (part 372): the pencil the row and the fields as the window opened, the profile's
   // editor the profile as read. A change since to a field this save does not carry is no conflict.
-  const userFieldLabels = { firstName: tr("First Name"), lastName: tr("Last Name"), phone: tr("Phone"), email: tr("Email"), role: tr("Role"), employeeId: tr("Employee ID"), hourlyRate: tr("Hourly Rate"), birthday: tr("Birthday"), addressLine1: tr("Address Line 1"), addressLine2: tr("Address Line 2"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), emergencyContactName: tr("Emergency Contact"), emergencyContactPhone: tr("Emergency Phone"), preferredLanguage: tr("Preferred Language"), personalNotes: tr("Notes"), employmentType: tr("Employment Type"), hireDate: tr("Hire Date") };
+  const userFieldLabels = { firstName: tr("First Name"), lastName: tr("Last Name"), phone: tr("Phone"), email: tr("Email"), role: tr("Role"), employeeId: ocsaIdWord(), hourlyRate: tr("Hourly Rate"), birthday: tr("Birthday"), addressLine1: tr("Address Line 1"), addressLine2: tr("Address Line 2"), city: tr("City"), state: tr("State"), zipCode: tr("Zip"), emergencyContactName: tr("Emergency Contact"), emergencyContactPhone: tr("Emergency Phone"), preferredLanguage: tr("Preferred Language"), personalNotes: tr("Notes"), employmentType: tr("Employment Type"), hireDate: tr("Hire Date") };
   const openEdit = (s) => {
     const opened = { firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, hireDate: hireDayOf(s.hireDate), employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null };
-    setHireSaid(null);
+    setHireSaid(null); setEmpIdError("");
     setEditForm(Object.assign({ id: s.id, hireDateWas: opened.hireDate, was: opened, read: Object.assign({}, s, opened, { updatedAt: s.updatedAt || s.updated_at || null }) }, opened));
   };
   const sameValue = (a, b) => String(a == null ? "" : a) === String(b == null ? "" : b);
+  // An OCSA ID left empty in an edit (part 420): the API reads an empty or null employeeId as "give me the next", so an
+  // active staff account holding one keeps it. An empty field is therefore never sent, and the number stays as it is;
+  // typing another number changes it. The field says so under it.
+  const leaveOcsaId = (body) => { if (body.employeeId === undefined) return; const v = String(body.employeeId == null ? "" : body.employeeId).trim(); if (v) body.employeeId = v; else delete body.employeeId; };
   const submitEdit = async () => {
-    setHireSaid(null);
+    setHireSaid(null); setEmpIdError("");
     const was = editForm.was || {};
     const body = withHireDate(Object.assign({}, editForm));
     delete body.id; delete body.was; delete body.read;
@@ -3263,8 +3306,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     Object.keys(body).forEach(k => { if (sameValue(body[k], was[k])) delete body[k]; });
     // A rate emptied clears it: since the API's part 346 a PATCH takes null for that and refuses "" (users.badRate).
     if (body.hourlyRate === "") body.hourlyRate = null;
+    leaveOcsaId(body);
     if (!Object.keys(body).length) { setEditForm(null); return; }
-    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: editForm.read, labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
+    try { await saveSince(af, "/api/users/" + editForm.id, { method: "PATCH", body, read: editForm.read, labels: userFieldLabels }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { if (isEmployeeIdTaken(e)) setEmpIdError(e.message || tr("That {0} is already given to someone.", ocsaIdWord())); else if (isBadHireDate(e)) setHireSaid({ at: "edit", text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
   };
 
   // Photo upload
@@ -3315,13 +3359,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       if (!canEmploy) { delete body.role; delete body.employmentType; delete body.hourlyRate; }
       Object.keys(body).forEach(k => { if (k !== "preferredLanguage" && sameValue(body[k], was[k])) delete body[k]; });
       if (body.hourlyRate === "") body.hourlyRate = null;
+      leaveOcsaId(body);
       if (!Object.keys(body).length) { setProfileEdit(null); return; }
       await saveSince(af, "/api/users/" + profile.user.id, { method: "PATCH", body, read: profile.user, labels: userFieldLabels });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
     } catch (e) {
-      if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); }
+      if (isEmployeeIdTaken(e)) { setEmpIdError(e.message || tr("That {0} is already given to someone.", ocsaIdWord())); }
       else if (isBadHireDate(e)) { setHireSaid({ at: "profile", text: e.message || tr("Request failed") }); }
       else { showToast(e.message, "error"); }
     }
@@ -3350,7 +3395,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // list as well as from a profile, and it is there when the save comes back, wherever that is.
   const addedWindow = added && <Mdl name="staff-added" t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontSize: 13, color: t.textSec, marginBottom: added.welcome ? 6 : 14 }}>{added.name}</div>
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: added.welcome || added.ocsaId ? 6 : 14 }}>{added.name}</div>
+      {added.ocsaId ? <div data-added-ocsa-id={added.ocsaId} role="status" style={{ fontSize: 13, color: t.text, fontWeight: 600, lineHeight: 1.5, marginBottom: added.welcome ? 6 : 14 }}>{tr("Their {0} is {1}.", ocsaIdWord(), added.ocsaId)}</div> : null}
       {added.welcome ? <div data-added-welcome={welcomeWent(added.welcome) ? "sent" : "not-sent"} role="status" style={{ fontSize: 13, color: welcomeWent(added.welcome) ? GR : OR, fontWeight: 600, lineHeight: 1.5, marginBottom: 14 }}>{welcomeWent(added.welcome) ? tr("Welcome email sent to {0}.", added.email) : tr("Welcome email not sent: {0}", welcomeWhy(added.welcome))}</div> : null}
       {added.welcome !== undefined && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("If the email does not reach them, give them this PIN.")}</div>}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
@@ -3432,7 +3478,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div style={{ fontSize: 11, color: t.textMut }}>{tr("Employee ID")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13, fontFamily: "monospace" }}>{u.employeeId || tr("Not set")}</div></div>
+              <div data-profile-ocsa-id={u.employeeId || ""} style={{ fontSize: 11, color: t.textMut }}>{ocsaIdWord()}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13, fontFamily: "monospace" }}>{u.employeeId || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Badge number")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13, fontFamily: "monospace" }}>{u.badgeNumber || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.phone || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.email || tr("Not set")}</div></div>
@@ -3457,7 +3503,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>{tr("First Name")}</Lbl><Inp t={t} value={pe.firstName || ""} onChange={e => setProfileEdit({ ...pe, firstName: e.target.value })} /></div>
               <div><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={pe.lastName || ""} onChange={e => setProfileEdit({ ...pe, lastName: e.target.value })} /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={pe.employeeId || ""} onChange={e => { setProfileEdit({ ...pe, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
+            <div style={{ marginBottom: 10 }}><Lbl>{ocsaIdWord()}</Lbl><Inp t={t} aria-label={ocsaIdWord()} data-staff-ocsa-id="profile" value={pe.employeeId || ""} onChange={e => { setProfileEdit({ ...pe, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} style={empIdError ? { borderColor: RD } : undefined} />{empIdError ? <div role="alert" data-staff-ocsa-id-said="" style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div> : <div data-staff-ocsa-id-hint="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Leave as is, or type a new number.")}</div>}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={pe.phone || ""} onChange={e => setProfileEdit({ ...pe, phone: e.target.value })} /></div>
               <div><Lbl>{tr("Email")}</Lbl><Inp t={t} value={pe.email || ""} onChange={e => setProfileEdit({ ...pe, email: e.target.value })} type="email" /></div>
@@ -3642,7 +3688,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="staff" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input data-list-search="staff" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, {0} ID, phone, role", clientConfig.company.brandTag)} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       {roster && <Btn t={t} v="ghost" onClick={() => { if (onRoute) onRoute(["roster"]); }} style={{ minHeight: 44 }} data-roster-open="">{tr("Roster check")}</Btn>}{welcomeAllShown(user, staff) && <WelcomeAllButton t={t} onOpen={() => setWelcomeAll(true)} />}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
@@ -3680,7 +3726,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone *")}</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder={tr("{0} (no dashes needed)", "2155550000")} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Email *")}</Lbl><Inp t={t} value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} placeholder={tr("name@email.com")} type="email" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={addForm.employeeId || ""} onChange={e => { setAddForm({ ...addForm, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>{ocsaIdWord()}</Lbl><Inp t={t} aria-label={ocsaIdWord()} data-staff-ocsa-id="add" value={addForm.employeeId || ""} onChange={e => { setAddForm({ ...addForm, employeeId: e.target.value }); setEmpIdError(""); }} style={empIdError ? { borderColor: RD } : undefined} />{empIdError ? <div role="alert" data-staff-ocsa-id-said="" style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div> : <div data-staff-ocsa-id-hint="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Given automatically when left empty")}</div>}</div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>
       {hireDateField("add", addForm, setAddForm, { marginBottom: 12 })}
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={addForm.employmentType || ""} onChange={e => setAddForm({ ...addForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
@@ -3694,7 +3740,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {canEmploy && <div style={{ marginBottom: 12 }}><Lbl>{tr("Role")}</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles", null, true)} /></div>}
       {hireDateField("edit", editForm, setEditForm, { marginBottom: 12 })}
       {canEmploy && <div style={{ marginBottom: 12 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={editForm.employmentType || ""} onChange={e => setEditForm({ ...editForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>}
-      <div style={{ marginBottom: 12 }}><Lbl>{tr("Employee ID")}</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder={`${clientConfig.employee.idPrefix}-0042`} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{ocsaIdWord()}</Lbl><Inp t={t} aria-label={ocsaIdWord()} data-staff-ocsa-id="edit" value={editForm.employeeId || ""} onChange={e => { setEditForm({ ...editForm, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} style={empIdError ? { borderColor: RD } : undefined} />{empIdError ? <div role="alert" data-staff-ocsa-id-said="" style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div> : <div data-staff-ocsa-id-hint="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Leave as is, or type a new number.")}</div>}</div>
       {canEmploy && <div style={{ marginBottom: 16 }}><Lbl>{tr("Hourly Rate")}</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save Changes")}</Btn></div>
     </div></Mdl>}
@@ -4290,7 +4336,7 @@ function SitesPage({ af, token, showToast, maintenance = null, canManageSites = 
   // a word here is drawn as that word, and any other as the name with its underscores as spaces,
   // which is what the window has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
+  const fieldWord = { employee_id: ocsaIdWord(), employeeId: ocsaIdWord(), title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category"), serviceCategory: tr("Service category") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
   // Any other key the API writes is read as words, and through the table when it has them (Step 196).
   const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
@@ -7842,7 +7888,7 @@ function LeavePolicyWindow({ af, t, id, kinds = [], canManage = false, onClose, 
 const LEAVE_FILE_WORDS = {
   badHeader: "The first line names the columns: person, period_start, period_end and hours (or person, period and hours).",
   empty: "The file has no lines of hours.",
-  personRequired: "Name the person by badge number or employee ID.",
+  personRequired: "Name the person by badge number or {0} ID.",
   badPeriod: "The period needs a first and a last day, YYYY-MM-DD, the first on or before the last.",
   periodAhead: "The period ends after today.",
   periodTooLong: "A period is 62 days at most.",
@@ -7919,7 +7965,7 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
   const post = once(() => send(false));
   const wouldPost = check && !check.duplicate ? (check.file && check.file.postedCount != null ? Number(check.file.postedCount) : (check.lines || []).filter(l => l.outcome === "posted").length) : 0;
   const wouldSkip = check && !check.duplicate ? (check.file && check.file.skippedCount != null ? Number(check.file.skippedCount) : (check.lines || []).length - wouldPost) : 0;
-  const problemOf = (line) => { const p = (read ? read.problems : []).find(x => x.line === line); return p ? tr(LEAVE_FILE_WORDS[p.word]) : ""; };
+  const problemOf = (line) => { const p = (read ? read.problems : []).find(x => x.line === line); return p ? tr(LEAVE_FILE_WORDS[p.word], clientConfig.company.brandTag) : ""; };
   const refusedOf = (line) => { const p = (said ? said.lines : []).find(x => x.line === line); return p ? p.message : ""; };
   const local = read ? read.problems.length : 0;
   const cols = [
@@ -7941,7 +7987,7 @@ function LeaveHoursWindow({ af, t, onClose, onPosted }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload an hours file")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The payroll system's hours export, as a CSV: a column person (badge number or employee ID), period_start and period_end (or period), and hours. Hours worked post leave for policies given per hours worked.")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The payroll system's hours export, as a CSV: a column person (badge number or {0} ID), period_start and period_end (or period), and hours. Hours worked post leave for policies given per hours worked.", clientConfig.company.brandTag)}</div>
     {!answer && <div style={{ marginBottom: 12 }}>
       <input ref={ref} type="file" accept=".csv,text/csv" onChange={pick} aria-label={tr("Choose the CSV")} style={{ display: "none" }} />
       <Btn t={t} v="ghost" data-leave-file-choose="" onClick={() => ref.current && ref.current.click()} style={{ minHeight: 44 }}>{file ? tr("Choose another file") : tr("Choose the CSV")}</Btn>
@@ -8654,7 +8700,7 @@ function TagPicker({ af, t, channelId, onPick, onClose }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, flex: 1 }}>{tr("Tag someone")}</div>
       <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={16} c={t.textMut} /></button>
     </div>
-    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
+    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={findPersonWords()} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
     <div style={{ overflowY: "auto", padding: "0 6px 6px" }}>
       {failed && <LoadFailed t={t} onRetry={load} />}
       {!failed && members === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
@@ -8842,7 +8888,7 @@ function WsPeoplePicker({ t, people, chosen, onToggle, owners = null, onOwner, m
   const find = usePersonFind();
   const shown = (people || []).filter(p => find(p, p.name, q));
   return (<div>
-    <Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search people")} style={{ marginBottom: 8 }} />
+    <Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={findPersonWords()} aria-label={tr("Search people")} style={{ marginBottom: 8 }} />
     <div data-people-picker="" style={{ maxHeight: 260, overflowY: "auto", border: "1px solid " + t.border, borderRadius: R.md }}>
       {people === null ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
         : shown.length === 0 ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{people.length === 0 ? tr("No one is on this list.") : tr("No one matches.")}</div>
@@ -9813,7 +9859,7 @@ function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
     <Crd t={t} style={{ marginBottom: 14 }}>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("People")}</Lbl>
         {f.userIds.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>{f.userIds.map(id => <button key={id} onClick={() => set("userIds", f.userIds.filter(x => x !== id))} aria-label={tr("Remove {0}", nameOf(id))} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "4px 12px", borderRadius: R.pill, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.text, fontSize: 12, cursor: "pointer" }}>{nameOf(id)} <XI sz={12} c={t.textMut} /></button>)}</div>}
-        <Inp t={t} value={who} onChange={e => setWho(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search people")} />
+        <Inp t={t} value={who} onChange={e => setWho(e.target.value)} placeholder={findPersonWords()} aria-label={tr("Search people")} />
         {needle && matches.length === 0 && <div data-records-people-none="" style={{ padding: "10px 4px", fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>}
         {matches.length > 0 && <div data-records-people="" style={{ border: "1px solid " + t.border, borderRadius: R.md, marginTop: 4 }}>{matches.map(p => <button key={p.id} onClick={() => { set("userIds", f.userIds.concat([p.id])); setWho(""); }} style={{ display: "block", width: "100%", minHeight: 44, padding: "6px 12px", textAlign: "left", border: "none", background: "transparent", color: t.text, fontSize: 13, cursor: "pointer" }}>{p.name}</button>)}</div>}
       </div>
@@ -10254,7 +10300,7 @@ function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpt
           {!testOffice && aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: siteShown(s) }))]} style={{ minHeight: 44 }} />}
           {!testOffice && aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
           {!testOffice && aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
-            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search by name, badge number or employee ID")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
+            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={findPersonWords()} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
             <div style={{ maxHeight: 220, overflowY: "auto" }}>
               {people.map(p => { const on = userIds.indexOf(p.id) >= 0; return (<label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 6px", cursor: "pointer", fontSize: 13, color: t.text }}>
                 <input type="checkbox" checked={on} onChange={() => setUserIds(ids => (on ? ids.filter(x => x !== p.id) : [...ids, p.id]))} style={{ width: 18, height: 18 }} />
@@ -14703,7 +14749,7 @@ function attendanceRosterPage({ name, day, rows, typeWords = {}, site = "", staf
   return { code: "OCSA-FRM-033", site, range: day ? { start: day, end: day } : null, parts: [
     { h: "Session Details", fields: [["Training Title or Topic", name], ["Training Type", types.join(", ")], ["Related Document No.", docNo || ""], ["Date", trainingDayWords(day, true)], ["Start Time / End Time", ""], ["Site or Location", site], ["Delivery Method", ""], ["Language(s) Delivered In", trainingGivenIn(rows).join(", ")], ["Translation Method", ""], ["Understanding Verified By", ""], ["Materials or Equipment Used", ""]] },
     { h: "Trainer", fields: [["Trainer Name", trainers.join(", ")], ["Trainer Role", ""], ["Qualification Held", ""], ["Trainer Signature", ""]] },
-    { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", "Employee ID", "Signature", "Understood"], rows: people.map((r) => ["", r.user_name || "", rosterEmployeeId(staff, r.user_id), "", ""]), least: 20 },
+    { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", ocsaIdWord(), "Signature", "Understood"], rows: people.map((r) => ["", r.user_name || "", rosterEmployeeId(staff, r.user_id), "", ""]), least: 20 },
     { fields: [["Total attendees this session", String(people.length)]] },
     { h: "Trainer Attestation", note: ROSTER_ATTESTATION, sign: [["Trainer", ""], ["Reviewed By", "Field Lead"], ["Filed By", "Controller"]] },
   ] };
@@ -22862,7 +22908,6 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
   });
 
   const card = { background: t.card, border: "1px solid " + t.borderSolid, borderRadius: 10, padding: 18, marginBottom: 16 };
-  const selSt = { padding: "8px 12px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", minWidth: 260 };
   const segBtn = (active, color) => ({ padding: "5px 10px", borderRadius: 6, border: "1px solid " + (active ? color : t.borderSolid), background: active ? color : "transparent", color: active ? "#fff" : t.textMut, fontSize: 11, fontFamily: FONT_BODY, cursor: "pointer", fontWeight: active ? 700 : 500 });
   // What a capability's row says it is now, a whole sentence for each state it can be in.
   const currentlyLine = (eff, st) => (st === "locked" ? tr("Currently: Allowed (admins always allowed)")
@@ -22878,12 +22923,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
         {loadingStaff ? (
           <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>{tr("Loading team...")}</div>
         ) : (
-          <select value={selId} onChange={(e) => onSelect(e.target.value)} style={selSt}>
-            <option value="">{tr("Select a team member...")}</option>
-            {staff.map((u) => (
-              <option key={u.id} value={u.id}>{((((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim() || u.name || u.full_name || u.fullName || u.email || tr("User {0}", u.id)) + (u.role ? "  (" + roleOf(u.role) + ")" : ""))}</option>
-            ))}
-          </select>
+          <PersonPick t={t} aria-label={tr("Select a team member...")} data-perm-person="" value={selId} onChange={(e) => onSelect(e.target.value)} options={[{ v: "", l: tr("Select a team member...") }].concat(personRows(staff, (u) => (u.role ? roleOf(u.role) : "")))} style={{ maxWidth: 420 }} />
         )}
       </div>
 
@@ -24816,7 +24856,7 @@ function FormPersonPicker({ t, name, value, onChange, people = [], disabled = fa
     </div>);
   }
   return (<div data-person-picker="">
-    <Inp t={t} aria-label={name} placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} disabled={disabled} style={{ minHeight: 44 }} />
+    <Inp t={t} aria-label={name} placeholder={findPersonWords()} value={q} onChange={e => setQ(e.target.value)} disabled={disabled} style={{ minHeight: 44 }} />
     {!disabled && <div role="listbox" aria-label={name} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
       {matches.map(u => <button key={String(u.id)} role="option" aria-selected={false} onClick={() => { onChange({ id: u.id, name: formPersonName(u) }); setOpen(false); setQ(""); }} style={row}
         onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>{formPersonName(u)}{u.role ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{roleWord(u.role)}</span> : null}</button>)}
@@ -26984,6 +27024,79 @@ const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added
 // Where an alias came from, as the API stores it (user_aliases.source), drawn as its word.
 const ALIAS_SOURCE_WORDS = { manual_link: "Linked by hand", admin_added: "Added by an admin", auto_learned: "Learned from a match" };
 const aliasSourceWord = (v) => (ALIAS_SOURCE_WORDS[v] ? tr(ALIAS_SOURCE_WORDS[v]) : String(v || ""));
+
+// ===== LINK A SUBMISSION TO A RECORD, WITHOUT AN ID (Round 15, part 420) =====
+// Link to Record keeps the choice of the kind of record and picks the record itself from a list, so nobody types or
+// pastes an id. A person is picked from the people of users-for-linking; a site from the sites list; an HR document,
+// training record or onboarding step from that person's own list once the person is picked; an inspection, issue,
+// assigned task, shift or shift pickup from that site's own list once the site is picked. Each list is read from a
+// route the dashboard already reads for the same records, and each record is named by its title and its date, newest
+// first, in the searchable picker. A list read with a site is also kept to that site here when its rows name their
+// site, so a route that answers every site's records still offers the one site's alone. The link is sent as it always was, POST
+// /api/jotform/submissions/:id/link { entity_type, entity_id }.
+const LINK_BY_PERSON = ["hr_document", "hr_training", "hr_onboarding_step"];
+const LINK_BY_SITE = ["inspection", "issue", "task", "shift", "pickup"];
+// Shifts and pickups are read over a window of days: 90 back, where a filed form is most often about, and 30 ahead.
+const LINK_DAYS_BACK = 90;
+const LINK_DAYS_AHEAD = 30;
+const linkListOf = (d, key) => (Array.isArray(d) ? d : d && Array.isArray(d[key]) ? d[key] : []);
+const linkSiteOf = (r) => String((r && (r.site_id != null ? r.site_id : r.siteId)) || "");
+// The rows of one site, where the rows say their site; a list whose rows say none is the route's own answer for it.
+const linkKeepSite = (rows, site) => (rows.some(r => linkSiteOf(r)) ? rows.filter(r => linkSiteOf(r) === String(site)) : rows);
+const linkTimes = (r) => (r.start_time || r.startTime ? tr("{0} to {1}", patternTime(r.start_time || r.startTime), patternTime(r.end_time || r.endTime)) : "");
+// Each kind's list: the route, the rows in the answer, and each row's title and the day it is dated by.
+const LINK_LISTS = {
+  hr_document: { read: (o) => "/api/hr/documents?user_id=" + encodeURIComponent(o), title: (r) => r.title || r.document_name || r.file_name || "", day: (r) => r.created_at || r.uploaded_at || r.expiry_date || "" },
+  hr_training: { read: (o) => "/api/hr/training?user_id=" + encodeURIComponent(o), title: (r) => r.training_name || r.title || "", day: (r) => r.completed_date || r.created_at || "" },
+  hr_onboarding_step: { read: (o) => "/api/hr/onboarding/" + encodeURIComponent(o), key: "steps", title: (r) => r.step_name || r.title || "", day: (r) => r.completed_date || r.due_date || r.created_at || "" },
+  inspection: { read: (o) => "/api/inspections/scheduled?site_id=" + encodeURIComponent(o), title: (r) => r.template_name || r.name || r.title || "", day: (r) => r.scheduled_date || r.completed_at || r.created_at || "" },
+  issue: { read: (o) => pagedPath("/api/issues", { site_id: o }, ""), key: "issues", title: (r) => r.title || "", day: (r) => r.reported_at || r.created_at || "" },
+  task: { read: (o) => "/api/clock/tasks/assigned-all?site_id=" + encodeURIComponent(o), title: (r) => r.label || r.title || r.task_name || "", day: (r) => r.due_date || r.created_at || "" },
+  shift: { read: (o, from, to) => "/api/schedule/calendar?start_date=" + from + "&end_date=" + to + "&site_id=" + encodeURIComponent(o), key: "scheduled_shifts", title: (r) => [r.user_name || r.userName || "", linkTimes(r)].filter(Boolean).join(", "), day: (r) => r.scheduled_date || r.shift_date || "" },
+  pickup: { read: (o, from, to) => "/api/pickups?start_date=" + from + "&end_date=" + to + "&site_id=" + encodeURIComponent(o), title: (r) => [linkTimes(r), r.building_name || r.service_category || ""].filter(Boolean).join(", "), day: (r) => r.scheduled_date || r.shift_date || "" },
+};
+const linkDayShift = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return companyDayOf(d); };
+function LinkRecordPick({ af, t, type, owner, value, onPick, reloadKey = 0 }) {
+  const [st, setSt] = useState({ rows: null, failed: false, next: "" });
+  const [again, setAgain] = useState(0);
+  const spec = LINK_LISTS[type];
+  const bySite = LINK_BY_SITE.indexOf(type) >= 0;
+  useEffect(() => {
+    if (!spec || !owner) { setSt({ rows: null, failed: false, next: "" }); return undefined; }
+    let alive = true;
+    setSt({ rows: null, failed: false, next: "" });
+    af(spec.read(owner, linkDayShift(-LINK_DAYS_BACK), linkDayShift(LINK_DAYS_AHEAD))).then(d => {
+      if (!alive) return;
+      const all = linkListOf(d, spec.key || "").filter(r => r && r.id != null);
+      const rows = bySite ? linkKeepSite(all, owner) : all;
+      setSt({ rows, failed: false, next: d && d.nextCursor ? String(d.nextCursor) : "" });
+    }).catch(e => { if (alive) { console.warn("Link list:", e.message); setSt({ rows: null, failed: true, next: "" }); } });
+    return () => { alive = false; };
+  }, [type, owner, again, reloadKey]);
+  // An issue list pages: Show more reads the next page with its cursor and adds what it holds.
+  const more = async () => {
+    if (!st.next) return;
+    try {
+      const d = await af(pagedPath("/api/issues", { site_id: owner }, st.next));
+      const page = linkKeepSite(linkListOf(d, "issues").filter(r => r && r.id != null), owner);
+      setSt(s0 => ({ rows: pagedAppend(s0.rows, page, r => r.id), failed: false, next: d && d.nextCursor ? String(d.nextCursor) : "" }));
+    } catch (e) { console.warn("Link list:", e.message); }
+  };
+  if (!owner) return null;
+  if (st.failed) return <LoadFailed t={t} onRetry={() => setAgain(n => n + 1)} style={{ padding: "8px 0", textAlign: "left" }} />;
+  if (!st.rows) return <div data-link-record-loading="" style={{ fontSize: 12, color: t.textMut, minHeight: 44, display: "flex", alignItems: "center" }}>{tr("Loading...")}</div>;
+  const sortKey = (r) => companyDayOf(spec.day(r)) + " " + String(r.start_time || r.startTime || "");
+  const options = st.rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a))).map(r => {
+    const day = spec.day(r);
+    return { v: String(r.id), l: spec.title(r) || tr("Untitled"), sub: day ? fdLong(day) : tr("No date") };
+  });
+  return (<div>
+    <PersonPick t={t} aria-label={tr("Record")} data-link-record="" value={value} onChange={e => onPick(e.target.value)} options={[{ v: "", l: tr("Choose a record") }].concat(options)}
+      searchText={tr("Search by title or date")} noneText={tr("Nothing of this kind is on file here.")} noMatchText={tr("Nothing matches.")} />
+    {st.next ? <button type="button" data-link-record-more="" onClick={more} style={{ minHeight: 44, marginTop: 4, padding: "0 6px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Show more")}</button> : null}
+  </div>);
+}
+
 function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false, canOpenCase = false, canReadHrRecords = true }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
@@ -27027,6 +27140,11 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   const [bulkUploading, setBulkUploading] = useState(false);
   const [autoLinking, setAutoLinking] = useState(false);
   const [usersForLinking, setUsersForLinking] = useState([]);
+  // The active people GET /api/jotform/users-for-linking answers, as the searchable picker's rows (part 420): found by
+  // name, OCSA ID or badge, each row with both, and two people with one name marked Same name.
+  const linkPeople = useMemo(() => personRows(usersForLinking), [usersForLinking]);
+  // The sites a record is linked to, or whose records are listed, by name (part 420).
+  const linkSites = useMemo(() => (sites || []).filter(x => x && x.id != null).map(x => ({ v: String(x.id), l: x.name || String(x.id) })).sort((a, b) => a.l.localeCompare(b.l)), [sites]);
   const [editForm, setEditForm] = useState(null);
   const [detailSub, setDetailSub] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -27505,7 +27623,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // again, so submissions from existing users (e.g., Sadon Powell)
   // accumulate as "Unmatched" until this button is clicked.
   const runAutoLink = async () => {
-    if (!window.confirm(tr("Re-run Auto-Link?\n\nThis scans every unlinked submission and matches it against the users table by employee ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.\n\nThis action is safe to run any number of times."))) return;
+    if (!window.confirm(tr("Re-run Auto-Link?\n\nThis scans every unlinked submission and matches it against the users table by {0} ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.\n\nThis action is safe to run any number of times.", clientConfig.company.brandTag))) return;
     setAutoLinking(true);
     try {
       const d = await af("/api/jotform/auto-link", { method: "POST" });
@@ -27520,7 +27638,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       if (s.matched > 0 && s.by_tier) {
         const bt = s.by_tier;
         const tierParts = [];
-        if (bt.employee_id) tierParts.push(tr("ID {0}", bt.employee_id));
+        if (bt.employee_id) tierParts.push(ocsaIdOf(bt.employee_id));
         if (bt.email) tierParts.push(tr("email {0}", bt.email));
         if (bt.email_alias) tierParts.push(tr("email-alias {0}", bt.email_alias));
         if (bt.name) tierParts.push(tr("name {0}", bt.name));
@@ -27608,17 +27726,30 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     catch (e) { showToast(e.message, "error"); }
   };
 
+  // The link to a record (part 420): sent once a record is picked. The record was listed a moment ago, so the API's 404
+  // can only mean it was removed meanwhile; the window says so, stays open and reads its list again.
+  const [linkReload, setLinkReload] = useState(0);
   const submitLink = async () => {
-    if (!linkModal.entity_type || !linkModal.entity_id) { showToast(tr("Select entity type and ID"), "error"); return; }
+    if (!linkModal.entity_type || !linkModal.entity_id) { showToast(tr("Choose the record to link."), "error"); return; }
     try {
       await af("/api/jotform/submissions/" + linkModal.submission_id + "/link", {
         method: "POST",
         body: { entity_type: linkModal.entity_type, entity_id: linkModal.entity_id }
       });
       showToast(tr("Linked"));
+      const subId = linkModal.submission_id;
       setLinkModal(null);
       loadSubmissions(false);
-    } catch (e) { showToast(e.message, "error"); }
+      if (detailSub && detailSub.meta && String(detailSub.meta.id) === String(subId)) openSubmissionDetail({ id: subId });
+    } catch (e) {
+      if (e.status === 404 || /target entity not found/i.test(e.message || "")) {
+        showToast(tr("That record was removed after the list was read. Choose another."), "error");
+        setLinkModal(m0 => (m0 ? { ...m0, entity_id: "" } : m0));
+        setLinkReload(n => n + 1);
+        return;
+      }
+      showToast(e.message, "error");
+    }
   };
 
   // Session 21: fetch PDF as blob (binary payload, bypasses af which expects JSON)
@@ -27725,7 +27856,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         {tabs.map(tb => (
-          <button key={tb.id} onClick={() => pickTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
+          <button key={tb.id} data-forms-tab={tb.id} onClick={() => pickTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
       </div>
 
@@ -27738,7 +27869,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         {/* THE SECTION SWITCH, with the buttons of the section that is open beside it */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
           {SECTIONS.map(sec => (
-            <button key={sec.id} onClick={() => setJotSection(sec.id)} aria-pressed={jotSection === sec.id} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (jotSection === sec.id ? GO : t.border), background: jotSection === sec.id ? t.goldBg : "transparent", color: jotSection === sec.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{sec.l}</button>
+            <button key={sec.id} data-jot-section={sec.id} onClick={() => setJotSection(sec.id)} aria-pressed={jotSection === sec.id} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (jotSection === sec.id ? GO : t.border), background: jotSection === sec.id ? t.goldBg : "transparent", color: jotSection === sec.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{sec.l}</button>
           ))}
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
             {inbox && <Btn t={t} v="ghost" onClick={runAutoLink} disabled={autoLinking} style={{ fontSize: 12, padding: "8px 14px" }}>{autoLinking ? tr("Linking...") : tr("Re-run Auto-Link")}</Btn>}
@@ -27848,7 +27979,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.linked_entity_type ? <span>{entityWord(s.linked_entity_type)}</span> : <span style={{ color: t.textMut }}>--</span>}</td>
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.expiry_date ? fdLong(s.expiry_date) : "--"}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
-                    <button onClick={() => openSubmissionDetail(s)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", fontSize: 12 }}>{tr("View")}</button>
+                    <button data-sub-view={s.id} onClick={() => openSubmissionDetail(s)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", fontSize: 12 }}>{tr("View")}</button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -28258,7 +28389,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           {/* EXPLAINER */}
           <div style={{ padding: "10px 14px", borderRadius: 8, background: t.hover, fontSize: 11, color: t.textSec, marginBottom: 14, lineHeight: 1.6 }}>
             <strong style={{ color: t.text }}>{tr("How aliases work.")} </strong>
-            {tr("When a submitter's name or email does not exactly match a user record, auto-link falls back to the alias table. Aliases are added in two ways: (a) automatically whenever an admin manually links a submission to a user (source = manual_link), and (b) explicitly in this tab (source = admin_added). The five-tier matching order is: employee ID exact, email exact, email alias, name exact, name alias. Each alias's last_matched_at and match_count show when and how often it has helped.")}
+            {tr("When a submitter's name or email does not exactly match a user record, auto-link falls back to the alias table. Aliases are added in two ways: (a) automatically whenever an admin manually links a submission to a user (source = manual_link), and (b) explicitly in this tab (source = admin_added). The five-tier matching order is: {0} ID exact, email exact, email alias, name exact, name alias. Each alias's last_matched_at and match_count show when and how often it has helped.", clientConfig.company.brandTag)}
           </div>
 
           {/* ADD FORM */}
@@ -28267,16 +28398,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 1.6fr 1fr auto", gap: 10, alignItems: "end" }}>
               <div>
                 <Lbl>{tr("User")}</Lbl>
-                <select
-                  value={aliasAddForm.user_id}
-                  onChange={e => setAliasAddForm({ ...aliasAddForm, user_id: e.target.value })}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid " + t.border, background: t.inputBg, color: t.text, fontSize: 12 }}
-                >
-                  <option value="">{tr("Select user...")}</option>
-                  {usersForLinking.map(u => (
-                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.email || u.role || tr("no email")})</option>
-                  ))}
-                </select>
+                <PersonPick t={t} aria-label={tr("User")} data-alias-person="" value={aliasAddForm.user_id} onChange={e => setAliasAddForm({ ...aliasAddForm, user_id: e.target.value })} options={[{ v: "", l: tr("Select user...") }].concat(linkPeople)} style={{ fontSize: 12 }} />
               </div>
               <div>
                 <Lbl>{tr("Type")}</Lbl>
@@ -28293,6 +28415,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 <Lbl>{tr("Value (lowercased automatically)")}</Lbl>
                 <Inp
                   t={t}
+                  data-alias-value=""
                   placeholder={aliasAddForm.alias_type === "email" ? tr("jdoe.personal@gmail.com") : tr("first last as they submitted")}
                   value={aliasAddForm.alias_value}
                   onChange={e => setAliasAddForm({ ...aliasAddForm, alias_value: e.target.value })}
@@ -28307,7 +28430,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   onChange={e => setAliasAddForm({ ...aliasAddForm, notes: e.target.value })}
                 />
               </div>
-              <Btn t={t} onClick={addAlias} disabled={aliasAddBusy} style={{ fontSize: 12, padding: "9px 16px" }}>
+              <Btn t={t} data-alias-add="" onClick={addAlias} disabled={aliasAddBusy} style={{ fontSize: 12, padding: "9px 16px" }}>
                 {aliasAddBusy ? tr("Adding...") : tr("Add")}
               </Btn>
             </div>
@@ -28467,23 +28590,12 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Matched Employee")}</div>
                   {detailSub.meta.user_id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ color: t.text }}>{detailSub.meta.first_name + " " + detailSub.meta.last_name}</span>
+                      <span data-sub-matched={detailSub.meta.user_id} style={{ color: t.text }}>{detailSub.meta.first_name + " " + detailSub.meta.last_name}</span>
                       <button onClick={() => linkSubmissionToUser(detailSub.meta.id, null)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 10, textDecoration: "underline", padding: 0 }}>{tr("Unlink")}</button>
                     </div>
                   ) : (
                     <div>
-                      <select
-                        value=""
-                        onChange={e => { if (e.target.value) linkSubmissionToUser(detailSub.meta.id, e.target.value); }}
-                        style={{ background: t.bg2 || t.card, color: t.text, border: "1px solid " + t.border, borderRadius: 6, padding: "4px 8px", fontSize: 12, width: "100%", maxWidth: 220 }}
-                      >
-                        <option value="">{tr("Link to user...")}</option>
-                        {usersForLinking.map(u => (
-                          <option key={u.id} value={u.id}>
-                            {u.first_name} {u.last_name}{u.email ? " (" + u.email + ")" : ""}
-                          </option>
-                        ))}
-                      </select>
+                      <PersonPick t={t} aria-label={tr("Link to user...")} data-sub-link-person="" value="" onChange={e => { if (e.target.value) linkSubmissionToUser(detailSub.meta.id, e.target.value); }} options={[{ v: "", l: tr("Link to user...") }].concat(linkPeople)} style={{ maxWidth: 280, fontSize: 12 }} />
                       <div style={{ fontSize: 9, color: OR, fontStyle: "italic", marginTop: 2 }}>{tr("Unmatched")}</div>
                     </div>
                   )}
@@ -28501,7 +28613,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
               {!detailSub.meta.linked_entity_type && (
                 <div style={{ marginBottom: 14 }}>
-                  <Btn t={t} v="ghost" style={{ fontSize: 12, padding: "6px 12px" }} onClick={() => setLinkModal({ submission_id: detailSub.meta.id, entity_type: "hr_document", entity_id: "" })}>{tr("Link to Record")}</Btn>
+                  <Btn t={t} v="ghost" style={{ fontSize: 12, padding: "6px 12px" }} data-sub-link-record="" onClick={() => setLinkModal({ submission_id: detailSub.meta.id, entity_type: "hr_document", owner: "", entity_id: "" })}>{tr("Link to Record")}</Btn>
                 </div>
               )}
 
@@ -28605,21 +28717,35 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {/* ================ LINK MODAL ================ */}
       {linkModal && (
         <Mdl name="forms-link-modal" t={t} onClose={() => setLinkModal(null)}>
-          <div style={{ padding: 20 }}>
+          {/* Tall enough that a picker's open list fits inside the window under the record's field. */}
+          <div style={{ padding: 20, minHeight: 560, boxSizing: "border-box" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Link Submission to Record")}</div>
               <button onClick={() => setLinkModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
             </div>
             <div style={{ marginBottom: 12 }}><Lbl>{tr("Entity Type")}</Lbl>
-              <Sel options={ENTITY_TYPE_OPTS} value={linkModal.entity_type} onChange={e => setLinkModal({ ...linkModal, entity_type: e.target.value, entity_id: "" })} t={t} />
+              <Sel data-link-type="" aria-label={tr("Entity Type")} options={ENTITY_TYPE_OPTS} value={linkModal.entity_type} onChange={e => setLinkModal({ ...linkModal, entity_type: e.target.value, owner: "", entity_id: "" })} t={t} />
             </div>
-            <div style={{ marginBottom: 16 }}><Lbl>{tr("Record ID (UUID)")}</Lbl>
-              <Inp t={t} placeholder={tr("Paste the UUID of the target record")} value={linkModal.entity_id} onChange={e => setLinkModal({ ...linkModal, entity_id: e.target.value })} />
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 4, lineHeight: 1.5 }}>{tr("For HR documents, you can also link from the HR Records page by selecting a synced submission in the Add Document modal.")}</div>
-            </div>
+            {/* What is linked is picked, never typed (part 420): a person or a site itself, or a record of a person or a site. */}
+            {linkModal.entity_type === "user" && <div style={{ marginBottom: 16 }}><Lbl>{tr("Person")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Person")} data-link-person="" value={linkModal.entity_id} onChange={e => setLinkModal({ ...linkModal, entity_id: e.target.value })} options={[{ v: "", l: tr("Choose a person") }].concat(linkPeople)} />
+            </div>}
+            {linkModal.entity_type === "site" && <div style={{ marginBottom: 16 }}><Lbl>{tr("Site")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Site")} data-link-site="" value={linkModal.entity_id} onChange={e => setLinkModal({ ...linkModal, entity_id: e.target.value })} options={[{ v: "", l: tr("Choose a site") }].concat(linkSites)} searchText={tr("Search by name")} noneText={tr("No sites yet.")} noMatchText={tr("Nothing matches.")} />
+            </div>}
+            {LINK_BY_PERSON.indexOf(linkModal.entity_type) >= 0 && <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Person")} data-link-owner="" value={linkModal.owner || ""} onChange={e => setLinkModal({ ...linkModal, owner: e.target.value, entity_id: "" })} options={[{ v: "", l: tr("Choose a person") }].concat(linkPeople)} />
+            </div>}
+            {LINK_BY_SITE.indexOf(linkModal.entity_type) >= 0 && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
+              <PersonPick t={t} aria-label={tr("Site")} data-link-owner="" value={linkModal.owner || ""} onChange={e => setLinkModal({ ...linkModal, owner: e.target.value, entity_id: "" })} options={[{ v: "", l: tr("Choose a site") }].concat(linkSites)} searchText={tr("Search by name")} noneText={tr("No sites yet.")} noMatchText={tr("Nothing matches.")} />
+            </div>}
+            {(LINK_BY_PERSON.indexOf(linkModal.entity_type) >= 0 || LINK_BY_SITE.indexOf(linkModal.entity_type) >= 0) && linkModal.owner && <div style={{ marginBottom: 16 }}><Lbl>{tr("Record")}</Lbl>
+              <LinkRecordPick af={af} t={t} type={linkModal.entity_type} owner={linkModal.owner} value={linkModal.entity_id} reloadKey={linkReload} onPick={v => setLinkModal(m0 => ({ ...m0, entity_id: v }))} />
+            </div>}
+            {linkModal.entity_type === "hr_document" && <div style={{ fontSize: 10, color: t.textMut, marginTop: -8, marginBottom: 16, lineHeight: 1.5 }}>{tr("For HR documents, you can also link from the HR Records page by selecting a synced submission in the Add Document modal.")}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <Btn t={t} v="ghost" onClick={() => setLinkModal(null)}>{tr("Cancel")}</Btn>
-              <Btn t={t} onClick={submitLink}>{tr("Link|button")}</Btn>
+              <Btn t={t} data-link-submit="" onClick={submitLink} disabled={!linkModal.entity_id} style={linkModal.entity_id ? undefined : { opacity: 0.5, cursor: "default" }}>{tr("Link|button")}</Btn>
             </div>
           </div>
         </Mdl>
@@ -31823,7 +31949,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
         <div data-session-field="people"><div style={field}>{tr("Who attended")}</div>
           <Sel t={t} aria-label={tr("Who attended")} options={[{ v: "", l: tr("Everyone active") }, ...sites.map((s) => ({ v: String(s.id), l: siteShown(s) }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={tall} />
           {badLine("siteId")}
-          <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
+          <Inp t={t} aria-label={tr("Search by name")} placeholder={findPersonWords()} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" onClick={pickListed} style={tall}>{tr("Select all")}</Btn>}
             {picked.size > 0 && <Btn t={t} v="ghost" onClick={() => setPicked(new Set())} style={tall}>{tr("Clear selection")}</Btn>}
@@ -34382,7 +34508,7 @@ function AssignTrainingWindow({ af, t, sites = [], presetUserIds = [], showToast
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
             <Sel t={t} aria-label={tr("Site")} data-assign-site="" options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: siteShown(s0) })))} value={siteId} onChange={e => setSiteId(e.target.value)} style={tall} />
             <Sel t={t} aria-label={tr("Role")} data-assign-role="" options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} value={role} onChange={e => setRole(e.target.value)} style={tall} />
-            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={tr("Search by name, badge number or employee ID")} value={q} onChange={e => setQ(e.target.value)} style={tall} />
+            <Inp t={t} aria-label={tr("Search by name")} data-assign-search="" placeholder={findPersonWords()} value={q} onChange={e => setQ(e.target.value)} style={tall} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" data-assign-select-all="" onClick={() => setPicked(prev => { const next = new Set(prev); listed.forEach(p => next.add(p.id)); return next; })} style={tall}>{tr("Select all")}</Btn>}
@@ -34834,7 +34960,7 @@ async function printSessionRoster({ af, token, session, staff = [] }) {
       { h: "Session Details", fields: [["Training Title or Topic", [sn.title, sessionTopicsLine(sn)].filter(Boolean).join(": ")], ["Training Type", ""], ["Related Document No.", sessionDocsLine(sn)], ["Date", trainingDayWords(sn.day, true)], ["Start Time / End Time", ""], ["Site or Location", (sn.site && sn.site.name) || ""], ["Delivery Method", tr("In person, each attendee signed in on the app")], ["Language(s) Delivered In", lang ? tr(lang.word) : ""], ["Translation Method", ""], ["Understanding Verified By", tr("Each attendee ticked I understood this training")], ["Materials or Equipment Used", ""]] },
       { h: "Trainer", fields: [["Trainer Name", trainerName], ["Trainer Role", ""], ["Qualification Held", ""]] },
       { html: '<div class="note"><b>' + keptEsc(tr("Trainer Signature")) + "</b></div>" + sigHtml(trainerSig, sn.closedAt ? tr("Signed {0}", irWhen(sn.closedAt)) : tr("Not signed")) },
-      { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", "Employee ID", "Signed at", "Signature", "Understood"], rows: people.map((si, i) => ["", (si.person && si.person.name) || "", rosterEmployeeId(staff, si.person && si.person.id), si.signedAt ? irWhen(si.signedAt) : "", sigs[i] ? { img: sigs[i] } : "", tr("Yes")]) },
+      { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", ocsaIdWord(), "Signed at", "Signature", "Understood"], rows: people.map((si, i) => ["", (si.person && si.person.name) || "", rosterEmployeeId(staff, si.person && si.person.id), si.signedAt ? irWhen(si.signedAt) : "", sigs[i] ? { img: sigs[i] } : "", tr("Yes")]) },
       { fields: [["Total attendees this session", String(people.length)]] },
       { h: "Trainer Attestation", note: ROSTER_ATTESTATION },
       { html: sigHtml(trainerSig, [trainerName, sn.closedAt ? tr("Signed {0}", irWhen(sn.closedAt)) : ""].filter(Boolean).join(", ")) },

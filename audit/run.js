@@ -243,6 +243,9 @@ const SUITES = [
   // the robot's Rounds 6 and 7 left waiting, against the stub as the API is built at ocsa-api 06b6d1b (#171) with the
   // part413 layer (audit/part413-stub.js). Its own passes, like part405's.
   { name: "part413", mod: "./cases/part413", widths: [] },
+  // Part 420 (Round 15): find a person by typing everywhere, link a record without an id, and the OCSA ID, against the
+  // stub with the part420 layer (audit/part420-stub.js) under its scene round23. Its own passes, like part413's.
+  { name: "part420", mod: "./cases/part420", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

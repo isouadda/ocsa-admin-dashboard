@@ -99,6 +99,15 @@ const SHELL = "[data-nav-item]";
 // Part 413: the API's Rounds 17 to 21 as audit/part413-stub.js answers them under the scene round21, for a picture of a
 // screen that shows what they added; more names other scenes of the same stub, set and cleared with it.
 const r21 = (more) => (stubs, on) => stubs.setScene413(Object.assign({ round21: on }, on ? (more || {}) : Object.keys(more || {}).reduce((o, k) => Object.assign(o, { [k]: Array.isArray(more[k]) ? [] : null }), {})));
+// Part 420 (Round 15): the part420 layer's round23 over part 413's round21, for the screens that read what the API's
+// Round 23 answers: the people for linking with their OCSA ID and badge, two who share a name, and the OCSA ID given.
+const r23 = (more) => (stubs, on) => { r21()(stubs, on); stubs.setScene420(on ? Object.assign({ round23: true }, more || {}) : {}); };
+// A Jotform submission's window, from the Inbox (part 420).
+const openSubmission = async (c, id) => {
+  await click(c, "[data-forms-tab='jotform']"); await click(c, "[data-jot-section='inbox']");
+  await until(c, "[data-sub-view='" + id + "']"); await click(c, "[data-sub-view='" + id + "']");
+  await until(c, "[data-window='forms-detail-sub'] [data-sub-link-record]");
+};
 // A browser that can take alerts on this computer, answered by the page itself, the way audit/smoke.js
 // answers it: nothing is subscribed until Turn on alerts on this computer is pressed (Step 333).
 const fakePush = async (c) => {
@@ -819,7 +828,8 @@ const SHOTS = [
     act: async (c) => { await show(c, '[data-question="received_by"]'); } },
   { name: "jotform-maintenance", entry: "Sync the forms and their submissions from Jotform",
     open: "forms", ready: "table tbody tr",
-    act: async (c) => { await press(c, "Jotform"); await press(c, "Maintenance"); await until(c, 'button[aria-pressed="true"]'); await wait(600); } },
+    // By the tabs' own hooks (part 420): Maintenance by its name also finds Maintenance requests in the side panel.
+    act: async (c) => { await click(c, "[data-forms-tab='jotform']"); await click(c, "[data-jot-section='maintenance']"); await until(c, '[data-jot-section="maintenance"][aria-pressed="true"]'); await wait(600); } },
   { name: "jotform-inbox", entry: "Find the Jotform tools",
     open: "forms", ready: "table tbody tr",
     act: async (c) => { await press(c, "Jotform"); await until(c, 'button[aria-pressed="true"]'); await wait(600); } },
@@ -1608,7 +1618,7 @@ const SHOTS = [
       await until(c, "[data-doc-signed-language]");
       await top(c, "[data-doc-signed-language]", 260);
     } },
-  { name: "schedule-shift-picker", entry: "Pick a person by name, badge number or employee ID",
+  { name: "schedule-shift-picker", entry: "Pick a person by name, badge number or OCSA ID",
     open: "schedule", ready: "text=Tomasz Wisniewski",
     act: async (c) => {
       await press(c, "Schedule Shift"); await until(c, MODAL);
@@ -2095,6 +2105,36 @@ const SHOTS = [
     act: async (c) => { await show(c, "[data-certificate-resend='tc-1']"); } },
   { name: "staff-photo-remove", entry: "Remove a person's profile photo", arm: r21({ photoOn: "u-staff-7" }),
     open: "staff/u-staff-7", ready: "[data-profile-photo-remove]" },
+  // Round 15 (part 420): a submission's Link to user... found by typing, two who share a name told apart; Link to
+  // Record with a site's issues listed newest first; and Add Alias's User found by typing.
+  { name: "jotform-link-person", entry: "Link a Jotform submission to a person", arm: r23(),
+    open: "forms", ready: "[data-forms-tab='jotform']",
+    act: async (c) => {
+      await openSubmission(c, "js-3");
+      await click(c, "[data-sub-link-person] [data-person-pick-field]");
+      await c.page.locator("[data-sub-link-person] [data-person-pick-search]").fill("Quill");
+      await until(c, "[data-sub-link-person] [data-person-pick-same]"); await wait(300);
+    } },
+  { name: "jotform-link-record", entry: "Link a Jotform submission to a record", arm: r23(),
+    open: "forms", ready: "[data-forms-tab='jotform']",
+    act: async (c) => {
+      await openSubmission(c, "js-3");
+      await click(c, "[data-sub-link-record]"); await until(c, "[data-window='forms-link-modal'] [data-link-type]");
+      await c.page.locator("[data-window='forms-link-modal'] [data-link-type]").selectOption("issue");
+      await click(c, "[data-window='forms-link-modal'] [data-link-owner] [data-person-pick-field]");
+      await c.page.locator("[data-window='forms-link-modal'] [data-link-owner] [data-person-pick-search]").fill(seed.SITES[0].name);
+      await click(c, "[data-window='forms-link-modal'] [data-link-owner] [data-person-pick-option='" + seed.SITES[0].id + "']");
+      await until(c, "[data-window='forms-link-modal'] [data-link-record] [data-person-pick-field]");
+      await click(c, "[data-window='forms-link-modal'] [data-link-record] [data-person-pick-field]"); await wait(300);
+    } },
+  { name: "jotform-alias-add", entry: "Add an alias so a person's forms link to them", arm: r23(),
+    open: "forms", ready: "[data-forms-tab='jotform']",
+    act: async (c) => {
+      await click(c, "[data-forms-tab='jotform']"); await click(c, "[data-jot-section='maintenance']");
+      await until(c, "[data-alias-person]"); await top(c, "[data-alias-person]", 200);
+      await click(c, "[data-alias-person] [data-person-pick-field]");
+      await c.page.locator("[data-alias-person] [data-person-pick-search]").fill("Okonkwo"); await wait(300);
+    } },
 ];
 
 
